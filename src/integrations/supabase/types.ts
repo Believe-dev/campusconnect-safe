@@ -14,7 +14,366 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      conversations: {
+        Row: {
+          buyer_id: string
+          created_at: string
+          id: string
+          is_active: boolean | null
+          order_id: string | null
+          product_id: string | null
+          seller_id: string
+        }
+        Insert: {
+          buyer_id: string
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          order_id?: string | null
+          product_id?: string | null
+          seller_id: string
+        }
+        Update: {
+          buyer_id?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          order_id?: string | null
+          product_id?: string | null
+          seller_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversations_buyer_id_fkey"
+            columns: ["buyer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "conversations_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversations_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversations_seller_id_fkey"
+            columns: ["seller_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      messages: {
+        Row: {
+          content: string
+          conversation_id: string
+          created_at: string
+          flagged_reason: string | null
+          id: string
+          is_flagged: boolean | null
+          message_type: string | null
+          sender_id: string
+        }
+        Insert: {
+          content: string
+          conversation_id: string
+          created_at?: string
+          flagged_reason?: string | null
+          id?: string
+          is_flagged?: boolean | null
+          message_type?: string | null
+          sender_id: string
+        }
+        Update: {
+          content?: string
+          conversation_id?: string
+          created_at?: string
+          flagged_reason?: string | null
+          id?: string
+          is_flagged?: boolean | null
+          message_type?: string | null
+          sender_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_sender_id_fkey"
+            columns: ["sender_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      orders: {
+        Row: {
+          auto_confirm_at: string | null
+          buyer_id: string
+          commission_amount: number
+          confirmed_at: string | null
+          created_at: string
+          escrow_released: boolean | null
+          id: string
+          payment_method: string | null
+          payment_reference: string | null
+          product_id: string
+          quantity: number
+          seller_id: string
+          shipping_address: string | null
+          status: string
+          total_amount: number
+          tracking_info: string | null
+          updated_at: string
+        }
+        Insert: {
+          auto_confirm_at?: string | null
+          buyer_id: string
+          commission_amount?: number
+          confirmed_at?: string | null
+          created_at?: string
+          escrow_released?: boolean | null
+          id?: string
+          payment_method?: string | null
+          payment_reference?: string | null
+          product_id: string
+          quantity?: number
+          seller_id: string
+          shipping_address?: string | null
+          status?: string
+          total_amount: number
+          tracking_info?: string | null
+          updated_at?: string
+        }
+        Update: {
+          auto_confirm_at?: string | null
+          buyer_id?: string
+          commission_amount?: number
+          confirmed_at?: string | null
+          created_at?: string
+          escrow_released?: boolean | null
+          id?: string
+          payment_method?: string | null
+          payment_reference?: string | null
+          product_id?: string
+          quantity?: number
+          seller_id?: string
+          shipping_address?: string | null
+          status?: string
+          total_amount?: number
+          tracking_info?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "orders_buyer_id_fkey"
+            columns: ["buyer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "orders_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_seller_id_fkey"
+            columns: ["seller_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      products: {
+        Row: {
+          campus: string | null
+          category: string
+          condition: string | null
+          created_at: string
+          description: string | null
+          id: string
+          images: string[] | null
+          is_active: boolean | null
+          price: number
+          seller_id: string
+          stock_quantity: number
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          campus?: string | null
+          category: string
+          condition?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          images?: string[] | null
+          is_active?: boolean | null
+          price: number
+          seller_id: string
+          stock_quantity?: number
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          campus?: string | null
+          category?: string
+          condition?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          images?: string[] | null
+          is_active?: boolean | null
+          price?: number
+          seller_id?: string
+          stock_quantity?: number
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "products_seller_id_fkey"
+            columns: ["seller_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          account_type: string
+          avatar_url: string | null
+          bio: string | null
+          campus: string | null
+          created_at: string
+          email: string
+          full_name: string | null
+          id: string
+          is_banned: boolean | null
+          is_verified: boolean | null
+          phone_number: string | null
+          rating: number | null
+          student_id: string | null
+          total_reviews: number | null
+          university_name: string | null
+          updated_at: string
+          user_id: string
+          verification_type: string | null
+        }
+        Insert: {
+          account_type?: string
+          avatar_url?: string | null
+          bio?: string | null
+          campus?: string | null
+          created_at?: string
+          email: string
+          full_name?: string | null
+          id?: string
+          is_banned?: boolean | null
+          is_verified?: boolean | null
+          phone_number?: string | null
+          rating?: number | null
+          student_id?: string | null
+          total_reviews?: number | null
+          university_name?: string | null
+          updated_at?: string
+          user_id: string
+          verification_type?: string | null
+        }
+        Update: {
+          account_type?: string
+          avatar_url?: string | null
+          bio?: string | null
+          campus?: string | null
+          created_at?: string
+          email?: string
+          full_name?: string | null
+          id?: string
+          is_banned?: boolean | null
+          is_verified?: boolean | null
+          phone_number?: string | null
+          rating?: number | null
+          student_id?: string | null
+          total_reviews?: number | null
+          university_name?: string | null
+          updated_at?: string
+          user_id?: string
+          verification_type?: string | null
+        }
+        Relationships: []
+      }
+      reviews: {
+        Row: {
+          comment: string | null
+          created_at: string
+          id: string
+          order_id: string
+          rating: number
+          reviewed_id: string
+          reviewer_id: string
+        }
+        Insert: {
+          comment?: string | null
+          created_at?: string
+          id?: string
+          order_id: string
+          rating: number
+          reviewed_id: string
+          reviewer_id: string
+        }
+        Update: {
+          comment?: string | null
+          created_at?: string
+          id?: string
+          order_id?: string
+          rating?: number
+          reviewed_id?: string
+          reviewer_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reviews_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reviews_reviewed_id_fkey"
+            columns: ["reviewed_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "reviews_reviewer_id_fkey"
+            columns: ["reviewer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
