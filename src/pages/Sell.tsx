@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/enhanced-button';
@@ -33,6 +33,8 @@ const campuses = [
 ];
 
 const Sell = () => {
+  const [userProfile, setUserProfile] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -43,13 +45,52 @@ const Sell = () => {
     campus: ''
   });
   const [images, setImages] = useState<File[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  useEffect(() => {
+    checkSellerAccess();
+  }, []);
+
+  const checkSellerAccess = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        navigate('/auth');
+        return;
+      }
+
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('account_type, full_name')
+        .eq('user_id', user.id)
+        .single();
+
+      if (error) throw error;
+
+      if (profile.account_type === 'buyer') {
+        toast({
+          title: "Access Denied",
+          description: "Only seller accounts can list products. Upgrade your account in Profile settings.",
+          variant: "destructive",
+        });
+        navigate('/profile');
+        return;
+      }
+
+      setUserProfile(profile);
+    } catch (error) {
+      console.error('Error checking seller access:', error);
+      navigate('/auth');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    setSubmitting(true);
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -87,7 +128,7 @@ const Sell = () => {
         variant: "destructive",
       });
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
 
@@ -100,6 +141,22 @@ const Sell = () => {
   const removeImage = (index: number) => {
     setImages(images.filter((_, i) => i !== index));
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <main className="container mx-auto px-4 py-8">
+          <div className="max-w-2xl mx-auto">
+            <div className="animate-pulse">
+              <div className="h-8 bg-muted rounded mb-4"></div>
+              <div className="h-64 bg-muted rounded"></div>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -250,8 +307,8 @@ const Sell = () => {
                 )}
               </div>
 
-              <Button type="submit" disabled={loading} className="w-full">
-                {loading ? 'Listing Product...' : 'List Product'}
+              <Button type="submit" disabled={submitting} className="w-full">
+                {submitting ? 'Listing Product...' : 'List Product'}
               </Button>
             </form>
           </CardContent>

@@ -81,6 +81,7 @@ const Profile = () => {
           phone_number: profile.phone_number,
           campus: profile.campus,
           bio: profile.bio,
+          account_type: profile.account_type,
         })
         .eq('user_id', user.id);
 
@@ -289,6 +290,30 @@ const Profile = () => {
                     placeholder="Tell others about yourself..."
                     rows={3}
                   />
+                </div>
+
+                <div>
+                  <Label htmlFor="account_type">Account Type</Label>
+                  <Select
+                    value={profile.account_type}
+                    onValueChange={(value) => setProfile({ ...profile, account_type: value })}
+                    disabled={!editing}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="buyer">Buyer Only</SelectItem>
+                      <SelectItem value="seller">Seller Only</SelectItem>
+                      <SelectItem value="both">Both Buyer & Seller</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {profile.account_type === 'buyer' 
+                      ? 'Upgrade to seller to list products'
+                      : 'You can both buy and sell products'
+                    }
+                  </p>
                 </div>
 
                 {editing && (
