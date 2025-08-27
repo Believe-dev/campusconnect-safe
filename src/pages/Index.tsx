@@ -148,7 +148,7 @@ const Index = () => {
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             {user ? (
               <Button variant="secondary" size="xl" asChild>
-                <Link to="#marketplace">
+                <Link to="/marketplace">
                   <ShoppingBag className="h-5 w-5" />
                   Browse Products
                 </Link>

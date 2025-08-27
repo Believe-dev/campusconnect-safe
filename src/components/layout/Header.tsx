@@ -146,6 +146,18 @@ const Header = () => {
           <div className="flex items-center gap-4">
             {user ? (
               <>
+                {/* Marketplace */}
+                <Button variant="ghost" size="sm" asChild>
+                  <Link to="/marketplace">Browse</Link>
+                </Button>
+
+                {/* Cart */}
+                <Button variant="ghost" size="icon" asChild>
+                  <Link to="/cart">
+                    <ShoppingCart className="h-5 w-5" />
+                  </Link>
+                </Button>
+
                 {/* Sell Button */}
                 {profile?.account_type !== 'buyer' && (
                   <Button variant="seller" size="sm" asChild>
@@ -211,6 +223,14 @@ const Header = () => {
                         Profile
                       </Link>
                     </DropdownMenuItem>
+                    {profile?.account_type !== 'buyer' && (
+                      <DropdownMenuItem asChild>
+                        <Link to="/dashboard">
+                          <Shield className="mr-2 h-4 w-4" />
+                          Dashboard
+                        </Link>
+                      </DropdownMenuItem>
+                    )}
                     <DropdownMenuItem asChild>
                       <Link to="/settings">
                         <Settings className="mr-2 h-4 w-4" />
