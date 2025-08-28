@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/enhanced-button';
@@ -13,7 +14,8 @@ import {
   Filter,
   Star,
   MapPin,
-  Package
+  Package,
+  Shield
 } from 'lucide-react';
 import Header from '@/components/layout/Header';
 import { User } from '@supabase/supabase-js';
@@ -62,6 +64,7 @@ const Marketplace = () => {
   const [sortBy, setSortBy] = useState('newest');
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [cart, setCart] = useState<Set<string>>(new Set());
+  const navigate = useNavigate();
   const { toast } = useToast();
 
   useEffect(() => {
@@ -411,13 +414,17 @@ const Marketplace = () => {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {filteredProducts.map((product) => (
-              <Card key={product.id} className="group hover:shadow-lg transition-shadow">
+              <Card 
+                key={product.id} 
+                className="group hover:shadow-lg transition-smooth cursor-pointer"
+                onClick={() => navigate(`/product/${product.id}`)}
+              >
                 <div className="relative">
                   {product.images && product.images[0] && (
                     <img
                       src={product.images[0]}
                       alt={product.title}
-                      className="w-full h-48 object-cover rounded-t-lg"
+                      className="w-full h-48 object-cover rounded-t-lg group-hover:scale-105 transition-smooth"
                     />
                   )}
                   
@@ -426,7 +433,10 @@ const Marketplace = () => {
                     variant="ghost"
                     size="icon"
                     className="absolute top-2 right-2 bg-white/90 hover:bg-white"
-                    onClick={() => toggleFavorite(product.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleFavorite(product.id);
+                    }}
                   >
                     <Heart 
                       className={`h-4 w-4 ${
@@ -468,9 +478,7 @@ const Marketplace = () => {
                   <div className="flex items-center gap-2 mb-3 text-xs text-muted-foreground">
                     <span>by {product.profiles?.full_name}</span>
                     {product.profiles?.is_verified && (
-                      <Badge variant="outline" className="text-xs px-1 py-0">
-                        ✓ Verified
-                      </Badge>
+                      <Shield className="h-3 w-3 text-verified-blue" />
                     )}
                     <div className="flex items-center gap-1">
                       <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
@@ -491,7 +499,10 @@ const Marketplace = () => {
                     <Button
                       variant={cart.has(product.id) ? "outline" : "brand"}
                       size="sm"
-                      onClick={() => addToCart(product.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        addToCart(product.id);
+                      }}
                       disabled={cart.has(product.id) || product.stock_quantity === 0}
                     >
                       <ShoppingCart className="h-4 w-4" />

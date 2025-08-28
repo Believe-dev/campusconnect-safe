@@ -255,7 +255,7 @@ const Dashboard = () => {
         </div>
 
         {/* Overview Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6 mb-8">
           <Card>
             <CardContent className="p-6">
               <div className="flex items-center gap-2">
@@ -321,67 +321,72 @@ const Dashboard = () => {
                   const productAnalytics = getProductAnalytics(product.id);
                   return (
                     <Card key={product.id}>
-                      <CardContent className="p-6">
-                        <div className="flex items-start justify-between">
-                          <div className="flex gap-4 flex-1">
+                      <CardContent className="p-4 lg:p-6">
+                        <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
+                          <div className="flex flex-col sm:flex-row gap-4 flex-1">
                             {product.images && product.images[0] && (
                               <img
                                 src={product.images[0]}
                                 alt={product.title}
-                                className="w-20 h-20 object-cover rounded"
+                                className="w-full sm:w-20 h-48 sm:h-20 object-cover rounded"
                               />
                             )}
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-2">
-                                <h3 className="text-lg font-semibold">{product.title}</h3>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex flex-wrap items-center gap-2 mb-2">
+                                <h3 className="text-lg font-semibold truncate">{product.title}</h3>
                                 <Badge variant={product.is_active ? "default" : "secondary"}>
                                   {product.is_active ? 'Active' : 'Inactive'}
                                 </Badge>
                                 <Badge variant="outline">{product.condition}</Badge>
                               </div>
                               <p className="text-muted-foreground mb-2 line-clamp-2">{product.description}</p>
-                              <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                              <div className="flex flex-wrap items-center gap-2 lg:gap-4 text-sm text-muted-foreground mb-3">
                                 <span>₦{product.price.toLocaleString()}</span>
                                 <span>{product.stock_quantity} in stock</span>
-                                <span>{product.category}</span>
+                                <span className="hidden sm:inline">{product.category}</span>
                               </div>
                               
                               {/* Analytics Summary */}
-                              <div className="flex items-center gap-4 mt-3 text-sm">
+                              <div className="grid grid-cols-2 lg:flex lg:items-center gap-2 lg:gap-4 text-sm">
                                 <div className="flex items-center gap-1">
                                   <Eye className="h-3 w-3" />
-                                  <span>{productAnalytics.views} views</span>
+                                  <span className="text-xs lg:text-sm">{productAnalytics.views}</span>
                                 </div>
                                 <div className="flex items-center gap-1">
                                   <Heart className="h-3 w-3" />
-                                  <span>{productAnalytics.favorites_count} favorites</span>
+                                  <span className="text-xs lg:text-sm">{productAnalytics.favorites_count}</span>
                                 </div>
                                 <div className="flex items-center gap-1">
                                   <ShoppingCart className="h-3 w-3" />
-                                  <span>{productAnalytics.cart_additions} added to cart</span>
+                                  <span className="text-xs lg:text-sm">{productAnalytics.cart_additions}</span>
                                 </div>
                                 <div className="flex items-center gap-1">
                                   <TrendingUp className="h-3 w-3" />
-                                  <span>{productAnalytics.orders_count} orders</span>
+                                  <span className="text-xs lg:text-sm">{productAnalytics.orders_count}</span>
                                 </div>
                               </div>
                             </div>
                           </div>
                           
-                          <div className="flex gap-2">
+                          <div className="flex flex-row lg:flex-col gap-2 lg:shrink-0">
                             <Button
                               variant="outline"
                               size="sm"
                               onClick={() => setEditingProduct(product)}
+                              className="flex-1 lg:flex-none"
                             >
-                              <Edit3 className="h-4 w-4" />
+                              <Edit3 className="h-4 w-4 lg:mr-2" />
+                              <span className="hidden lg:inline">Edit</span>
                             </Button>
                             <Button
                               variant={product.is_active ? "destructive" : "default"}
                               size="sm"
                               onClick={() => toggleProductStatus(product.id, product.is_active)}
+                              className="flex-1 lg:flex-none"
                             >
-                              {product.is_active ? 'Deactivate' : 'Activate'}
+                              <span className="text-xs lg:text-sm">
+                                {product.is_active ? 'Deactivate' : 'Activate'}
+                              </span>
                             </Button>
                           </div>
                         </div>
@@ -406,7 +411,7 @@ const Dashboard = () => {
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
                         <div>
                           <div className="text-2xl font-bold">{productAnalytics.views}</div>
                           <div className="text-sm text-muted-foreground">Views</div>
@@ -469,7 +474,7 @@ const Dashboard = () => {
                   />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="edit-category">Category</Label>
                     <Select

@@ -16,7 +16,8 @@ import {
   LogOut, 
   GraduationCap,
   Shield,
-  Package
+  Package,
+  Heart
 } from 'lucide-react';
 import { User as SupabaseUser, Session } from '@supabase/supabase-js';
 import { useToast } from '@/hooks/use-toast';
@@ -149,6 +150,13 @@ const Header = () => {
                 {/* Marketplace */}
                 <Button variant="ghost" size="sm" asChild>
                   <Link to="/marketplace">Browse</Link>
+                </Button>
+
+                {/* Favorites */}
+                <Button variant="ghost" size="icon" asChild>
+                  <Link to="/favorites">
+                    <Heart className="h-5 w-5" />
+                  </Link>
                 </Button>
 
                 {/* Cart */}
