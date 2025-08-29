@@ -19,8 +19,8 @@ import {
   Package,
   Heart
 } from 'lucide-react';
-import { User as SupabaseUser, Session } from '@supabase/supabase-js';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 
 interface Profile {
   full_name: string;
@@ -30,43 +30,19 @@ interface Profile {
 }
 
 const Header = () => {
-  const [user, setUser] = useState<SupabaseUser | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
+  const { user, isAdmin } = useAuth();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const navigate = useNavigate();
   const { toast } = useToast();
 
   useEffect(() => {
-    // Set up auth state listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        
-        if (session?.user) {
-          // Fetch user profile
-          setTimeout(() => {
-            fetchUserProfile(session.user.id);
-          }, 0);
-        } else {
-          setProfile(null);
-        }
-      }
-    );
-
-    // Check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      
-      if (session?.user) {
-        fetchUserProfile(session.user.id);
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
+    if (user) {
+      fetchUserProfile(user.id);
+    } else {
+      setProfile(null);
+    }
+  }, [user]);
 
   const fetchUserProfile = async (userId: string) => {
     try {
@@ -236,6 +212,14 @@ const Header = () => {
                         <Link to="/dashboard">
                           <Shield className="mr-2 h-4 w-4" />
                           Dashboard
+                        </Link>
+                      </DropdownMenuItem>
+                    )}
+                    {isAdmin && (
+                      <DropdownMenuItem asChild>
+                        <Link to="/admin">
+                          <Shield className="mr-2 h-4 w-4" />
+                          Admin Panel
                         </Link>
                       </DropdownMenuItem>
                     )}
