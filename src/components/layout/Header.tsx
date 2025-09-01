@@ -64,19 +64,31 @@ const Header = () => {
   };
 
   const handleSignOut = async () => {
-    const { error } = await supabase.auth.signOut();
-    if (error) {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error('Sign out error:', error);
+        toast({
+          title: "Error",
+          description: "Failed to sign out",
+          variant: "destructive",
+        });
+      } else {
+        // Clear local profile state
+        setProfile(null);
+        toast({
+          title: "Signed Out",
+          description: "You've been successfully signed out",
+        });
+        navigate('/');
+      }
+    } catch (error) {
+      console.error('Sign out error:', error);
       toast({
         title: "Error",
         description: "Failed to sign out",
         variant: "destructive",
       });
-    } else {
-      toast({
-        title: "Signed Out",
-        description: "You've been successfully signed out",
-      });
-      navigate('/');
     }
   };
 

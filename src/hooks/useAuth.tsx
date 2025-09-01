@@ -11,20 +11,15 @@ export const useAuth = () => {
   useEffect(() => {
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      (event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
         
+        // Use setTimeout to prevent deadlocks with Supabase auth
         if (session?.user) {
-          // Check if user is admin
-          const { data: roles } = await supabase
-            .from('user_roles')
-            .select('role')
-            .eq('user_id', session.user.id)
-            .eq('role', 'admin')
-            .maybeSingle();
-          
-          setIsAdmin(!!roles);
+          setTimeout(() => {
+            checkAdminRole(session.user.id);
+          }, 0);
         } else {
           setIsAdmin(false);
         }
@@ -38,24 +33,29 @@ export const useAuth = () => {
       setUser(session?.user ?? null);
       
       if (session?.user) {
-        // Check if user is admin
-        supabase
-          .from('user_roles')
-          .select('role')
-          .eq('user_id', session.user.id)
-          .eq('role', 'admin')
-          .maybeSingle()
-          .then(({ data: roles }) => {
-            setIsAdmin(!!roles);
-            setLoading(false);
-          });
-      } else {
-        setLoading(false);
+        checkAdminRole(session.user.id);
       }
+      setLoading(false);
     });
 
     return () => subscription.unsubscribe();
   }, []);
+
+  const checkAdminRole = async (userId: string) => {
+    try {
+      const { data: roles } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', userId)
+        .eq('role', 'admin')
+        .maybeSingle();
+      
+      setIsAdmin(!!roles);
+    } catch (error) {
+      console.error('Error checking admin role:', error);
+      setIsAdmin(false);
+    }
+  };
 
   return { user, session, loading, isAdmin };
 };
