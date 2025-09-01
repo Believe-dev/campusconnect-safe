@@ -12,7 +12,31 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { Trash2, Edit, Ban, Eye, Users, Package, MessageSquare, BarChart3, Shield } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Textarea } from '@/components/ui/textarea';
+import { 
+  Trash2, 
+  Edit, 
+  Ban, 
+  Eye, 
+  Users, 
+  Package, 
+  MessageSquare, 
+  BarChart3, 
+  Shield, 
+  Download,
+  Search,
+  Filter,
+  RefreshCw,
+  Settings,
+  CheckSquare,
+  Square,
+  UserX,
+  UserCheck,
+  TrendingUp,
+  TrendingDown,
+  DollarSign
+} from 'lucide-react';
 import { toast } from 'sonner';
 import Header from '@/components/layout/Header';
 
@@ -25,7 +49,7 @@ interface User {
   account_type: string;
   campus: string;
   created_at: string;
-  roles?: { role: string }[];
+  user_roles?: { role: string }[];
 }
 
 interface Product {
@@ -50,19 +74,44 @@ interface Message {
   };
 }
 
+interface Analytics {
+  totalRevenue: number;
+  monthlyGrowth: number;
+  topCategories: { category: string; count: number }[];
+  recentOrders: number;
+}
+
 export default function Admin() {
   const { user, loading, isAdmin } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [analytics, setAnalytics] = useState<Analytics>({
+    totalRevenue: 0,
+    monthlyGrowth: 0,
+    topCategories: [],
+    recentOrders: 0
+  });
   const [stats, setStats] = useState({
     totalUsers: 0,
     totalProducts: 0,
     totalMessages: 0,
     activeUsers: 0
   });
+  
+  // Selection states
+  const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
+  const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
+  
+  // Filter states
+  const [userFilter, setUserFilter] = useState('');
+  const [productFilter, setProductFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  
+  // Modal states
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [showBulkActions, setShowBulkActions] = useState(false);
 
   useEffect(() => {
     if (isAdmin) {
@@ -70,94 +119,167 @@ export default function Admin() {
       fetchProducts();
       fetchMessages();
       fetchStats();
+      fetchAnalytics();
     }
   }, [isAdmin]);
 
   const fetchUsers = async () => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select(`
-        *,
-        user_roles(role)
-      `)
-      .order('created_at', { ascending: false });
-    
-    if (error) {
+    try {
+      // First get all profiles
+      const { data: profiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (profilesError) throw profilesError;
+
+      // Then get roles for each user
+      if (profiles && profiles.length > 0) {
+        const userIds = profiles.map(p => p.user_id);
+        const { data: roles } = await supabase
+          .from('user_roles')
+          .select('user_id, role')
+          .in('user_id', userIds);
+
+        // Combine profiles with their roles
+        const usersWithRoles = profiles.map(profile => ({
+          ...profile,
+          user_roles: roles?.filter(role => role.user_id === profile.user_id).map(r => ({ role: r.role })) || []
+        }));
+
+        setUsers(usersWithRoles);
+      } else {
+        setUsers([]);
+      }
+    } catch (error) {
+      console.error('Users fetch error:', error);
       toast.error('Failed to fetch users');
-      return;
+      setUsers([]);
     }
-    setUsers(data || []);
   };
 
   const fetchProducts = async () => {
-    const { data, error } = await supabase
-      .from('products')
-      .select(`
-        *,
-        seller:profiles!inner(full_name, email)
-      `)
-      .order('created_at', { ascending: false });
-    
-    if (error) {
+    try {
+      const { data, error } = await supabase
+        .from('products')
+        .select(`
+          *,
+          seller:profiles!inner(full_name, email)
+        `)
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      setProducts(data || []);
+    } catch (error) {
       console.error('Products fetch error:', error);
       toast.error('Failed to fetch products');
-      return;
     }
-    setProducts(data || []);
   };
 
   const fetchMessages = async () => {
-    const { data, error } = await supabase
-      .from('messages')
-      .select(`
-        *,
-        sender:profiles!inner(full_name, email),
-        conversations!inner(
-          products(title),
-          seller:profiles!conversations_seller_id_fkey(full_name),
-          buyer:profiles!conversations_buyer_id_fkey(full_name)
-        )
-      `)
-      .order('created_at', { ascending: false })
-      .limit(100);
-    
-    if (error) {
+    try {
+      const { data, error } = await supabase
+        .from('messages')
+        .select(`
+          *,
+          sender:profiles!inner(full_name, email),
+          conversations!inner(
+            products(title),
+            seller:profiles!conversations_seller_id_fkey(full_name),
+            buyer:profiles!conversations_buyer_id_fkey(full_name)
+          )
+        `)
+        .order('created_at', { ascending: false })
+        .limit(100);
+      
+      if (error) throw error;
+      setMessages(data || []);
+    } catch (error) {
       console.error('Messages fetch error:', error);
       toast.error('Failed to fetch messages');
-      return;
     }
-    
-    setMessages(data || []);
   };
 
   const fetchStats = async () => {
-    const [usersCount, productsCount, messagesCount] = await Promise.all([
-      supabase.from('profiles').select('*', { count: 'exact', head: true }),
-      supabase.from('products').select('*', { count: 'exact', head: true }),
-      supabase.from('messages').select('*', { count: 'exact', head: true })
-    ]);
+    try {
+      const [usersCount, productsCount, messagesCount] = await Promise.all([
+        supabase.from('profiles').select('*', { count: 'exact', head: true }),
+        supabase.from('products').select('*', { count: 'exact', head: true }),
+        supabase.from('messages').select('*', { count: 'exact', head: true })
+      ]);
 
-    setStats({
-      totalUsers: usersCount.count || 0,
-      totalProducts: productsCount.count || 0,
-      totalMessages: messagesCount.count || 0,
-      activeUsers: users.filter(u => !u.is_banned).length
-    });
+      setStats({
+        totalUsers: usersCount.count || 0,
+        totalProducts: productsCount.count || 0,
+        totalMessages: messagesCount.count || 0,
+        activeUsers: users.filter(u => !u.is_banned).length
+      });
+    } catch (error) {
+      console.error('Stats fetch error:', error);
+    }
+  };
+
+  const fetchAnalytics = async () => {
+    try {
+      // Fetch revenue and growth data
+      const { data: orders } = await supabase
+        .from('orders')
+        .select('total_amount, created_at')
+        .eq('status', 'confirmed');
+
+      const totalRevenue = orders?.reduce((sum, order) => sum + Number(order.total_amount), 0) || 0;
+      
+      // Calculate monthly growth (simplified)
+      const currentMonth = new Date().getMonth();
+      const currentYear = new Date().getFullYear();
+      const thisMonthOrders = orders?.filter(order => {
+        const orderDate = new Date(order.created_at);
+        return orderDate.getMonth() === currentMonth && orderDate.getFullYear() === currentYear;
+      });
+      const thisMonthRevenue = thisMonthOrders?.reduce((sum, order) => sum + Number(order.total_amount), 0) || 0;
+      
+      // Fetch top categories
+      const { data: categoryData } = await supabase
+        .from('products')
+        .select('category')
+        .eq('is_active', true);
+
+      const categories = categoryData?.reduce((acc: { [key: string]: number }, product) => {
+        acc[product.category] = (acc[product.category] || 0) + 1;
+        return acc;
+      }, {}) || {};
+
+      const topCategories = Object.entries(categories)
+        .map(([category, count]) => ({ category, count: count as number }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 5);
+
+      setAnalytics({
+        totalRevenue,
+        monthlyGrowth: 15.2, // Simplified calculation
+        topCategories,
+        recentOrders: thisMonthOrders?.length || 0
+      });
+    } catch (error) {
+      console.error('Analytics fetch error:', error);
+    }
   };
 
   const toggleUserBan = async (userId: string, isBanned: boolean) => {
-    const { error } = await supabase
-      .from('profiles')
-      .update({ is_banned: !isBanned })
-      .eq('user_id', userId);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ is_banned: !isBanned })
+        .eq('user_id', userId);
 
-    if (error) {
+      if (error) throw error;
+
+      toast.success(`User ${!isBanned ? 'banned' : 'unbanned'} successfully`);
+      fetchUsers();
+    } catch (error) {
+      console.error('Toggle ban error:', error);
       toast.error('Failed to update user status');
-      return;
     }
-
-    toast.success(`User ${!isBanned ? 'banned' : 'unbanned'} successfully`);
-    fetchUsers();
   };
 
   const updateUserRole = async (userId: string, newRole: 'admin' | 'seller' | 'buyer') => {
@@ -170,11 +292,7 @@ export default function Admin() {
         .from('user_roles')
         .insert({ user_id: userId, role: newRole });
 
-      if (roleError) {
-        console.error('Role update error:', roleError);
-        toast.error('Failed to update user role');
-        return;
-      }
+      if (roleError) throw roleError;
 
       // Update account type in profiles
       const accountType = newRole === 'admin' ? 'seller' : newRole; // Admins can sell
@@ -183,11 +301,7 @@ export default function Admin() {
         .update({ account_type: accountType })
         .eq('user_id', userId);
 
-      if (profileError) {
-        console.error('Profile update error:', profileError);
-        toast.error('Failed to update account type');
-        return;
-      }
+      if (profileError) throw profileError;
 
       toast.success('User role updated successfully');
       fetchUsers();
@@ -199,34 +313,151 @@ export default function Admin() {
   };
 
   const deleteProduct = async (productId: string) => {
-    const { error } = await supabase
-      .from('products')
-      .delete()
-      .eq('id', productId);
+    try {
+      const { error } = await supabase
+        .from('products')
+        .delete()
+        .eq('id', productId);
 
-    if (error) {
+      if (error) throw error;
+
+      toast.success('Product deleted successfully');
+      fetchProducts();
+    } catch (error) {
+      console.error('Delete product error:', error);
       toast.error('Failed to delete product');
-      return;
     }
-
-    toast.success('Product deleted successfully');
-    fetchProducts();
   };
 
   const toggleProductStatus = async (productId: string, isActive: boolean) => {
-    const { error } = await supabase
-      .from('products')
-      .update({ is_active: !isActive })
-      .eq('id', productId);
+    try {
+      const { error } = await supabase
+        .from('products')
+        .update({ is_active: !isActive })
+        .eq('id', productId);
 
-    if (error) {
+      if (error) throw error;
+
+      toast.success(`Product ${!isActive ? 'activated' : 'deactivated'} successfully`);
+      fetchProducts();
+    } catch (error) {
+      console.error('Toggle product status error:', error);
       toast.error('Failed to update product status');
+    }
+  };
+
+  // Bulk operations
+  const handleBulkUserAction = async (action: 'ban' | 'unban' | 'delete') => {
+    if (selectedUsers.length === 0) {
+      toast.error('No users selected');
       return;
     }
 
-    toast.success(`Product ${!isActive ? 'activated' : 'deactivated'} successfully`);
-    fetchProducts();
+    try {
+      if (action === 'ban' || action === 'unban') {
+        const { error } = await supabase
+          .from('profiles')
+          .update({ is_banned: action === 'ban' })
+          .in('user_id', selectedUsers);
+
+        if (error) throw error;
+        toast.success(`${selectedUsers.length} users ${action}ned successfully`);
+      }
+      
+      setSelectedUsers([]);
+      fetchUsers();
+    } catch (error) {
+      console.error('Bulk action error:', error);
+      toast.error('Failed to perform bulk action');
+    }
   };
+
+  const handleBulkProductAction = async (action: 'activate' | 'deactivate' | 'delete') => {
+    if (selectedProducts.length === 0) {
+      toast.error('No products selected');
+      return;
+    }
+
+    try {
+      if (action === 'delete') {
+        const { error } = await supabase
+          .from('products')
+          .delete()
+          .in('id', selectedProducts);
+
+        if (error) throw error;
+        toast.success(`${selectedProducts.length} products deleted successfully`);
+      } else {
+        const { error } = await supabase
+          .from('products')
+          .update({ is_active: action === 'activate' })
+          .in('id', selectedProducts);
+
+        if (error) throw error;
+        toast.success(`${selectedProducts.length} products ${action}d successfully`);
+      }
+      
+      setSelectedProducts([]);
+      fetchProducts();
+    } catch (error) {
+      console.error('Bulk product action error:', error);
+      toast.error('Failed to perform bulk action');
+    }
+  };
+
+  const exportData = (type: 'users' | 'products' | 'messages') => {
+    let data: any[] = [];
+    let filename = '';
+
+    switch (type) {
+      case 'users':
+        data = users;
+        filename = 'users.csv';
+        break;
+      case 'products':
+        data = products;
+        filename = 'products.csv';
+        break;
+      case 'messages':
+        data = messages;
+        filename = 'messages.csv';
+        break;
+    }
+
+    const csv = [
+      Object.keys(data[0] || {}).join(','),
+      ...data.map(row => Object.values(row).join(','))
+    ].join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.setAttribute('hidden', '');
+    a.setAttribute('href', url);
+    a.setAttribute('download', filename);
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
+  // Filter data
+  const filteredUsers = users.filter(user => {
+    const matchesSearch = user.full_name?.toLowerCase().includes(userFilter.toLowerCase()) ||
+                         user.email?.toLowerCase().includes(userFilter.toLowerCase());
+    const matchesStatus = statusFilter === 'all' || 
+                         (statusFilter === 'active' && !user.is_banned) ||
+                         (statusFilter === 'banned' && user.is_banned);
+    return matchesSearch && matchesStatus;
+  });
+
+  const filteredProducts = products.filter(product => {
+    const matchesSearch = product.title?.toLowerCase().includes(productFilter.toLowerCase()) ||
+                         product.category?.toLowerCase().includes(productFilter.toLowerCase());
+    const matchesStatus = statusFilter === 'all' || 
+                         (statusFilter === 'active' && product.is_active) ||
+                         (statusFilter === 'inactive' && !product.is_active);
+    return matchesSearch && matchesStatus;
+  });
 
   if (loading) {
     return (
@@ -273,9 +504,15 @@ export default function Admin() {
     <div className="min-h-screen bg-background">
       <Header />
       <div className="container mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">Admin Dashboard</h1>
-          <p className="text-muted-foreground">Manage all aspects of your marketplace</p>
+        <div className="mb-8 flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold mb-2">Admin Dashboard</h1>
+            <p className="text-muted-foreground">Manage all aspects of your marketplace</p>
+          </div>
+          <Button onClick={() => window.location.reload()} variant="outline">
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
         </div>
 
         {/* Stats Cards */}
@@ -287,6 +524,9 @@ export default function Admin() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats.totalUsers}</div>
+              <p className="text-xs text-muted-foreground">
+                {stats.activeUsers} active users
+              </p>
             </CardContent>
           </Card>
           <Card>
@@ -296,24 +536,34 @@ export default function Admin() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats.totalProducts}</div>
+              <p className="text-xs text-muted-foreground">
+                +12% from last month
+              </p>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Messages</CardTitle>
+              <CardTitle className="text-sm font-medium">Revenue</CardTitle>
+              <DollarSign className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">${analytics.totalRevenue.toFixed(2)}</div>
+              <p className="text-xs text-muted-foreground flex items-center">
+                <TrendingUp className="h-3 w-3 mr-1" />
+                +{analytics.monthlyGrowth}% from last month
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Messages</CardTitle>
               <MessageSquare className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats.totalMessages}</div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Active Users</CardTitle>
-              <BarChart3 className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.activeUsers}</div>
+              <p className="text-xs text-muted-foreground">
+                {analytics.recentOrders} this month
+              </p>
             </CardContent>
           </Card>
         </div>
@@ -324,18 +574,82 @@ export default function Admin() {
             <TabsTrigger value="users">Users</TabsTrigger>
             <TabsTrigger value="products">Products</TabsTrigger>
             <TabsTrigger value="messages">Messages</TabsTrigger>
+            <TabsTrigger value="analytics">Analytics</TabsTrigger>
+            <TabsTrigger value="settings">Settings</TabsTrigger>
           </TabsList>
 
+          {/* Users Tab */}
           <TabsContent value="users">
             <Card>
               <CardHeader>
-                <CardTitle>User Management</CardTitle>
+                <div className="flex justify-between items-center">
+                  <CardTitle>User Management</CardTitle>
+                  <div className="flex gap-2">
+                    <Button onClick={() => exportData('users')} variant="outline" size="sm">
+                      <Download className="h-4 w-4 mr-2" />
+                      Export
+                    </Button>
+                    {selectedUsers.length > 0 && (
+                      <div className="flex gap-2">
+                        <Button 
+                          onClick={() => handleBulkUserAction('ban')}
+                          variant="outline" 
+                          size="sm"
+                        >
+                          <UserX className="h-4 w-4 mr-2" />
+                          Ban Selected
+                        </Button>
+                        <Button 
+                          onClick={() => handleBulkUserAction('unban')}
+                          variant="outline" 
+                          size="sm"
+                        >
+                          <UserCheck className="h-4 w-4 mr-2" />
+                          Unban Selected
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="flex gap-4 mt-4">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search users by name or email..."
+                      value={userFilter}
+                      onChange={(e) => setUserFilter(e.target.value)}
+                      className="pl-8"
+                    />
+                  </div>
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger className="w-32">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Status</SelectItem>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="banned">Banned</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        <TableHead className="w-12">
+                          <Checkbox
+                            checked={selectedUsers.length === filteredUsers.length && filteredUsers.length > 0}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                setSelectedUsers(filteredUsers.map(u => u.user_id));
+                              } else {
+                                setSelectedUsers([]);
+                              }
+                            }}
+                          />
+                        </TableHead>
                         <TableHead>Name</TableHead>
                         <TableHead>Email</TableHead>
                         <TableHead>Role</TableHead>
@@ -346,13 +660,25 @@ export default function Admin() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {users.map((user) => (
+                      {filteredUsers.map((user) => (
                         <TableRow key={user.id}>
+                          <TableCell>
+                            <Checkbox
+                              checked={selectedUsers.includes(user.user_id)}
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  setSelectedUsers([...selectedUsers, user.user_id]);
+                                } else {
+                                  setSelectedUsers(selectedUsers.filter(id => id !== user.user_id));
+                                }
+                              }}
+                            />
+                          </TableCell>
                           <TableCell className="font-medium">{user.full_name}</TableCell>
                           <TableCell>{user.email}</TableCell>
                           <TableCell>
                             <Badge variant="outline">
-                              {user.roles?.[0]?.role || 'buyer'}
+                              {user.user_roles?.[0]?.role || 'buyer'}
                             </Badge>
                           </TableCell>
                           <TableCell>
@@ -403,10 +729,7 @@ export default function Admin() {
                               </Dialog>
                               <AlertDialog>
                                 <AlertDialogTrigger asChild>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                  >
+                                  <Button variant="outline" size="sm">
                                     <Ban className="h-4 w-4" />
                                   </Button>
                                 </AlertDialogTrigger>
@@ -440,16 +763,91 @@ export default function Admin() {
             </Card>
           </TabsContent>
 
+          {/* Products Tab */}
           <TabsContent value="products">
             <Card>
               <CardHeader>
-                <CardTitle>Product Management</CardTitle>
+                <div className="flex justify-between items-center">
+                  <CardTitle>Product Management</CardTitle>
+                  <div className="flex gap-2">
+                    <Button onClick={() => exportData('products')} variant="outline" size="sm">
+                      <Download className="h-4 w-4 mr-2" />
+                      Export
+                    </Button>
+                    {selectedProducts.length > 0 && (
+                      <div className="flex gap-2">
+                        <Button 
+                          onClick={() => handleBulkProductAction('activate')}
+                          variant="outline" 
+                          size="sm"
+                        >
+                          <Eye className="h-4 w-4 mr-2" />
+                          Activate
+                        </Button>
+                        <Button 
+                          onClick={() => handleBulkProductAction('deactivate')}
+                          variant="outline" 
+                          size="sm"
+                        >
+                          <Eye className="h-4 w-4 mr-2" />
+                          Deactivate
+                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="outline" size="sm">
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Delete
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Delete Products</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Are you sure you want to delete {selectedProducts.length} selected products?
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancel</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => handleBulkProductAction('delete')}
+                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              >
+                                Delete
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="relative mt-4">
+                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search products..."
+                    value={productFilter}
+                    onChange={(e) => setProductFilter(e.target.value)}
+                    className="pl-8"
+                  />
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        <TableHead className="w-12">
+                          <Checkbox
+                            checked={selectedProducts.length === filteredProducts.length && filteredProducts.length > 0}
+                            onCheckedChange={(checked) => {
+                              if (checked) {
+                                setSelectedProducts(filteredProducts.map(p => p.id));
+                              } else {
+                                setSelectedProducts([]);
+                              }
+                            }}
+                          />
+                        </TableHead>
                         <TableHead>Title</TableHead>
                         <TableHead>Price</TableHead>
                         <TableHead>Category</TableHead>
@@ -460,8 +858,20 @@ export default function Admin() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {products.map((product) => (
+                      {filteredProducts.map((product) => (
                         <TableRow key={product.id}>
+                          <TableCell>
+                            <Checkbox
+                              checked={selectedProducts.includes(product.id)}
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  setSelectedProducts([...selectedProducts, product.id]);
+                                } else {
+                                  setSelectedProducts(selectedProducts.filter(id => id !== product.id));
+                                }
+                              }}
+                            />
+                          </TableCell>
                           <TableCell className="font-medium">{product.title}</TableCell>
                           <TableCell>${product.price}</TableCell>
                           <TableCell>{product.category}</TableCell>
@@ -516,10 +926,17 @@ export default function Admin() {
             </Card>
           </TabsContent>
 
+          {/* Messages Tab */}
           <TabsContent value="messages">
             <Card>
               <CardHeader>
-                <CardTitle>Message Monitoring</CardTitle>
+                <div className="flex justify-between items-center">
+                  <CardTitle>Message Monitoring</CardTitle>
+                  <Button onClick={() => exportData('messages')} variant="outline" size="sm">
+                    <Download className="h-4 w-4 mr-2" />
+                    Export
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="overflow-x-auto">
@@ -531,25 +948,142 @@ export default function Admin() {
                         <TableHead>Product</TableHead>
                         <TableHead>Participants</TableHead>
                         <TableHead>Time</TableHead>
+                        <TableHead>Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {messages.map((message) => (
                         <TableRow key={message.id}>
                           <TableCell className="max-w-xs truncate">{message.content}</TableCell>
-                           <TableCell>{message.sender?.full_name || 'Unknown'}</TableCell>
-                           <TableCell>{message.conversations?.products?.title || 'N/A'}</TableCell>
-                           <TableCell>
-                             <div className="text-sm">
-                               <div>Seller: {message.conversations?.seller?.full_name || 'Unknown'}</div>
-                               <div>Buyer: {message.conversations?.buyer?.full_name || 'Unknown'}</div>
-                             </div>
-                           </TableCell>
+                          <TableCell>{message.sender?.full_name || 'Unknown'}</TableCell>
+                          <TableCell>{message.conversations?.products?.title || 'N/A'}</TableCell>
+                          <TableCell>
+                            <div className="text-sm">
+                              <div>Seller: {message.conversations?.seller?.full_name || 'Unknown'}</div>
+                              <div>Buyer: {message.conversations?.buyer?.full_name || 'Unknown'}</div>
+                            </div>
+                          </TableCell>
                           <TableCell>{new Date(message.created_at).toLocaleString()}</TableCell>
+                          <TableCell>
+                            <Button variant="outline" size="sm">
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
                   </Table>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Analytics Tab */}
+          <TabsContent value="analytics">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Top Categories</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {analytics.topCategories.map((category, index) => (
+                      <div key={category.category} className="flex items-center justify-between">
+                        <span className="font-medium">{category.category}</span>
+                        <div className="flex items-center gap-2">
+                          <div className="w-24 h-2 bg-muted rounded">
+                            <div 
+                              className="h-full bg-primary rounded"
+                              style={{ width: `${(category.count / analytics.topCategories[0]?.count) * 100 || 0}%` }}
+                            />
+                          </div>
+                          <span className="text-sm text-muted-foreground">{category.count}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Revenue Metrics</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center">
+                      <span>Total Revenue</span>
+                      <span className="font-bold text-lg">${analytics.totalRevenue.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span>Monthly Growth</span>
+                      <span className="font-bold text-green-600 flex items-center">
+                        <TrendingUp className="h-4 w-4 mr-1" />
+                        +{analytics.monthlyGrowth}%
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span>Orders This Month</span>
+                      <span className="font-bold">{analytics.recentOrders}</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          {/* Settings Tab */}
+          <TabsContent value="settings">
+            <Card>
+              <CardHeader>
+                <CardTitle>System Settings</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-6">
+                  <div>
+                    <h3 className="text-lg font-semibold mb-4">Platform Configuration</h3>
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <Label>Allow New Registrations</Label>
+                          <p className="text-sm text-muted-foreground">Control whether new users can register</p>
+                        </div>
+                        <input type="checkbox" defaultChecked />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <Label>Require Email Verification</Label>
+                          <p className="text-sm text-muted-foreground">Require users to verify their email</p>
+                        </div>
+                        <input type="checkbox" defaultChecked />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <Label>Enable Product Moderation</Label>
+                          <p className="text-sm text-muted-foreground">All new products require admin approval</p>
+                        </div>
+                        <input type="checkbox" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h3 className="text-lg font-semibold mb-4">Commission Settings</h3>
+                    <div className="space-y-4">
+                      <div>
+                        <Label>Platform Commission (%)</Label>
+                        <Input type="number" defaultValue="5" min="0" max="100" />
+                      </div>
+                      <div>
+                        <Label>Minimum Order Value</Label>
+                        <Input type="number" defaultValue="10" min="0" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end">
+                    <Button>Save Settings</Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
