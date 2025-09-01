@@ -43,8 +43,8 @@ interface Message {
   content: string;
   created_at: string;
   sender: { full_name: string; email: string };
-  conversation: { 
-    product: { title: string };
+  conversations: { 
+    products: { title: string };
     seller: { full_name: string };
     buyer: { full_name: string };
   };
@@ -94,15 +94,16 @@ export default function Admin() {
       .from('products')
       .select(`
         *,
-        profiles!products_seller_id_fkey(full_name, email)
+        seller:profiles!inner(full_name, email)
       `)
       .order('created_at', { ascending: false });
     
     if (error) {
+      console.error('Products fetch error:', error);
       toast.error('Failed to fetch products');
       return;
     }
-    setProducts(data?.map(p => ({ ...p, seller: p.profiles })) || []);
+    setProducts(data || []);
   };
 
   const fetchMessages = async () => {
@@ -110,10 +111,10 @@ export default function Admin() {
       .from('messages')
       .select(`
         *,
-        profiles!messages_sender_id_fkey(full_name, email),
-        conversations(
+        sender:profiles!inner(full_name, email),
+        conversations!inner(
           products(title),
-          profiles!conversations_seller_id_fkey(full_name),
+          seller:profiles!conversations_seller_id_fkey(full_name),
           buyer:profiles!conversations_buyer_id_fkey(full_name)
         )
       `)
@@ -121,19 +122,12 @@ export default function Admin() {
       .limit(100);
     
     if (error) {
+      console.error('Messages fetch error:', error);
       toast.error('Failed to fetch messages');
       return;
     }
     
-    setMessages(data?.map(m => ({
-      ...m,
-      sender: m.profiles,
-      conversation: {
-        product: m.conversations?.products,
-        seller: m.conversations?.profiles,
-        buyer: m.conversations?.buyer
-      }
-    })) || []);
+    setMessages(data || []);
   };
 
   const fetchStats = async () => {
@@ -167,22 +161,41 @@ export default function Admin() {
   };
 
   const updateUserRole = async (userId: string, newRole: 'admin' | 'seller' | 'buyer') => {
-    // First, remove existing roles
-    await supabase.from('user_roles').delete().eq('user_id', userId);
-    
-    // Then add new role
-    const { error } = await supabase
-      .from('user_roles')
-      .insert({ user_id: userId, role: newRole });
+    try {
+      // First, remove existing roles
+      await supabase.from('user_roles').delete().eq('user_id', userId);
+      
+      // Then add new role
+      const { error: roleError } = await supabase
+        .from('user_roles')
+        .insert({ user_id: userId, role: newRole });
 
-    if (error) {
+      if (roleError) {
+        console.error('Role update error:', roleError);
+        toast.error('Failed to update user role');
+        return;
+      }
+
+      // Update account type in profiles
+      const accountType = newRole === 'admin' ? 'seller' : newRole; // Admins can sell
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({ account_type: accountType })
+        .eq('user_id', userId);
+
+      if (profileError) {
+        console.error('Profile update error:', profileError);
+        toast.error('Failed to update account type');
+        return;
+      }
+
+      toast.success('User role updated successfully');
+      fetchUsers();
+      setSelectedUser(null);
+    } catch (error) {
+      console.error('Update user role error:', error);
       toast.error('Failed to update user role');
-      return;
     }
-
-    toast.success('User role updated successfully');
-    fetchUsers();
-    setSelectedUser(null);
   };
 
   const deleteProduct = async (productId: string) => {
@@ -452,7 +465,7 @@ export default function Admin() {
                           <TableCell className="font-medium">{product.title}</TableCell>
                           <TableCell>${product.price}</TableCell>
                           <TableCell>{product.category}</TableCell>
-                          <TableCell>{product.seller?.full_name}</TableCell>
+                          <TableCell>{product.seller?.full_name || 'Unknown'}</TableCell>
                           <TableCell>
                             <Badge variant={product.is_active ? 'default' : 'secondary'}>
                               {product.is_active ? 'Active' : 'Inactive'}
@@ -524,14 +537,14 @@ export default function Admin() {
                       {messages.map((message) => (
                         <TableRow key={message.id}>
                           <TableCell className="max-w-xs truncate">{message.content}</TableCell>
-                          <TableCell>{message.sender?.full_name}</TableCell>
-                          <TableCell>{message.conversation?.product?.title}</TableCell>
-                          <TableCell>
-                            <div className="text-sm">
-                              <div>Seller: {message.conversation?.seller?.full_name}</div>
-                              <div>Buyer: {message.conversation?.buyer?.full_name}</div>
-                            </div>
-                          </TableCell>
+                           <TableCell>{message.sender?.full_name || 'Unknown'}</TableCell>
+                           <TableCell>{message.conversations?.products?.title || 'N/A'}</TableCell>
+                           <TableCell>
+                             <div className="text-sm">
+                               <div>Seller: {message.conversations?.seller?.full_name || 'Unknown'}</div>
+                               <div>Buyer: {message.conversations?.buyer?.full_name || 'Unknown'}</div>
+                             </div>
+                           </TableCell>
                           <TableCell>{new Date(message.created_at).toLocaleString()}</TableCell>
                         </TableRow>
                       ))}
