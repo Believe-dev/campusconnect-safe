@@ -39,7 +39,7 @@ interface Product {
     full_name: string;
     rating: number;
     is_verified: boolean;
-  };
+  } | null;
 }
 
 const Index = () => {

@@ -15,7 +15,7 @@ interface Product {
     full_name: string;
     rating: number;
     is_verified: boolean;
-  };
+  } | null;
 }
 
 interface ProductCardProps {
@@ -85,14 +85,18 @@ const ProductCard = ({ product, onViewProduct, onMessageSeller, isAuthenticated 
       <CardFooter className="p-3 pt-0">
         <div className="flex items-center justify-between w-full">
           <div className="flex items-center gap-1 text-xs">
-            <span className="font-medium truncate max-w-[80px]">{product.seller.full_name}</span>
-            {product.seller.is_verified && (
+            <span className="font-medium truncate max-w-[80px]">
+              {product.seller?.full_name || 'Unknown Seller'}
+            </span>
+            {product.seller?.is_verified && (
               <Badge className="h-3 w-3 text-verified-blue" />
             )}
-            <div className="flex items-center gap-1">
-              <Star className="h-3 w-3 fill-warning text-warning" />
-              <span>{product.seller.rating.toFixed(1)}</span>
-            </div>
+            {product.seller?.rating && (
+              <div className="flex items-center gap-1">
+                <Star className="h-3 w-3 fill-warning text-warning" />
+                <span>{product.seller.rating.toFixed(1)}</span>
+              </div>
+            )}
           </div>
           
           {isAuthenticated && (
