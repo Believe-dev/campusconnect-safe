@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/enhanced-button';
 import { Input } from '@/components/ui/input';
@@ -42,12 +42,13 @@ interface Product {
 }
 
 const Index = () => {
+  const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [selectedCampus, setCampus] = useState<string>('all');
+  const [selectedCampus, setSelectedCampus] = useState<string>('all');
 
   useEffect(() => {
     // Set up auth state listener
@@ -108,16 +109,60 @@ const Index = () => {
     { id: 'food', name: 'Food & Snacks', icon: Utensils },
   ];
 
-  const campuses = ['All Campuses', 'Main Campus', 'Akoka Campus', 'Yaba Campus', 'Distance Learning'];
+  const campuses = [
+    { id: 'all', name: 'All Campuses' },
+    { id: 'main_campus', name: 'Main Campus' },
+    { id: 'akoka_campus', name: 'Akoka Campus' },
+    { id: 'yaba_campus', name: 'Yaba Campus' },
+    { id: 'distance_learning', name: 'Distance Learning' }
+  ];
 
   const handleViewProduct = (productId: string) => {
-    // Navigate to product details
-    console.log('View product:', productId);
+    navigate(`/product/${productId}`);
   };
 
-  const handleMessageSeller = (productId: string) => {
-    // Open chat with seller
-    console.log('Message seller for product:', productId);
+  const handleMessageSeller = async (productId: string) => {
+    if (!user) {
+      navigate('/auth');
+      return;
+    }
+
+    try {
+      const product = products.find(p => p.id === productId);
+      if (!product) return;
+
+      // Check if conversation already exists
+      const { data: existingConversation } = await supabase
+        .from('conversations')
+        .select('id')
+        .eq('product_id', productId)
+        .eq('buyer_id', user.id)
+        .eq('seller_id', product.seller_id)
+        .maybeSingle();
+
+      if (existingConversation) {
+        navigate('/messages');
+        return;
+      }
+
+      // Create new conversation
+      const { error: conversationError } = await supabase
+        .from('conversations')
+        .insert({
+          product_id: productId,
+          buyer_id: user.id,
+          seller_id: product.seller_id
+        });
+
+      if (conversationError) {
+        console.error('Error creating conversation:', conversationError);
+        return;
+      }
+
+      navigate('/messages');
+    } catch (error) {
+      console.error('Error handling message seller:', error);
+    }
   };
 
 
@@ -225,20 +270,39 @@ const Index = () => {
             </Button>
           </div>
 
-          {/* Categories */}
-          <div className="flex flex-wrap gap-2 mb-8">
-            {categories.map((category) => (
-              <Button
-                key={category.id}
-                variant={selectedCategory === category.id ? "marketplace" : "outline"}
-                size="sm"
-                onClick={() => setSelectedCategory(category.id)}
-                className="gap-2"
-              >
-                <category.icon className="h-4 w-4" />
-                {category.name}
-              </Button>
-            ))}
+          {/* Filters */}
+          <div className="flex flex-col sm:flex-row gap-4 mb-8">
+            {/* Categories */}
+            <div className="flex flex-wrap gap-2">
+              {categories.map((category) => (
+                <Button
+                  key={category.id}
+                  variant={selectedCategory === category.id ? "marketplace" : "outline"}
+                  size="sm"
+                  onClick={() => setSelectedCategory(category.id)}
+                  className="gap-2"
+                >
+                  <category.icon className="h-4 w-4" />
+                  {category.name}
+                </Button>
+              ))}
+            </div>
+            
+            {/* Campus Filter */}
+            <div className="flex flex-wrap gap-2">
+              {campuses.map((campus) => (
+                <Button
+                  key={campus.id}
+                  variant={selectedCampus === campus.id ? "marketplace" : "outline"}
+                  size="sm"
+                  onClick={() => setSelectedCampus(campus.id)}
+                  className="gap-2"
+                >
+                  <MapPin className="h-3 w-3" />
+                  {campus.name}
+                </Button>
+              ))}
+            </div>
           </div>
 
           {/* Products Grid */}
@@ -258,13 +322,17 @@ const Index = () => {
           ) : products.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {products
-                .filter(product => selectedCategory === 'all' || product.category === selectedCategory)
+                .filter(product => 
+                  (selectedCategory === 'all' || product.category === selectedCategory) &&
+                  (selectedCampus === 'all' || product.campus === selectedCampus)
+                )
                 .map((product) => (
                   <ProductCard
                     key={product.id}
                     product={product}
                     onViewProduct={handleViewProduct}
                     onMessageSeller={handleMessageSeller}
+                    isAuthenticated={!!user}
                   />
                 ))}
             </div>

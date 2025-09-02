@@ -22,9 +22,10 @@ interface ProductCardProps {
   product: Product;
   onViewProduct: (productId: string) => void;
   onMessageSeller: (productId: string) => void;
+  isAuthenticated?: boolean;
 }
 
-const ProductCard = ({ product, onViewProduct, onMessageSeller }: ProductCardProps) => {
+const ProductCard = ({ product, onViewProduct, onMessageSeller, isAuthenticated = false }: ProductCardProps) => {
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-NG', {
       style: 'currency',
@@ -48,7 +49,7 @@ const ProductCard = ({ product, onViewProduct, onMessageSeller }: ProductCardPro
   };
 
   return (
-    <Card className="group hover:shadow-card transition-smooth overflow-hidden">
+    <Card className="group hover:shadow-card transition-smooth overflow-hidden cursor-pointer" onClick={() => onViewProduct(product.id)}>
       <div className="relative aspect-square overflow-hidden bg-muted">
         {product.images?.[0] ? (
           <img
@@ -66,61 +67,47 @@ const ProductCard = ({ product, onViewProduct, onMessageSeller }: ProductCardPro
         </div>
       </div>
 
-      <CardContent className="p-4">
+      <CardContent className="p-3">
         <div className="space-y-2">
-          <h3 className="font-semibold text-lg leading-tight line-clamp-2">
+          <h3 className="font-semibold text-base leading-tight line-clamp-2">
             {product.title}
           </h3>
-          <p className="text-sm text-muted-foreground line-clamp-2">
-            {product.description}
-          </p>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <div className="font-bold text-lg text-university-green">
+            {formatPrice(product.price)}
+          </div>
+          <div className="flex items-center gap-1 text-xs text-muted-foreground">
             <MapPin className="h-3 w-3" />
             <span>{product.campus}</span>
-            <span className="text-accent">•</span>
-            <span className="capitalize">{product.category}</span>
           </div>
         </div>
       </CardContent>
 
-      <CardFooter className="p-4 pt-0 space-y-3">
+      <CardFooter className="p-3 pt-0">
         <div className="flex items-center justify-between w-full">
-          <div className="space-y-1">
-            <div className="font-bold text-xl text-university-green">
-              {formatPrice(product.price)}
-            </div>
-            <div className="flex items-center gap-1 text-sm">
-              <span className="text-muted-foreground">by</span>
-              <span className="font-medium">{product.seller.full_name}</span>
-              {product.seller.is_verified && (
-                <Badge className="h-3 w-3 text-verified-blue" />
-              )}
-              <div className="flex items-center gap-1 ml-1">
-                <Star className="h-3 w-3 fill-warning text-warning" />
-                <span className="text-xs">{product.seller.rating.toFixed(1)}</span>
-              </div>
+          <div className="flex items-center gap-1 text-xs">
+            <span className="font-medium truncate max-w-[80px]">{product.seller.full_name}</span>
+            {product.seller.is_verified && (
+              <Badge className="h-3 w-3 text-verified-blue" />
+            )}
+            <div className="flex items-center gap-1">
+              <Star className="h-3 w-3 fill-warning text-warning" />
+              <span>{product.seller.rating.toFixed(1)}</span>
             </div>
           </div>
-        </div>
-
-        <div className="flex gap-2 w-full">
-          <Button
-            variant="outline"
-            size="sm"
-            className="flex-1"
-            onClick={() => onMessageSeller(product.id)}
-          >
-            <MessageCircle className="h-4 w-4" />
-            Message
-          </Button>
-          <Button
-            variant="marketplace"
-            size="sm"
-            className="flex-1"
-            onClick={() => onViewProduct(product.id)}
-          >
-            View Details
-          </Button>
+          
+          {isAuthenticated && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                onMessageSeller(product.id);
+              }}
+              className="h-7 px-2"
+            >
+              <MessageCircle className="h-3 w-3" />
+            </Button>
+          )}
         </div>
       </CardFooter>
     </Card>
