@@ -323,10 +323,17 @@ const Index = () => {
           ) : products.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {products
-                .filter(product => 
-                  (selectedCategory === 'all' || product.category === selectedCategory) &&
-                  (selectedCampus === 'all' || product.campus === selectedCampus)
-                )
+                .filter(product => {
+                  const matchesCategory = selectedCategory === 'all' || product.category === selectedCategory;
+                  let matchesCampus = true;
+                  
+                  if (selectedCampus !== 'all') {
+                    const selectedCampusName = campuses.find(c => c.id === selectedCampus)?.name;
+                    matchesCampus = product.campus === selectedCampusName;
+                  }
+                  
+                  return matchesCategory && matchesCampus;
+                })
                 .map((product) => (
                   <ProductCard
                     key={product.id}

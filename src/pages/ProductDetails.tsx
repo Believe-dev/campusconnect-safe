@@ -96,11 +96,53 @@ const ProductDetails = () => {
       return;
     }
 
-    // TODO: Implement cart functionality
-    toast({
-      title: "Added to Cart",
-      description: `${quantity} item(s) added to your cart`,
-    });
+    if (!product) return;
+
+    try {
+      // Check if item already exists in cart
+      const { data: existingItem } = await supabase
+        .from('cart')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('product_id', product.id)
+        .maybeSingle();
+
+      if (existingItem) {
+        // Update quantity if item exists
+        const { error } = await supabase
+          .from('cart')
+          .update({ 
+            quantity: existingItem.quantity + quantity,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', existingItem.id);
+
+        if (error) throw error;
+      } else {
+        // Insert new item to cart
+        const { error } = await supabase
+          .from('cart')
+          .insert({
+            user_id: user.id,
+            product_id: product.id,
+            quantity: quantity
+          });
+
+        if (error) throw error;
+      }
+
+      toast({
+        title: "Added to Cart",
+        description: `${quantity} item(s) added to your cart`,
+      });
+    } catch (error) {
+      console.error('Error adding to cart:', error);
+      toast({
+        title: "Error",
+        description: "Failed to add item to cart",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleStartChat = async () => {
