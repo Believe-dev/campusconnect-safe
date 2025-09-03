@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Shield, GraduationCap, UserCheck, Mail } from 'lucide-react';
+import { Shield, GraduationCap, UserCheck, Mail, Upload, Camera, IdCard } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { User, Session } from '@supabase/supabase-js';
 
@@ -20,7 +20,9 @@ const AuthPage = () => {
   const [fullName, setFullName] = useState('');
   const [university, setUniversity] = useState('');
   const [campus, setCampus] = useState('');
-  const [accountType, setAccountType] = useState<'buyer' | 'seller' | 'both'>('buyer');
+  const [accountType, setAccountType] = useState<'buyer' | 'seller'>('buyer');
+  const [facePhoto, setFacePhoto] = useState<File | null>(null);
+  const [studentIdPhoto, setStudentIdPhoto] = useState<File | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -46,10 +48,22 @@ const AuthPage = () => {
     return <Navigate to="/" replace />;
   }
 
+  const uploadVerificationPhoto = async (file: File, type: 'face' | 'student_id', userId: string) => {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${userId}/${type}-${Date.now()}.${fileExt}`;
+    
+    const { data, error } = await supabase.storage
+      .from('verification-photos')
+      .upload(fileName, file);
+    
+    if (error) throw error;
+    return data.path;
+  };
+
   const signUp = async (email: string, password: string) => {
     const redirectUrl = `${window.location.origin}/`;
     
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -62,6 +76,26 @@ const AuthPage = () => {
         }
       }
     });
+
+    // If seller registration, upload verification photos
+    if (!error && data.user && accountType === 'seller' && facePhoto && studentIdPhoto) {
+      try {
+        const facePhotoPath = await uploadVerificationPhoto(facePhoto, 'face', data.user.id);
+        const studentIdPhotoPath = await uploadVerificationPhoto(studentIdPhoto, 'student_id', data.user.id);
+        
+        // Update profile with photo URLs
+        await supabase
+          .from('profiles')
+          .update({
+            face_photo_url: facePhotoPath,
+            student_id_photo_url: studentIdPhotoPath,
+          })
+          .eq('user_id', data.user.id);
+      } catch (uploadError) {
+        console.error('Error uploading verification photos:', uploadError);
+      }
+    }
+    
     return { error };
   };
 
@@ -83,23 +117,39 @@ const AuthPage = () => {
       return;
     }
 
-    if (isSignUp && (!fullName || !university)) {
-      toast({
-        title: "Missing Information", 
-        description: "Please fill in your name and university.",
-        variant: "destructive",
-      });
-      return;
-    }
+    // Different validation for buyers vs sellers
+    if (isSignUp && accountType === 'buyer') {
+      // Buyers only need email and password (any email allowed)
+    } else if (isSignUp && accountType === 'seller') {
+      // Sellers need more strict validation
+      if (!fullName || !university) {
+        toast({
+          title: "Missing Information", 
+          description: "Sellers must provide their name and university.",
+          variant: "destructive",
+        });
+        return;
+      }
 
-    // Validate .edu.ng email for signup
-    if (isSignUp && !email.endsWith('.edu.ng') && !email.includes('student')) {
-      toast({
-        title: "Invalid Email",
-        description: "Please use a valid university email address (.edu.ng) or student email.",
-        variant: "destructive",
-      });
-      return;
+      // Validate .edu.ng email for sellers
+      if (!email.endsWith('.edu.ng') && !email.includes('student')) {
+        toast({
+          title: "Invalid Email",
+          description: "Sellers must use a valid university email address (.edu.ng) or student email.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Require verification photos for sellers
+      if (!facePhoto || !studentIdPhoto) {
+        toast({
+          title: "Missing Verification Photos",
+          description: "Sellers must upload both face photo and student ID card photo.",
+          variant: "destructive",
+        });
+        return;
+      }
     }
 
     setLoading(true);
@@ -115,9 +165,12 @@ const AuthPage = () => {
         variant: "destructive",
       });
     } else if (isSignUp) {
+      const message = accountType === 'seller' 
+        ? "Account created! Please check your email to verify. Your seller account will be reviewed by admin for approval."
+        : "Account created! Please check your email to verify your account.";
       toast({
         title: "Account Created!",
-        description: "Please check your email to verify your account.",
+        description: message,
       });
     } else {
       toast({
@@ -183,55 +236,29 @@ const AuthPage = () => {
 
             <TabsContent value="signup" className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="signup-name">Full Name</Label>
-                <Input
-                  id="signup-name"
-                  placeholder="Enter your full name"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="signup-email">University Email</Label>
-                <Input
-                  id="signup-email"
-                  type="email"
-                  placeholder="student@university.edu.ng"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="signup-university">University</Label>
-                <Input
-                  id="signup-university"
-                  placeholder="University of Lagos"
-                  value={university}
-                  onChange={(e) => setUniversity(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="signup-campus">Campus (Optional)</Label>
-                <Input
-                  id="signup-campus"
-                  placeholder="Main Campus"
-                  value={campus}
-                  onChange={(e) => setCampus(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
                 <Label>Account Type</Label>
-                <Select value={accountType} onValueChange={(value: 'buyer' | 'seller' | 'both') => setAccountType(value)}>
+                <Select value={accountType} onValueChange={(value: 'buyer' | 'seller') => setAccountType(value)}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="buyer">Buyer Only</SelectItem>
-                    <SelectItem value="seller">Seller Only</SelectItem>
-                    <SelectItem value="both">Both Buyer & Seller</SelectItem>
+                    <SelectItem value="buyer">Buyer</SelectItem>
+                    <SelectItem value="seller">Seller</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="signup-email">{accountType === 'seller' ? 'University Email' : 'Email'}</Label>
+                <Input
+                  id="signup-email"
+                  type="email"
+                  placeholder={accountType === 'seller' ? 'student@university.edu.ng' : 'your@email.com'}
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="signup-password">Password</Label>
                 <Input
@@ -242,6 +269,73 @@ const AuthPage = () => {
                   onChange={(e) => setPassword(e.target.value)}
                 />
               </div>
+
+              {accountType === 'seller' && (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-name">Full Name *</Label>
+                    <Input
+                      id="signup-name"
+                      placeholder="Enter your full name"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-university">University *</Label>
+                    <Input
+                      id="signup-university"
+                      placeholder="University of Lagos"
+                      value={university}
+                      onChange={(e) => setUniversity(e.target.value)}
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-campus">Campus (Optional)</Label>
+                    <Input
+                      id="signup-campus"
+                      placeholder="Main Campus"
+                      value={campus}
+                      onChange={(e) => setCampus(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Face Photo *</Label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => setFacePhoto(e.target.files?.[0] || null)}
+                      />
+                      <Camera className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                    <p className="text-xs text-muted-foreground">Clear photo of your face for verification</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Student ID Card Photo *</Label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => setStudentIdPhoto(e.target.files?.[0] || null)}
+                      />
+                      <IdCard className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                    <p className="text-xs text-muted-foreground">Photo of your student ID card</p>
+                  </div>
+
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                    <p className="text-sm text-amber-800">
+                      <Shield className="h-4 w-4 inline mr-1" />
+                      Your seller account will be reviewed by our admin team before approval.
+                    </p>
+                  </div>
+                </>
+              )}
               <Button 
                 variant="brand" 
                 className="w-full" 

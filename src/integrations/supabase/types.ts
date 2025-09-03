@@ -367,11 +367,13 @@ export type Database = {
       profiles: {
         Row: {
           account_type: string
+          admin_notes: string | null
           avatar_url: string | null
           bio: string | null
           campus: string | null
           created_at: string
           email: string
+          face_photo_url: string | null
           full_name: string | null
           id: string
           is_banned: boolean | null
@@ -379,19 +381,25 @@ export type Database = {
           phone_number: string | null
           rating: number | null
           student_id: string | null
+          student_id_photo_url: string | null
           total_reviews: number | null
           university_name: string | null
           updated_at: string
           user_id: string
+          verification_status: string | null
           verification_type: string | null
+          verified_at: string | null
+          verified_by: string | null
         }
         Insert: {
           account_type?: string
+          admin_notes?: string | null
           avatar_url?: string | null
           bio?: string | null
           campus?: string | null
           created_at?: string
           email: string
+          face_photo_url?: string | null
           full_name?: string | null
           id?: string
           is_banned?: boolean | null
@@ -399,19 +407,25 @@ export type Database = {
           phone_number?: string | null
           rating?: number | null
           student_id?: string | null
+          student_id_photo_url?: string | null
           total_reviews?: number | null
           university_name?: string | null
           updated_at?: string
           user_id: string
+          verification_status?: string | null
           verification_type?: string | null
+          verified_at?: string | null
+          verified_by?: string | null
         }
         Update: {
           account_type?: string
+          admin_notes?: string | null
           avatar_url?: string | null
           bio?: string | null
           campus?: string | null
           created_at?: string
           email?: string
+          face_photo_url?: string | null
           full_name?: string | null
           id?: string
           is_banned?: boolean | null
@@ -419,11 +433,15 @@ export type Database = {
           phone_number?: string | null
           rating?: number | null
           student_id?: string | null
+          student_id_photo_url?: string | null
           total_reviews?: number | null
           university_name?: string | null
           updated_at?: string
           user_id?: string
+          verification_status?: string | null
           verification_type?: string | null
+          verified_at?: string | null
+          verified_by?: string | null
         }
         Relationships: []
       }

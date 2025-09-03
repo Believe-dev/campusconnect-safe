@@ -7,6 +7,7 @@ import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import ProductDetails from "./pages/ProductDetails";
 import Profile from "./pages/Profile";
+import SellerProfile from "./components/SellerProfile";
 import Messages from "./pages/Messages";
 import Orders from "./pages/Orders";
 import Search from "./pages/Search";
@@ -34,6 +35,7 @@ const App = () => (
           <Route path="/marketplace" element={<Marketplace />} />
           <Route path="/product/:id" element={<ProductDetails />} />
           <Route path="/profile" element={<Profile />} />
+          <Route path="/seller/:sellerId" element={<SellerProfile />} />
           <Route path="/messages" element={<Messages />} />
           <Route path="/orders" element={<Orders />} />
           <Route path="/search" element={<Search />} />
