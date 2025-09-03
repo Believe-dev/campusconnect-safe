@@ -104,10 +104,10 @@ const Index = () => {
 
   const categories = [
     { id: 'all', name: 'All Categories', icon: ShoppingBag },
-    { id: 'books', name: 'Books', icon: Book },
-    { id: 'electronics', name: 'Electronics', icon: Laptop },
-    { id: 'fashion', name: 'Fashion', icon: Shirt },
-    { id: 'food', name: 'Food & Snacks', icon: Utensils },
+    { id: 'Books & Textbooks', name: 'Books', icon: Book },
+    { id: 'Electronics', name: 'Electronics', icon: Laptop },
+    { id: 'Fashion & Accessories', name: 'Fashion', icon: Shirt },
+    { id: 'Food & Beverages', name: 'Food & Snacks', icon: Utensils },
   ];
 
   const campuses = [
