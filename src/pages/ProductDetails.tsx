@@ -16,9 +16,12 @@ import {
   Package,
   Shield,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Copy,
+  Check
 } from 'lucide-react';
 import Header from '@/components/layout/Header';
+import ProductCard from '@/components/marketplace/ProductCard';
 
 interface Product {
   id: string;
@@ -45,9 +48,12 @@ const ProductDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [product, setProduct] = useState<Product | null>(null);
+  const [similarProducts, setSimilarProducts] = useState<Product[]>([]);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [similarLoading, setSimilarLoading] = useState(true);
   const [quantity, setQuantity] = useState(1);
+  const [copied, setCopied] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -55,6 +61,12 @@ const ProductDetails = () => {
       fetchProduct();
     }
   }, [id]);
+
+  useEffect(() => {
+    if (product) {
+      fetchSimilarProducts();
+    }
+  }, [product]);
 
   const fetchProduct = async () => {
     try {
@@ -86,6 +98,36 @@ const ProductDetails = () => {
       navigate('/');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchSimilarProducts = async () => {
+    if (!product) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('products')
+        .select(`
+          *,
+          profiles:seller_id (
+            full_name,
+            avatar_url,
+            is_verified,
+            rating,
+            total_reviews
+          )
+        `)
+        .eq('category', product.category)
+        .eq('is_active', true)
+        .neq('id', product.id)
+        .limit(4);
+
+      if (error) throw error;
+      setSimilarProducts(data || []);
+    } catch (error) {
+      console.error('Error fetching similar products:', error);
+    } finally {
+      setSimilarLoading(false);
     }
   };
 
@@ -193,6 +235,43 @@ const ProductDetails = () => {
     }
   };
 
+  const handleShare = async () => {
+    const url = window.location.href;
+    const title = product?.title || 'Check out this product';
+    const text = `${title} - ₦${product?.price.toLocaleString()}`;
+
+    // Try Web Share API first
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title,
+          text,
+          url,
+        });
+        return;
+      } catch (error) {
+        // Fallback to copy link if share is cancelled or fails
+      }
+    }
+
+    // Fallback: Copy to clipboard
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      toast({
+        title: "Link Copied",
+        description: "Product link has been copied to clipboard",
+      });
+      setTimeout(() => setCopied(false), 2000);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to copy link",
+        variant: "destructive",
+      });
+    }
+  };
+
   const getInitials = (name: string) => {
     return name
       .split(' ')
@@ -290,8 +369,8 @@ const ProductDetails = () => {
                     <Button variant="ghost" size="icon">
                       <Heart className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="icon">
-                      <Share2 className="h-4 w-4" />
+                    <Button variant="ghost" size="icon" onClick={handleShare}>
+                      {copied ? <Check className="h-4 w-4" /> : <Share2 className="h-4 w-4" />}
                     </Button>
                   </div>
                 </div>
@@ -391,6 +470,42 @@ const ProductDetails = () => {
               </div>
             </div>
           </div>
+
+          {/* Similar Products Section */}
+          {!similarLoading && similarProducts.length > 0 && (
+            <div className="mt-16">
+              <div className="mb-8">
+                <h2 className="text-2xl font-bold text-primary mb-2">Similar Products</h2>
+                <p className="text-muted-foreground">You might also like these items in {product.category}</p>
+              </div>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                {similarProducts.map((similarProduct) => (
+                  <ProductCard
+                    key={similarProduct.id}
+                    product={{
+                      id: similarProduct.id,
+                      title: similarProduct.title,
+                      description: similarProduct.description || '',
+                      price: similarProduct.price,
+                      images: similarProduct.images || [],
+                      category: similarProduct.category,
+                      campus: similarProduct.campus || '',
+                      condition: similarProduct.condition,
+                      seller: similarProduct.seller ? {
+                        full_name: similarProduct.seller.full_name,
+                        rating: similarProduct.seller.rating,
+                        is_verified: similarProduct.seller.is_verified
+                      } : null
+                    }}
+                    onViewProduct={(productId) => navigate(`/product/${productId}`)}
+                    onMessageSeller={() => {}}
+                    isAuthenticated={false}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </main>
     </div>
