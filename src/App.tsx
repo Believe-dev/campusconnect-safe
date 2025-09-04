@@ -7,7 +7,7 @@ import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import ProductDetails from "./pages/ProductDetails";
 import Profile from "./pages/Profile";
-import SellerProfile from "./components/SellerProfile";
+import SellerProfile from "./components/profiles/SellerProfile";
 import Messages from "./pages/Messages";
 import Orders from "./pages/Orders";
 import Search from "./pages/Search";
