@@ -48,10 +48,14 @@ const ProductCard = ({ product, onViewProduct, onMessageSeller, isAuthenticated 
     }
   };
 
+  if (!product) {
+    return null;
+  }
+
   return (
     <Card className="group hover:shadow-card transition-smooth overflow-hidden cursor-pointer" onClick={() => onViewProduct(product.id)}>
       <div className="relative aspect-square overflow-hidden bg-muted">
-        {product.images?.[0] ? (
+        {product?.images?.[0] ? (
           <img
             src={product.images[0]}
             alt={product.title}
@@ -62,22 +66,22 @@ const ProductCard = ({ product, onViewProduct, onMessageSeller, isAuthenticated 
             <span className="text-muted-foreground">No Image</span>
           </div>
         )}
-        <div className={`absolute top-2 right-2 px-2 py-1 rounded-full text-xs font-medium border ${getConditionColor(product.condition)}`}>
-          {product.condition.replace('_', ' ')}
+        <div className={`absolute top-2 right-2 px-2 py-1 rounded-full text-xs font-medium border ${getConditionColor(product?.condition || 'good')}`}>
+          {(product?.condition || 'good').replace('_', ' ')}
         </div>
       </div>
 
       <CardContent className="p-3">
         <div className="space-y-2">
           <h3 className="font-semibold text-base leading-tight line-clamp-2">
-            {product.title}
+            {product?.title || 'Unknown Product'}
           </h3>
           <div className="font-bold text-lg text-university-green">
-            {formatPrice(product.price)}
+            {formatPrice(product?.price || 0)}
           </div>
           <div className="flex items-center gap-1 text-xs text-muted-foreground">
             <MapPin className="h-3 w-3" />
-            <span>{product.campus}</span>
+            <span>{product?.campus || 'Unknown Campus'}</span>
           </div>
         </div>
       </CardContent>
