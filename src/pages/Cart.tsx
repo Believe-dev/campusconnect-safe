@@ -12,9 +12,12 @@ import {
   Minus, 
   ShoppingCart,
   ArrowRight,
-  Package
+  Package,
+  Heart,
+  MessageCircle
 } from 'lucide-react';
 import Header from '@/components/layout/Header';
+import ProductCard from '@/components/marketplace/ProductCard';
 import { User } from '@supabase/supabase-js';
 
 interface CartItem {
@@ -28,19 +31,42 @@ interface CartItem {
     price: number;
     stock_quantity: number;
     condition: string;
+    category: string;
+    campus: string;
     images: string[];
     seller_id: string;
     profiles: {
       full_name: string;
       rating: number;
+      is_verified: boolean;
     };
+  };
+}
+
+interface CartProduct {
+  id: string;
+  title: string;
+  description: string;
+  price: number;
+  category: string;
+  campus: string;
+  condition: string;
+  images: string[];
+  seller_id: string;
+  stock_quantity: number;
+  seller: {
+    full_name: string;
+    rating: number;
+    is_verified: boolean;
   };
 }
 
 const Cart = () => {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const [recommendedProducts, setRecommendedProducts] = useState<CartProduct[]>([]);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadingRecommended, setLoadingRecommended] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -56,7 +82,7 @@ const Cart = () => {
         return;
       }
       setUser(user);
-      fetchCartItems(user.id);
+      await fetchCartItems(user.id);
     } catch (error) {
       console.error('Error checking auth:', error);
       navigate('/auth');
@@ -73,7 +99,8 @@ const Cart = () => {
             *,
             profiles!products_seller_id_fkey (
               full_name,
-              rating
+              rating,
+              is_verified
             )
           )
         `)
@@ -82,6 +109,9 @@ const Cart = () => {
 
       if (error) throw error;
       setCartItems(data || []);
+      
+      // Fetch recommended products after cart items are loaded
+      await fetchRecommendedProducts(data || []);
     } catch (error) {
       console.error('Error fetching cart items:', error);
       toast({
@@ -91,6 +121,71 @@ const Cart = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchRecommendedProducts = async (currentCartItems: CartItem[]) => {
+    setLoadingRecommended(true);
+    try {
+      let query = supabase
+        .from('products')
+        .select(`
+          *,
+          profiles!products_seller_id_fkey (
+            full_name,
+            avatar_url,
+            is_verified,
+            rating
+          )
+        `)
+        .eq('is_active', true)
+        .limit(8);
+
+      if (currentCartItems.length > 0) {
+        // Get categories from cart items for "You might also like"
+        const categories = [...new Set(currentCartItems.map(item => item.products.category))];
+        const productIds = currentCartItems.map(item => item.products.id);
+        
+        query = query
+          .in('category', categories)
+          .not('id', 'in', `(${productIds.join(',')})`)
+          .order('created_at', { ascending: false });
+      } else {
+        // Get popular/recent products for empty cart
+        query = query.order('created_at', { ascending: false });
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      // Transform the data to match our Product interface
+      const transformedData = (data || []).map(item => ({
+        id: item.id,
+        title: item.title,
+        description: item.description || '',
+        price: item.price,
+        category: item.category,
+        campus: item.campus || 'Unknown Campus',
+        condition: item.condition,
+        images: item.images || [],
+        seller_id: item.seller_id,
+        stock_quantity: item.stock_quantity,
+        seller: item.profiles ? {
+          full_name: item.profiles.full_name,
+          rating: item.profiles.rating,
+          is_verified: item.profiles.is_verified
+        } : {
+          full_name: 'Unknown Seller',
+          rating: 0,
+          is_verified: false
+        }
+      }));
+
+      setRecommendedProducts(transformedData);
+    } catch (error) {
+      console.error('Error fetching recommended products:', error);
+    } finally {
+      setLoadingRecommended(false);
     }
   };
 
@@ -169,6 +264,73 @@ const Cart = () => {
     navigate('/checkout');
   };
 
+  const handleViewProduct = (productId: string) => {
+    navigate(`/product/${productId}`);
+  };
+
+  const handleMessageSeller = (sellerId: string) => {
+    navigate(`/messages?seller=${sellerId}`);
+  };
+
+  const addToCart = async (productId: string) => {
+    if (!user) {
+      toast({
+        title: "Authentication required",
+        description: "Please sign in to add items to cart",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // Check if item already exists in cart
+      const { data: existingItem } = await supabase
+        .from('cart')
+        .select('id, quantity')
+        .eq('user_id', user.id)
+        .eq('product_id', productId)
+        .single();
+
+      if (existingItem) {
+        // Update quantity if item exists
+        const { error } = await supabase
+          .from('cart')
+          .update({ quantity: existingItem.quantity + 1 })
+          .eq('id', existingItem.id);
+
+        if (error) throw error;
+      } else {
+        // Add new item to cart
+        const { error } = await supabase
+          .from('cart')
+          .insert({
+            user_id: user.id,
+            product_id: productId,
+            quantity: 1
+          });
+
+        if (error) throw error;
+      }
+
+      toast({
+        title: "Added to cart",
+        description: "Item added to your cart successfully",
+      });
+
+      // Refresh cart items
+      if (user) {
+        fetchCartItems(user.id);
+      }
+    } catch (error) {
+      console.error('Error adding to cart:', error);
+      toast({
+        title: "Error",
+        description: "Failed to add item to cart",
+        variant: "destructive",
+      });
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background">
@@ -197,18 +359,57 @@ const Cart = () => {
           </div>
 
           {cartItems.length === 0 ? (
-            <Card>
-              <CardContent className="p-12 text-center">
-                <Package className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-xl font-semibold mb-2">Your cart is empty</h3>
-                <p className="text-muted-foreground mb-6">
-                  Browse our marketplace to find products you love
-                </p>
-                <Button variant="brand" asChild>
-                  <a href="/marketplace">Browse Products</a>
-                </Button>
-              </CardContent>
-            </Card>
+            <>
+              <Card>
+                <CardContent className="p-12 text-center">
+                  <Package className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="text-xl font-semibold mb-2">Your cart is empty</h3>
+                  <p className="text-muted-foreground mb-6">
+                    Browse our marketplace to find products you love
+                  </p>
+                  <Button variant="brand" asChild>
+                    <a href="/marketplace">Browse Products</a>
+                  </Button>
+                </CardContent>
+              </Card>
+
+              {/* Recommended Products for Empty Cart */}
+              {recommendedProducts.length > 0 && (
+                <div className="mt-12">
+                  <h2 className="text-2xl font-bold mb-6">Recommended for You</h2>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    {recommendedProducts.slice(0, 4).map((product) => (
+                      <div key={product.id} className="relative">
+                        <ProductCard
+                          product={product}
+                          onViewProduct={handleViewProduct}
+                          onMessageSeller={handleMessageSeller}
+                          isAuthenticated={!!user}
+                        />
+                        <div className="absolute bottom-2 left-2 right-2 flex gap-2">
+                          <Button 
+                            size="sm" 
+                            variant="brand" 
+                            className="flex-1"
+                            onClick={() => addToCart(product.id)}
+                          >
+                            <ShoppingCart className="h-3 w-3 mr-1" />
+                            Add to Cart
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => handleMessageSeller(product.seller_id)}
+                          >
+                            <MessageCircle className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               {/* Cart Items */}
@@ -326,6 +527,43 @@ const Cart = () => {
                     </Button>
                   </CardContent>
                 </Card>
+              </div>
+            </div>
+          )}
+
+          {/* You Might Also Like - Only show when cart has items */}
+          {cartItems.length > 0 && recommendedProducts.length > 0 && (
+            <div className="mt-12">
+              <h2 className="text-2xl font-bold mb-6">You Might Also Like</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {recommendedProducts.slice(0, 4).map((product) => (
+                  <div key={product.id} className="relative">
+                    <ProductCard
+                      product={product}
+                      onViewProduct={handleViewProduct}
+                      onMessageSeller={handleMessageSeller}
+                      isAuthenticated={!!user}
+                    />
+                    <div className="absolute bottom-2 left-2 right-2 flex gap-2">
+                      <Button 
+                        size="sm" 
+                        variant="brand" 
+                        className="flex-1"
+                        onClick={() => addToCart(product.id)}
+                      >
+                        <ShoppingCart className="h-3 w-3 mr-1" />
+                        Add to Cart
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        onClick={() => handleMessageSeller(product.seller_id)}
+                      >
+                        <MessageCircle className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )}

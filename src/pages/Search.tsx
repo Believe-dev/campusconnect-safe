@@ -5,27 +5,26 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/enhanced-button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
-import { Search as SearchIcon, Filter, SlidersHorizontal } from 'lucide-react';
+import { Search as SearchIcon, Filter, SlidersHorizontal, ShoppingCart, MessageCircle } from 'lucide-react';
 import Header from '@/components/layout/Header';
 import ProductCard from '@/components/marketplace/ProductCard';
 
-interface Product {
+interface SearchProduct {
   id: string;
   title: string;
-  description?: string;
+  description: string;
   price: number;
   category: string;
-  campus?: string;
+  campus: string;
   condition: string;
-  images?: string[];
+  images: string[];
   seller_id: string;
   stock_quantity: number;
   created_at: string;
-  seller?: {
+  seller: {
     full_name: string;
-    avatar_url?: string;
-    is_verified: boolean;
     rating: number;
+    is_verified: boolean;
   };
 }
 
@@ -55,7 +54,7 @@ const campuses = [
 const Search = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [products, setProducts] = useState<Product[]>([]);
+  const [products, setProducts] = useState<SearchProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '');
   const [selectedCategory, setSelectedCategory] = useState('All Categories');
@@ -63,6 +62,20 @@ const Search = () => {
   const [priceRange, setPriceRange] = useState({ min: '', max: '' });
   const [sortBy, setSortBy] = useState('newest');
   const [showFilters, setShowFilters] = useState(false);
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    checkAuth();
+  }, []);
+
+  const checkAuth = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
+    } catch (error) {
+      console.error('Error checking auth:', error);
+    }
+  };
 
   useEffect(() => {
     const query = searchParams.get('q');
@@ -77,13 +90,25 @@ const Search = () => {
     try {
       let query = supabase
         .from('products')
-        .select('*')
+        .select(`
+          *,
+          profiles!products_seller_id_fkey (
+            full_name,
+            avatar_url,
+            is_verified,
+            rating
+          )
+        `)
         .eq('is_active', true);
 
-      // Apply search query
+      // Apply smart search query
       const searchTerm = searchParams.get('q') || searchQuery;
       if (searchTerm) {
-        query = query.or(`title.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%,category.ilike.%${searchTerm}%`);
+        const terms = searchTerm.toLowerCase().split(' ').filter(Boolean);
+        const searchConditions = terms.map(term => 
+          `title.ilike.%${term}%,description.ilike.%${term}%,category.ilike.%${term}%,campus.ilike.%${term}%`
+        ).join(',');
+        query = query.or(searchConditions);
       }
 
       // Apply category filter
@@ -122,7 +147,32 @@ const Search = () => {
       const { data, error } = await query;
       
       if (error) throw error;
-      setProducts(data || []);
+      
+      // Transform the data to match our Product interface
+      const transformedData = (data || []).map(item => ({
+        id: item.id,
+        title: item.title,
+        description: item.description || '',
+        price: item.price,
+        category: item.category,
+        campus: item.campus || 'Unknown Campus',
+        condition: item.condition,
+        images: item.images || [],
+        seller_id: item.seller_id,
+        stock_quantity: item.stock_quantity,
+        created_at: item.created_at,
+        seller: item.profiles ? {
+          full_name: item.profiles.full_name,
+          rating: item.profiles.rating,
+          is_verified: item.profiles.is_verified
+        } : {
+          full_name: 'Unknown Seller',
+          rating: 0,
+          is_verified: false
+        }
+      }));
+      
+      setProducts(transformedData);
     } catch (error) {
       console.error('Error searching products:', error);
     } finally {
@@ -147,6 +197,57 @@ const Search = () => {
     setPriceRange({ min: '', max: '' });
     setSortBy('newest');
     searchProducts();
+  };
+
+  const handleViewProduct = (productId: string) => {
+    navigate(`/product/${productId}`);
+  };
+
+  const handleMessageSeller = (sellerId: string) => {
+    navigate(`/messages?seller=${sellerId}`);
+  };
+
+  const addToCart = async (productId: string) => {
+    if (!user) {
+      navigate('/auth');
+      return;
+    }
+
+    try {
+      // Check if item already exists in cart
+      const { data: existingItem } = await supabase
+        .from('cart')
+        .select('id, quantity')
+        .eq('user_id', user.id)
+        .eq('product_id', productId)
+        .single();
+
+      if (existingItem) {
+        // Update quantity if item exists
+        const { error } = await supabase
+          .from('cart')
+          .update({ quantity: existingItem.quantity + 1 })
+          .eq('id', existingItem.id);
+
+        if (error) throw error;
+      } else {
+        // Add new item to cart
+        const { error } = await supabase
+          .from('cart')
+          .insert({
+            user_id: user.id,
+            product_id: productId,
+            quantity: 1
+          });
+
+        if (error) throw error;
+      }
+
+      // Show success message (you might want to add toast here)
+      console.log('Added to cart successfully');
+    } catch (error) {
+      console.error('Error adding to cart:', error);
+    }
   };
 
   return (
@@ -299,11 +400,36 @@ const Search = () => {
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {products.map(product => (
-                    <div key={product.id} className="cursor-pointer" onClick={() => navigate(`/product/${product.id}`)}>
-                      <div className="bg-card border rounded-lg p-4 hover:shadow-md transition-shadow">
-                        <h3 className="font-semibold mb-2">{product.title}</h3>
-                        <p className="text-2xl font-bold text-university-green">₦{product.price.toLocaleString()}</p>
-                        <p className="text-sm text-muted-foreground">{product.category}</p>
+                    <div key={product.id} className="relative group">
+                      <ProductCard
+                        product={product}
+                        onViewProduct={handleViewProduct}
+                        onMessageSeller={handleMessageSeller}
+                        isAuthenticated={!!user}
+                      />
+                      <div className="absolute bottom-2 left-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button 
+                          size="sm" 
+                          variant="brand" 
+                          className="flex-1"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            addToCart(product.id);
+                          }}
+                        >
+                          <ShoppingCart className="h-3 w-3 mr-1" />
+                          Add to Cart
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleMessageSeller(product.seller_id);
+                          }}
+                        >
+                          <MessageCircle className="h-3 w-3" />
+                        </Button>
                       </div>
                     </div>
                   ))}
