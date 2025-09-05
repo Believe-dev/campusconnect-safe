@@ -400,38 +400,15 @@ const Search = () => {
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {products.map(product => (
-                    <div key={product.id} className="relative group">
-                      <ProductCard
-                        product={product}
-                        onViewProduct={handleViewProduct}
-                        onMessageSeller={handleMessageSeller}
-                        isAuthenticated={!!user}
-                      />
-                      <div className="absolute bottom-2 left-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Button 
-                          size="sm" 
-                          variant="brand" 
-                          className="flex-1"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            addToCart(product.id);
-                          }}
-                        >
-                          <ShoppingCart className="h-3 w-3 mr-1" />
-                          Add to Cart
-                        </Button>
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleMessageSeller(product.seller_id);
-                          }}
-                        >
-                          <MessageCircle className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </div>
+                    <ProductCard
+                      key={product.id}
+                      product={product}
+                      onViewProduct={handleViewProduct}
+                      onMessageSeller={handleMessageSeller}
+                      onAddToCart={addToCart}
+                      isAuthenticated={!!user}
+                      showHoverActions={true}
+                    />
                   ))}
                 </div>
               )}

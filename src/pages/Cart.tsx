@@ -380,12 +380,14 @@ const Cart = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     {recommendedProducts.slice(0, 4).map((product) => (
                       <div key={product.id} className="relative">
-                        <ProductCard
-                          product={product}
-                          onViewProduct={handleViewProduct}
-                          onMessageSeller={handleMessageSeller}
-                          isAuthenticated={!!user}
-                        />
+                    <ProductCard
+                      product={product}
+                      onViewProduct={handleViewProduct}
+                      onMessageSeller={handleMessageSeller}
+                      onAddToCart={addToCart}
+                      isAuthenticated={!!user}
+                      showHoverActions={true}
+                    />
                         <div className="absolute bottom-2 left-2 right-2 flex gap-2">
                           <Button 
                             size="sm" 
@@ -538,12 +540,14 @@ const Cart = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {recommendedProducts.slice(0, 4).map((product) => (
                   <div key={product.id} className="relative">
-                    <ProductCard
-                      product={product}
-                      onViewProduct={handleViewProduct}
-                      onMessageSeller={handleMessageSeller}
-                      isAuthenticated={!!user}
-                    />
+                      <ProductCard
+                        product={product}
+                        onViewProduct={handleViewProduct}
+                        onMessageSeller={handleMessageSeller}
+                        onAddToCart={addToCart}
+                        isAuthenticated={!!user}
+                        showHoverActions={true}
+                      />
                     <div className="absolute bottom-2 left-2 right-2 flex gap-2">
                       <Button 
                         size="sm" 

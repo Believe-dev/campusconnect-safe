@@ -1,4 +1,4 @@
-import { Star, MapPin, Badge, MessageCircle } from 'lucide-react';
+import { Star, MapPin, Badge, MessageCircle, ShoppingCart } from 'lucide-react';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/enhanced-button';
 
@@ -22,10 +22,19 @@ interface ProductCardProps {
   product: Product;
   onViewProduct: (productId: string) => void;
   onMessageSeller: (productId: string) => void;
+  onAddToCart?: (productId: string) => void;
   isAuthenticated?: boolean;
+  showHoverActions?: boolean;
 }
 
-const ProductCard = ({ product, onViewProduct, onMessageSeller, isAuthenticated = false }: ProductCardProps) => {
+const ProductCard = ({ 
+  product, 
+  onViewProduct, 
+  onMessageSeller, 
+  onAddToCart,
+  isAuthenticated = false,
+  showHoverActions = false
+}: ProductCardProps) => {
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-NG', {
       style: 'currency',
@@ -53,7 +62,7 @@ const ProductCard = ({ product, onViewProduct, onMessageSeller, isAuthenticated 
   }
 
   return (
-    <Card className="group hover:shadow-card transition-smooth overflow-hidden cursor-pointer" onClick={() => onViewProduct(product.id)}>
+    <Card className="group hover:shadow-card transition-smooth overflow-hidden cursor-pointer relative" onClick={() => onViewProduct(product.id)}>
       <div className="relative aspect-square overflow-hidden bg-muted">
         {product?.images?.[0] ? (
           <img
@@ -69,6 +78,37 @@ const ProductCard = ({ product, onViewProduct, onMessageSeller, isAuthenticated 
         <div className={`absolute top-2 right-2 px-2 py-1 rounded-full text-xs font-medium border ${getConditionColor(product?.condition || 'good')}`}>
           {(product?.condition || 'good').replace('_', ' ')}
         </div>
+        
+        {/* Hover Actions */}
+        {showHoverActions && isAuthenticated && (
+          <div className="absolute inset-x-2 bottom-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+            {onAddToCart && (
+              <Button 
+                size="sm" 
+                variant="brand" 
+                className="flex-1 h-8 text-xs"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onAddToCart(product.id);
+                }}
+              >
+                <ShoppingCart className="h-3 w-3 mr-1" />
+                Add to Cart
+              </Button>
+            )}
+            <Button 
+              size="sm" 
+              variant="outline"
+              className="h-8 px-2 bg-background/80 hover:bg-background"
+              onClick={(e) => {
+                e.stopPropagation();
+                onMessageSeller(product.id);
+              }}
+            >
+              <MessageCircle className="h-3 w-3" />
+            </Button>
+          </div>
+        )}
       </div>
 
       <CardContent className="p-3">

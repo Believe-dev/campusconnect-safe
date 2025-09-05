@@ -2,12 +2,10 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/enhanced-button';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { 
-  Search, 
   ShoppingCart, 
   MessageCircle, 
   Plus, 
@@ -21,6 +19,8 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
+import { useCartCount } from '@/hooks/useCartCount';
+import SmartSearchInput from '@/components/search/SmartSearchInput';
 
 interface Profile {
   full_name: string;
@@ -31,6 +31,7 @@ interface Profile {
 
 const Header = () => {
   const { user, isAdmin } = useAuth();
+  const { cartCount } = useCartCount();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const navigate = useNavigate();
@@ -92,10 +93,9 @@ const Header = () => {
     }
   };
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (searchQuery.trim()) {
-      navigate(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
+  const handleSearch = (query: string) => {
+    if (query.trim()) {
+      navigate(`/search?q=${encodeURIComponent(query.trim())}`);
     }
   };
 
@@ -120,20 +120,12 @@ const Header = () => {
 
           {/* Search */}
           <div className="flex-1 max-w-lg mx-8">
-            <form onSubmit={handleSearch} className="relative flex gap-2">
-              <div className="flex-1 relative">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder="Search products, categories..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 pr-4"
-                />
-              </div>
-              <Button type="submit" variant="brand" size="sm">
-                Search
-              </Button>
-            </form>
+            <SmartSearchInput
+              value={searchQuery}
+              onChange={setSearchQuery}
+              onSubmit={handleSearch}
+              placeholder="Search products, categories..."
+            />
           </div>
 
           {/* Actions */}
@@ -153,9 +145,17 @@ const Header = () => {
                 </Button>
 
                 {/* Cart */}
-                <Button variant="ghost" size="icon" asChild>
+                <Button variant="ghost" size="icon" asChild className="relative">
                   <Link to="/cart">
                     <ShoppingCart className="h-5 w-5" />
+                    {cartCount > 0 && (
+                      <Badge 
+                        variant="destructive" 
+                        className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center p-0 text-xs font-bold rounded-full bg-red-500 text-white border-2 border-background"
+                      >
+                        {cartCount > 99 ? '99+' : cartCount}
+                      </Badge>
+                    )}
                   </Link>
                 </Button>
 
