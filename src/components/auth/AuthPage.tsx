@@ -63,6 +63,9 @@ const AuthPage = () => {
   const signUp = async (email: string, password: string) => {
     const redirectUrl = `${window.location.origin}/`;
     
+    // Sellers get both seller and buyer account types
+    const finalAccountType = accountType === 'seller' ? 'both' : 'buyer';
+    
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -72,25 +75,34 @@ const AuthPage = () => {
           full_name: fullName,
           university_name: university,
           campus: campus,
-          account_type: accountType,
+          account_type: finalAccountType,
         }
       }
     });
 
-    // If seller registration, upload verification photos
+    // If seller registration, upload verification photos and set verification status
     if (!error && data.user && accountType === 'seller' && facePhoto && studentIdPhoto) {
       try {
         const facePhotoPath = await uploadVerificationPhoto(facePhoto, 'face', data.user.id);
         const studentIdPhotoPath = await uploadVerificationPhoto(studentIdPhoto, 'student_id', data.user.id);
         
-        // Update profile with photo URLs
+        // Update profile with photo URLs and set verification status to pending
         await supabase
           .from('profiles')
           .update({
             face_photo_url: facePhotoPath,
             student_id_photo_url: studentIdPhotoPath,
+            verification_status: 'pending',
           })
           .eq('user_id', data.user.id);
+
+        // Add both seller and buyer roles
+        await supabase
+          .from('user_roles')
+          .insert([
+            { user_id: data.user.id, role: 'seller' },
+            { user_id: data.user.id, role: 'buyer' }
+          ]);
       } catch (uploadError) {
         console.error('Error uploading verification photos:', uploadError);
       }

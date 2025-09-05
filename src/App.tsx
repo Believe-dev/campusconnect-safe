@@ -20,6 +20,8 @@ import Checkout from "./pages/Checkout";
 import Favorites from "./pages/Favorites";
 import AuthPage from "./components/auth/AuthPage";
 import Admin from "./pages/Admin";
+import LearnMore from "./pages/LearnMore";
+import Notifications from "./pages/Notifications";
 
 const queryClient = new QueryClient();
 
@@ -32,6 +34,8 @@ const App = () => (
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/auth" element={<AuthPage />} />
+          <Route path="/learn-more" element={<LearnMore />} />
+          <Route path="/notifications" element={<Notifications />} />
           <Route path="/marketplace" element={<Marketplace />} />
           <Route path="/product/:id" element={<ProductDetails />} />
           <Route path="/profile" element={<Profile />} />

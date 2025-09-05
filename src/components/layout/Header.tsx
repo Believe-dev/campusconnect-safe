@@ -132,9 +132,16 @@ const Header = () => {
           <div className="flex items-center gap-4">
             {user ? (
               <>
-                {/* Marketplace */}
+                {/* Learn More */}
                 <Button variant="ghost" size="sm" asChild>
-                  <Link to="/marketplace">Browse</Link>
+                  <Link to="/learn-more">Learn More</Link>
+                </Button>
+
+                {/* Notifications */}
+                <Button variant="ghost" size="icon" asChild>
+                  <Link to="/notifications">
+                    <Bell className="h-5 w-5" />
+                  </Link>
                 </Button>
 
                 {/* Favorites */}

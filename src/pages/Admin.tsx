@@ -35,7 +35,8 @@ import {
   UserCheck,
   TrendingUp,
   TrendingDown,
-  DollarSign
+  DollarSign,
+  IdCard
 } from 'lucide-react';
 import { toast } from 'sonner';
 import Header from '@/components/layout/Header';
@@ -48,6 +49,10 @@ interface User {
   is_banned: boolean;
   account_type: string;
   campus: string;
+  university_name: string;
+  face_photo_url: string;
+  student_id_photo_url: string;
+  verification_status: string;
   created_at: string;
   user_roles?: { role: string }[];
 }
@@ -113,6 +118,9 @@ export default function Admin() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [showBulkActions, setShowBulkActions] = useState(false);
 
+  // Seller approval states
+  const [pendingSellers, setPendingSellers] = useState<User[]>([]);
+
   useEffect(() => {
     if (isAdmin) {
       fetchUsers();
@@ -120,6 +128,7 @@ export default function Admin() {
       fetchMessages();
       fetchStats();
       fetchAnalytics();
+      fetchPendingSellers();
     }
   }, [isAdmin]);
 
@@ -197,6 +206,123 @@ export default function Admin() {
     } catch (error) {
       console.error('Messages fetch error:', error);
       toast.error('Failed to fetch messages');
+    }
+  };
+
+  const fetchPendingSellers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('verification_status', 'pending')
+        .in('account_type', ['seller', 'both'])
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      setPendingSellers(data || []);
+    } catch (error) {
+      console.error('Pending sellers fetch error:', error);
+      toast.error('Failed to fetch pending sellers');
+    }
+  };
+
+  const approveSeller = async (userId: string, userEmail: string, fullName: string) => {
+    try {
+      // Update profile verification status
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({ 
+          verification_status: 'approved',
+          verified_at: new Date().toISOString(),
+          verified_by: user?.id
+        })
+        .eq('user_id', userId);
+
+      if (profileError) throw profileError;
+
+      // Create in-app notification
+      await supabase
+        .from('notifications')
+        .insert({
+          user_id: userId,
+          title: 'Seller Account Approved! 🎉',
+          message: 'Congratulations! Your seller verification has been approved. You can now start listing items on UniMarket.',
+          type: 'success'
+        });
+
+      // Send email notification
+      try {
+        await supabase.functions.invoke('send-notification-email', {
+          body: {
+            email: userEmail,
+            name: fullName,
+            type: 'approved'
+          }
+        });
+      } catch (emailError) {
+        console.warn('Email notification failed:', emailError);
+        // Don't fail the approval if email fails
+      }
+
+      toast.success('Seller approved successfully');
+      fetchPendingSellers();
+      fetchUsers();
+    } catch (error) {
+      console.error('Approve seller error:', error);
+      toast.error('Failed to approve seller');
+    }
+  };
+
+  const rejectSeller = async (userId: string, userEmail: string, fullName: string) => {
+    try {
+      // Update profile verification status and account type
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({ 
+          verification_status: 'rejected',
+          account_type: 'buyer'
+        })
+        .eq('user_id', userId);
+
+      if (profileError) throw profileError;
+
+      // Remove seller role, keep only buyer role
+      await supabase
+        .from('user_roles')
+        .delete()
+        .eq('user_id', userId)
+        .eq('role', 'seller');
+
+      // Create in-app notification
+      await supabase
+        .from('notifications')
+        .insert({
+          user_id: userId,
+          title: 'Seller Application Update',
+          message: 'Your seller application was not approved at this time. Your account has been converted to buyer-only. You can still browse and purchase items.',
+          type: 'warning'
+        });
+
+      // Send email notification
+      try {
+        await supabase.functions.invoke('send-notification-email', {
+          body: {
+            email: userEmail,
+            name: fullName,
+            type: 'rejected'
+          }
+        });
+      } catch (emailError) {
+        console.warn('Email notification failed:', emailError);
+        // Don't fail the rejection if email fails
+      }
+
+      toast.success('Seller application rejected');
+      fetchPendingSellers();
+      fetchUsers();
+    } catch (error) {
+      console.error('Reject seller error:', error);
+      toast.error('Failed to reject seller');
     }
   };
 
@@ -572,6 +698,14 @@ export default function Admin() {
         <Tabs defaultValue="users" className="space-y-6">
           <TabsList>
             <TabsTrigger value="users">Users</TabsTrigger>
+            <TabsTrigger value="sellers">
+              Seller Approvals
+              {pendingSellers.length > 0 && (
+                <Badge variant="destructive" className="ml-2">
+                  {pendingSellers.length}
+                </Badge>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="products">Products</TabsTrigger>
             <TabsTrigger value="messages">Messages</TabsTrigger>
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
@@ -759,6 +893,175 @@ export default function Admin() {
                     </TableBody>
                   </Table>
                 </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Seller Approvals Tab */}
+          <TabsContent value="sellers">
+            <Card>
+              <CardHeader>
+                <div className="flex justify-between items-center">
+                  <CardTitle>Seller Verification Requests</CardTitle>
+                  <div className="flex items-center gap-2">
+                    {pendingSellers.length > 0 && (
+                      <Badge variant="secondary">
+                        {pendingSellers.length} pending
+                      </Badge>
+                    )}
+                    <Button onClick={fetchPendingSellers} variant="outline" size="sm">
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Refresh
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {pendingSellers.length === 0 ? (
+                  <div className="text-center py-12">
+                    <UserCheck className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold mb-2">No pending approvals</h3>
+                    <p className="text-muted-foreground">
+                      All seller verification requests have been processed
+                    </p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Applicant</TableHead>
+                          <TableHead>Email</TableHead>
+                          <TableHead>University</TableHead>
+                          <TableHead>Campus</TableHead>
+                          <TableHead>Applied</TableHead>
+                          <TableHead>Verification Photos</TableHead>
+                          <TableHead>Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {pendingSellers.map((seller) => (
+                          <TableRow key={seller.id}>
+                            <TableCell className="font-medium">
+                              {seller.full_name || 'N/A'}
+                            </TableCell>
+                            <TableCell>{seller.email}</TableCell>
+                            <TableCell>{seller.university_name || 'N/A'}</TableCell>
+                            <TableCell>{seller.campus || 'N/A'}</TableCell>
+                            <TableCell>
+                              {new Date(seller.created_at).toLocaleDateString()}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex gap-2">
+                                {seller.face_photo_url && (
+                                  <Dialog>
+                                    <DialogTrigger asChild>
+                                      <Button variant="outline" size="sm">
+                                        <Eye className="h-4 w-4 mr-1" />
+                                        Face Photo
+                                      </Button>
+                                    </DialogTrigger>
+                                    <DialogContent>
+                                      <DialogHeader>
+                                        <DialogTitle>Face Verification Photo</DialogTitle>
+                                      </DialogHeader>
+                                      <div className="flex justify-center">
+                                        <img 
+                                          src={`${supabase.storage.from('verification-photos').getPublicUrl(seller.face_photo_url).data.publicUrl}`}
+                                          alt="Face verification"
+                                          className="max-w-full max-h-96 object-contain"
+                                        />
+                                      </div>
+                                    </DialogContent>
+                                  </Dialog>
+                                )}
+                                {seller.student_id_photo_url && (
+                                  <Dialog>
+                                    <DialogTrigger asChild>
+                                      <Button variant="outline" size="sm">
+                                        <IdCard className="h-4 w-4 mr-1" />
+                                        ID Photo
+                                      </Button>
+                                    </DialogTrigger>
+                                    <DialogContent>
+                                      <DialogHeader>
+                                        <DialogTitle>Student ID Verification Photo</DialogTitle>
+                                      </DialogHeader>
+                                      <div className="flex justify-center">
+                                        <img 
+                                          src={`${supabase.storage.from('verification-photos').getPublicUrl(seller.student_id_photo_url).data.publicUrl}`}
+                                          alt="Student ID verification"
+                                          className="max-w-full max-h-96 object-contain"
+                                        />
+                                      </div>
+                                    </DialogContent>
+                                  </Dialog>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex gap-2">
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <Button variant="default" size="sm">
+                                      <CheckSquare className="h-4 w-4 mr-1" />
+                                      Approve
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>Approve Seller Application</AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        Are you sure you want to approve {seller.full_name}'s seller application? 
+                                        This will allow them to list items on the marketplace and they will receive 
+                                        an email notification.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                      <AlertDialogAction 
+                                        onClick={() => approveSeller(seller.user_id, seller.email, seller.full_name || 'User')}
+                                      >
+                                        Approve
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                                
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <Button variant="destructive" size="sm">
+                                      <UserX className="h-4 w-4 mr-1" />
+                                      Reject
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>Reject Seller Application</AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        Are you sure you want to reject {seller.full_name}'s seller application? 
+                                        Their account will be converted to buyer-only and they will receive 
+                                        an email notification.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                      <AlertDialogAction 
+                                        onClick={() => rejectSeller(seller.user_id, seller.email, seller.full_name || 'User')}
+                                      >
+                                        Reject
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
