@@ -153,32 +153,20 @@ const SecureChat = ({ conversationId, currentUserId, onClose }: SecureChatProps)
   const sendMessage = async () => {
     if (!newMessage.trim() || loading) return;
 
-    // Check for blocked content
-    const flaggedReason = detectBlockedContent(newMessage);
-    if (flaggedReason) {
-      toast({
-        title: "Message Blocked",
-        description: "Your message contains prohibited contact information. Please keep all communication within UniMarket for your safety.",
-        variant: "destructive",
-      });
-      setBlocked(true);
-      setTimeout(() => setBlocked(false), 3000);
-      return;
-    }
-
     setLoading(true);
 
     try {
-      const { error } = await supabase
-        .from('messages')
-        .insert({
-          conversation_id: conversationId,
-          sender_id: currentUserId,
-          content: newMessage.trim(),
-        });
+      // Use the moderation edge function for advanced content filtering
+      const { data, error } = await supabase.functions.invoke('moderate-message', {
+        body: {
+          message: newMessage.trim(),
+          conversationId: conversationId,
+          senderId: currentUserId
+        }
+      });
 
       if (error) {
-        console.error('Error sending message:', error);
+        console.error('Error calling moderation function:', error);
         toast({
           title: "Error",
           description: "Failed to send message. Please try again.",
@@ -187,9 +175,31 @@ const SecureChat = ({ conversationId, currentUserId, onClose }: SecureChatProps)
         return;
       }
 
+      // Check if message was blocked by moderation
+      if (data && !data.allowed) {
+        toast({
+          title: "Message Blocked",
+          description: "Your message contains prohibited content. Please keep all communication within UniMarket for your safety.",
+          variant: "destructive",
+        });
+        setBlocked(true);
+        setTimeout(() => setBlocked(false), 3000);
+        return;
+      }
+
+      // Message was approved and sent
       setNewMessage('');
+      toast({
+        title: "Message Sent",
+        description: "Your message has been delivered successfully.",
+      });
     } catch (error) {
       console.error('Error in sendMessage:', error);
+      toast({
+        title: "Error",
+        description: "Failed to send message. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
@@ -219,29 +229,30 @@ const SecureChat = ({ conversationId, currentUserId, onClose }: SecureChatProps)
   };
 
   return (
-    <Card className="flex flex-col h-[600px] max-w-2xl mx-auto">
-      <CardHeader className="border-b">
+    <Card className="flex flex-col h-[600px] max-w-2xl mx-auto shadow-card">
+      <CardHeader className="border-b px-3 py-4 sm:px-6">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <MessageCircle className="h-5 w-5 text-university-green" />
-            <div>
-              <CardTitle className="text-lg">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <MessageCircle className="h-4 w-4 sm:h-5 sm:w-5 text-university-green flex-shrink-0" />
+            <div className="min-w-0 flex-1">
+              <CardTitle className="text-sm sm:text-lg truncate">
                 {conversation?.product?.title || 'Secure Chat'}
               </CardTitle>
               {conversation?.product?.price && (
-                <p className="text-sm text-muted-foreground">
+                <p className="text-xs sm:text-sm text-muted-foreground">
                   ₦{conversation.product.price.toLocaleString()}
                 </p>
               )}
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Badge variant="outline" className="text-xs">
-              <Shield className="h-3 w-3 mr-1" />
-              Monitored
+          <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+            <Badge variant="outline" className="text-xs px-1 sm:px-2 py-1">
+              <Shield className="h-2 w-2 sm:h-3 sm:w-3 mr-1" />
+              <span className="hidden sm:inline">Monitored</span>
+              <span className="sm:hidden">Safe</span>
             </Badge>
             {onClose && (
-              <Button variant="ghost" size="sm" onClick={onClose}>
+              <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0">
                 ✕
               </Button>
             )}
@@ -252,22 +263,22 @@ const SecureChat = ({ conversationId, currentUserId, onClose }: SecureChatProps)
       <CardContent className="flex-1 overflow-hidden p-0">
         <div className="h-full flex flex-col">
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 sm:space-y-4">
             {messages.length === 0 ? (
               <div className="text-center text-muted-foreground py-8">
-                <MessageCircle className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                <p>Start the conversation!</p>
+                <MessageCircle className="h-8 w-8 sm:h-12 sm:w-12 mx-auto mb-2 opacity-50" />
+                <p className="text-sm sm:text-base">Start the conversation!</p>
                 <p className="text-xs mt-1">All messages are monitored for your safety</p>
               </div>
             ) : (
               messages.map((message) => (
                 <div
                   key={message.id}
-                  className={`flex gap-3 ${
+                  className={`flex gap-2 sm:gap-3 ${
                     message.sender_id === currentUserId ? 'flex-row-reverse' : ''
                   }`}
                 >
-                  <Avatar className="h-8 w-8">
+                  <Avatar className="h-6 w-6 sm:h-8 sm:w-8 flex-shrink-0">
                     <AvatarImage src={message.sender?.avatar_url} />
                     <AvatarFallback className="text-xs">
                       {message.sender?.full_name 
@@ -277,7 +288,7 @@ const SecureChat = ({ conversationId, currentUserId, onClose }: SecureChatProps)
                   </Avatar>
                   
                   <div
-                    className={`max-w-xs lg:max-w-md px-3 py-2 rounded-lg ${
+                    className={`max-w-[75%] sm:max-w-xs lg:max-w-md px-2 sm:px-3 py-2 rounded-lg ${
                       message.sender_id === currentUserId
                         ? 'bg-university-green text-white'
                         : 'bg-muted'
@@ -286,10 +297,11 @@ const SecureChat = ({ conversationId, currentUserId, onClose }: SecureChatProps)
                     {message.is_flagged && (
                       <div className="flex items-center gap-1 text-xs text-warning mb-1">
                         <AlertTriangle className="h-3 w-3" />
-                        Flagged: {message.flagged_reason}
+                        <span className="hidden sm:inline">Flagged: {message.flagged_reason}</span>
+                        <span className="sm:hidden">Flagged</span>
                       </div>
                     )}
-                    <p className="text-sm">{message.content}</p>
+                    <p className="text-sm break-words">{message.content}</p>
                     <p
                       className={`text-xs mt-1 ${
                         message.sender_id === currentUserId
@@ -308,9 +320,9 @@ const SecureChat = ({ conversationId, currentUserId, onClose }: SecureChatProps)
 
           {/* Security Notice */}
           {blocked && (
-            <div className="mx-4 mb-2 p-3 bg-destructive/10 border border-destructive/20 rounded-md">
-              <div className="flex items-center gap-2 text-destructive text-sm">
-                <Shield className="h-4 w-4" />
+            <div className="mx-3 sm:mx-4 mb-2 p-2 sm:p-3 bg-destructive/10 border border-destructive/20 rounded-md">
+              <div className="flex items-start gap-2 text-destructive text-xs sm:text-sm">
+                <Shield className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0 mt-0.5" />
                 <span>
                   Contact information sharing is prohibited. Please keep all communication within UniMarket for your safety.
                 </span>
@@ -319,28 +331,30 @@ const SecureChat = ({ conversationId, currentUserId, onClose }: SecureChatProps)
           )}
 
           {/* Message Input */}
-          <div className="border-t p-4">
+          <div className="border-t p-3 sm:p-4">
             <div className="flex gap-2">
               <Input
-                placeholder="Type a message... (monitored for safety)"
+                placeholder="Type a message..."
                 value={newMessage}
                 onChange={(e) => setNewMessage(e.target.value)}
                 onKeyPress={handleKeyPress}
                 disabled={loading}
-                className="flex-1"
+                className="flex-1 text-sm"
               />
               <Button
                 variant="marketplace"
                 size="icon"
                 onClick={sendMessage}
                 disabled={loading || !newMessage.trim()}
+                className="h-9 w-9 sm:h-10 sm:w-10"
               >
-                <Send className="h-4 w-4" />
+                <Send className="h-3 w-3 sm:h-4 sm:w-4" />
               </Button>
             </div>
             <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
-              <Shield className="h-3 w-3" />
-              All messages are monitored. Sharing contact info is prohibited for your safety.
+              <Shield className="h-3 w-3 flex-shrink-0" />
+              <span className="hidden sm:inline">All messages are monitored. Sharing contact info is prohibited for your safety.</span>
+              <span className="sm:hidden">Messages monitored for safety</span>
             </p>
           </div>
         </div>

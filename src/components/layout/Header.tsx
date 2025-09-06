@@ -119,8 +119,8 @@ const Header = () => {
             <span className="text-xl font-bold text-university-green">UniMarket</span>
           </Link>
 
-          {/* Search */}
-          <div className="flex-1 max-w-lg mx-8">
+          {/* Search - Hidden on mobile, full width on desktop */}
+          <div className="hidden md:flex flex-1 max-w-lg mx-8">
             <SmartSearchInput
               value={searchQuery}
               onChange={setSearchQuery}
@@ -128,38 +128,48 @@ const Header = () => {
               placeholder="Search products, categories..."
             />
           </div>
+          
+          {/* Mobile Search - Shown only on mobile */}
+          <div className="md:hidden flex-1 max-w-sm mx-4">
+            <SmartSearchInput
+              value={searchQuery}
+              onChange={setSearchQuery}
+              onSubmit={handleSearch}
+              placeholder="Search..."
+            />
+          </div>
 
           {/* Actions */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1 sm:gap-2 lg:gap-4">
             {user ? (
               <>
-                {/* Learn More */}
-                <Button variant="ghost" size="sm" asChild>
+                {/* Learn More - Hidden on mobile */}
+                <Button variant="ghost" size="sm" asChild className="hidden lg:flex">
                   <Link to="/learn-more">Learn More</Link>
                 </Button>
 
                 {/* Notifications */}
-                <Button variant="ghost" size="icon" asChild>
+                <Button variant="ghost" size="icon" asChild className="h-8 w-8 sm:h-10 sm:w-10">
                   <Link to="/notifications">
-                    <Bell className="h-5 w-5" />
+                    <Bell className="h-4 w-4 sm:h-5 sm:w-5" />
                   </Link>
                 </Button>
 
                 {/* Favorites */}
-                <Button variant="ghost" size="icon" asChild>
+                <Button variant="ghost" size="icon" asChild className="h-8 w-8 sm:h-10 sm:w-10">
                   <Link to="/favorites">
-                    <Heart className="h-5 w-5" />
+                    <Heart className="h-4 w-4 sm:h-5 sm:w-5" />
                   </Link>
                 </Button>
 
                 {/* Cart */}
-                <Button variant="ghost" size="icon" asChild className="relative">
+                <Button variant="ghost" size="icon" asChild className="relative h-8 w-8 sm:h-10 sm:w-10">
                   <Link to="/cart">
-                    <ShoppingCart className="h-5 w-5" />
+                    <ShoppingCart className="h-4 w-4 sm:h-5 sm:w-5" />
                     {cartCount > 0 && (
                       <Badge 
                         variant="destructive" 
-                        className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center p-0 text-xs font-bold rounded-full bg-red-500 text-white border-2 border-background"
+                        className="absolute -top-1 -right-1 sm:-top-2 sm:-right-2 h-4 w-4 sm:h-5 sm:w-5 flex items-center justify-center p-0 text-xs font-bold rounded-full bg-red-500 text-white border-2 border-background"
                       >
                         {cartCount > 99 ? '99+' : cartCount}
                       </Badge>
@@ -167,43 +177,43 @@ const Header = () => {
                   </Link>
                 </Button>
 
-                {/* Sell Button */}
+                {/* Sell Button - Compact on mobile */}
                 {profile?.account_type !== 'buyer' && (
-                  <Button variant="seller" size="sm" asChild>
+                  <Button variant="seller" size="sm" asChild className="h-8 sm:h-10">
                     <Link to="/sell">
-                      <Plus className="h-4 w-4" />
-                      Sell
+                      <Plus className="h-3 w-3 sm:h-4 sm:w-4" />
+                      <span className="hidden sm:inline ml-1">Sell</span>
                     </Link>
                   </Button>
                 )}
 
                 {/* Messages */}
-                <Button variant="ghost" size="icon" asChild>
+                <Button variant="ghost" size="icon" asChild className="h-8 w-8 sm:h-10 sm:w-10">
                   <Link to="/messages">
-                    <MessageCircle className="h-5 w-5" />
+                    <MessageCircle className="h-4 w-4 sm:h-5 sm:w-5" />
                   </Link>
                 </Button>
 
-                {/* Orders */}
-                <Button variant="ghost" size="icon" asChild>
+                {/* Orders - Hidden on small mobile */}
+                <Button variant="ghost" size="icon" asChild className="hidden xs:flex h-8 w-8 sm:h-10 sm:w-10">
                   <Link to="/orders">
-                    <Package className="h-5 w-5" />
+                    <Package className="h-4 w-4 sm:h-5 sm:w-5" />
                   </Link>
                 </Button>
 
                 {/* User Menu */}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="relative h-10 w-10 rounded-full">
-                      <Avatar className="h-10 w-10">
+                    <Button variant="ghost" className="relative h-8 w-8 sm:h-10 sm:w-10 rounded-full">
+                      <Avatar className="h-8 w-8 sm:h-10 sm:w-10">
                         <AvatarImage src={profile?.avatar_url} alt={profile?.full_name} />
-                        <AvatarFallback className="bg-university-green text-white">
+                        <AvatarFallback className="bg-university-green text-white text-xs sm:text-sm">
                           {profile?.full_name ? getInitials(profile.full_name) : 'U'}
                         </AvatarFallback>
                       </Avatar>
                       {profile?.is_verified && (
-                        <div className="absolute -bottom-1 -right-1 bg-verified-blue rounded-full p-1">
-                          <Shield className="h-3 w-3 text-white" />
+                        <div className="absolute -bottom-0.5 -right-0.5 sm:-bottom-1 sm:-right-1 bg-verified-blue rounded-full p-0.5 sm:p-1">
+                          <Shield className="h-2 w-2 sm:h-3 sm:w-3 text-white" />
                         </div>
                       )}
                     </Button>
@@ -264,10 +274,10 @@ const Header = () => {
               </>
             ) : (
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" asChild>
+                <Button variant="outline" size="sm" asChild className="h-8 sm:h-10 text-xs sm:text-sm">
                   <Link to="/auth">Sign In</Link>
                 </Button>
-                <Button variant="brand" size="sm" asChild>
+                <Button variant="brand" size="sm" asChild className="h-8 sm:h-10 text-xs sm:text-sm">
                   <Link to="/auth">Join UniMarket</Link>
                 </Button>
               </div>

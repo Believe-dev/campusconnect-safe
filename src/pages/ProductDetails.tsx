@@ -483,11 +483,22 @@ const ProductDetails = () => {
                 {similarProducts.map((similarProduct) => (
                   <ProductCard
                     key={similarProduct.id}
-                    product={{
-                      id: similarProduct.id,
-                      title: similarProduct.title,
-                      description: similarProduct.description || '',
-                      price: similarProduct.price,
+                     product={{
+                       id: similarProduct.id,
+                       title: similarProduct.title,
+                       description: similarProduct.description || '',
+                       price: similarProduct.price,
+                       images: similarProduct.images || [similarProduct.image_url].filter(Boolean),
+                       category: similarProduct.category || '',
+                       campus: similarProduct.campus || '',
+                       condition: similarProduct.condition || 'good',
+                       seller_id: similarProduct.seller_id || '',
+                       seller: {
+                         full_name: similarProduct.seller?.full_name || 'Unknown',
+                         rating: similarProduct.seller?.rating || 0,
+                         is_verified: similarProduct.seller?.is_verified || false,
+                       },
+                     }}
                       images: similarProduct.images || [],
                       category: similarProduct.category,
                       campus: similarProduct.campus || '',

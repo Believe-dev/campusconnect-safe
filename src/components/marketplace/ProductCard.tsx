@@ -1,6 +1,10 @@
 import { Star, MapPin, Badge, MessageCircle, ShoppingCart } from 'lucide-react';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/enhanced-button';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
 interface Product {
   id: string;
@@ -11,6 +15,7 @@ interface Product {
   category: string;
   campus: string;
   condition: string;
+  seller_id: string;
   seller: {
     full_name: string;
     rating: number;
@@ -21,7 +26,6 @@ interface Product {
 interface ProductCardProps {
   product: Product;
   onViewProduct: (productId: string) => void;
-  onMessageSeller: (productId: string) => void;
   onAddToCart?: (productId: string) => void;
   isAuthenticated?: boolean;
   showHoverActions?: boolean;
@@ -30,11 +34,98 @@ interface ProductCardProps {
 const ProductCard = ({ 
   product, 
   onViewProduct, 
-  onMessageSeller, 
   onAddToCart,
   isAuthenticated = false,
   showHoverActions = false
 }: ProductCardProps) => {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const { toast } = useToast();
+
+  const handleMessageSeller = async () => {
+    if (!user) {
+      toast({
+        title: "Authentication Required",
+        description: "Please sign in to message the seller",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (user.id === product.seller_id) {
+      toast({
+        title: "Cannot Message Yourself",
+        description: "You cannot message yourself about your own product",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // Check if conversation already exists
+      const { data: existingConversation, error: fetchError } = await supabase
+        .from('conversations')
+        .select('id')
+        .or(`and(buyer_id.eq.${user.id},seller_id.eq.${product.seller_id}),and(buyer_id.eq.${product.seller_id},seller_id.eq.${user.id})`)
+        .eq('product_id', product.id)
+        .maybeSingle();
+
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        console.error('Error checking for existing conversation:', fetchError);
+        toast({
+          title: "Error",
+          description: "Failed to start conversation. Please try again.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      let conversationId = existingConversation?.id;
+
+      // Create new conversation if it doesn't exist
+      if (!conversationId) {
+        const { data: newConversation, error: createError } = await supabase
+          .from('conversations')
+          .insert({
+            buyer_id: user.id,
+            seller_id: product.seller_id,
+            product_id: product.id,
+          })
+          .select('id')
+          .single();
+
+        if (createError) {
+          console.error('Error creating conversation:', createError);
+          toast({
+            title: "Error",
+            description: "Failed to start conversation. Please try again.",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        conversationId = newConversation.id;
+      }
+
+      // Navigate to messages
+      navigate(`/messages`);
+      
+      // Set the selected conversation after a short delay to allow navigation
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent('selectConversation', { 
+          detail: { conversationId } 
+        }));
+      }, 100);
+
+    } catch (error) {
+      console.error('Error in handleMessageSeller:', error);
+      toast({
+        title: "Error",
+        description: "Something went wrong. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('en-NG', {
       style: 'currency',
@@ -96,16 +187,18 @@ const ProductCard = ({
                 Add to Cart
               </Button>
             )}
-            <Button 
-              size="sm" 
+            {/* Message Seller Button */}
+            <Button
               variant="outline"
-              className="h-8 px-2 bg-background/80 hover:bg-background"
+              size="sm"
               onClick={(e) => {
                 e.stopPropagation();
-                onMessageSeller(product.id);
+                handleMessageSeller();
               }}
+              className="flex-1"
             >
-              <MessageCircle className="h-3 w-3" />
+              <MessageCircle className="h-4 w-4 mr-2" />
+              Message
             </Button>
           </div>
         )}
@@ -149,7 +242,7 @@ const ProductCard = ({
               size="sm"
               onClick={(e) => {
                 e.stopPropagation();
-                onMessageSeller(product.id);
+                handleMessageSeller();
               }}
               className="h-7 px-2"
             >

@@ -334,14 +334,13 @@ const Index = () => {
                   
                   return matchesCategory && matchesCampus;
                 })
-                .map((product) => (
-                  <ProductCard
-                    key={product.id}
-                    product={product}
-                    onViewProduct={handleViewProduct}
-                    onMessageSeller={handleMessageSeller}
-                    isAuthenticated={!!user}
-                  />
+                 .map((product) => (
+                   <ProductCard
+                     key={product.id}
+                     product={product}
+                     onViewProduct={handleViewProduct}
+                     isAuthenticated={!!user}
+                   />
                 ))}
             </div>
           ) : (
