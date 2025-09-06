@@ -15,7 +15,8 @@ import {
   GraduationCap,
   Shield,
   Package,
-  Heart
+  Heart,
+  Bell
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
