@@ -63,7 +63,7 @@ const Sell = () => {
 
       const { data: profile, error } = await supabase
         .from('profiles')
-        .select('account_type, full_name')
+        .select('account_type, full_name, university_name, campus')
         .eq('user_id', user.id)
         .single();
 
@@ -80,12 +80,40 @@ const Sell = () => {
       }
 
       setUserProfile(profile);
+      // Auto-populate campus from user's profile
+      if (profile.campus) {
+        setFormData(prev => ({ ...prev, campus: profile.campus }));
+      }
     } catch (error) {
       console.error('Error checking seller access:', error);
       navigate('/auth');
     } finally {
       setLoading(false);
     }
+  };
+
+  const uploadImages = async () => {
+    const uploadedUrls = [];
+    
+    for (let i = 0; i < images.length; i++) {
+      const file = images[i];
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Date.now()}-${i}.${fileExt}`;
+      
+      const { data, error } = await supabase.storage
+        .from('product-images')
+        .upload(fileName, file);
+      
+      if (error) throw error;
+      
+      const { data: { publicUrl } } = supabase.storage
+        .from('product-images')
+        .getPublicUrl(fileName);
+      
+      uploadedUrls.push(publicUrl);
+    }
+    
+    return uploadedUrls;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -99,6 +127,9 @@ const Sell = () => {
         return;
       }
 
+      // Upload images first
+      const imageUrls = images.length > 0 ? await uploadImages() : [];
+
       const { error } = await supabase
         .from('products')
         .insert({
@@ -110,7 +141,7 @@ const Sell = () => {
           condition: formData.condition,
           campus: formData.campus,
           seller_id: user.id,
-          images: [] // TODO: Implement image upload
+          images: imageUrls
         });
 
       if (error) throw error;
@@ -134,7 +165,7 @@ const Sell = () => {
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      setImages(Array.from(e.target.files).slice(0, 5));
+      setImages(Array.from(e.target.files).slice(0, 2));
     }
   };
 
@@ -208,7 +239,7 @@ const Sell = () => {
 
                 <div>
                   <Label htmlFor="campus">Campus</Label>
-                  <Select onValueChange={(value) => setFormData({ ...formData, campus: value })}>
+                  <Select onValueChange={(value) => setFormData({ ...formData, campus: value })} value={formData.campus}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select campus" />
                     </SelectTrigger>
@@ -280,19 +311,19 @@ const Sell = () => {
                   >
                     <Upload className="h-8 w-8 text-muted-foreground mb-2" />
                     <span className="text-sm text-muted-foreground">
-                      Click to upload images (max 5)
+                      Click to upload images (max 2)
                     </span>
                   </label>
                 </div>
 
                 {images.length > 0 && (
-                  <div className="grid grid-cols-3 gap-2 mt-4">
+                  <div className="grid grid-cols-2 gap-2 mt-4">
                     {images.map((file, index) => (
                       <div key={index} className="relative">
                         <img
                           src={URL.createObjectURL(file)}
                           alt={`Preview ${index + 1}`}
-                          className="w-full h-20 object-cover rounded"
+                          className="w-full h-24 object-cover rounded"
                         />
                         <button
                           type="button"
