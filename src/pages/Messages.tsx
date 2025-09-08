@@ -6,7 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { MessageCircle, Plus, Shield } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { MessageCircle, Plus, Shield, Trash2 } from 'lucide-react';
 import Header from '@/components/layout/Header';
 import SecureChat from '@/components/chat/SecureChat';
 
@@ -39,6 +40,7 @@ export default function Messages() {
     searchParams.get('conversation')
   );
   const [loadingConversations, setLoadingConversations] = useState(true);
+  const { toast } = useToast();
 
   useEffect(() => {
     if (user) {
@@ -121,6 +123,32 @@ export default function Messages() {
       return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
     }
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
+
+  const deleteConversation = async (conversationId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    try {
+      const { error } = await supabase
+        .from('conversations')
+        .delete()
+        .eq('id', conversationId);
+
+      if (error) throw error;
+
+      setConversations(prev => prev.filter(conv => conv.id !== conversationId));
+      toast({
+        title: "Conversation Deleted",
+        description: "The conversation has been deleted successfully.",
+      });
+    } catch (error) {
+      console.error('Error deleting conversation:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete conversation. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const getInitials = (name: string) => {
@@ -215,11 +243,21 @@ export default function Messages() {
                         <h3 className="font-semibold text-sm sm:text-base truncate pr-2">
                           {conversation.other_user?.full_name || 'Anonymous User'}
                         </h3>
-                        {conversation.last_message && (
-                          <span className="text-xs text-muted-foreground flex-shrink-0">
-                            {formatTime(conversation.last_message.created_at)}
-                          </span>
-                        )}
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          {conversation.last_message && (
+                            <span className="text-xs text-muted-foreground">
+                              {formatTime(conversation.last_message.created_at)}
+                            </span>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => deleteConversation(conversation.id, e)}
+                            className="h-6 w-6 p-0 hover:bg-destructive/10 hover:text-destructive"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
                       </div>
                       
                       {conversation.product && (

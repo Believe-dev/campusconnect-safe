@@ -62,16 +62,18 @@ const ProductCard = ({
     }
 
     try {
-      // Check if conversation already exists
-      const { data: existingConversation, error: fetchError } = await supabase
-        .from('conversations')
-        .select('id')
-        .or(`and(buyer_id.eq.${user.id},seller_id.eq.${product.seller_id}),and(buyer_id.eq.${product.seller_id},seller_id.eq.${user.id})`)
-        .eq('product_id', product.id)
-        .maybeSingle();
+      // Use the new function to find or create a consolidated conversation between buyer and seller
+      const { data: conversationId, error: functionError } = await supabase.rpc(
+        'find_or_create_conversation',
+        {
+          p_buyer_id: user.id,
+          p_seller_id: product.seller_id,
+          p_product_id: product.id
+        }
+      );
 
-      if (fetchError && fetchError.code !== 'PGRST116') {
-        console.error('Error checking for existing conversation:', fetchError);
+      if (functionError) {
+        console.error('Error finding/creating conversation:', functionError);
         toast({
           title: "Error",
           description: "Failed to start conversation. Please try again.",
@@ -80,42 +82,8 @@ const ProductCard = ({
         return;
       }
 
-      let conversationId = existingConversation?.id;
-
-      // Create new conversation if it doesn't exist
-      if (!conversationId) {
-        const { data: newConversation, error: createError } = await supabase
-          .from('conversations')
-          .insert({
-            buyer_id: user.id,
-            seller_id: product.seller_id,
-            product_id: product.id,
-          })
-          .select('id')
-          .single();
-
-        if (createError) {
-          console.error('Error creating conversation:', createError);
-          toast({
-            title: "Error",
-            description: "Failed to start conversation. Please try again.",
-            variant: "destructive",
-          });
-          return;
-        }
-
-        conversationId = newConversation.id;
-      }
-
-      // Navigate to messages
-      navigate(`/messages`);
-      
-      // Set the selected conversation after a short delay to allow navigation
-      setTimeout(() => {
-        window.dispatchEvent(new CustomEvent('selectConversation', { 
-          detail: { conversationId } 
-        }));
-      }, 100);
+      // Navigate to messages with the conversation ID
+      navigate(`/messages?conversation=${conversationId}`);
 
     } catch (error) {
       console.error('Error in handleMessageSeller:', error);

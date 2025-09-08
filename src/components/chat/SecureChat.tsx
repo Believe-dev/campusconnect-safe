@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Send, Shield, AlertTriangle, MessageCircle } from 'lucide-react';
+import { Send, Shield, AlertTriangle, MessageCircle, Trash2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface Message {
@@ -234,6 +234,30 @@ const SecureChat = ({ conversationId, currentUserId, onClose }: SecureChatProps)
       .slice(0, 2);
   };
 
+  const deleteMessage = async (messageId: string) => {
+    try {
+      const { error } = await supabase
+        .from('messages')
+        .delete()
+        .eq('id', messageId);
+
+      if (error) throw error;
+
+      setMessages(prev => prev.filter(msg => msg.id !== messageId));
+      toast({
+        title: "Message Deleted",
+        description: "The message has been deleted successfully.",
+      });
+    } catch (error) {
+      console.error('Error deleting message:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete message. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const formatTime = (timestamp: string) => {
     return new Date(timestamp).toLocaleTimeString('en-US', {
       hour: '2-digit',
@@ -300,30 +324,44 @@ const SecureChat = ({ conversationId, currentUserId, onClose }: SecureChatProps)
                     </AvatarFallback>
                   </Avatar>
                   
-                  <div
-                    className={`max-w-[75%] sm:max-w-xs lg:max-w-md px-2 sm:px-3 py-2 rounded-lg ${
-                      message.sender_id === currentUserId
-                        ? 'bg-university-green text-white'
-                        : 'bg-muted'
-                    }`}
-                  >
-                    {message.is_flagged && (
-                      <div className="flex items-center gap-1 text-xs text-warning mb-1">
-                        <AlertTriangle className="h-3 w-3" />
-                        <span className="hidden sm:inline">Flagged: {message.flagged_reason}</span>
-                        <span className="sm:hidden">Flagged</span>
-                      </div>
-                    )}
-                    <p className="text-sm break-words">{message.content}</p>
-                    <p
-                      className={`text-xs mt-1 ${
+                  <div className="flex flex-col">
+                    <div
+                      className={`max-w-[75%] sm:max-w-xs lg:max-w-md px-2 sm:px-3 py-2 rounded-lg group relative ${
                         message.sender_id === currentUserId
-                          ? 'text-white/70'
-                          : 'text-muted-foreground'
+                          ? 'bg-university-green text-white'
+                          : 'bg-muted'
                       }`}
                     >
-                      {formatTime(message.created_at)}
-                    </p>
+                      {message.is_flagged && (
+                        <div className="flex items-center gap-1 text-xs text-warning mb-1">
+                          <AlertTriangle className="h-3 w-3" />
+                          <span className="hidden sm:inline">Flagged: {message.flagged_reason}</span>
+                          <span className="sm:hidden">Flagged</span>
+                        </div>
+                      )}
+                      <p className="text-sm break-words">{message.content}</p>
+                      <div className="flex items-center justify-between mt-1">
+                        <p
+                          className={`text-xs ${
+                            message.sender_id === currentUserId
+                              ? 'text-white/70'
+                              : 'text-muted-foreground'
+                          }`}
+                        >
+                          {formatTime(message.created_at)}
+                        </p>
+                        {message.sender_id === currentUserId && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => deleteMessage(message.id)}
+                            className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/20 hover:text-destructive ml-2"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
               ))

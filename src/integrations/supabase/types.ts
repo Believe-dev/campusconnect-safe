@@ -556,6 +556,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      find_or_create_conversation: {
+        Args: { p_buyer_id: string; p_product_id?: string; p_seller_id: string }
+        Returns: string
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
