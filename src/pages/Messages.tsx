@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,7 +16,6 @@ interface Conversation {
   seller_id: string;
   product_id?: string;
   created_at: string;
-  updated_at: string;
   product?: {
     title: string;
     price: number;
@@ -34,13 +33,36 @@ interface Conversation {
 
 export default function Messages() {
   const { user, loading } = useAuth();
+  const [searchParams] = useSearchParams();
   const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
+  const [selectedConversation, setSelectedConversation] = useState<string | null>(
+    searchParams.get('conversation')
+  );
   const [loadingConversations, setLoadingConversations] = useState(true);
 
   useEffect(() => {
     if (user) {
       fetchConversations();
+      
+      // Set up real-time subscription for new conversations
+      const subscription = supabase
+        .channel('conversations_changes')
+        .on('postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'conversations',
+            filter: `buyer_id=eq.${user.id},seller_id=eq.${user.id}` 
+          },
+          () => {
+            fetchConversations(); // Refetch when new conversation is created
+          }
+        )
+        .subscribe();
+
+      return () => {
+        subscription.unsubscribe();
+      };
     }
   }, [user]);
 
@@ -54,7 +76,7 @@ export default function Messages() {
           messages (content, created_at, sender_id)
         `)
         .or(`buyer_id.eq.${user?.id},seller_id.eq.${user?.id}`)
-        .order('updated_at', { ascending: false });
+        .order('created_at', { ascending: false });
 
       if (error) throw error;
 
@@ -67,7 +89,7 @@ export default function Messages() {
           .from('profiles')
           .select('full_name, avatar_url')
           .eq('user_id', otherUserId)
-          .single();
+          .maybeSingle();
 
         // Get last message
         const lastMessage = conv.messages && conv.messages.length > 0 
@@ -78,8 +100,7 @@ export default function Messages() {
           ...conv,
           other_user: profile,
           last_message: lastMessage,
-          product: conv.products,
-          updated_at: conv.created_at
+          product: conv.products
         };
       }));
 

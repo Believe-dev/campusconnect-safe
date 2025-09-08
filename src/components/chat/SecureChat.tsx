@@ -61,9 +61,22 @@ const SecureChat = ({ conversationId, currentUserId, onClose }: SecureChatProps)
           table: 'messages',
           filter: `conversation_id=eq.${conversationId}`
         }, 
-        (payload) => {
+        async (payload) => {
           const newMsg = payload.new as Message;
-          setMessages(prev => [...prev, newMsg]);
+          
+          // Fetch sender profile for the new message
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('full_name, avatar_url')
+            .eq('user_id', newMsg.sender_id)
+            .maybeSingle();
+          
+          const messageWithSender = {
+            ...newMsg,
+            sender: profile
+          };
+          
+          setMessages(prev => [...prev, messageWithSender]);
           scrollToBottom();
         }
       )
