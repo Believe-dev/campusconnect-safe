@@ -81,19 +81,28 @@ const AuthPage = () => {
     });
 
     // If seller registration, upload verification photos and set verification status
-    if (!error && data.user && accountType === 'seller' && facePhoto && studentIdPhoto) {
+    if (!error && data.user && accountType === 'seller' && facePhoto) {
       try {
         const facePhotoPath = await uploadVerificationPhoto(facePhoto, 'face', data.user.id);
-        const studentIdPhotoPath = await uploadVerificationPhoto(studentIdPhoto, 'student_id', data.user.id);
+        let studentIdPhotoPath = null;
+        
+        if (studentIdPhoto) {
+          studentIdPhotoPath = await uploadVerificationPhoto(studentIdPhoto, 'student_id', data.user.id);
+        }
         
         // Update profile with photo URLs and set verification status to pending
+        const updateData: any = {
+          face_photo_url: facePhotoPath,
+          verification_status: 'pending',
+        };
+        
+        if (studentIdPhotoPath) {
+          updateData.student_id_photo_url = studentIdPhotoPath;
+        }
+        
         await supabase
           .from('profiles')
-          .update({
-            face_photo_url: facePhotoPath,
-            student_id_photo_url: studentIdPhotoPath,
-            verification_status: 'pending',
-          })
+          .update(updateData)
           .eq('user_id', data.user.id);
 
         // Add both seller and buyer roles
@@ -129,40 +138,56 @@ const AuthPage = () => {
       return;
     }
 
-    // Different validation for buyers vs sellers
-    if (isSignUp && accountType === 'buyer') {
-      // Buyers only need email and password (any email allowed)
-    } else if (isSignUp && accountType === 'seller') {
-      // Sellers need more strict validation
-      if (!fullName || !university) {
-        toast({
-          title: "Missing Information", 
-          description: "Sellers must provide their name and university.",
-          variant: "destructive",
-        });
-        return;
-      }
+      // Different validation for buyers vs sellers
+      if (isSignUp && accountType === 'buyer') {
+        // Buyers only need email and password (any email allowed)
+        if (!fullName) {
+          toast({
+            title: "Missing Information", 
+            description: "Please provide your full name.",
+            variant: "destructive",
+          });
+          return;
+        }
+      } else if (isSignUp && accountType === 'seller') {
+        // Sellers need more strict validation
+        if (!fullName || !university) {
+          toast({
+            title: "Missing Information", 
+            description: "Sellers must provide their name and university.",
+            variant: "destructive",
+          });
+          return;
+        }
 
-      // Validate .edu.ng email for sellers
-      if (!email.endsWith('.edu.ng') && !email.includes('student')) {
-        toast({
-          title: "Invalid Email",
-          description: "Sellers must use a valid university email address (.edu.ng) or student email.",
-          variant: "destructive",
-        });
-        return;
-      }
+        // Validate .edu.ng email for sellers
+        if (!email.endsWith('.edu.ng') && !email.includes('student')) {
+          toast({
+            title: "Invalid Email",
+            description: "Sellers must use a valid university email address (.edu.ng) or student email.",
+            variant: "destructive",
+          });
+          return;
+        }
 
-      // Require verification photos for sellers
-      if (!facePhoto || !studentIdPhoto) {
-        toast({
-          title: "Missing Verification Photos",
-          description: "Sellers must upload both face photo and student ID card photo.",
-          variant: "destructive",
-        });
-        return;
+        // Require face photo for sellers (mandatory)
+        if (!facePhoto) {
+          toast({
+            title: "Face Photo Required",
+            description: "Sellers must upload a clear face photo for verification.",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        // Student ID is optional but recommended
+        if (!studentIdPhoto) {
+          toast({
+            title: "Student ID Recommended",
+            description: "Adding your student ID helps with faster verification.",
+          });
+        }
       }
-    }
 
     setLoading(true);
 
@@ -293,6 +318,23 @@ const AuthPage = () => {
                       onChange={(e) => setFullName(e.target.value)}
                     />
                   </div>
+                </>
+              )}
+
+              {accountType === 'buyer' && (
+                <div className="space-y-2">
+                  <Label htmlFor="buyer-name">Full Name *</Label>
+                  <Input
+                    id="buyer-name"
+                    placeholder="Enter your full name"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                  />
+                </div>
+              )}
+
+              {accountType === 'seller' && (
+                <>
                   
                   <div className="space-y-2">
                     <Label htmlFor="signup-university">University *</Label>
@@ -328,7 +370,7 @@ const AuthPage = () => {
                   </div>
 
                   <div className="space-y-2">
-                    <Label>Student ID Card Photo *</Label>
+                    <Label>Student ID Card Photo</Label>
                     <div className="flex items-center gap-2">
                       <Input
                         type="file"
@@ -337,7 +379,7 @@ const AuthPage = () => {
                       />
                       <IdCard className="h-4 w-4 text-muted-foreground" />
                     </div>
-                    <p className="text-xs text-muted-foreground">Photo of your student ID card</p>
+                    <p className="text-xs text-muted-foreground">Photo of your student ID card (helps with faster verification)</p>
                   </div>
 
                   <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">

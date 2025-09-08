@@ -340,10 +340,10 @@ const Marketplace = () => {
           <p className="text-muted-foreground">Discover products from fellow students</p>
         </div>
 
-        {/* Filters */}
-        <Card className="mb-8">
-          <CardContent className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            {/* Filters */}
+            <Card className="mb-6 lg:mb-8">
+              <CardContent className="p-4 lg:p-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 lg:gap-4">
               <div className="lg:col-span-2">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -396,23 +396,23 @@ const Marketplace = () => {
         </Card>
 
         {/* Results count */}
-        <div className="mb-6">
-          <p className="text-muted-foreground">
+        <div className="mb-4 lg:mb-6">
+          <p className="text-sm lg:text-base text-muted-foreground">
             Showing <span className="font-medium">{filteredProducts.length}</span> products
           </p>
         </div>
 
-        {/* Products Grid */}
-        {filteredProducts.length === 0 ? (
-          <Card>
-            <CardContent className="p-12 text-center">
+          {/* Products Grid */}
+          {filteredProducts.length === 0 ? (
+            <Card>
+              <CardContent className="p-8 lg:p-12 text-center">
               <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
               <h3 className="text-lg font-semibold mb-2">No products found</h3>
               <p className="text-muted-foreground">Try adjusting your search or filters</p>
             </CardContent>
           </Card>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 lg:gap-6">
             {filteredProducts.map((product) => (
               <Card 
                 key={product.id} 
@@ -475,7 +475,13 @@ const Marketplace = () => {
                   </div>
 
                   {/* Seller Info */}
-                  <div className="flex items-center gap-2 mb-3 text-xs text-muted-foreground">
+                  <div 
+                    className="flex items-center gap-2 mb-3 text-xs text-muted-foreground cursor-pointer hover:text-primary transition-colors"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate(`/seller/${product.seller_id}`);
+                    }}
+                  >
                     <span>by {product.profiles?.full_name}</span>
                     {product.profiles?.is_verified && (
                       <Shield className="h-3 w-3 text-verified-blue" />
@@ -486,9 +492,9 @@ const Marketplace = () => {
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
-                      <div className="text-xl font-bold text-primary">
+                      <div className="text-lg sm:text-xl font-bold text-primary">
                         ₦{product.price.toLocaleString()}
                       </div>
                       <div className="text-xs text-muted-foreground">
@@ -504,8 +510,9 @@ const Marketplace = () => {
                         addToCart(product.id);
                       }}
                       disabled={cart.has(product.id) || product.stock_quantity === 0}
+                      className="w-full sm:w-auto"
                     >
-                      <ShoppingCart className="h-4 w-4" />
+                      <ShoppingCart className="h-4 w-4 mr-2" />
                       {cart.has(product.id) ? 'In Cart' : 'Add to Cart'}
                     </Button>
                   </div>

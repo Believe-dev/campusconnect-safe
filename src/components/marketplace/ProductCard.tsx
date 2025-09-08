@@ -189,8 +189,14 @@ const ProductCard = ({
 
       <CardFooter className="p-3 pt-0">
         <div className="flex items-center justify-between w-full">
-          <div className="flex items-center gap-1 text-xs">
-            <span className="font-medium truncate max-w-[80px]">
+          <div 
+            className="flex items-center gap-1 text-xs cursor-pointer hover:text-primary transition-colors"
+            onClick={(e) => {
+              e.stopPropagation();
+              navigate(`/seller/${product.seller_id}`);
+            }}
+          >
+            <span className="font-medium truncate max-w-[80px] sm:max-w-[100px]">
               {product.seller?.full_name || 'Unknown Seller'}
             </span>
             {product.seller?.is_verified && (

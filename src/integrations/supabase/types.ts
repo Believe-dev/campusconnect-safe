@@ -571,6 +571,10 @@ export type Database = {
         Args: { _user_id: string }
         Returns: boolean
       }
+      track_product_view: {
+        Args: { p_product_id: string }
+        Returns: undefined
+      }
     }
     Enums: {
       app_role: "admin" | "seller" | "buyer"

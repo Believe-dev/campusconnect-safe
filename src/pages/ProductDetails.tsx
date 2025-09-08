@@ -88,6 +88,11 @@ const ProductDetails = () => {
 
       if (error) throw error;
       setProduct(data);
+      
+      // Track product view
+      if (data?.id) {
+        await supabase.rpc('track_product_view', { p_product_id: data.id });
+      }
     } catch (error) {
       console.error('Error fetching product:', error);
       toast({

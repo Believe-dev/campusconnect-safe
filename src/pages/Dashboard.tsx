@@ -70,6 +70,40 @@ const Dashboard = () => {
     checkSellerAccess();
     fetchProducts();
     fetchAnalytics();
+    
+    // Set up real-time subscription for analytics
+    const setupRealTime = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const channel = supabase
+          .channel('analytics-changes')
+          .on(
+            'postgres_changes',
+            {
+              event: '*',
+              schema: 'public',
+              table: 'product_analytics'
+            },
+            (payload) => {
+              // Refetch analytics when changes occur
+              fetchAnalytics();
+            }
+          )
+          .subscribe();
+
+        return () => {
+          supabase.removeChannel(channel);
+        };
+      }
+    };
+
+    const cleanup = setupRealTime();
+    
+    return () => {
+      if (cleanup) {
+        cleanup.then(fn => fn && fn());
+      }
+    };
   }, []);
 
   const checkSellerAccess = async () => {
@@ -255,7 +289,7 @@ const Dashboard = () => {
         </div>
 
         {/* Overview Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <Card>
             <CardContent className="p-6">
               <div className="flex items-center gap-2">
@@ -411,7 +445,7 @@ const Dashboard = () => {
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 text-sm lg:text-base">
                         <div>
                           <div className="text-2xl font-bold">{productAnalytics.views}</div>
                           <div className="text-sm text-muted-foreground">Views</div>
