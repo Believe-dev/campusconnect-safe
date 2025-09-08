@@ -79,7 +79,7 @@ export default function Messages() {
           other_user: profile,
           last_message: lastMessage,
           product: conv.products,
-          updated_at: conv.updated_at
+          updated_at: conv.created_at
         };
       }));
 

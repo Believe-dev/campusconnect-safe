@@ -22,6 +22,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useCartCount } from '@/hooks/useCartCount';
 import SmartSearchInput from '@/components/search/SmartSearchInput';
+import MobileSearchDialog from '@/components/search/MobileSearchDialog';
 
 interface Profile {
   full_name: string;
@@ -128,15 +129,10 @@ const Header = () => {
               placeholder="Search products, categories..."
             />
           </div>
-          
-          {/* Mobile Search - Shown only on mobile */}
-          <div className="md:hidden flex-1 max-w-sm mx-4">
-            <SmartSearchInput
-              value={searchQuery}
-              onChange={setSearchQuery}
-              onSubmit={handleSearch}
-              placeholder="Search..."
-            />
+
+          {/* Mobile Search Dialog */}
+          <div className="md:hidden">
+            <MobileSearchDialog />
           </div>
 
           {/* Actions */}
