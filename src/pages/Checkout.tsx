@@ -77,10 +77,10 @@ const Checkout = () => {
       }
       setUser(user);
       
-      // Fetch user profile to pre-fill form
+      // Fetch user profile to pre-fill form (user can see their own email)
       const { data: profile } = await supabase
         .from('profiles')
-        .select('*')
+        .select('full_name, email, phone_number, university_name, campus')
         .eq('user_id', user.id)
         .single();
 

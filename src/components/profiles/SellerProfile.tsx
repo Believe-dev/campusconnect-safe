@@ -14,7 +14,7 @@ interface SellerProfile {
   id: string;
   user_id: string;
   full_name: string;
-  university_name: string;
+  university_name?: string; // Make optional since we're not exposing this publicly
   campus: string;
   bio: string;
   avatar_url: string;
@@ -59,7 +59,6 @@ const SellerProfile = () => {
           id,
           user_id,
           full_name,
-          university_name,
           campus,
           bio,
           avatar_url,

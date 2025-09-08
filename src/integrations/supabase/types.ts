@@ -86,13 +86,6 @@ export type Database = {
             referencedColumns: ["user_id"]
           },
           {
-            foreignKeyName: "conversations_buyer_id_fkey"
-            columns: ["buyer_id"]
-            isOneToOne: false
-            referencedRelation: "public_seller_profiles"
-            referencedColumns: ["user_id"]
-          },
-          {
             foreignKeyName: "conversations_order_id_fkey"
             columns: ["order_id"]
             isOneToOne: false
@@ -111,13 +104,6 @@ export type Database = {
             columns: ["seller_id"]
             isOneToOne: false
             referencedRelation: "profiles"
-            referencedColumns: ["user_id"]
-          },
-          {
-            foreignKeyName: "conversations_seller_id_fkey"
-            columns: ["seller_id"]
-            isOneToOne: false
-            referencedRelation: "public_seller_profiles"
             referencedColumns: ["user_id"]
           },
         ]
@@ -195,13 +181,6 @@ export type Database = {
             columns: ["sender_id"]
             isOneToOne: false
             referencedRelation: "profiles"
-            referencedColumns: ["user_id"]
-          },
-          {
-            foreignKeyName: "messages_sender_id_fkey"
-            columns: ["sender_id"]
-            isOneToOne: false
-            referencedRelation: "public_seller_profiles"
             referencedColumns: ["user_id"]
           },
         ]
@@ -306,13 +285,6 @@ export type Database = {
             referencedColumns: ["user_id"]
           },
           {
-            foreignKeyName: "orders_buyer_id_fkey"
-            columns: ["buyer_id"]
-            isOneToOne: false
-            referencedRelation: "public_seller_profiles"
-            referencedColumns: ["user_id"]
-          },
-          {
             foreignKeyName: "orders_product_id_fkey"
             columns: ["product_id"]
             isOneToOne: false
@@ -324,13 +296,6 @@ export type Database = {
             columns: ["seller_id"]
             isOneToOne: false
             referencedRelation: "profiles"
-            referencedColumns: ["user_id"]
-          },
-          {
-            foreignKeyName: "orders_seller_id_fkey"
-            columns: ["seller_id"]
-            isOneToOne: false
-            referencedRelation: "public_seller_profiles"
             referencedColumns: ["user_id"]
           },
         ]
@@ -428,13 +393,6 @@ export type Database = {
             columns: ["seller_id"]
             isOneToOne: false
             referencedRelation: "profiles"
-            referencedColumns: ["user_id"]
-          },
-          {
-            foreignKeyName: "products_seller_id_fkey"
-            columns: ["seller_id"]
-            isOneToOne: false
-            referencedRelation: "public_seller_profiles"
             referencedColumns: ["user_id"]
           },
         ]
@@ -564,24 +522,10 @@ export type Database = {
             referencedColumns: ["user_id"]
           },
           {
-            foreignKeyName: "reviews_reviewed_id_fkey"
-            columns: ["reviewed_id"]
-            isOneToOne: false
-            referencedRelation: "public_seller_profiles"
-            referencedColumns: ["user_id"]
-          },
-          {
             foreignKeyName: "reviews_reviewer_id_fkey"
             columns: ["reviewer_id"]
             isOneToOne: false
             referencedRelation: "profiles"
-            referencedColumns: ["user_id"]
-          },
-          {
-            foreignKeyName: "reviews_reviewer_id_fkey"
-            columns: ["reviewer_id"]
-            isOneToOne: false
-            referencedRelation: "public_seller_profiles"
             referencedColumns: ["user_id"]
           },
         ]
@@ -609,65 +553,9 @@ export type Database = {
       }
     }
     Views: {
-      public_seller_profiles: {
-        Row: {
-          account_type: string | null
-          avatar_url: string | null
-          bio: string | null
-          campus: string | null
-          created_at: string | null
-          full_name: string | null
-          is_verified: boolean | null
-          rating: number | null
-          total_reviews: number | null
-          user_id: string | null
-          verification_status: string | null
-        }
-        Insert: {
-          account_type?: string | null
-          avatar_url?: string | null
-          bio?: string | null
-          campus?: string | null
-          created_at?: string | null
-          full_name?: string | null
-          is_verified?: boolean | null
-          rating?: number | null
-          total_reviews?: number | null
-          user_id?: string | null
-          verification_status?: string | null
-        }
-        Update: {
-          account_type?: string | null
-          avatar_url?: string | null
-          bio?: string | null
-          campus?: string | null
-          created_at?: string | null
-          full_name?: string | null
-          is_verified?: boolean | null
-          rating?: number | null
-          total_reviews?: number | null
-          user_id?: string | null
-          verification_status?: string | null
-        }
-        Relationships: []
-      }
+      [_ in never]: never
     }
     Functions: {
-      get_public_seller_info: {
-        Args: { seller_user_id: string }
-        Returns: {
-          account_type: string
-          avatar_url: string
-          bio: string
-          campus: string
-          full_name: string
-          is_verified: boolean
-          rating: number
-          total_reviews: number
-          user_id: string
-          verification_status: string
-        }[]
-      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
