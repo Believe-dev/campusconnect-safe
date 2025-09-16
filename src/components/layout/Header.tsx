@@ -18,11 +18,16 @@ import {
   Package,
   Heart,
   Bell,
-  Menu
+  Menu,
+  Store,
+  Wifi,
+  WifiOff,
+  Signal
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useCartCount } from '@/hooks/useCartCount';
+import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import SmartSearchInput from '@/components/search/SmartSearchInput';
 import MobileSearchDialog from '@/components/search/MobileSearchDialog';
 
@@ -30,16 +35,69 @@ interface Profile {
   full_name: string;
   is_verified: boolean;
   account_type: string;
+  verification_status?: string;
   avatar_url?: string;
 }
 
 const Header = () => {
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, loading } = useAuth();
   const { cartCount } = useCartCount();
+  const { isOnline, isSlowConnection } = useNetworkStatus();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  const NetworkIndicator = () => {
+    const [connectionStrength, setConnectionStrength] = useState(5);
+
+    useEffect(() => {
+      const updateConnectionStrength = () => {
+        if (!isOnline) {
+          setConnectionStrength(0);
+          return;
+        }
+
+        const connection = (navigator as any).connection || (navigator as any).mozConnection || (navigator as any).webkitConnection;
+        if (connection) {
+          const { effectiveType, downlink } = connection;
+          if (effectiveType === '4g' && downlink > 10) setConnectionStrength(5);
+          else if (effectiveType === '4g' || downlink > 5) setConnectionStrength(4);
+          else if (effectiveType === '3g' || downlink > 1) setConnectionStrength(3);
+          else if (effectiveType === '2g' || downlink > 0.5) setConnectionStrength(2);
+          else setConnectionStrength(1);
+        } else {
+          setConnectionStrength(isSlowConnection ? 2 : 4);
+        }
+      };
+
+      updateConnectionStrength();
+      const interval = setInterval(updateConnectionStrength, 5000);
+      return () => clearInterval(interval);
+    }, [isOnline, isSlowConnection]);
+
+    const getBarColor = (barIndex: number) => {
+      if (connectionStrength === 0) return 'bg-gray-300';
+      if (barIndex <= connectionStrength) {
+        if (connectionStrength >= 4) return 'bg-green-500';
+        if (connectionStrength >= 2) return 'bg-orange-500';
+        return 'bg-red-500';
+      }
+      return 'bg-gray-300';
+    };
+
+    return (
+      <div className="flex items-end gap-0.5 px-2 py-1">
+        {[1, 2, 3, 4, 5].map((bar) => (
+          <div
+            key={bar}
+            className={`w-1 transition-colors duration-300 ${getBarColor(bar)}`}
+            style={{ height: `${bar * 2 + 2}px` }}
+          />
+        ))}
+      </div>
+    );
+  };
 
   useEffect(() => {
     if (user) {
@@ -53,7 +111,7 @@ const Header = () => {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('full_name, is_verified, account_type, avatar_url')
+        .select('full_name, is_verified, account_type, seller_status, avatar_url')
         .eq('user_id', userId)
         .single();
 
@@ -70,7 +128,6 @@ const Header = () => {
 
   const handleSignOut = async () => {
     try {
-      // Clear local profile state first
       setProfile(null);
       
       const { error } = await supabase.auth.signOut({ scope: 'global' });
@@ -86,7 +143,6 @@ const Header = () => {
           title: "Signed Out",
           description: "You've been successfully signed out",
         });
-        // Force navigation and page reload to clear any cached auth state
         window.location.href = '/';
       }
     } catch (error) {
@@ -121,7 +177,7 @@ const Header = () => {
           <Menu className="h-5 w-5" />
         </Button>
       </SheetTrigger>
-      <SheetContent side="left" className="w-80">
+      <SheetContent side="left" className="w-full sm:w-80 h-full flex flex-col overflow-hidden">
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
             <GraduationCap className="h-6 w-6 text-university-green" />
@@ -129,7 +185,7 @@ const Header = () => {
           </SheetTitle>
         </SheetHeader>
         
-        <div className="flex flex-col gap-4 mt-6">
+        <div className="flex flex-col gap-4 mt-6 flex-1 overflow-y-auto scrollbar-thin pb-4">
           {/* User Profile Section */}
           {user && profile && (
             <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
@@ -163,12 +219,20 @@ const Header = () => {
               onChange={setSearchQuery}
               onSubmit={handleSearch}
               placeholder="Search products, categories..."
+              autoFocus={false}
             />
           </div>
 
           {/* Navigation Links */}
           {user ? (
             <nav className="flex flex-col gap-2">
+              <Button variant="ghost" size="lg" asChild className="justify-start">
+                <Link to="/marketplace">
+                  <Store className="mr-3 h-5 w-5" />
+                  Marketplace
+                </Link>
+              </Button>
+              
               <Button variant="ghost" size="lg" asChild className="justify-start">
                 <Link to="/learn-more">
                   <GraduationCap className="mr-3 h-5 w-5" />
@@ -205,7 +269,7 @@ const Header = () => {
                 </Link>
               </Button>
               
-              {profile?.account_type !== 'buyer' && (
+              {profile?.account_type !== 'buyer' && profile?.seller_status === 'approved' && (
                 <Button variant="ghost" size="lg" asChild className="justify-start">
                   <Link to="/sell" className="text-seller">
                     <Plus className="mr-3 h-5 w-5" />
@@ -270,7 +334,7 @@ const Header = () => {
               </Button>
             </nav>
           ) : (
-            <nav className="flex flex-col gap-3">
+            <nav className="flex flex-col gap-3 mt-auto">
               <Button variant="outline" size="lg" asChild>
                 <Link to="/auth">Sign In</Link>
               </Button>
@@ -292,13 +356,13 @@ const Header = () => {
           <MobileNav />
           
           {/* Logo */}
-          <Link to="/" className="flex items-center gap-2">
-            <GraduationCap className="h-8 w-8 text-university-green" />
-            <span className="text-xl font-bold text-university-green hidden xs:inline">UniMarket</span>
+          <Link to="/" className="flex items-center gap-2 flex-shrink-0">
+            <GraduationCap className="h-7 w-7 sm:h-8 sm:w-8 text-university-green" />
+            <span className="text-lg sm:text-xl font-bold text-university-green hidden xs:inline">UniMarket</span>
           </Link>
 
           {/* Desktop Search - Hidden on mobile */}
-          <div className="hidden md:flex flex-1 max-w-lg mx-8">
+          <div className="hidden lg:flex flex-1 max-w-md mx-4 xl:mx-8">
             <SmartSearchInput
               value={searchQuery}
               onChange={setSearchQuery}
@@ -308,22 +372,30 @@ const Header = () => {
           </div>
 
           {/* Mobile Actions - Only show essential items */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2">
+            {/* Network Status */}
+            <NetworkIndicator />
+            
             {/* Mobile Search Dialog */}
-            <div className="md:hidden">
+            <div className="lg:hidden">
               <MobileSearchDialog />
             </div>
 
-            {user ? (
+            {loading ? (
+              <div className="flex items-center gap-2">
+                <div className="h-9 w-9 sm:h-10 sm:w-10 bg-muted rounded animate-pulse"></div>
+                <div className="h-9 w-16 sm:h-10 sm:w-20 bg-muted rounded animate-pulse"></div>
+              </div>
+            ) : user ? (
               <>
                 {/* Cart - Always visible */}
-                <Button variant="ghost" size="icon" asChild className="relative h-10 w-10">
+                <Button variant="ghost" size="icon" asChild className="relative h-9 w-9 sm:h-10 sm:w-10">
                   <Link to="/cart">
-                    <ShoppingCart className="h-5 w-5" />
+                    <ShoppingCart className="h-4 w-4 sm:h-5 sm:w-5" />
                     {cartCount > 0 && (
                       <Badge 
                         variant="destructive" 
-                        className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center p-0 text-xs font-bold rounded-full bg-red-500 text-white border-2 border-background"
+                        className="absolute -top-1 -right-1 sm:-top-2 sm:-right-2 h-4 w-4 sm:h-5 sm:w-5 flex items-center justify-center p-0 text-xs font-bold rounded-full bg-red-500 text-white border-2 border-background"
                       >
                         {cartCount > 99 ? '99+' : cartCount}
                       </Badge>
@@ -332,7 +404,14 @@ const Header = () => {
                 </Button>
 
                 {/* Desktop Navigation - Hidden on mobile */}
-                <div className="hidden md:flex items-center gap-2">
+                <div className="hidden lg:flex items-center gap-2">
+                  <Button variant="ghost" size="sm" asChild>
+                    <Link to="/marketplace">
+                      <Store className="mr-1 h-4 w-4" />
+                      Marketplace
+                    </Link>
+                  </Button>
+
                   <Button variant="ghost" size="sm" asChild>
                     <Link to="/learn-more">Learn More</Link>
                   </Button>
@@ -349,7 +428,7 @@ const Header = () => {
                     </Link>
                   </Button>
 
-                  {profile?.account_type !== 'buyer' && (
+                  {profile?.account_type !== 'buyer' && profile?.seller_status === 'approved' && (
                     <Button variant="seller" size="sm" asChild>
                       <Link to="/sell">
                         <Plus className="mr-1 h-4 w-4" />
@@ -397,9 +476,14 @@ const Header = () => {
                               {profile?.account_type}
                             </Badge>
                             {profile?.is_verified && (
-                              <Badge variant="outline" className="text-xs text-verified-blue">
-                                Verified
-                              </Badge>
+                              <div className="flex items-center gap-1">
+                                <div className="w-3 h-3 bg-green-500 rounded-full flex items-center justify-center">
+                                  <svg className="w-2 h-2 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                  </svg>
+                                </div>
+                                <span className="text-xs text-green-600">Verified</span>
+                              </div>
                             )}
                           </div>
                         </div>
@@ -443,12 +527,12 @@ const Header = () => {
                 </div>
               </>
             ) : (
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" asChild className="h-10 text-sm">
+              <div className="flex items-center gap-1 sm:gap-2">
+                <Button variant="outline" size="sm" asChild className="h-9 text-xs sm:h-10 sm:text-sm px-2 sm:px-4">
                   <Link to="/auth">Sign In</Link>
                 </Button>
-                <Button variant="brand" size="sm" asChild className="h-10 text-sm">
-                  <Link to="/auth">Join UniMarket</Link>
+                <Button variant="brand" size="sm" asChild className="h-9 text-xs sm:h-10 sm:text-sm px-2 sm:px-4">
+                  <Link to="/auth">Join</Link>
                 </Button>
               </div>
             )}

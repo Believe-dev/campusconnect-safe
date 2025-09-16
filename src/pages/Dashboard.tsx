@@ -19,9 +19,11 @@ import {
   Package, 
   DollarSign,
   BarChart3,
-  Plus
+  Plus,
+  Wallet
 } from 'lucide-react';
 import Header from '@/components/layout/Header';
+import WalletDashboard from '@/components/wallet/WalletDashboard';
 
 interface Product {
   id: string;
@@ -67,7 +69,7 @@ const Dashboard = () => {
   const { toast } = useToast();
 
   useEffect(() => {
-    checkSellerAccess();
+    loadUserProfile();
     fetchProducts();
     fetchAnalytics();
     
@@ -106,36 +108,39 @@ const Dashboard = () => {
     };
   }, []);
 
-  const checkSellerAccess = async () => {
+  const loadUserProfile = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        navigate('/auth');
-        return;
-      }
+      if (!user) return;
 
       const { data: profile, error } = await supabase
         .from('profiles')
-        .select('account_type, full_name')
+        .select('full_name')
         .eq('user_id', user.id)
         .single();
 
-      if (error) throw error;
-
-      if (profile.account_type === 'buyer') {
-        toast({
-          title: "Access Denied",
-          description: "Only seller accounts can access the dashboard.",
-          variant: "destructive",
-        });
-        navigate('/');
+      if (error) {
+        console.error('Error loading user profile:', error);
+        // Create profile with signup data if it doesn't exist
+        if (error.code === 'PGRST116') {
+          await supabase
+            .from('profiles')
+            .insert({
+              user_id: user.id,
+              email: user.email || '',
+              full_name: user.user_metadata?.full_name || 'User',
+              account_type: user.user_metadata?.account_type || 'buyer',
+              university_name: user.user_metadata?.university_name,
+              campus: user.user_metadata?.campus,
+              student_id: user.user_metadata?.student_id,
+              verification_status: user.user_metadata?.account_type === 'seller' ? 'pending' : null
+            });
+        }
         return;
       }
-
       setUserProfile(profile);
     } catch (error) {
-      console.error('Error checking seller access:', error);
-      navigate('/auth');
+      console.error('Error loading user profile:', error);
     }
   };
 
@@ -334,6 +339,7 @@ const Dashboard = () => {
         <Tabs defaultValue="products" className="space-y-6">
           <TabsList>
             <TabsTrigger value="products">My Products</TabsTrigger>
+            <TabsTrigger value="wallet">Wallet</TabsTrigger>
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
           </TabsList>
 
@@ -430,6 +436,10 @@ const Dashboard = () => {
                 })}
               </div>
             )}
+          </TabsContent>
+
+          <TabsContent value="wallet">
+            <WalletDashboard />
           </TabsContent>
 
           <TabsContent value="analytics" className="space-y-4">

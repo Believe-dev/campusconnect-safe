@@ -4,8 +4,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/enhanced-button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Package, Truck, CheckCircle, AlertCircle, Clock } from 'lucide-react';
+import { Package, Truck, CheckCircle, AlertCircle, Clock, Shield, Timer } from 'lucide-react';
 import Header from '@/components/layout/Header';
 
 interface Order {
@@ -15,6 +18,7 @@ interface Order {
   product_id: string;
   quantity: number;
   total_amount: number;
+  commission_amount: number;
   status: string;
   payment_method?: string;
   shipping_address?: string;
@@ -22,6 +26,7 @@ interface Order {
   created_at: string;
   confirmed_at?: string;
   auto_confirm_at?: string;
+  escrow_released?: boolean;
   product?: {
     title: string;
     images?: string[];
@@ -32,17 +37,32 @@ interface Order {
   buyer?: {
     full_name: string;
   };
+  escrow_transactions?: {
+    id: string;
+    status: string;
+    seller_amount: number;
+    auto_release_at?: string;
+  }[];
 }
 
 const Orders = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('buyer');
+  const [user, setUser] = useState<any>(null);
   const { toast } = useToast();
 
   useEffect(() => {
-    fetchOrders();
+    checkUser();
   }, []);
+
+  const checkUser = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    setUser(user);
+    if (user) {
+      fetchOrders();
+    }
+  };
 
   const fetchOrders = async () => {
     try {
@@ -55,7 +75,8 @@ const Orders = () => {
           *,
           products:product_id (title, images),
           seller_profile:seller_id (full_name),
-          buyer_profile:buyer_id (full_name)
+          buyer_profile:buyer_id (full_name),
+          escrow_transactions (id, status, seller_amount, auto_release_at)
         `)
         .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
         .order('created_at', { ascending: false });
@@ -78,7 +99,10 @@ const Orders = () => {
     try {
       const updateData: any = { status };
       if (trackingInfo) updateData.tracking_info = trackingInfo;
-      if (status === 'confirmed') updateData.confirmed_at = new Date().toISOString();
+      if (status === 'confirmed') {
+        updateData.confirmed_at = new Date().toISOString();
+        updateData.escrow_released = true;
+      }
 
       const { error } = await supabase
         .from('orders')
@@ -86,6 +110,74 @@ const Orders = () => {
         .eq('id', orderId);
 
       if (error) throw error;
+
+      // Send notifications and emails for shipped/delivered status
+      if (status === 'shipped' || status === 'delivered') {
+        const order = orders.find(o => o.id === orderId);
+        if (order) {
+          const { data: buyerProfile } = await supabase
+            .from('profiles')
+            .select('full_name, email')
+            .eq('user_id', order.buyer_id)
+            .single();
+
+          if (buyerProfile) {
+            const statusMessage = status === 'shipped' 
+              ? 'Your order has been shipped! 📦'
+              : 'Your order has been delivered! 🎉';
+            
+            const emailSubject = status === 'shipped'
+              ? 'Order Shipped - CampusConnect'
+              : 'Order Delivered - CampusConnect';
+
+            // Create notification
+            await supabase.from('notifications').insert({
+              user_id: order.buyer_id,
+              title: statusMessage,
+              message: `Order for ${order.product?.title} has been ${status}. ${trackingInfo || ''}`,
+              type: 'success'
+            });
+
+            // Send email
+            try {
+              await supabase.functions.invoke('send-email', {
+                body: {
+                  to: buyerProfile.email,
+                  subject: emailSubject,
+                  html: `
+                    <h2>${statusMessage}</h2>
+                    <p>Hello ${buyerProfile.full_name},</p>
+                    <p>Your order has been ${status}:</p>
+                    <ul>
+                      <li><strong>Product:</strong> ${order.product?.title}</li>
+                      <li><strong>Status:</strong> ${status.charAt(0).toUpperCase() + status.slice(1)}</li>
+                      ${trackingInfo ? `<li><strong>Tracking:</strong> ${trackingInfo}</li>` : ''}
+                    </ul>
+                    <p>You can track your order in your account dashboard.</p>
+                    <p>Best regards,<br>CampusConnect Team</p>
+                  `
+                }
+              });
+            } catch (emailError) {
+              console.error('Failed to send email:', emailError);
+            }
+          }
+        }
+      }
+
+      // If confirming receipt, release escrow funds
+      if (status === 'confirmed') {
+        const order = orders.find(o => o.id === orderId);
+        if (order?.escrow_transactions?.[0]) {
+          const { error: escrowError } = await supabase.rpc('release_escrow_funds', {
+            escrow_id: order.escrow_transactions[0].id
+          });
+          
+          if (escrowError) {
+            console.error('Error releasing escrow:', escrowError);
+          }
+        }
+      }
 
       toast({
         title: "Order Updated",
@@ -103,9 +195,56 @@ const Orders = () => {
     }
   };
 
+  const reportIssue = async (orderId: string, reason: string, description: string) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const order = orders.find(o => o.id === orderId);
+      if (!order?.escrow_transactions?.[0]) {
+        toast({
+          title: "Error",
+          description: "No escrow transaction found for this order",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Create dispute
+      const { error: disputeError } = await supabase
+        .from('disputes')
+        .insert({
+          order_id: orderId,
+          escrow_transaction_id: order.escrow_transactions[0].id,
+          reported_by: user.id,
+          reason,
+          description
+        });
+
+      if (disputeError) throw disputeError;
+
+      // Update order status
+      await updateOrderStatus(orderId, 'disputed');
+
+      toast({
+        title: "Issue Reported",
+        description: "Your issue has been reported and is under review",
+      });
+
+    } catch (error) {
+      console.error('Error reporting issue:', error);
+      toast({
+        title: "Error",
+        description: "Failed to report issue",
+        variant: "destructive",
+      });
+    }
+  };
+
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'pending': return <Clock className="h-4 w-4" />;
+      case 'paid': return <Shield className="h-4 w-4" />;
       case 'shipped': return <Truck className="h-4 w-4" />;
       case 'delivered': return <Package className="h-4 w-4" />;
       case 'confirmed': return <CheckCircle className="h-4 w-4" />;
@@ -140,92 +279,170 @@ const Orders = () => {
     return orders.filter(order => order.seller_id === user?.id);
   };
 
-  const renderOrderCard = (order: Order, isSeller: boolean = false) => (
-    <Card key={order.id} className="mb-4">
-      <CardContent className="pt-6">
-        <div className="flex items-start justify-between mb-4">
-          <div className="flex-1">
-            <div className="flex items-center gap-2 mb-2">
-              <h3 className="font-semibold">{order.product?.title}</h3>
-              <Badge variant={getStatusVariant(order.status) as any}>
-                <span className="flex items-center gap-1">
-                  {getStatusIcon(order.status)}
-                  {order.status}
-                </span>
-              </Badge>
-            </div>
-            
-            <p className="text-sm text-muted-foreground">
-              {isSeller ? `Buyer: ${order.buyer?.full_name}` : `Seller: ${order.seller?.full_name}`}
-            </p>
-            <p className="text-sm text-muted-foreground">
-              Quantity: {order.quantity} • Total: ₦{order.total_amount.toLocaleString()}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              Ordered on {new Date(order.created_at).toLocaleDateString()}
-            </p>
-            
-            {order.tracking_info && (
-              <p className="text-sm text-muted-foreground mt-2">
-                Tracking: {order.tracking_info}
-              </p>
-            )}
-          </div>
+  const [showReportDialog, setShowReportDialog] = useState(false);
+  const [reportReason, setReportReason] = useState('');
+  const [reportDescription, setReportDescription] = useState('');
 
-          <div className="flex flex-col gap-2">
-            {isSeller ? (
-              // Seller actions
-              <>
-                {order.status === 'pending' && (
-                  <Button
-                    size="sm"
-                    onClick={() => updateOrderStatus(order.id, 'shipped', 'Package dispatched')}
-                  >
-                    Mark as Shipped
-                  </Button>
+  const renderOrderCard = (order: Order, isSeller: boolean = false) => {
+    const escrow = order.escrow_transactions?.[0];
+    const autoReleaseDate = escrow?.auto_release_at ? new Date(escrow.auto_release_at) : null;
+    const daysUntilAutoRelease = autoReleaseDate ? Math.ceil((autoReleaseDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null;
+
+    return (
+      <Card key={order.id} className="mb-3 sm:mb-4">
+        <CardContent className="p-4 sm:pt-6">
+          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+            <div className="flex-1 min-w-0">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-2">
+                <h3 className="font-semibold text-sm sm:text-base line-clamp-2">{order.product?.title}</h3>
+                <div className="flex flex-wrap gap-2">
+                  <Badge variant={getStatusVariant(order.status) as any} className="text-xs">
+                    <span className="flex items-center gap-1">
+                      {getStatusIcon(order.status)}
+                      {order.status}
+                    </span>
+                  </Badge>
+                  {escrow && escrow.status === 'held' && (
+                    <Badge variant="outline" className="text-xs">
+                      <Shield className="h-3 w-3 mr-1" />
+                      <span className="hidden sm:inline">Escrow Protected</span>
+                      <span className="sm:hidden">Protected</span>
+                    </Badge>
+                  )}
+                </div>
+              </div>
+              
+              <p className="text-xs sm:text-sm text-muted-foreground truncate">
+                {isSeller ? `Buyer: ${order.buyer?.full_name}` : `Seller: ${order.seller?.full_name}`}
+              </p>
+              <div className="text-xs sm:text-sm text-muted-foreground space-y-1">
+                <p>Qty: {order.quantity} • Total: ₦{order.total_amount.toLocaleString()}</p>
+                {isSeller && escrow && (
+                  <p className="text-green-600 text-xs">
+                    You'll receive: ₦{escrow.seller_amount.toLocaleString()}
+                  </p>
                 )}
-                {order.status === 'shipped' && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => updateOrderStatus(order.id, 'delivered')}
-                  >
-                    Mark as Delivered
-                  </Button>
-                )}
-              </>
-            ) : (
-              // Buyer actions
-              <>
-                {order.status === 'delivered' && (
-                  <div className="flex flex-col gap-2">
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Ordered on {new Date(order.created_at).toLocaleDateString()}
+              </p>
+              
+              {order.tracking_info && (
+                <p className="text-xs sm:text-sm text-muted-foreground mt-2">
+                  Tracking: {order.tracking_info}
+                </p>
+              )}
+              
+              {daysUntilAutoRelease && daysUntilAutoRelease > 0 && order.status === 'delivered' && (
+                <div className="flex items-center gap-1 mt-2 text-xs text-orange-600">
+                  <Timer className="h-3 w-3" />
+                  Auto-confirms in {daysUntilAutoRelease} days
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-col sm:flex-row sm:flex-col gap-2 w-full sm:w-auto">
+              {isSeller ? (
+                // Seller actions
+                <>
+                  {order.status === 'paid' && (
                     <Button
                       size="sm"
-                      onClick={() => updateOrderStatus(order.id, 'confirmed')}
+                      onClick={() => updateOrderStatus(order.id, 'shipped', 'Package dispatched')}
+                      className="w-full sm:w-auto text-xs sm:text-sm"
                     >
-                      Confirm Receipt
+                      Mark as Shipped
                     </Button>
+                  )}
+                  {order.status === 'shipped' && (
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => updateOrderStatus(order.id, 'disputed')}
+                      onClick={() => updateOrderStatus(order.id, 'delivered')}
+                      className="w-full sm:w-auto text-xs sm:text-sm"
                     >
-                      Report Issue
+                      Mark as Delivered
                     </Button>
-                  </div>
-                )}
-                {order.auto_confirm_at && order.status !== 'confirmed' && (
-                  <p className="text-xs text-muted-foreground">
-                    Auto-confirms on {new Date(order.auto_confirm_at).toLocaleDateString()}
-                  </p>
-                )}
-              </>
-            )}
+                  )}
+                  {order.status === 'confirmed' && order.escrow_released && (
+                    <Badge variant="default" className="text-center text-xs">
+                      Payment Released
+                    </Badge>
+                  )}
+                </>
+              ) : (
+                // Buyer actions
+                <>
+                  {order.status === 'delivered' && (
+                    <div className="flex flex-col gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() => updateOrderStatus(order.id, 'confirmed')}
+                        className="w-full sm:w-auto text-xs sm:text-sm"
+                      >
+                        ✅ Confirm Receipt
+                      </Button>
+                      <Dialog open={showReportDialog} onOpenChange={setShowReportDialog}>
+                        <DialogTrigger asChild>
+                          <Button size="sm" variant="outline" className="w-full sm:w-auto text-xs sm:text-sm">
+                            ❌ Report Issue
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="w-[95vw] max-w-md">
+                          <DialogHeader>
+                            <DialogTitle className="text-lg sm:text-xl">Report Issue</DialogTitle>
+                          </DialogHeader>
+                          <div className="space-y-3 sm:space-y-4">
+                            <div>
+                              <Label htmlFor="reason" className="text-sm sm:text-base">Reason</Label>
+                              <select 
+                                className="w-full p-2 border rounded text-sm sm:text-base"
+                                value={reportReason}
+                                onChange={(e) => setReportReason(e.target.value)}
+                              >
+                                <option value="">Select a reason</option>
+                                <option value="item_not_received">Item not received</option>
+                                <option value="item_damaged">Item damaged</option>
+                                <option value="wrong_item">Wrong item received</option>
+                                <option value="not_as_described">Not as described</option>
+                                <option value="other">Other</option>
+                              </select>
+                            </div>
+                            <div>
+                              <Label htmlFor="description" className="text-sm sm:text-base">Description</Label>
+                              <Textarea
+                                id="description"
+                                placeholder="Please describe the issue in detail"
+                                value={reportDescription}
+                                onChange={(e) => setReportDescription(e.target.value)}
+                                className="text-sm sm:text-base"
+                              />
+                            </div>
+                            <Button 
+                              onClick={() => {
+                                reportIssue(order.id, reportReason, reportDescription);
+                                setShowReportDialog(false);
+                                setReportReason('');
+                                setReportDescription('');
+                              }}
+                              className="w-full"
+                              disabled={!reportReason || !reportDescription}
+                            >
+                              Submit Report
+                            </Button>
+                          </div>
+                        </DialogContent>
+                      </Dialog>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
           </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
+        </CardContent>
+      </Card>
+    );
+  };
 
   if (loading) {
     return (
@@ -244,9 +461,9 @@ const Orders = () => {
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-6 sm:py-8 pb-20 md:pb-8">
         <div className="max-w-4xl mx-auto">
-          <h1 className="text-3xl font-bold text-primary mb-6">My Orders</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-primary mb-4 sm:mb-6">My Orders</h1>
 
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="grid w-full grid-cols-2">
@@ -256,38 +473,32 @@ const Orders = () => {
 
             <TabsContent value="buyer" className="mt-6">
               <div>
-                {orders.filter(order => {
-                  // We need to check current user ID
-                  return true; // Temporary - will be filtered properly
-                }).length === 0 ? (
+                {orders.filter(order => order.buyer_id === user?.id).length === 0 ? (
                   <Card>
-                    <CardContent className="pt-6 text-center">
-                      <Package className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                      <p className="text-lg font-medium">No orders yet</p>
-                      <p className="text-muted-foreground">Start shopping to see your orders here</p>
+                    <CardContent className="p-6 sm:pt-6 text-center">
+                      <Package className="h-10 w-10 sm:h-12 sm:w-12 mx-auto mb-3 sm:mb-4 text-muted-foreground" />
+                      <p className="text-base sm:text-lg font-medium">No orders yet</p>
+                      <p className="text-sm sm:text-base text-muted-foreground">Start shopping to see your orders here</p>
                     </CardContent>
                   </Card>
                 ) : (
-                  orders.map(order => renderOrderCard(order, false))
+                  orders.filter(order => order.buyer_id === user?.id).map(order => renderOrderCard(order, false))
                 )}
               </div>
             </TabsContent>
 
             <TabsContent value="seller" className="mt-6">
               <div>
-                {orders.filter(order => {
-                  // We need to check current user ID
-                  return true; // Temporary - will be filtered properly  
-                }).length === 0 ? (
+                {orders.filter(order => order.seller_id === user?.id).length === 0 ? (
                   <Card>
-                    <CardContent className="pt-6 text-center">
-                      <Package className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                      <p className="text-lg font-medium">No sales yet</p>
-                      <p className="text-muted-foreground">Start selling to see your orders here</p>
+                    <CardContent className="p-6 sm:pt-6 text-center">
+                      <Package className="h-10 w-10 sm:h-12 sm:w-12 mx-auto mb-3 sm:mb-4 text-muted-foreground" />
+                      <p className="text-base sm:text-lg font-medium">No sales yet</p>
+                      <p className="text-sm sm:text-base text-muted-foreground">Start selling to see your orders here</p>
                     </CardContent>
                   </Card>
                 ) : (
-                  orders.map(order => renderOrderCard(order, true))
+                  orders.filter(order => order.seller_id === user?.id).map(order => renderOrderCard(order, true))
                 )}
               </div>
             </TabsContent>

@@ -20,6 +20,7 @@ interface SmartSearchInputProps {
   onSubmit?: (query: string) => void;
   placeholder?: string;
   showSuggestions?: boolean;
+  autoFocus?: boolean;
 }
 
 const SmartSearchInput = ({ 
@@ -27,7 +28,8 @@ const SmartSearchInput = ({
   onChange, 
   onSubmit,
   placeholder = "Search products, categories...",
-  showSuggestions = true 
+  showSuggestions = true,
+  autoFocus = true 
 }: SmartSearchInputProps) => {
   const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([]);
   const [isOpen, setIsOpen] = useState(false);
@@ -166,6 +168,7 @@ const SmartSearchInput = ({
               }}
               onFocus={() => setIsOpen(suggestions.length > 0)}
               className="pl-10 pr-4"
+              autoFocus={autoFocus}
             />
           </div>
           <Button type="submit" variant="brand" size="sm">

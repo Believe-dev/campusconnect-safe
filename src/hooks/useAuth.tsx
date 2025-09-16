@@ -1,45 +1,75 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { User, Session } from '@supabase/supabase-js';
+import { useNetworkStatus } from './useNetworkStatus';
 
 export const useAuth = () => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+  const { isOnline } = useNetworkStatus();
 
   useEffect(() => {
+    // Always load cached auth state first for immediate UI update
+    const cachedUser = localStorage.getItem('cc_user');
+    const cachedSession = localStorage.getItem('cc_session');
+    if (cachedUser && cachedSession) {
+      try {
+        const parsedUser = JSON.parse(cachedUser);
+        const parsedSession = JSON.parse(cachedSession);
+        setUser(parsedUser);
+        setSession(parsedSession);
+        checkAdminRole(parsedUser.id);
+      } catch (error) {
+        console.error('Error parsing cached auth:', error);
+        localStorage.removeItem('cc_user');
+        localStorage.removeItem('cc_session');
+      }
+    }
+
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
         
-        // Use setTimeout to prevent deadlocks with Supabase auth
+        // Cache auth state
         if (session?.user) {
-          setTimeout(() => {
-            checkAdminRole(session.user.id);
-          }, 0);
+          localStorage.setItem('cc_user', JSON.stringify(session.user));
+          localStorage.setItem('cc_session', JSON.stringify(session));
+          checkAdminRole(session.user.id);
         } else {
+          localStorage.removeItem('cc_user');
+          localStorage.removeItem('cc_session');
           setIsAdmin(false);
         }
         setLoading(false);
       }
     );
 
-    // Check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      
-      if (session?.user) {
-        checkAdminRole(session.user.id);
-      }
+    // Check for existing session (only if online or no cached data)
+    if (isOnline || (!cachedUser && !cachedSession)) {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        setSession(session);
+        setUser(session?.user ?? null);
+        
+        if (session?.user) {
+          localStorage.setItem('cc_user', JSON.stringify(session.user));
+          localStorage.setItem('cc_session', JSON.stringify(session));
+          checkAdminRole(session.user.id);
+        }
+        setLoading(false);
+      }).catch(() => {
+        // If session check fails, keep cached state
+        setLoading(false);
+      });
+    } else {
       setLoading(false);
-    });
+    }
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [isOnline]);
 
   const checkAdminRole = async (userId: string) => {
     try {

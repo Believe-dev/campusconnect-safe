@@ -50,34 +50,21 @@ const Sell = () => {
   const { toast } = useToast();
 
   useEffect(() => {
-    checkSellerAccess();
+    loadUserProfile();
   }, []);
 
-  const checkSellerAccess = async () => {
+  const loadUserProfile = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        navigate('/auth');
-        return;
-      }
+      if (!user) return;
 
       const { data: profile, error } = await supabase
         .from('profiles')
-        .select('account_type, full_name, university_name, campus')
+        .select('full_name, university_name, campus')
         .eq('user_id', user.id)
         .single();
 
       if (error) throw error;
-
-      if (profile.account_type === 'buyer') {
-        toast({
-          title: "Access Denied",
-          description: "Only seller accounts can list products. Upgrade your account in Profile settings.",
-          variant: "destructive",
-        });
-        navigate('/profile');
-        return;
-      }
 
       setUserProfile(profile);
       // Auto-populate campus from user's profile
@@ -85,8 +72,7 @@ const Sell = () => {
         setFormData(prev => ({ ...prev, campus: profile.campus }));
       }
     } catch (error) {
-      console.error('Error checking seller access:', error);
-      navigate('/auth');
+      console.error('Error loading user profile:', error);
     } finally {
       setLoading(false);
     }
@@ -196,7 +182,7 @@ const Sell = () => {
         <Card className="max-w-2xl mx-auto">
           <CardHeader>
             <CardTitle className="text-2xl font-bold text-primary">List Your Product</CardTitle>
-            <p className="text-muted-foreground">Fill in the details to list your product on UniMarket</p>
+            <p className="text-muted-foreground">Fill in the details to list your product on CampusConnect</p>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">

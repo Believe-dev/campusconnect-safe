@@ -38,6 +38,7 @@ import {
   DollarSign,
   IdCard
 } from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { toast } from 'sonner';
 import Header from '@/components/layout/Header';
 
@@ -86,6 +87,50 @@ interface Analytics {
   recentOrders: number;
 }
 
+interface EscrowTransaction {
+  id: string;
+  order_id: string;
+  amount: number;
+  commission_amount: number;
+  seller_amount: number;
+  status: string;
+  held_at: string;
+  auto_release_at?: string;
+  orders: {
+    id: string;
+    products: { title: string };
+    seller_profile: { full_name: string };
+    buyer_profile: { full_name: string };
+  };
+}
+
+interface PayoutRequest {
+  id: string;
+  user_id: string;
+  amount: number;
+  bank_account_name: string;
+  bank_account_number: string;
+  bank_name: string;
+  status: string;
+  created_at: string;
+  profiles: { full_name: string; email: string };
+}
+
+interface Dispute {
+  id: string;
+  order_id: string;
+  reason: string;
+  description?: string;
+  status: string;
+  created_at: string;
+  orders: {
+    products: { title: string };
+    seller_profile: { full_name: string };
+    buyer_profile: { full_name: string };
+  };
+  reporter: { full_name: string };
+}
+
 export default function Admin() {
   const { user, loading, isAdmin } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
@@ -120,6 +165,12 @@ export default function Admin() {
 
   // Seller approval states
   const [pendingSellers, setPendingSellers] = useState<User[]>([]);
+  const [verificationRequests, setVerificationRequests] = useState<User[]>([]);
+  
+  // Escrow and payout states
+  const [escrowTransactions, setEscrowTransactions] = useState<EscrowTransaction[]>([]);
+  const [payoutRequests, setPayoutRequests] = useState<PayoutRequest[]>([]);
+  const [disputes, setDisputes] = useState<Dispute[]>([]);
 
   useEffect(() => {
     if (isAdmin) {
@@ -129,6 +180,8 @@ export default function Admin() {
       fetchStats();
       fetchAnalytics();
       fetchPendingSellers();
+      fetchVerificationRequests();
+      fetchEscrowData();
     }
   }, [isAdmin]);
 
@@ -214,27 +267,82 @@ export default function Admin() {
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
-        .eq('verification_status', 'pending')
         .in('account_type', ['seller', 'both'])
+        .eq('seller_status', 'pending')
         .order('created_at', { ascending: false });
       
-      if (error) throw error;
+      if (error) {
+        console.error('Pending sellers fetch error:', error);
+        setPendingSellers([]);
+        return;
+      }
+      
       setPendingSellers(data || []);
+      console.log('Pending sellers loaded:', (data || []).length);
     } catch (error) {
       console.error('Pending sellers fetch error:', error);
-      toast.error('Failed to fetch pending sellers');
+      setPendingSellers([]);
+    }
+  };
+
+  const fetchVerificationRequests = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('verification_requests')
+        .select(`
+          *,
+          profiles!inner(
+            user_id,
+            full_name,
+            email,
+            university_name,
+            campus,
+            avatar_url,
+            face_photo_url,
+            student_id_photo_url,
+            created_at
+          )
+        `)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false });
+      
+      if (error) {
+        console.error('Verification requests fetch error:', error);
+        // Don't show error toast for empty results
+        setVerificationRequests([]);
+        return;
+      }
+      
+      // Transform data to match expected format
+      const transformedData = data?.map(req => ({
+        id: req.id,
+        user_id: req.user_id,
+        full_name: req.profiles.full_name,
+        email: req.profiles.email,
+        university_name: req.profiles.university_name,
+        campus: req.profiles.campus,
+        avatar_url: req.profiles.avatar_url,
+        face_photo_url: req.profiles.face_photo_url,
+        student_id_photo_url: req.profiles.student_id_photo_url,
+        created_at: req.created_at,
+        reason: req.reason
+      })) || [];
+      
+      setVerificationRequests(transformedData);
+      console.log('Verification requests loaded:', transformedData.length);
+    } catch (error) {
+      console.error('Verification requests fetch error:', error);
+      setVerificationRequests([]);
     }
   };
 
   const approveSeller = async (userId: string, userEmail: string, fullName: string) => {
     try {
-      // Update profile verification status
+      // Simple approval - just update verification status
       const { error: profileError } = await supabase
         .from('profiles')
         .update({ 
-          verification_status: 'approved',
-          verified_at: new Date().toISOString(),
-          verified_by: user?.id
+          seller_status: 'approved'
         })
         .eq('user_id', userId);
 
@@ -275,11 +383,11 @@ export default function Admin() {
 
   const rejectSeller = async (userId: string, userEmail: string, fullName: string) => {
     try {
-      // Update profile verification status and account type
+      // Simple rejection - update verification status and convert to buyer
       const { error: profileError } = await supabase
         .from('profiles')
         .update({ 
-          verification_status: 'rejected',
+          seller_status: 'rejected',
           account_type: 'buyer'
         })
         .eq('user_id', userId);
@@ -342,6 +450,106 @@ export default function Admin() {
       });
     } catch (error) {
       console.error('Stats fetch error:', error);
+    }
+  };
+
+  const fetchEscrowData = async () => {
+    try {
+      // Fetch escrow transactions
+      const { data: escrowData, error: escrowError } = await supabase
+        .from('escrow_transactions')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (escrowError) throw escrowError;
+      setEscrowTransactions(escrowData || []);
+
+      // Fetch payout requests
+      const { data: payoutData, error: payoutError } = await supabase
+        .from('payout_requests')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (payoutError) throw payoutError;
+      setPayoutRequests(payoutData || []);
+
+      // Fetch disputes
+      const { data: disputeData, error: disputeError } = await supabase
+        .from('disputes')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (disputeError) throw disputeError;
+      setDisputes(disputeData || []);
+
+    } catch (error) {
+      console.error('Escrow data fetch error:', error);
+      toast.error('Failed to fetch escrow data');
+    }
+  };
+
+  const releaseEscrowFunds = async (escrowId: string) => {
+    try {
+      const { data, error } = await supabase.rpc('release_escrow_funds', {
+        escrow_id: escrowId
+      });
+
+      console.log('Release escrow result:', { data, error });
+
+      if (error) throw error;
+
+      if (data === false) {
+        toast.error('Escrow transaction not found or already released');
+        return;
+      }
+
+      toast.success('Escrow funds released successfully');
+      fetchEscrowData();
+    } catch (error) {
+      console.error('Release escrow error:', error);
+      toast.error('Failed to release escrow funds');
+    }
+  };
+
+  const processPayoutRequest = async (payoutId: string, status: 'completed' | 'failed', notes?: string) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { error } = await supabase
+        .from('payout_requests')
+        .update({
+          status,
+          admin_notes: notes,
+          processed_by: user.id,
+          processed_at: new Date().toISOString()
+        })
+        .eq('id', payoutId);
+
+      if (error) throw error;
+
+      // Notify all admins about payout processing
+      const { data: admins } = await supabase
+        .from('profiles')
+        .select('user_id')
+        .eq('account_type', 'admin');
+
+      if (admins) {
+        for (const admin of admins) {
+          await supabase.from('notifications').insert({
+            user_id: admin.user_id,
+            title: 'Payout Processed',
+            message: `Payout request has been ${status}`,
+            type: status === 'completed' ? 'success' : 'warning'
+          });
+        }
+      }
+
+      toast.success(`Payout request ${status}`);
+      fetchEscrowData();
+    } catch (error) {
+      console.error('Process payout error:', error);
+      toast.error('Failed to process payout request');
     }
   };
 
@@ -435,6 +643,142 @@ export default function Admin() {
     } catch (error) {
       console.error('Update user role error:', error);
       toast.error('Failed to update user role');
+    }
+  };
+
+  const approveVerification = async (requestId: string, userId: string, userEmail: string, fullName: string) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Update verification request
+      const { error: requestError } = await supabase
+        .from('verification_requests')
+        .update({ 
+          status: 'approved',
+          reviewed_by: user.id,
+          reviewed_at: new Date().toISOString()
+        })
+        .eq('id', requestId);
+
+      if (requestError) throw requestError;
+
+      // Update profile to verified
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({ is_verified: true })
+        .eq('user_id', userId);
+
+      if (profileError) throw profileError;
+
+      // Send notification
+      await supabase
+        .from('notifications')
+        .insert({
+          user_id: userId,
+          title: 'Account Verified! ✅',
+          message: 'Congratulations! Your account has been verified. You now have a verified badge on your profile.',
+          type: 'success'
+        });
+
+      // Send email notification
+      try {
+        await supabase.functions.invoke('send-notification-email', {
+          body: {
+            email: userEmail,
+            name: fullName,
+            type: 'verified'
+          }
+        });
+      } catch (emailError) {
+        console.warn('Email notification failed:', emailError);
+      }
+
+      toast.success('User verification approved');
+      fetchVerificationRequests();
+      fetchUsers();
+    } catch (error) {
+      console.error('Approve verification error:', error);
+      toast.error('Failed to approve verification');
+    }
+  };
+
+  const rejectVerification = async (requestId: string, userId: string, userEmail: string, fullName: string) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Update verification request
+      const { error } = await supabase
+        .from('verification_requests')
+        .update({ 
+          status: 'rejected',
+          reviewed_by: user.id,
+          reviewed_at: new Date().toISOString()
+        })
+        .eq('id', requestId);
+
+      if (error) throw error;
+
+      // Send notification
+      await supabase
+        .from('notifications')
+        .insert({
+          user_id: userId,
+          title: 'Verification Request Update',
+          message: 'Your verification request was not approved at this time. You can reapply later.',
+          type: 'warning'
+        });
+
+      toast.success('Verification request rejected');
+      fetchVerificationRequests();
+      fetchUsers();
+    } catch (error) {
+      console.error('Reject verification error:', error);
+      toast.error('Failed to reject verification');
+    }
+  };
+
+  const toggleUserVerification = async (userId: string, isVerified: boolean, userEmail: string, fullName: string) => {
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ is_verified: !isVerified })
+        .eq('user_id', userId);
+
+      if (error) throw error;
+
+      // Send notification if user is being verified
+      if (!isVerified) {
+        await supabase
+          .from('notifications')
+          .insert({
+            user_id: userId,
+            title: 'Account Verified! ✅',
+            message: 'Congratulations! Your account has been verified. You now have a verified badge on your profile.',
+            type: 'success'
+          });
+
+        // Send email notification
+        try {
+          await supabase.functions.invoke('send-notification-email', {
+            body: {
+              email: userEmail,
+              name: fullName,
+              type: 'verified'
+            }
+          });
+        } catch (emailError) {
+          console.warn('Email notification failed:', emailError);
+        }
+      }
+
+      toast.success(`User ${!isVerified ? 'verified' : 'unverified'} successfully`);
+      fetchUsers();
+      setSelectedUser(null);
+    } catch (error) {
+      console.error('Toggle verification error:', error);
+      toast.error('Failed to update verification status');
     }
   };
 
@@ -696,16 +1040,11 @@ export default function Admin() {
 
         {/* Tabs for different management areas */}
         <Tabs defaultValue="users" className="space-y-6">
-          <TabsList>
+          <TabsList className="grid w-full grid-cols-8">
             <TabsTrigger value="users">Users</TabsTrigger>
-            <TabsTrigger value="sellers">
-              Seller Approvals
-              {pendingSellers.length > 0 && (
-                <Badge variant="destructive" className="ml-2">
-                  {pendingSellers.length}
-                </Badge>
-              )}
-            </TabsTrigger>
+            <TabsTrigger value="sellers">Seller Approvals</TabsTrigger>
+            <TabsTrigger value="verification">Verification</TabsTrigger>
+            <TabsTrigger value="escrow">Escrow</TabsTrigger>
             <TabsTrigger value="products">Products</TabsTrigger>
             <TabsTrigger value="messages">Messages</TabsTrigger>
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
@@ -858,6 +1197,16 @@ export default function Admin() {
                                         </SelectContent>
                                       </Select>
                                     </div>
+                                    <div className="flex items-center space-x-2">
+                                      <Button
+                                        variant={user.is_verified ? "outline" : "default"}
+                                        size="sm"
+                                        onClick={() => toggleUserVerification(user.user_id, user.is_verified, user.email, user.full_name)}
+                                      >
+                                        <Shield className="h-4 w-4 mr-2" />
+                                        {user.is_verified ? 'Remove Verification' : 'Verify User'}
+                                      </Button>
+                                    </div>
                                   </div>
                                 </DialogContent>
                               </Dialog>
@@ -902,7 +1251,7 @@ export default function Admin() {
             <Card>
               <CardHeader>
                 <div className="flex justify-between items-center">
-                  <CardTitle>Seller Verification Requests</CardTitle>
+                  <CardTitle>Seller Account Approvals</CardTitle>
                   <div className="flex items-center gap-2">
                     {pendingSellers.length > 0 && (
                       <Badge variant="secondary">
@@ -915,14 +1264,17 @@ export default function Admin() {
                     </Button>
                   </div>
                 </div>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Approve or reject users who want to become sellers on the platform
+                </p>
               </CardHeader>
               <CardContent>
                 {pendingSellers.length === 0 ? (
                   <div className="text-center py-12">
                     <UserCheck className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold mb-2">No pending approvals</h3>
+                    <h3 className="text-lg font-semibold mb-2">No pending seller approvals</h3>
                     <p className="text-muted-foreground">
-                      All seller verification requests have been processed
+                      All seller account requests have been processed
                     </p>
                   </div>
                 ) : (
@@ -942,10 +1294,23 @@ export default function Admin() {
                       <TableBody>
                         {pendingSellers.map((seller) => (
                           <TableRow key={seller.id}>
-                            <TableCell className="font-medium">
-                              {seller.full_name || 'N/A'}
+                            <TableCell>
+                              <div className="flex items-center gap-3">
+                                <Avatar className="h-10 w-10">
+                                  <AvatarImage src={seller.avatar_url} alt={seller.full_name} />
+                                  <AvatarFallback className="bg-university-green text-white text-sm">
+                                    {seller.full_name ? seller.full_name.split(' ').map(n => n[0]).join('').slice(0, 2) : 'U'}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <div>
+                                  <p className="font-medium">{seller.full_name || 'N/A'}</p>
+                                  <p className="text-xs text-muted-foreground">ID: {seller.user_id.slice(0, 8)}...</p>
+                                </div>
+                              </div>
                             </TableCell>
-                            <TableCell>{seller.email}</TableCell>
+                            <TableCell>
+                              <p className="font-medium">{seller.email}</p>
+                            </TableCell>
                             <TableCell>{seller.university_name || 'N/A'}</TableCell>
                             <TableCell>{seller.campus || 'N/A'}</TableCell>
                             <TableCell>
@@ -1048,6 +1413,189 @@ export default function Admin() {
                                       <AlertDialogCancel>Cancel</AlertDialogCancel>
                                       <AlertDialogAction 
                                         onClick={() => rejectSeller(seller.user_id, seller.email, seller.full_name || 'User')}
+                                      >
+                                        Reject
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Verification Requests Tab */}
+          <TabsContent value="verification">
+            <Card>
+              <CardHeader>
+                <div className="flex justify-between items-center">
+                  <CardTitle>Verification Badge Requests</CardTitle>
+                  <div className="flex items-center gap-2">
+                    {verificationRequests.length > 0 && (
+                      <Badge variant="secondary">
+                        {verificationRequests.length} pending
+                      </Badge>
+                    )}
+                    <Button onClick={fetchVerificationRequests} variant="outline" size="sm">
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Refresh
+                    </Button>
+                  </div>
+                </div>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Review and approve verification badge requests for trusted users
+                </p>
+              </CardHeader>
+              <CardContent>
+                {verificationRequests.length === 0 ? (
+                  <div className="text-center py-12">
+                    <Shield className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold mb-2">No pending verification requests</h3>
+                    <p className="text-muted-foreground">
+                      All verification badge requests have been processed
+                    </p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>User</TableHead>
+                          <TableHead>Email</TableHead>
+                          <TableHead>University</TableHead>
+                          <TableHead>Campus</TableHead>
+                          <TableHead>Requested</TableHead>
+                          <TableHead>Verification Photos</TableHead>
+                          <TableHead>Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {verificationRequests.map((user) => (
+                          <TableRow key={user.id}>
+                            <TableCell>
+                              <div className="flex items-center gap-3">
+                                <Avatar className="h-10 w-10">
+                                  <AvatarImage src={user.avatar_url} alt={user.full_name} />
+                                  <AvatarFallback className="bg-university-green text-white text-sm">
+                                    {user.full_name ? user.full_name.split(' ').map(n => n[0]).join('').slice(0, 2) : 'U'}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <div>
+                                  <p className="font-medium">{user.full_name || 'N/A'}</p>
+                                  <p className="text-xs text-muted-foreground">ID: {user.user_id.slice(0, 8)}...</p>
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <p className="font-medium">{user.email}</p>
+                            </TableCell>
+                            <TableCell>{user.university_name || 'N/A'}</TableCell>
+                            <TableCell>{user.campus || 'N/A'}</TableCell>
+                            <TableCell>
+                              {new Date(user.created_at).toLocaleDateString()}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex gap-2">
+                                {user.face_photo_url && (
+                                  <Dialog>
+                                    <DialogTrigger asChild>
+                                      <Button variant="outline" size="sm">
+                                        <Eye className="h-4 w-4 mr-1" />
+                                        Face Photo
+                                      </Button>
+                                    </DialogTrigger>
+                                    <DialogContent>
+                                      <DialogHeader>
+                                        <DialogTitle>Face Verification Photo</DialogTitle>
+                                      </DialogHeader>
+                                      <div className="flex justify-center">
+                                        <img 
+                                          src={`${supabase.storage.from('verification-photos').getPublicUrl(user.face_photo_url).data.publicUrl}`}
+                                          alt="Face verification"
+                                          className="max-w-full max-h-96 object-contain"
+                                        />
+                                      </div>
+                                    </DialogContent>
+                                  </Dialog>
+                                )}
+                                {user.student_id_photo_url && (
+                                  <Dialog>
+                                    <DialogTrigger asChild>
+                                      <Button variant="outline" size="sm">
+                                        <IdCard className="h-4 w-4 mr-1" />
+                                        ID Photo
+                                      </Button>
+                                    </DialogTrigger>
+                                    <DialogContent>
+                                      <DialogHeader>
+                                        <DialogTitle>Student ID Verification Photo</DialogTitle>
+                                      </DialogHeader>
+                                      <div className="flex justify-center">
+                                        <img 
+                                          src={`${supabase.storage.from('verification-photos').getPublicUrl(user.student_id_photo_url).data.publicUrl}`}
+                                          alt="Student ID verification"
+                                          className="max-w-full max-h-96 object-contain"
+                                        />
+                                      </div>
+                                    </DialogContent>
+                                  </Dialog>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex gap-2">
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <Button variant="default" size="sm">
+                                      <Shield className="h-4 w-4 mr-1" />
+                                      Verify
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>Approve Verification Badge</AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        Are you sure you want to grant {user.full_name} a verification badge? 
+                                        This will show a green checkmark on their profile indicating they are a trusted user.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                      <AlertDialogAction 
+                                        onClick={() => approveVerification(user.id, user.user_id, user.email, user.full_name || 'User')}
+                                      >
+                                        Grant Badge
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                                
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <Button variant="outline" size="sm">
+                                      <UserX className="h-4 w-4 mr-1" />
+                                      Reject
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>Reject Verification Request</AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        Are you sure you want to reject {user.full_name}'s verification request? 
+                                        They will not receive a verification badge at this time.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                      <AlertDialogAction 
+                                        onClick={() => rejectVerification(user.id, user.user_id, user.email, user.full_name || 'User')}
                                       >
                                         Reject
                                       </AlertDialogAction>
@@ -1329,6 +1877,218 @@ export default function Admin() {
                       <span>Orders This Month</span>
                       <span className="font-bold">{analytics.recentOrders}</span>
                     </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          {/* Escrow & Payouts Tab */}
+          <TabsContent value="escrow">
+            <div className="space-y-6">
+              {/* Escrow Transactions */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Escrow Transactions</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Order</TableHead>
+                          <TableHead>Amount</TableHead>
+                          <TableHead>Commission</TableHead>
+                          <TableHead>Seller Amount</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Auto Release</TableHead>
+                          <TableHead>Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {escrowTransactions.map((escrow) => (
+                          <TableRow key={escrow.id}>
+                            <TableCell>
+                              <div>
+                                <p className="font-medium">Order #{escrow.order_id.slice(0, 8)}</p>
+                                <p className="text-sm text-muted-foreground">
+                                  Escrow Transaction
+                                </p>
+                              </div>
+                            </TableCell>
+                            <TableCell>₦{escrow.amount.toLocaleString()}</TableCell>
+                            <TableCell>₦{escrow.commission_amount.toLocaleString()}</TableCell>
+                            <TableCell>₦{escrow.seller_amount.toLocaleString()}</TableCell>
+                            <TableCell>
+                              <Badge variant={escrow.status === 'held' ? 'secondary' : 'default'}>
+                                {escrow.status}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              {escrow.auto_release_at ? (
+                                <span className="text-sm">
+                                  {new Date(escrow.auto_release_at).toLocaleDateString()}
+                                </span>
+                              ) : (
+                                'Manual'
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {escrow.status === 'held' && (
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <Button size="sm" variant="outline">
+                                      Release Funds
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>Release Escrow Funds</AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        Are you sure you want to manually release ₦{escrow.seller_amount.toLocaleString()} to the seller?
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                      <AlertDialogAction onClick={() => releaseEscrowFunds(escrow.id)}>
+                                        Release Funds
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Payout Requests */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Payout Requests</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>User</TableHead>
+                          <TableHead>Amount</TableHead>
+                          <TableHead>Bank Details</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Requested</TableHead>
+                          <TableHead>Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {payoutRequests.map((payout) => (
+                          <TableRow key={payout.id}>
+                            <TableCell>
+                              <div>
+                                <p className="font-medium">User #{payout.user_id.slice(0, 8)}</p>
+                                <p className="text-sm text-muted-foreground">Payout Request</p>
+                              </div>
+                            </TableCell>
+                            <TableCell>₦{payout.amount.toLocaleString()}</TableCell>
+                            <TableCell>
+                              <div className="text-sm">
+                                <p>{payout.bank_account_name}</p>
+                                <p>{payout.bank_account_number}</p>
+                                <p>{payout.bank_name}</p>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={payout.status === 'pending' ? 'secondary' : 'default'}>
+                                {payout.status}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>{new Date(payout.created_at).toLocaleDateString()}</TableCell>
+                            <TableCell>
+                              {payout.status === 'pending' && (
+                                <div className="flex gap-2">
+                                  <Button
+                                    size="sm"
+                                    onClick={() => processPayoutRequest(payout.id, 'completed')}
+                                  >
+                                    Approve
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => processPayoutRequest(payout.id, 'failed', 'Rejected by admin')}
+                                  >
+                                    Reject
+                                  </Button>
+                                </div>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Disputes */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Disputes</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Order</TableHead>
+                          <TableHead>Reported By</TableHead>
+                          <TableHead>Reason</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Created</TableHead>
+                          <TableHead>Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {disputes.map((dispute) => (
+                          <TableRow key={dispute.id}>
+                            <TableCell>
+                              <div>
+                                <p className="font-medium">Order #{dispute.order_id.slice(0, 8)}</p>
+                                <p className="text-sm text-muted-foreground">
+                                  Dispute Case
+                                </p>
+                              </div>
+                            </TableCell>
+                            <TableCell>User #{dispute.reported_by.slice(0, 8)}</TableCell>
+                            <TableCell>
+                              <div>
+                                <p className="font-medium">{dispute.reason.replace('_', ' ')}</p>
+                                {dispute.description && (
+                                  <p className="text-sm text-muted-foreground">{dispute.description}</p>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={dispute.status === 'open' ? 'destructive' : 'default'}>
+                                {dispute.status}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>{new Date(dispute.created_at).toLocaleDateString()}</TableCell>
+                            <TableCell>
+                              {dispute.status === 'open' && (
+                                <Button size="sm" variant="outline">
+                                  Investigate
+                                </Button>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
                   </div>
                 </CardContent>
               </Card>

@@ -551,6 +551,258 @@ export type Database = {
         }
         Relationships: []
       }
+      wallets: {
+        Row: {
+          id: string
+          user_id: string
+          available_balance: number
+          pending_balance: number
+          total_earnings: number
+          total_commission_paid: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          available_balance?: number
+          pending_balance?: number
+          total_earnings?: number
+          total_commission_paid?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          available_balance?: number
+          pending_balance?: number
+          total_earnings?: number
+          total_commission_paid?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      escrow_transactions: {
+        Row: {
+          id: string
+          order_id: string
+          buyer_id: string
+          seller_id: string
+          amount: number
+          commission_amount: number
+          seller_amount: number
+          status: string
+          held_at: string
+          released_at: string | null
+          auto_release_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          order_id: string
+          buyer_id: string
+          seller_id: string
+          amount: number
+          commission_amount: number
+          seller_amount: number
+          status?: string
+          held_at?: string
+          released_at?: string | null
+          auto_release_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          order_id?: string
+          buyer_id?: string
+          seller_id?: string
+          amount?: number
+          commission_amount?: number
+          seller_amount?: number
+          status?: string
+          held_at?: string
+          released_at?: string | null
+          auto_release_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "escrow_transactions_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: true
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      wallet_transactions: {
+        Row: {
+          id: string
+          wallet_id: string
+          user_id: string
+          type: string
+          amount: number
+          description: string
+          reference_id: string | null
+          reference_type: string | null
+          status: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          wallet_id: string
+          user_id: string
+          type: string
+          amount: number
+          description: string
+          reference_id?: string | null
+          reference_type?: string | null
+          status?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          wallet_id?: string
+          user_id?: string
+          type?: string
+          amount?: number
+          description?: string
+          reference_id?: string | null
+          reference_type?: string | null
+          status?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "wallet_transactions_wallet_id_fkey"
+            columns: ["wallet_id"]
+            isOneToOne: false
+            referencedRelation: "wallets"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      payout_requests: {
+        Row: {
+          id: string
+          user_id: string
+          wallet_id: string
+          amount: number
+          bank_account_name: string
+          bank_account_number: string
+          bank_name: string
+          status: string
+          admin_notes: string | null
+          processed_by: string | null
+          processed_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          wallet_id: string
+          amount: number
+          bank_account_name: string
+          bank_account_number: string
+          bank_name: string
+          status?: string
+          admin_notes?: string | null
+          processed_by?: string | null
+          processed_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          wallet_id?: string
+          amount?: number
+          bank_account_name?: string
+          bank_account_number?: string
+          bank_name?: string
+          status?: string
+          admin_notes?: string | null
+          processed_by?: string | null
+          processed_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payout_requests_wallet_id_fkey"
+            columns: ["wallet_id"]
+            isOneToOne: false
+            referencedRelation: "wallets"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      disputes: {
+        Row: {
+          id: string
+          order_id: string
+          escrow_transaction_id: string
+          reported_by: string
+          reason: string
+          description: string | null
+          status: string
+          resolution: string | null
+          resolved_by: string | null
+          resolved_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          order_id: string
+          escrow_transaction_id: string
+          reported_by: string
+          reason: string
+          description?: string | null
+          status?: string
+          resolution?: string | null
+          resolved_by?: string | null
+          resolved_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          order_id?: string
+          escrow_transaction_id?: string
+          reported_by?: string
+          reason?: string
+          description?: string | null
+          status?: string
+          resolution?: string | null
+          resolved_by?: string | null
+          resolved_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "disputes_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "disputes_escrow_transaction_id_fkey"
+            columns: ["escrow_transaction_id"]
+            isOneToOne: false
+            referencedRelation: "escrow_transactions"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -573,6 +825,14 @@ export type Database = {
       }
       track_product_view: {
         Args: { p_product_id: string }
+        Returns: undefined
+      }
+      release_escrow_funds: {
+        Args: { escrow_id: string }
+        Returns: boolean
+      }
+      auto_release_escrow: {
+        Args: {}
         Returns: undefined
       }
     }

@@ -9,6 +9,7 @@ import { Separator } from '@/components/ui/separator';
 import { Star, MessageCircle, MapPin, GraduationCap, ShieldCheck, User } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
+import { Textarea } from '@/components/ui/textarea';
 
 interface SellerProfile {
   id: string;
@@ -43,6 +44,9 @@ const SellerProfile = () => {
   const [seller, setSeller] = useState<SellerProfile | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
+  const [submittingReview, setSubmittingReview] = useState(false);
+  const [ratingInput, setRatingInput] = useState<number>(0);
+  const [commentInput, setCommentInput] = useState<string>('');
 
   useEffect(() => {
     if (sellerId) {
@@ -146,6 +150,79 @@ const SellerProfile = () => {
         description: "Could not start conversation.",
         variant: "destructive",
       });
+    }
+  };
+
+  const submitReview = async () => {
+    if (!user || !seller) {
+      toast({ title: 'Sign in required', description: 'Please login to review.', variant: 'destructive' });
+      return;
+    }
+    if (user.id === seller.user_id) {
+      toast({ title: 'Not allowed', description: 'You cannot review yourself.', variant: 'destructive' });
+      return;
+    }
+    if (ratingInput < 1 || ratingInput > 5) {
+      toast({ title: 'Invalid rating', description: 'Select 1 to 5 stars.' , variant: 'destructive'});
+      return;
+    }
+
+    setSubmittingReview(true);
+    try {
+      // Find a related order between reviewer and reviewed user (either direction)
+      const { data: order } = await supabase
+        .from('orders')
+        .select('id, buyer_id, seller_id')
+        .or(`and(buyer_id.eq.${user.id},seller_id.eq.${seller.user_id}),and(buyer_id.eq.${seller.user_id},seller_id.eq.${user.id})`)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!order) {
+        toast({ title: 'No order found', description: 'You can only review users you have an order with.' , variant: 'destructive'});
+        setSubmittingReview(false);
+        return;
+      }
+
+      const { data: newReview, error } = await supabase
+        .from('reviews')
+        .insert({
+          order_id: order.id,
+          reviewer_id: user.id,
+          reviewed_id: seller.user_id,
+          rating: ratingInput,
+          comment: commentInput || null
+        })
+        .select(`
+          id,
+          rating,
+          comment,
+          created_at,
+          reviewer:profiles!reviews_reviewer_id_fkey(full_name, avatar_url)
+        `)
+        .single();
+
+      if (error) throw error;
+
+      // Optimistically add to UI
+      setReviews(prev => newReview ? [newReview as any, ...prev] : prev);
+      setRatingInput(0);
+      setCommentInput('');
+
+      // Create notification for reviewed user
+      await supabase.from('notifications').insert({
+        user_id: seller.user_id,
+        title: 'New review received',
+        message: `${seller.full_name} received a ${ratingInput}-star review`,
+        type: 'info'
+      });
+
+      toast({ title: 'Review submitted', description: 'Thanks for your feedback!' });
+    } catch (err) {
+      console.error('Error submitting review:', err);
+      toast({ title: 'Error', description: 'Could not submit review.', variant: 'destructive' });
+    } finally {
+      setSubmittingReview(false);
     }
   };
 
@@ -253,6 +330,31 @@ const SellerProfile = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
+            {user && user.id !== seller.user_id && (
+              <div className="mb-6 border rounded-md p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  {[1,2,3,4,5].map(i => (
+                    <button
+                      key={i}
+                      onClick={() => setRatingInput(i)}
+                      className="p-1"
+                      aria-label={`Rate ${i} star`}
+                    >
+                      <Star className={`h-5 w-5 ${i <= ratingInput ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`} />
+                    </button>
+                  ))}
+                </div>
+                <Textarea
+                  placeholder="Leave an optional comment"
+                  value={commentInput}
+                  onChange={(e) => setCommentInput(e.target.value)}
+                  className="mb-2"
+                />
+                <Button onClick={submitReview} disabled={submittingReview || ratingInput === 0}>
+                  {submittingReview ? 'Submitting...' : 'Submit Review'}
+                </Button>
+              </div>
+            )}
             {reviews.length === 0 ? (
               <p className="text-muted-foreground text-center py-8">No reviews yet.</p>
             ) : (

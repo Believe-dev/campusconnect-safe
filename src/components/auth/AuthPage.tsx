@@ -63,8 +63,8 @@ const AuthPage = () => {
   const signUp = async (email: string, password: string) => {
     const redirectUrl = `${window.location.origin}/`;
     
-    // Sellers get both seller and buyer account types
-    const finalAccountType = accountType === 'seller' ? 'both' : 'buyer';
+    // Keep the selected account type
+    const finalAccountType = accountType;
     
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -75,6 +75,7 @@ const AuthPage = () => {
           full_name: fullName,
           university_name: university,
           campus: campus,
+          student_id: '',
           account_type: finalAccountType,
         }
       }
@@ -90,10 +91,21 @@ const AuthPage = () => {
           studentIdPhotoPath = await uploadVerificationPhoto(studentIdPhoto, 'student_id', data.user.id);
         }
         
-        // Update profile with photo URLs and set verification status to pending
+        // Get public URL for face photo
+        const { data: { publicUrl } } = supabase.storage
+          .from('verification-photos')
+          .getPublicUrl(facePhotoPath);
+
+        console.log('Setting avatar URL:', publicUrl);
+
+        // Update profile with all seller data
         const updateData: any = {
+          full_name: fullName,
+          university_name: university,
+          campus: campus,
           face_photo_url: facePhotoPath,
-          verification_status: 'pending',
+          avatar_url: publicUrl,
+          seller_status: 'pending',
         };
         
         if (studentIdPhotoPath) {
@@ -105,13 +117,10 @@ const AuthPage = () => {
           .update(updateData)
           .eq('user_id', data.user.id);
 
-        // Add both seller and buyer roles
+        // Add seller role
         await supabase
           .from('user_roles')
-          .insert([
-            { user_id: data.user.id, role: 'seller' },
-            { user_id: data.user.id, role: 'buyer' }
-          ]);
+          .insert({ user_id: data.user.id, role: 'seller' });
       } catch (uploadError) {
         console.error('Error uploading verification photos:', uploadError);
       }

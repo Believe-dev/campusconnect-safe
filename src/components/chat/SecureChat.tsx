@@ -315,14 +315,16 @@ const SecureChat = ({ conversationId, currentUserId, onClose }: SecureChatProps)
                     message.sender_id === currentUserId ? 'flex-row-reverse' : ''
                   }`}
                 >
-                  <Avatar className="h-6 w-6 sm:h-8 sm:w-8 flex-shrink-0">
-                    <AvatarImage src={message.sender?.avatar_url} />
-                    <AvatarFallback className="text-xs">
-                      {message.sender?.full_name 
-                        ? getInitials(message.sender.full_name)
-                        : 'U'}
-                    </AvatarFallback>
-                  </Avatar>
+                  <a href={`/seller/${message.sender_id}`}>
+                    <Avatar className="h-6 w-6 sm:h-8 sm:w-8 flex-shrink-0">
+                      <AvatarImage src={message.sender?.avatar_url} />
+                      <AvatarFallback className="text-xs">
+                        {message.sender?.full_name 
+                          ? getInitials(message.sender.full_name)
+                          : 'U'}
+                      </AvatarFallback>
+                    </Avatar>
+                  </a>
                   
                   <div className="flex flex-col">
                     <div

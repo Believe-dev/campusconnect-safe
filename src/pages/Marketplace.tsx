@@ -18,6 +18,7 @@ import {
   Shield
 } from 'lucide-react';
 import Header from '@/components/layout/Header';
+import { OfflineNotice } from '@/components/ui/offline-notice';
 import { User } from '@supabase/supabase-js';
 
 interface Product {
@@ -85,10 +86,21 @@ const Marketplace = () => {
 
   const fetchProducts = async () => {
     try {
+      // Optimize for slow connections - fetch only essential fields
       const { data, error } = await supabase
         .from('products')
         .select(`
-          *,
+          id,
+          title,
+          description,
+          category,
+          price,
+          stock_quantity,
+          condition,
+          campus,
+          images,
+          seller_id,
+          created_at,
           profiles!products_seller_id_fkey (
             full_name,
             rating,
@@ -96,7 +108,8 @@ const Marketplace = () => {
           )
         `)
         .eq('is_active', true)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(50);
 
       if (error) throw error;
       setProducts(data || []);
@@ -334,46 +347,47 @@ const Marketplace = () => {
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      <main className="container mx-auto px-4 py-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-primary mb-2">Marketplace</h1>
-          <p className="text-muted-foreground">Discover products from fellow students</p>
+      <main className="container mx-auto px-4 py-6 sm:py-8 pb-20 md:pb-8">
+        <OfflineNotice />
+        <div className="mb-6 sm:mb-8">
+          <h1 className="text-2xl sm:text-3xl font-bold text-primary mb-2">Marketplace</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">Discover products from fellow students</p>
         </div>
 
             {/* Filters */}
-            <Card className="mb-6 lg:mb-8">
-              <CardContent className="p-4 lg:p-6">
+            <Card className="mb-4 sm:mb-6 lg:mb-8">
+              <CardContent className="p-3 sm:p-4 lg:p-6">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 lg:gap-4">
-              <div className="lg:col-span-2">
+              <div className="sm:col-span-2 lg:col-span-2">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
                     placeholder="Search products..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10"
+                    className="pl-10 text-sm sm:text-base"
                   />
                 </div>
               </div>
               
               <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                <SelectTrigger>
+                <SelectTrigger className="text-sm sm:text-base">
                   <SelectValue placeholder="Category" />
                 </SelectTrigger>
                 <SelectContent>
                   {categories.map(category => (
-                    <SelectItem key={category} value={category}>{category}</SelectItem>
+                    <SelectItem key={category} value={category} className="text-sm sm:text-base">{category}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
 
               <Select value={selectedCondition} onValueChange={setSelectedCondition}>
-                <SelectTrigger>
+                <SelectTrigger className="text-sm sm:text-base">
                   <SelectValue placeholder="Condition" />
                 </SelectTrigger>
                 <SelectContent>
                   {conditions.map(condition => (
-                    <SelectItem key={condition} value={condition}>
+                    <SelectItem key={condition} value={condition} className="text-sm sm:text-base">
                       {condition === 'All Conditions' ? condition : condition.charAt(0).toUpperCase() + condition.slice(1)}
                     </SelectItem>
                   ))}
@@ -381,14 +395,14 @@ const Marketplace = () => {
               </Select>
 
               <Select value={sortBy} onValueChange={setSortBy}>
-                <SelectTrigger>
+                <SelectTrigger className="text-sm sm:text-base">
                   <SelectValue placeholder="Sort by" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="newest">Newest First</SelectItem>
-                  <SelectItem value="oldest">Oldest First</SelectItem>
-                  <SelectItem value="price_low">Price: Low to High</SelectItem>
-                  <SelectItem value="price_high">Price: High to Low</SelectItem>
+                  <SelectItem value="newest" className="text-sm sm:text-base">Newest First</SelectItem>
+                  <SelectItem value="oldest" className="text-sm sm:text-base">Oldest First</SelectItem>
+                  <SelectItem value="price_low" className="text-sm sm:text-base">Price: Low to High</SelectItem>
+                  <SelectItem value="price_high" className="text-sm sm:text-base">Price: High to Low</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -396,8 +410,8 @@ const Marketplace = () => {
         </Card>
 
         {/* Results count */}
-        <div className="mb-4 lg:mb-6">
-          <p className="text-sm lg:text-base text-muted-foreground">
+        <div className="mb-3 sm:mb-4 lg:mb-6">
+          <p className="text-xs sm:text-sm lg:text-base text-muted-foreground">
             Showing <span className="font-medium">{filteredProducts.length}</span> products
           </p>
         </div>
@@ -405,14 +419,14 @@ const Marketplace = () => {
           {/* Products Grid */}
           {filteredProducts.length === 0 ? (
             <Card>
-              <CardContent className="p-8 lg:p-12 text-center">
-              <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-semibold mb-2">No products found</h3>
-              <p className="text-muted-foreground">Try adjusting your search or filters</p>
+              <CardContent className="p-6 sm:p-8 lg:p-12 text-center">
+              <Package className="h-10 w-10 sm:h-12 sm:w-12 text-muted-foreground mx-auto mb-3 sm:mb-4" />
+              <h3 className="text-base sm:text-lg font-semibold mb-2">No products found</h3>
+              <p className="text-sm sm:text-base text-muted-foreground">Try adjusting your search or filters</p>
             </CardContent>
           </Card>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 lg:gap-6">
+            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
             {filteredProducts.map((product) => (
               <Card 
                 key={product.id} 
@@ -424,7 +438,7 @@ const Marketplace = () => {
                     <img
                       src={product.images[0]}
                       alt={product.title}
-                      className="w-full h-48 object-cover rounded-t-lg group-hover:scale-105 transition-smooth"
+                      className="w-full h-32 sm:h-40 lg:h-48 object-cover rounded-t-lg group-hover:scale-105 transition-smooth"
                     />
                   )}
                   
@@ -432,14 +446,14 @@ const Marketplace = () => {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="absolute top-2 right-2 bg-white/90 hover:bg-white"
+                    className="absolute top-1 right-1 sm:top-2 sm:right-2 bg-white/90 hover:bg-white h-7 w-7 sm:h-8 sm:w-8"
                     onClick={(e) => {
                       e.stopPropagation();
                       toggleFavorite(product.id);
                     }}
                   >
                     <Heart 
-                      className={`h-4 w-4 ${
+                      className={`h-3 w-3 sm:h-4 sm:w-4 ${
                         favorites.has(product.id) 
                           ? 'fill-red-500 text-red-500' 
                           : 'text-gray-600'
@@ -449,52 +463,52 @@ const Marketplace = () => {
 
                   {/* Condition Badge */}
                   <Badge 
-                    className="absolute top-2 left-2"
+                    className="absolute top-1 left-1 sm:top-2 sm:left-2 text-xs"
                     variant={product.condition === 'new' ? 'default' : 'secondary'}
                   >
                     {product.condition.charAt(0).toUpperCase() + product.condition.slice(1)}
                   </Badge>
                 </div>
 
-                <CardContent className="p-4">
+                <CardContent className="p-2 sm:p-3 lg:p-4">
                   <div className="mb-2">
-                    <h3 className="font-semibold text-lg line-clamp-1">{product.title}</h3>
-                    <p className="text-muted-foreground text-sm line-clamp-2 mb-2">
+                    <h3 className="font-semibold text-sm sm:text-base lg:text-lg line-clamp-1">{product.title}</h3>
+                    <p className="text-muted-foreground text-xs sm:text-sm line-clamp-2 mb-1 sm:mb-2 hidden sm:block">
                       {product.description}
                     </p>
                   </div>
 
-                  <div className="flex items-center gap-2 mb-2">
-                    <Badge variant="outline" className="text-xs">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 mb-2">
+                    <Badge variant="outline" className="text-xs w-fit">
                       {product.category}
                     </Badge>
                     <div className="flex items-center gap-1 text-xs text-muted-foreground">
                       <MapPin className="h-3 w-3" />
-                      <span>{product.campus}</span>
+                      <span className="truncate">{product.campus}</span>
                     </div>
                   </div>
 
                   {/* Seller Info */}
                   <div 
-                    className="flex items-center gap-2 mb-3 text-xs text-muted-foreground cursor-pointer hover:text-primary transition-colors"
+                    className="flex items-center gap-1 sm:gap-2 mb-2 sm:mb-3 text-xs text-muted-foreground cursor-pointer hover:text-primary transition-colors"
                     onClick={(e) => {
                       e.stopPropagation();
                       navigate(`/seller/${product.seller_id}`);
                     }}
                   >
-                    <span>by {product.profiles?.full_name}</span>
+                    <span className="truncate">by {product.profiles?.full_name}</span>
                     {product.profiles?.is_verified && (
-                      <Shield className="h-3 w-3 text-verified-blue" />
+                      <Shield className="h-3 w-3 text-verified-blue flex-shrink-0" />
                     )}
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1 flex-shrink-0">
                       <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
                       <span>{product.profiles?.rating?.toFixed(1) || '0.0'}</span>
                     </div>
                   </div>
 
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex flex-col gap-2">
                     <div>
-                      <div className="text-lg sm:text-xl font-bold text-primary">
+                      <div className="text-base sm:text-lg lg:text-xl font-bold text-primary">
                         ₦{product.price.toLocaleString()}
                       </div>
                       <div className="text-xs text-muted-foreground">
@@ -510,9 +524,9 @@ const Marketplace = () => {
                         addToCart(product.id);
                       }}
                       disabled={cart.has(product.id) || product.stock_quantity === 0}
-                      className="w-full sm:w-auto"
+                      className="w-full text-xs sm:text-sm"
                     >
-                      <ShoppingCart className="h-4 w-4 mr-2" />
+                      <ShoppingCart className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
                       {cart.has(product.id) ? 'In Cart' : 'Add to Cart'}
                     </Button>
                   </div>

@@ -24,6 +24,8 @@ import AuthPage from "./components/auth/AuthPage";
 import Admin from "./pages/Admin";
 import LearnMore from "./pages/LearnMore";
 import Notifications from "./pages/Notifications";
+import VerificationRequest from "./pages/VerificationRequest";
+import ProtectedSellerRoute from "./components/auth/ProtectedSellerRoute";
 
 const queryClient = new QueryClient();
 
@@ -45,12 +47,13 @@ const AppContent = () => {
         <Route path="/orders" element={<Orders />} />
         <Route path="/search" element={<Search />} />
         <Route path="/settings" element={<Settings />} />
-        <Route path="/sell" element={<Sell />} />
-        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/sell" element={<ProtectedSellerRoute><Sell /></ProtectedSellerRoute>} />
+        <Route path="/dashboard" element={<ProtectedSellerRoute><Dashboard /></ProtectedSellerRoute>} />
         <Route path="/favorites" element={<Favorites />} />
         <Route path="/cart" element={<Cart />} />
         <Route path="/checkout" element={<Checkout />} />
         <Route path="/admin" element={<Admin />} />
+        <Route path="/verification-request" element={<VerificationRequest />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
       <BottomNav />

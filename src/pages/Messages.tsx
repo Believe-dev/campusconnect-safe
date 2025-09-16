@@ -229,14 +229,19 @@ export default function Messages() {
               >
                 <CardContent className="p-3 sm:p-4">
                   <div className="flex items-start gap-2 sm:gap-4">
-                    <Avatar className="h-8 w-8 sm:h-10 sm:w-10 lg:h-12 lg:w-12 flex-shrink-0">
-                      <AvatarImage src={conversation.other_user?.avatar_url} />
-                      <AvatarFallback className="bg-university-green text-white text-xs sm:text-sm">
-                        {conversation.other_user?.full_name 
-                          ? getInitials(conversation.other_user.full_name)
-                          : 'U'}
-                      </AvatarFallback>
-                    </Avatar>
+                    <a
+                      href={`/seller/${(conversation as any).buyer_id === user.id ? (conversation as any).seller_id : (conversation as any).buyer_id}`}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <Avatar className="h-8 w-8 sm:h-10 sm:w-10 lg:h-12 lg:w-12 flex-shrink-0">
+                        <AvatarImage src={conversation.other_user?.avatar_url} />
+                        <AvatarFallback className="bg-university-green text-white text-xs sm:text-sm">
+                          {conversation.other_user?.full_name 
+                            ? getInitials(conversation.other_user.full_name)
+                            : 'U'}
+                        </AvatarFallback>
+                      </Avatar>
+                    </a>
                     
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between mb-1">

@@ -9,7 +9,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/use-toast';
-import { Shield, Star, Package, MessageCircle } from 'lucide-react';
+import { Shield, Star, Package, MessageCircle, Wallet, ArrowUpRight, Trash2 } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import Header from '@/components/layout/Header';
 import { User as SupabaseUser } from '@supabase/supabase-js';
 
@@ -21,6 +22,7 @@ interface Profile {
   phone_number?: string;
   campus?: string;
   account_type: string;
+  verification_status?: string;
   avatar_url?: string;
   bio?: string;
   is_verified: boolean;
@@ -28,12 +30,21 @@ interface Profile {
   total_reviews: number;
 }
 
+interface WalletData {
+  available_balance: number;
+  total_earnings: number;
+}
+
 const Profile = () => {
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [wallet, setWallet] = useState<WalletData | null>(null);
   const [editing, setEditing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deleteConfirmName, setDeleteConfirmName] = useState('');
+  const [deleting, setDeleting] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -53,8 +64,45 @@ const Profile = () => {
         .eq('user_id', user.id)
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Profile fetch error:', error);
+        // If profile doesn't exist, create it with signup data
+        if (error.code === 'PGRST116') {
+          const { data: newProfile, error: createError } = await supabase
+            .from('profiles')
+            .insert({
+              user_id: user.id,
+              email: user.email || '',
+              full_name: user.user_metadata?.full_name || user.email || 'User',
+              account_type: user.user_metadata?.account_type || 'buyer',
+              university_name: user.user_metadata?.university_name,
+              campus: user.user_metadata?.campus,
+              student_id: user.user_metadata?.student_id,
+              verification_status: user.user_metadata?.account_type === 'seller' ? 'pending' : null
+            })
+            .select()
+            .single();
+          
+          if (createError) throw createError;
+          setProfile(newProfile);
+          return;
+        }
+        throw error;
+      }
       setProfile(data);
+      
+      // Fetch wallet data if user is a seller
+      if (data.account_type === 'seller' || data.account_type === 'both') {
+        const { data: walletData } = await supabase
+          .from('wallets')
+          .select('available_balance, total_earnings')
+          .eq('user_id', user.id)
+          .single();
+          
+        if (walletData) {
+          setWallet(walletData);
+        }
+      }
     } catch (error) {
       console.error('Error fetching profile:', error);
       toast({
@@ -81,7 +129,6 @@ const Profile = () => {
           phone_number: profile.phone_number,
           campus: profile.campus,
           bio: profile.bio,
-          account_type: profile.account_type,
         })
         .eq('user_id', user.id);
 
@@ -101,6 +148,48 @@ const Profile = () => {
       });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!user || !profile) return;
+    
+    if (deleteConfirmName !== profile.full_name) {
+      toast({
+        title: "Name Mismatch",
+        description: "Please enter your full name exactly as shown to confirm deletion.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setDeleting(true);
+
+    try {
+      // Delete user completely including auth
+      const { data, error } = await supabase.rpc('delete_user_completely');
+      
+      if (error) {
+        console.error('User deletion error:', error);
+        throw error;
+      }
+
+      toast({
+        title: "Account Deleted",
+        description: "Your account and all data have been permanently deleted.",
+      });
+      
+      // Redirect immediately (user is already deleted)
+      window.location.href = '/';
+    } catch (error) {
+      console.error('Error deleting account:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete account. Please contact support.",
+        variant: "destructive",
+      });
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -188,6 +277,98 @@ const Profile = () => {
                         <span>{profile.total_reviews} reviews</span>
                       </div>
                     </div>
+                    
+                    {/* Wallet Summary for Sellers */}
+                    {wallet && (profile.account_type === 'seller' || profile.account_type === 'both') && (
+                      <div className="mt-4 p-3 bg-muted rounded-lg">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium flex items-center gap-1">
+                            <Wallet className="h-4 w-4" />
+                            Wallet
+                          </span>
+                          <Button variant="ghost" size="sm" asChild>
+                            <a href="/dashboard">
+                              <ArrowUpRight className="h-3 w-3" />
+                            </a>
+                          </Button>
+                        </div>
+                        <div className="space-y-1 text-sm">
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Available:</span>
+                            <span className="font-medium">₦{wallet.available_balance.toLocaleString()}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Total Earned:</span>
+                            <span className="font-medium">₦{wallet.total_earnings.toLocaleString()}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Seller Status Display */}
+                    {(profile.account_type === 'seller' || profile.account_type === 'both') && (
+                      <div className="mt-4 p-3 bg-muted rounded-lg">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium">Seller Status</span>
+                        </div>
+                        <div className="text-sm">
+                          {profile.verification_status === 'approved' && (
+                            <div className="flex items-center gap-2 text-green-600">
+                              <Shield className="h-4 w-4" />
+                              <span>Approved - You can sell items</span>
+                            </div>
+                          )}
+                          {profile.verification_status === 'pending' && (
+                            <div className="flex items-center gap-2 text-orange-600">
+                              <Shield className="h-4 w-4" />
+                              <span>Pending Admin Approval</span>
+                            </div>
+                          )}
+                          {profile.verification_status === 'rejected' && (
+                            <div className="flex items-center gap-2 text-red-600">
+                              <Shield className="h-4 w-4" />
+                              <span>Application Rejected</span>
+                            </div>
+                          )}
+                          {!profile.verification_status && (
+                            <div className="flex items-center gap-2 text-gray-600">
+                              <Shield className="h-4 w-4" />
+                              <span>Not yet submitted for approval</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Verification Request Button */}
+                    {!profile.is_verified && (profile.account_type === 'seller' || profile.account_type === 'both') && (
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="mt-4 w-full"
+                        onClick={() => {
+                          // Check if seller has required details
+                          const hasRequiredDetails = profile.full_name && 
+                            profile.university_name && 
+                            profile.student_id && 
+                            profile.phone_number;
+                          
+                          if (!hasRequiredDetails) {
+                            toast({
+                              title: "Complete Your Profile",
+                              description: "Please fill in all required details (name, university, student ID, phone) before requesting verification.",
+                              variant: "destructive",
+                            });
+                            return;
+                          }
+                          
+                          window.location.href = '/verification-request';
+                        }}
+                      >
+                        <Shield className="h-4 w-4 mr-2" />
+                        Request Verification
+                      </Button>
+                    )}
                   </div>
 
                   {profile.bio && (
@@ -296,8 +477,7 @@ const Profile = () => {
                   <Label htmlFor="account_type">Account Type</Label>
                   <Select
                     value={profile.account_type}
-                    onValueChange={(value) => setProfile({ ...profile, account_type: value })}
-                    disabled={!editing}
+                    disabled={true}
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -309,10 +489,7 @@ const Profile = () => {
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-muted-foreground mt-1">
-                    {profile.account_type === 'buyer' 
-                      ? 'Upgrade to seller to list products'
-                      : 'You can both buy and sell products'
-                    }
+                    Account type cannot be changed. Contact support if you need assistance.
                   </p>
                 </div>
 
@@ -326,6 +503,77 @@ const Profile = () => {
                     </Button>
                   </div>
                 )}
+
+                {/* Account Deletion Section */}
+                <div className="border-t pt-6 mt-6">
+                  <h3 className="text-lg font-semibold text-destructive mb-2">Danger Zone</h3>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Once you delete your account, there is no going back. Please be certain.
+                  </p>
+                  <Dialog open={deleteModalOpen} onOpenChange={setDeleteModalOpen}>
+                    <DialogTrigger asChild>
+                      <Button variant="destructive" className="w-full sm:w-auto">
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete Account
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Delete Account</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4">
+                        <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4">
+                          <p className="text-sm text-destructive font-medium mb-2">
+                            ⚠️ This action cannot be undone!
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            This will permanently delete your account and all associated data including:
+                          </p>
+                          <ul className="text-sm text-muted-foreground mt-2 list-disc list-inside">
+                            <li>All your products and listings</li>
+                            <li>Order history and transactions</li>
+                            <li>Messages and conversations</li>
+                            <li>Reviews and ratings</li>
+                            <li>Wallet and payout history</li>
+                          </ul>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <Label htmlFor="confirm-name">
+                            Type your full name <strong>"{profile.full_name}"</strong> to confirm:
+                          </Label>
+                          <Input
+                            id="confirm-name"
+                            value={deleteConfirmName}
+                            onChange={(e) => setDeleteConfirmName(e.target.value)}
+                            placeholder="Enter your full name"
+                          />
+                        </div>
+                        
+                        <div className="flex gap-2 pt-4">
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              setDeleteModalOpen(false);
+                              setDeleteConfirmName('');
+                            }}
+                            className="flex-1"
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            onClick={handleDeleteAccount}
+                            disabled={deleting || deleteConfirmName !== profile.full_name}
+                            className="flex-1"
+                          >
+                            {deleting ? 'Deleting...' : 'Delete Account'}
+                          </Button>
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </div>
               </CardContent>
             </Card>
           </div>

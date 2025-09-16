@@ -2,10 +2,10 @@ import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { 
   Home, 
-  ShoppingCart, 
   Package, 
   Heart, 
-  MessageCircle 
+  MessageCircle,
+  Store
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useCartCount } from '@/hooks/useCartCount';
@@ -20,17 +20,17 @@ const BottomNav = () => {
 
   const navItems = [
     { to: '/', icon: Home, label: 'Home' },
-    { to: '/cart', icon: ShoppingCart, label: 'Cart', badge: cartCount },
+    { to: '/marketplace', icon: Store, label: 'Shop' },
     { to: '/orders', icon: Package, label: 'Orders' },
     { to: '/favorites', icon: Heart, label: 'Favorites' },
     { to: '/messages', icon: MessageCircle, label: 'Messages' },
   ];
 
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-t">
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-t safe-area-pb">
       <div className="flex justify-around items-center py-2 px-1">
         {navItems.map(({ to, icon: Icon, label, badge }) => {
-          const isActive = location.pathname === to;
+          const isActive = location.pathname === to || (to === '/marketplace' && location.pathname.startsWith('/marketplace'));
           
           return (
             <Link

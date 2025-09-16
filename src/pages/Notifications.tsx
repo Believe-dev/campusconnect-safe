@@ -27,22 +27,69 @@ export default function Notifications() {
   useEffect(() => {
     if (user) {
       fetchNotifications();
+      
+      // Set up real-time subscription
+      const channel = supabase
+        .channel('notifications-changes')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'notifications',
+            filter: `user_id=eq.${user.id}`
+          },
+          (payload) => {
+            console.log('Real-time notification update:', payload);
+            fetchNotifications();
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
     }
   }, [user]);
 
   const fetchNotifications = async () => {
+    if (!user?.id) {
+      console.log('No user ID available for fetching notifications');
+      setLoadingNotifications(false);
+      return;
+    }
+
     try {
+      console.log('Fetching notifications for user:', user.id);
+      
+      // Test database connection first
+      const { data: testData, error: testError } = await supabase
+        .from('notifications')
+        .select('count')
+        .limit(1);
+      
+      if (testError) {
+        console.error('Database connection test failed:', testError);
+        throw new Error('Database connection failed');
+      }
+      
       const { data, error } = await supabase
         .from('notifications')
         .select('*')
-        .eq('user_id', user?.id)
+        .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase error fetching notifications:', error);
+        throw error;
+      }
+      
+      console.log('Fetched notifications:', data);
       setNotifications(data || []);
     } catch (error) {
       console.error('Error fetching notifications:', error);
-      toast.error('Failed to load notifications');
+      toast.error(`Failed to load notifications: ${error.message}`);
+      setNotifications([]);
     } finally {
       setLoadingNotifications(false);
     }
@@ -109,12 +156,12 @@ export default function Notifications() {
     }
   };
 
-  if (loading || loadingNotifications) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-background">
         <Header />
         <div className="container mx-auto px-4 py-8">
-          <div className="text-center">Loading notifications...</div>
+          <div className="text-center">Loading...</div>
         </div>
       </div>
     );
@@ -157,7 +204,17 @@ export default function Notifications() {
           )}
         </div>
 
-        {notifications.length === 0 ? (
+        {loadingNotifications ? (
+          <Card>
+            <CardContent className="text-center py-12">
+              <div className="animate-pulse space-y-4">
+                <div className="h-4 bg-muted rounded w-3/4 mx-auto"></div>
+                <div className="h-4 bg-muted rounded w-1/2 mx-auto"></div>
+                <div className="h-4 bg-muted rounded w-2/3 mx-auto"></div>
+              </div>
+            </CardContent>
+          </Card>
+        ) : notifications.length === 0 ? (
           <Card>
             <CardContent className="text-center py-12">
               <Bell className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
