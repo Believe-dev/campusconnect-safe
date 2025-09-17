@@ -154,7 +154,7 @@ const Header = () => {
   const MobileNav = () => (
     <Sheet>
       <SheetTrigger asChild>
-        <Button variant="ghost" size="icon" className="md:hidden h-10 w-10">
+        <Button variant="ghost" size="icon" className="lg:hidden h-10 w-10">
           <Menu className="h-5 w-5" />
         </Button>
       </SheetTrigger>
