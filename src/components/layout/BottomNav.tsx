@@ -27,7 +27,7 @@ const BottomNav = () => {
   ];
 
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-background border-t shadow-lg" style={{ position: 'fixed' }}>
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-sm border-t shadow-lg" style={{ position: 'fixed', bottom: 0 }}>
       <div className="flex justify-around items-center py-2 px-1">
         {navItems.map(({ to, icon: Icon, label, badge }) => {
           const isActive = location.pathname === to || (to === '/marketplace' && location.pathname.startsWith('/marketplace'));

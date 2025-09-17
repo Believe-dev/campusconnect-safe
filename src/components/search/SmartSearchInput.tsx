@@ -29,7 +29,7 @@ const SmartSearchInput = ({
   onSubmit,
   placeholder = "Search products, categories...",
   showSuggestions = true,
-  autoFocus = true 
+  autoFocus = false 
 }: SmartSearchInputProps) => {
   const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([]);
   const [isOpen, setIsOpen] = useState(false);

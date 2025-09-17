@@ -22,7 +22,7 @@ interface SellerProfile {
   rating: number;
   total_reviews: number;
   is_verified: boolean;
-  verification_status: string;
+  seller_status: string;
   created_at: string;
 }
 
@@ -69,11 +69,11 @@ const SellerProfile = () => {
           rating,
           total_reviews,
           is_verified,
-          verification_status,
+          seller_status,
           created_at
         `)
         .eq('user_id', sellerId)
-        .eq('verification_status', 'approved')
+        .eq('seller_status', 'approved')
         .single();
 
       if (error) throw error;

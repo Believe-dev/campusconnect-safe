@@ -34,6 +34,7 @@ const Admin = React.lazy(() => import('./pages/Admin'));
 const LearnMore = React.lazy(() => import('./pages/LearnMore'));
 const Notifications = React.lazy(() => import('./pages/Notifications'));
 const VerificationRequest = React.lazy(() => import('./pages/VerificationRequest'));
+const Wallet = React.lazy(() => import('./pages/Wallet'));
 
 // Optimized query client for slow connections
 const queryClient = new QueryClient({
@@ -96,6 +97,7 @@ const AppContent = () => {
           <Route path={ROUTES.checkout} element={<Checkout />} />
           <Route path={ROUTES.admin} element={<Admin />} />
           <Route path="/verification-request" element={<VerificationRequest />} />
+          <Route path="/wallet" element={<Wallet />} />
           <Route path="*" element={<NotFound />} />
           </Routes>
         </div>

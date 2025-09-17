@@ -18,11 +18,14 @@ export const useOrdersCount = () => {
           {
             event: '*',
             schema: 'public',
-            table: 'orders',
-            filter: `buyer_id=eq.${user.id}`
+            table: 'orders'
           },
-          () => {
-            fetchOrdersCount();
+          (payload) => {
+            // Check if this order involves the current user
+            if (payload.new?.buyer_id === user.id || payload.new?.seller_id === user.id ||
+                payload.old?.buyer_id === user.id || payload.old?.seller_id === user.id) {
+              fetchOrdersCount();
+            }
           }
         )
         .subscribe();
@@ -47,7 +50,7 @@ export const useOrdersCount = () => {
       const { data, error } = await supabase
         .from('orders')
         .select('id')
-        .eq('buyer_id', user.id)
+        .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
         .in('status', ['paid', 'shipped', 'delivered']);
 
       // If orders table doesn't exist, silently fail

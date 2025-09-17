@@ -88,12 +88,40 @@ const Orders = () => {
     return transformedOrders;
   };
 
-  const { data: orders = offlineOrders, isLoading, error } = useOptimizedQuery({
+  const { data: orders = offlineOrders, isLoading, error, refetch } = useOptimizedQuery({
     queryKey: ['orders', user?.id],
     queryFn: fetchOrders,
     enabled: !!user,
     placeholderData: offlineOrders
   });
+
+  // Real-time order updates
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel('orders-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'orders'
+        },
+        (payload) => {
+          // Check if this order involves the current user
+          if (payload.new?.buyer_id === user.id || payload.new?.seller_id === user.id ||
+              payload.old?.buyer_id === user.id || payload.old?.seller_id === user.id) {
+            refetch();
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, refetch]);
 
   useEffect(() => {
     if (error) {
@@ -175,26 +203,14 @@ const Orders = () => {
         }
       }
 
-      // If confirming receipt, release escrow funds
-      if (status === 'confirmed') {
-        const order = orders.find(o => o.id === orderId);
-        if (order?.escrow_transactions?.[0]) {
-          const { error: escrowError } = await supabase.rpc('release_escrow_funds', {
-            escrow_id: order.escrow_transactions[0].id
-          });
-          
-          if (escrowError) {
-            console.error('Error releasing escrow:', escrowError);
-          }
-        }
-      }
+      // Escrow funds are automatically released via database trigger
 
       toast({
         title: "Order Updated",
         description: `Order status updated to ${status}`,
       });
       
-      fetchOrders();
+      // Real-time subscription will handle the update
     } catch (error) {
       console.error('Error updating order:', error);
       toast({

@@ -239,7 +239,8 @@ const Cart = () => {
 
       if (error) throw error;
 
-      setCartItems(items => items.filter(item => item.id !== cartItemId));
+      // Force refetch to ensure UI is in sync
+      await fetchCartItems();
       
       toast({
         title: "Item removed",
