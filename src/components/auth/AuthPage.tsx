@@ -92,7 +92,11 @@ const AuthPage = () => {
         }
         
         // Build public URL for face photo
-        const publicUrl = `https://ssqplkrxtrvfptrsnpow.supabase.co/storage/v1/object/public/verification-photos/${facePhotoPath}`;
+        const { data: urlData } = supabase.storage
+          .from('verification-photos')
+          .getPublicUrl(facePhotoPath);
+        
+        const publicUrl = urlData.publicUrl;
         console.log('Setting avatar URL:', publicUrl);
 
         // Update profile with all seller data

@@ -201,6 +201,7 @@ const Header = () => {
               onSubmit={handleSearch}
               placeholder="Search products, categories..."
               autoFocus={false}
+              disabled
             />
           </div>
 
