@@ -153,56 +153,57 @@ const SmartSearchInput = ({
   };
 
   return (
-    <Popover open={isOpen && suggestions.length > 0} onOpenChange={setIsOpen}>
-      <PopoverTrigger asChild>
-        <form onSubmit={handleSubmit} className="relative flex gap-2 w-full">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              ref={inputRef}
-              placeholder={placeholder}
-              value={value}
-              onChange={(e) => {
-                onChange(e.target.value);
-                setIsOpen(true);
-              }}
-              onFocus={() => setIsOpen(suggestions.length > 0)}
-              className="pl-10 pr-4"
-              autoFocus={autoFocus}
-            />
-          </div>
-          <Button type="submit" variant="brand" size="sm">
-            Search
-          </Button>
-        </form>
-      </PopoverTrigger>
+    <div className="relative w-full">
+      <form onSubmit={handleSubmit} className="relative flex gap-2 w-full">
+        <div className="flex-1 relative">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            ref={inputRef}
+            placeholder={placeholder}
+            value={value}
+            onChange={(e) => {
+              onChange(e.target.value);
+              setIsOpen(e.target.value.length >= 2 && suggestions.length > 0);
+            }}
+            onFocus={() => setIsOpen(value.length >= 2 && suggestions.length > 0)}
+            onBlur={() => setTimeout(() => setIsOpen(false), 200)}
+            className="pl-10 pr-4"
+            autoFocus={autoFocus}
+          />
+        </div>
+        <Button type="submit" variant="brand" size="sm">
+          Search
+        </Button>
+      </form>
       
-      <PopoverContent className="w-full p-0" align="start">
-        <Command>
-          <CommandEmpty>
-            {loading ? "Searching..." : "No suggestions found"}
-          </CommandEmpty>
-          <CommandGroup>
-            {suggestions.map((suggestion) => (
-              <CommandItem
-                key={suggestion.id}
-                onSelect={() => handleSuggestionSelect(suggestion)}
-                className="flex items-center gap-2 cursor-pointer"
-              >
-                {getSuggestionIcon(suggestion.type)}
-                <span>{suggestion.text}</span>
-                {suggestion.type === 'category' && (
-                  <span className="text-xs text-muted-foreground ml-auto">Category</span>
-                )}
-                {suggestion.type === 'trending' && (
-                  <span className="text-xs text-muted-foreground ml-auto">Trending</span>
-                )}
-              </CommandItem>
-            ))}
-          </CommandGroup>
-        </Command>
-      </PopoverContent>
-    </Popover>
+      {isOpen && suggestions.length > 0 && (
+        <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-background border rounded-md shadow-lg">
+          <Command>
+            <CommandEmpty>
+              {loading ? "Searching..." : "No suggestions found"}
+            </CommandEmpty>
+            <CommandGroup>
+              {suggestions.map((suggestion) => (
+                <CommandItem
+                  key={suggestion.id}
+                  onSelect={() => handleSuggestionSelect(suggestion)}
+                  className="flex items-center gap-2 cursor-pointer"
+                >
+                  {getSuggestionIcon(suggestion.type)}
+                  <span>{suggestion.text}</span>
+                  {suggestion.type === 'category' && (
+                    <span className="text-xs text-muted-foreground ml-auto">Category</span>
+                  )}
+                  {suggestion.type === 'trending' && (
+                    <span className="text-xs text-muted-foreground ml-auto">Trending</span>
+                  )}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </Command>
+        </div>
+      )}
+    </div>
   );
 };
 

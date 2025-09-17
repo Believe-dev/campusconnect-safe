@@ -1208,17 +1208,19 @@ export default function Admin() {
 
         {/* Tabs for different management areas */}
         <Tabs defaultValue="users" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-9">
-            <TabsTrigger value="users">Users</TabsTrigger>
-            <TabsTrigger value="sellers">Seller Approvals</TabsTrigger>
-            <TabsTrigger value="verification">Verification</TabsTrigger>
-            <TabsTrigger value="reports">Product Reports</TabsTrigger>
-            <TabsTrigger value="escrow">Escrow</TabsTrigger>
-            <TabsTrigger value="products">Products</TabsTrigger>
-            <TabsTrigger value="messages">Messages</TabsTrigger>
-            <TabsTrigger value="analytics">Analytics</TabsTrigger>
-            <TabsTrigger value="settings">Settings</TabsTrigger>
-          </TabsList>
+          <div className="overflow-x-auto">
+            <TabsList className="grid w-full min-w-max grid-cols-9 md:grid-cols-9">
+              <TabsTrigger value="users" className="text-xs md:text-sm">Users</TabsTrigger>
+              <TabsTrigger value="sellers" className="text-xs md:text-sm">Sellers</TabsTrigger>
+              <TabsTrigger value="verification" className="text-xs md:text-sm">Verify</TabsTrigger>
+              <TabsTrigger value="reports" className="text-xs md:text-sm">Reports</TabsTrigger>
+              <TabsTrigger value="escrow" className="text-xs md:text-sm">Escrow</TabsTrigger>
+              <TabsTrigger value="products" className="text-xs md:text-sm">Products</TabsTrigger>
+              <TabsTrigger value="messages" className="text-xs md:text-sm">Messages</TabsTrigger>
+              <TabsTrigger value="analytics" className="text-xs md:text-sm">Analytics</TabsTrigger>
+              <TabsTrigger value="settings" className="text-xs md:text-sm">Settings</TabsTrigger>
+            </TabsList>
+          </div>
 
           {/* Users Tab */}
           <TabsContent value="users">

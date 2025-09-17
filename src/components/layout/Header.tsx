@@ -386,6 +386,25 @@ const Header = () => {
               <MobileSearchDialog />
             </div>
 
+            {/* Mobile/Tablet Notification Icon */}
+            {user && (
+              <div className="lg:hidden">
+                <Button variant="ghost" size="icon" asChild className="relative h-9 w-9 sm:h-10 sm:w-10">
+                  <Link to="/notifications">
+                    <Bell className="h-4 w-4 sm:h-5 sm:w-5" />
+                    {unreadCount > 0 && (
+                      <Badge 
+                        variant="destructive" 
+                        className="absolute -top-1 -right-1 sm:-top-2 sm:-right-2 h-4 w-4 sm:h-5 sm:w-5 flex items-center justify-center p-0 text-xs font-bold rounded-full bg-red-500 text-white border-2 border-background"
+                      >
+                        {unreadCount > 99 ? '99+' : unreadCount}
+                      </Badge>
+                    )}
+                  </Link>
+                </Button>
+              </div>
+            )}
+
             {loading ? (
               <div className="flex items-center gap-2">
                 <div className="h-9 w-9 sm:h-10 sm:w-10 bg-muted rounded animate-pulse"></div>

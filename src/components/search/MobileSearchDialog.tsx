@@ -34,6 +34,7 @@ const MobileSearchDialog = () => {
             onSubmit={handleSearch}
             placeholder="Search products, categories..."
             autoFocus={false}
+            showSuggestions={false}
           />
         </div>
       </DialogContent>
