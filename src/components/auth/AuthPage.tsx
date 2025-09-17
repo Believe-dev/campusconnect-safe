@@ -91,11 +91,8 @@ const AuthPage = () => {
           studentIdPhotoPath = await uploadVerificationPhoto(studentIdPhoto, 'student_id', data.user.id);
         }
         
-        // Get public URL for face photo
-        const { data: { publicUrl } } = supabase.storage
-          .from('verification-photos')
-          .getPublicUrl(facePhotoPath);
-
+        // Build public URL for face photo
+        const publicUrl = `https://ssqplkrxtrvfptrsnpow.supabase.co/storage/v1/object/public/verification-photos/${facePhotoPath}`;
         console.log('Setting avatar URL:', publicUrl);
 
         // Update profile with all seller data

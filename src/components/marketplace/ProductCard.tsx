@@ -204,7 +204,11 @@ const ProductCard = ({
               {product.seller?.full_name || 'Unknown Seller'}
             </span>
             {product.seller?.is_verified && (
-              <Badge className="h-3 w-3 text-verified-blue flex-shrink-0" />
+              <div className="h-3 w-3 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
+                <svg className="h-2 w-2 text-white" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                </svg>
+              </div>
             )}
             {product.seller?.rating && (
               <div className="flex items-center gap-1 flex-shrink-0">

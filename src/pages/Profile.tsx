@@ -73,12 +73,15 @@ const Profile = () => {
             .insert({
               user_id: user.id,
               email: user.email || '',
-              full_name: user.user_metadata?.full_name || user.email || 'User',
+              full_name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'User',
               account_type: user.user_metadata?.account_type || 'buyer',
-              university_name: user.user_metadata?.university_name,
-              campus: user.user_metadata?.campus,
-              student_id: user.user_metadata?.student_id,
-              verification_status: user.user_metadata?.account_type === 'seller' ? 'pending' : null
+              university_name: user.user_metadata?.university_name || '',
+              campus: user.user_metadata?.campus || '',
+              student_id: user.user_metadata?.student_id || '',
+              seller_status: user.user_metadata?.account_type === 'seller' ? 'pending' : null,
+              is_verified: false,
+              rating: 0.0,
+              total_reviews: 0
             })
             .select()
             .single();
@@ -89,7 +92,19 @@ const Profile = () => {
         }
         throw error;
       }
-      setProfile(data);
+      
+      // Fix any missing data in existing profile
+      const fixedData = {
+        ...data,
+        full_name: data.full_name || user.email?.split('@')[0] || 'User',
+        email: data.email || user.email || '',
+        account_type: data.account_type || 'buyer',
+        rating: data.rating || 0.0,
+        total_reviews: data.total_reviews || 0,
+        is_verified: data.is_verified || false
+      };
+      
+      setProfile(fixedData);
       
       // Fetch wallet data if user is a seller
       if (data.account_type === 'seller' || data.account_type === 'both') {
@@ -244,19 +259,21 @@ const Profile = () => {
                     <Avatar className="h-24 w-24">
                       <AvatarImage src={profile.avatar_url} alt={profile.full_name} />
                       <AvatarFallback className="bg-university-green text-white text-lg">
-                        {getInitials(profile.full_name)}
+                        {getInitials(profile.full_name || user?.email || 'User')}
                       </AvatarFallback>
                     </Avatar>
                     {profile.is_verified && (
-                      <div className="absolute -bottom-1 -right-1 bg-verified-blue rounded-full p-1.5">
-                        <Shield className="h-4 w-4 text-white" />
+                      <div className="absolute -bottom-1 -right-1 bg-blue-500 rounded-full p-1.5">
+                        <svg className="h-4 w-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
                       </div>
                     )}
                   </div>
 
                   <div className="text-center">
-                    <h2 className="text-xl font-semibold">{profile.full_name}</h2>
-                    <p className="text-muted-foreground">{profile.email}</p>
+                    <h2 className="text-xl font-semibold">{profile.full_name || 'User'}</h2>
+                    <p className="text-muted-foreground">{profile.email || user?.email || 'No email'}</p>
                     
                     <div className="flex items-center justify-center gap-2 mt-2">
                       <Badge variant="outline">{profile.account_type}</Badge>
@@ -270,11 +287,11 @@ const Profile = () => {
                     <div className="flex items-center justify-center gap-4 mt-4 text-sm text-muted-foreground">
                       <div className="flex items-center gap-1">
                         <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                        <span>{profile.rating.toFixed(1)}</span>
+                        <span>{(profile.rating || 0).toFixed(1)}</span>
                       </div>
                       <div className="flex items-center gap-1">
                         <MessageCircle className="h-4 w-4" />
-                        <span>{profile.total_reviews} reviews</span>
+                        <span>{profile.total_reviews || 0} reviews</span>
                       </div>
                     </div>
                     
@@ -312,25 +329,25 @@ const Profile = () => {
                           <span className="text-sm font-medium">Seller Status</span>
                         </div>
                         <div className="text-sm">
-                          {profile.verification_status === 'approved' && (
+                          {profile.seller_status === 'approved' && (
                             <div className="flex items-center gap-2 text-green-600">
                               <Shield className="h-4 w-4" />
                               <span>Approved - You can sell items</span>
                             </div>
                           )}
-                          {profile.verification_status === 'pending' && (
+                          {profile.seller_status === 'pending' && (
                             <div className="flex items-center gap-2 text-orange-600">
                               <Shield className="h-4 w-4" />
                               <span>Pending Admin Approval</span>
                             </div>
                           )}
-                          {profile.verification_status === 'rejected' && (
+                          {profile.seller_status === 'rejected' && (
                             <div className="flex items-center gap-2 text-red-600">
                               <Shield className="h-4 w-4" />
                               <span>Application Rejected</span>
                             </div>
                           )}
-                          {!profile.verification_status && (
+                          {!profile.seller_status && (
                             <div className="flex items-center gap-2 text-gray-600">
                               <Shield className="h-4 w-4" />
                               <span>Not yet submitted for approval</span>

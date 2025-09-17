@@ -133,7 +133,10 @@ const Checkout = () => {
 
       if (error) throw error;
 
-      if (!data || data.length === 0) {
+      // Filter out items with null products
+      const validItems = (data || []).filter(item => item.products && item.products.id);
+      
+      if (validItems.length === 0) {
         toast({
           title: "Empty cart",
           description: "Your cart is empty. Add some items first.",
@@ -143,7 +146,7 @@ const Checkout = () => {
         return;
       }
 
-      setCartItems(data);
+      setCartItems(validItems);
     } catch (error) {
       console.error("Error fetching cart items:", error);
       navigate("/cart");
@@ -153,10 +156,12 @@ const Checkout = () => {
   };
 
   const getTotalPrice = () => {
-    return cartItems.reduce(
-      (total, item) => total + item.products.price * item.quantity,
-      0
-    );
+    return cartItems
+      .filter(item => item.products?.price)
+      .reduce(
+        (total, item) => total + (item.products?.price || 0) * item.quantity,
+        0
+      );
   };
 
   const getDeliveryFee = () => {
@@ -253,8 +258,9 @@ const Checkout = () => {
     setProcessing(true);
 
     try {
-      // Group items by seller
-      const sellerGroups = cartItems.reduce((groups, item) => {
+      // Group items by seller (filter out items with null products)
+      const validCartItems = cartItems.filter(item => item.products?.seller_id);
+      const sellerGroups = validCartItems.reduce((groups, item) => {
         const sellerId = item.products.seller_id;
         if (!groups[sellerId]) {
           groups[sellerId] = [];
@@ -267,7 +273,7 @@ const Checkout = () => {
       const orderPromises = Object.entries(sellerGroups).map(
         async ([sellerId, items]) => {
           const orderTotal = items.reduce(
-            (sum, item) => sum + item.products.price * item.quantity,
+            (sum, item) => sum + (item.products?.price || 0) * item.quantity,
             0
           );
 
@@ -311,7 +317,10 @@ const Checkout = () => {
             .eq('user_id', user!.id)
             .single();
 
-          const productTitles = items.map(i => i.products.title).join(', ');
+          const productTitles = items
+            .filter(i => i.products?.title)
+            .map(i => i.products.title)
+            .join(', ');
 
           if (sellerProfile) {
             // Create in-app notification for seller
@@ -407,12 +416,12 @@ const Checkout = () => {
       await supabase.from("cart").delete().eq("user_id", user!.id);
 
       // Update analytics
-      for (const item of cartItems) {
+      for (const item of cartItems.filter(item => item.products?.id)) {
         await updateAnalytics(item.products.id, "orders_count", item.quantity);
         await updateAnalytics(
           item.products.id,
           "revenue",
-          item.products.price * item.quantity
+          (item.products?.price || 0) * item.quantity
         );
       }
 
@@ -655,21 +664,24 @@ const Checkout = () => {
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="space-y-3">
-                      {cartItems.map((item) => (
+                      {cartItems.filter(item => item.products?.id).map((item) => (
                         <div key={item.id} className="flex items-center gap-3">
-                          {item.products.images && item.products.images[0] && (
+                          {item.products?.images?.[0] && (
                             <img
                               src={item.products.images[0]}
-                              alt={item.products.title}
+                              alt={item.products?.title || 'Product image'}
                               className="w-12 h-12 object-cover rounded"
+                              onError={(e) => {
+                                e.currentTarget.style.display = 'none';
+                              }}
                             />
                           )}
                           <div className="flex-1">
                             <h4 className="font-medium text-sm line-clamp-1">
-                              {item.products.title}
+                              {item.products?.title || 'Unknown Product'}
                             </h4>
                             <p className="text-xs text-muted-foreground">
-                              by {item.products.profiles?.full_name}
+                              by {item.products?.profiles?.full_name || 'Unknown Seller'}
                             </p>
                             <div className="flex items-center gap-2 mt-1">
                               <Badge variant="outline" className="text-xs">
@@ -681,7 +693,7 @@ const Checkout = () => {
                             <div className="font-medium">
                               ₦
                               {(
-                                item.products.price * item.quantity
+                                (item.products?.price || 0) * item.quantity
                               ).toLocaleString()}
                             </div>
                           </div>

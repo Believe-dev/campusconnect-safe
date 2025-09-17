@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -36,7 +36,8 @@ import {
   TrendingUp,
   TrendingDown,
   DollarSign,
-  IdCard
+  IdCard,
+  Flag
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { toast } from 'sonner';
@@ -131,6 +132,19 @@ interface Dispute {
   reporter: { full_name: string };
 }
 
+interface ProductReport {
+  id: string;
+  product_id: string;
+  reported_by: string;
+  reason: string;
+  description: string;
+  status: string;
+  created_at: string;
+  product?: { title: string; seller_id: string };
+  reporter?: { full_name: string; email: string };
+  seller?: { full_name: string; email: string };
+}
+
 export default function Admin() {
   const { user, loading, isAdmin } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
@@ -171,6 +185,7 @@ export default function Admin() {
   const [escrowTransactions, setEscrowTransactions] = useState<EscrowTransaction[]>([]);
   const [payoutRequests, setPayoutRequests] = useState<PayoutRequest[]>([]);
   const [disputes, setDisputes] = useState<Dispute[]>([]);
+  const [productReports, setProductReports] = useState<ProductReport[]>([]);
 
   useEffect(() => {
     if (isAdmin) {
@@ -285,48 +300,71 @@ export default function Admin() {
     }
   };
 
+  const getImageUrl = (filePath: string | null) => {
+    if (!filePath) return null;
+    
+    // If already a full URL, return as is
+    if (filePath.startsWith('http')) {
+      return filePath;
+    }
+    
+    // Build public URL - this should work if bucket is public
+    return `https://ssqplkrxtrvfptrsnpow.supabase.co/storage/v1/object/public/verification-photos/${filePath}`;
+  };
+
   const fetchVerificationRequests = async () => {
     try {
-      const { data, error } = await supabase
+      // First get verification requests
+      const { data: requests, error: requestsError } = await supabase
         .from('verification_requests')
-        .select(`
-          *,
-          profiles!inner(
-            user_id,
-            full_name,
-            email,
-            university_name,
-            campus,
-            avatar_url,
-            face_photo_url,
-            student_id_photo_url,
-            created_at
-          )
-        `)
+        .select('*')
         .eq('status', 'pending')
         .order('created_at', { ascending: false });
       
-      if (error) {
-        console.error('Verification requests fetch error:', error);
-        // Don't show error toast for empty results
+      if (requestsError) {
+        console.error('Verification requests fetch error:', requestsError);
         setVerificationRequests([]);
         return;
       }
       
-      // Transform data to match expected format
-      const transformedData = data?.map(req => ({
-        id: req.id,
-        user_id: req.user_id,
-        full_name: req.profiles.full_name,
-        email: req.profiles.email,
-        university_name: req.profiles.university_name,
-        campus: req.profiles.campus,
-        avatar_url: req.profiles.avatar_url,
-        face_photo_url: req.profiles.face_photo_url,
-        student_id_photo_url: req.profiles.student_id_photo_url,
-        created_at: req.created_at,
-        reason: req.reason
-      })) || [];
+      console.log('Raw verification requests:', requests);
+      
+      if (!requests || requests.length === 0) {
+        setVerificationRequests([]);
+        return;
+      }
+      
+      // Get user profiles for each request
+      const userIds = requests.map(req => req.user_id);
+      const { data: profiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('*')
+        .in('user_id', userIds);
+      
+      if (profilesError) {
+        console.error('Profiles fetch error:', profilesError);
+        setVerificationRequests([]);
+        return;
+      }
+      
+      // Combine requests with profiles and get image URLs
+      const transformedData = requests.map(req => {
+        const profile = profiles?.find(p => p.user_id === req.user_id);
+        
+        return {
+          id: req.id,
+          user_id: req.user_id,
+          full_name: profile?.full_name || 'Unknown',
+          email: profile?.email || 'Unknown',
+          university_name: profile?.university_name || 'N/A',
+          campus: profile?.campus || 'N/A',
+          avatar_url: profile?.avatar_url,
+          face_photo_url: getImageUrl(profile?.face_photo_url),
+          student_id_photo_url: getImageUrl(profile?.student_id_photo_url),
+          created_at: req.created_at,
+          reason: req.reason
+        };
+      });
       
       setVerificationRequests(transformedData);
       console.log('Verification requests loaded:', transformedData.length);
@@ -349,7 +387,7 @@ export default function Admin() {
       if (profileError) throw profileError;
 
       // Create in-app notification
-      await supabase
+      const { error: notifError } = await supabase
         .from('notifications')
         .insert({
           user_id: userId,
@@ -357,6 +395,27 @@ export default function Admin() {
           message: 'Congratulations! Your seller verification has been approved. You can now start listing items on UniMarket.',
           type: 'success'
         });
+      
+      if (notifError) {
+        console.error('Failed to create approval notification:', notifError);
+      }
+      
+      // Notify all admins about the approval
+      const { data: admins } = await supabase
+        .from('user_roles')
+        .select('user_id')
+        .eq('role', 'admin');
+      
+      if (admins) {
+        for (const admin of admins) {
+          await supabase.from('notifications').insert({
+            user_id: admin.user_id,
+            title: 'Seller Approved',
+            message: `${fullName} has been approved as a seller`,
+            type: 'info'
+          });
+        }
+      }
 
       // Send email notification
       try {
@@ -402,7 +461,7 @@ export default function Admin() {
         .eq('role', 'seller');
 
       // Create in-app notification
-      await supabase
+      const { error: notifError } = await supabase
         .from('notifications')
         .insert({
           user_id: userId,
@@ -410,6 +469,27 @@ export default function Admin() {
           message: 'Your seller application was not approved at this time. Your account has been converted to buyer-only. You can still browse and purchase items.',
           type: 'warning'
         });
+      
+      if (notifError) {
+        console.error('Failed to create rejection notification:', notifError);
+      }
+      
+      // Notify all admins about the rejection
+      const { data: admins } = await supabase
+        .from('user_roles')
+        .select('user_id')
+        .eq('role', 'admin');
+      
+      if (admins) {
+        for (const admin of admins) {
+          await supabase.from('notifications').insert({
+            user_id: admin.user_id,
+            title: 'Seller Rejected',
+            message: `${fullName}'s seller application has been rejected`,
+            type: 'warning'
+          });
+        }
+      }
 
       // Send email notification
       try {
@@ -473,14 +553,60 @@ export default function Admin() {
       if (payoutError) throw payoutError;
       setPayoutRequests(payoutData || []);
 
-      // Fetch disputes
-      const { data: disputeData, error: disputeError } = await supabase
-        .from('disputes')
-        .select('*')
+      // Fetch disputed orders instead of disputes table
+      const { data: disputedOrders, error: disputeError } = await supabase
+        .from('orders')
+        .select(`
+          *,
+          products!inner (title),
+          seller_profile:profiles!orders_seller_id_fkey (full_name),
+          buyer_profile:profiles!orders_buyer_id_fkey (full_name)
+        `)
+        .eq('status', 'disputed')
         .order('created_at', { ascending: false });
 
-      if (disputeError) throw disputeError;
-      setDisputes(disputeData || []);
+      if (disputeError) {
+        console.warn('Could not fetch disputed orders:', disputeError);
+        setDisputes([]);
+        return;
+      }
+
+      // Transform to match dispute interface
+      const transformedDisputes = (disputedOrders || []).map(order => ({
+        id: order.id,
+        order_id: order.id,
+        reason: 'Order Issue',
+        description: 'User reported an issue with this order',
+        status: 'open',
+        created_at: order.created_at,
+        reported_by: order.buyer_id,
+        orders: {
+          products: order.products,
+          seller_profile: order.seller_profile,
+          buyer_profile: order.buyer_profile
+        },
+        reporter: order.buyer_profile
+      }));
+
+      setDisputes(transformedDisputes);
+
+      // Fetch product reports
+      const { data: reportsData, error: reportsError } = await supabase
+        .from('product_reports')
+        .select(`
+          *,
+          product:products!inner (title, seller_id),
+          reporter:profiles!product_reports_reported_by_fkey (full_name, email),
+          seller:profiles!inner (full_name, email)
+        `)
+        .order('created_at', { ascending: false });
+
+      if (reportsError) {
+        console.warn('Could not fetch product reports:', reportsError);
+        setProductReports([]);
+      } else {
+        setProductReports(reportsData || []);
+      }
 
     } catch (error) {
       console.error('Escrow data fetch error:', error);
@@ -672,7 +798,7 @@ export default function Admin() {
       if (profileError) throw profileError;
 
       // Send notification
-      await supabase
+      const { error: notifError } = await supabase
         .from('notifications')
         .insert({
           user_id: userId,
@@ -680,6 +806,27 @@ export default function Admin() {
           message: 'Congratulations! Your account has been verified. You now have a verified badge on your profile.',
           type: 'success'
         });
+      
+      if (notifError) {
+        console.error('Failed to create verification notification:', notifError);
+      }
+      
+      // Notify all admins about the verification
+      const { data: admins } = await supabase
+        .from('user_roles')
+        .select('user_id')
+        .eq('role', 'admin');
+      
+      if (admins) {
+        for (const admin of admins) {
+          await supabase.from('notifications').insert({
+            user_id: admin.user_id,
+            title: 'User Verified',
+            message: `${fullName} has been granted verification badge`,
+            type: 'success'
+          });
+        }
+      }
 
       // Send email notification
       try {
@@ -721,7 +868,7 @@ export default function Admin() {
       if (error) throw error;
 
       // Send notification
-      await supabase
+      const { error: notifError } = await supabase
         .from('notifications')
         .insert({
           user_id: userId,
@@ -729,6 +876,27 @@ export default function Admin() {
           message: 'Your verification request was not approved at this time. You can reapply later.',
           type: 'warning'
         });
+      
+      if (notifError) {
+        console.error('Failed to create rejection notification:', notifError);
+      }
+      
+      // Notify all admins about the rejection
+      const { data: admins } = await supabase
+        .from('user_roles')
+        .select('user_id')
+        .eq('role', 'admin');
+      
+      if (admins) {
+        for (const admin of admins) {
+          await supabase.from('notifications').insert({
+            user_id: admin.user_id,
+            title: 'Verification Rejected',
+            message: `${fullName}'s verification request has been rejected`,
+            type: 'warning'
+          });
+        }
+      }
 
       toast.success('Verification request rejected');
       fetchVerificationRequests();
@@ -1040,10 +1208,11 @@ export default function Admin() {
 
         {/* Tabs for different management areas */}
         <Tabs defaultValue="users" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-8">
+          <TabsList className="grid w-full grid-cols-9">
             <TabsTrigger value="users">Users</TabsTrigger>
             <TabsTrigger value="sellers">Seller Approvals</TabsTrigger>
             <TabsTrigger value="verification">Verification</TabsTrigger>
+            <TabsTrigger value="reports">Product Reports</TabsTrigger>
             <TabsTrigger value="escrow">Escrow</TabsTrigger>
             <TabsTrigger value="products">Products</TabsTrigger>
             <TabsTrigger value="messages">Messages</TabsTrigger>
@@ -1332,10 +1501,21 @@ export default function Admin() {
                                       </DialogHeader>
                                       <div className="flex justify-center">
                                         <img 
-                                          src={`${supabase.storage.from('verification-photos').getPublicUrl(seller.face_photo_url).data.publicUrl}`}
+                                          src={getImageUrl(seller.face_photo_url)}
                                           alt="Face verification"
-                                          className="max-w-full max-h-96 object-contain"
+                                          className="max-w-full max-h-96 object-contain border rounded"
+                                          onLoad={() => console.log('✅ Seller face photo loaded')}
+                                          onError={(e) => {
+                                            console.error('❌ Seller face photo failed:', seller.face_photo_url);
+                                            const target = e.currentTarget as HTMLImageElement;
+                                            target.style.display = 'none';
+                                            const errorMsg = target.nextElementSibling as HTMLElement;
+                                            if (errorMsg) errorMsg.style.display = 'block';
+                                          }}
                                         />
+                                        <div className="text-red-500 text-sm text-center" style={{display: 'none'}}>
+                                          ❌ Image failed to load
+                                        </div>
                                       </div>
                                     </DialogContent>
                                   </Dialog>
@@ -1354,10 +1534,21 @@ export default function Admin() {
                                       </DialogHeader>
                                       <div className="flex justify-center">
                                         <img 
-                                          src={`${supabase.storage.from('verification-photos').getPublicUrl(seller.student_id_photo_url).data.publicUrl}`}
+                                          src={getImageUrl(seller.student_id_photo_url)}
                                           alt="Student ID verification"
-                                          className="max-w-full max-h-96 object-contain"
+                                          className="max-w-full max-h-96 object-contain border rounded"
+                                          onLoad={() => console.log('✅ Seller ID photo loaded')}
+                                          onError={(e) => {
+                                            console.error('❌ Seller ID photo failed:', seller.student_id_photo_url);
+                                            const target = e.currentTarget as HTMLImageElement;
+                                            target.style.display = 'none';
+                                            const errorMsg = target.nextElementSibling as HTMLElement;
+                                            if (errorMsg) errorMsg.style.display = 'block';
+                                          }}
                                         />
+                                        <div className="text-red-500 text-sm text-center" style={{display: 'none'}}>
+                                          ❌ Image failed to load
+                                        </div>
                                       </div>
                                     </DialogContent>
                                   </Dialog>
@@ -1419,6 +1610,193 @@ export default function Admin() {
                                     </AlertDialogFooter>
                                   </AlertDialogContent>
                                 </AlertDialog>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Product Reports Tab */}
+          <TabsContent value="reports">
+            <Card>
+              <CardHeader>
+                <div className="flex justify-between items-center">
+                  <CardTitle>Product Issue Reports</CardTitle>
+                  <div className="flex items-center gap-2">
+                    {productReports.filter(r => r.status === 'pending').length > 0 && (
+                      <Badge variant="secondary">
+                        {productReports.filter(r => r.status === 'pending').length} pending
+                      </Badge>
+                    )}
+                    <Button onClick={fetchEscrowData} variant="outline" size="sm">
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Refresh
+                    </Button>
+                  </div>
+                </div>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Review product issue reports and contact sellers via email
+                </p>
+              </CardHeader>
+              <CardContent>
+                {productReports.length === 0 ? (
+                  <div className="text-center py-12">
+                    <Flag className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold mb-2">No product reports</h3>
+                    <p className="text-muted-foreground">
+                      No issues have been reported with products
+                    </p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Product</TableHead>
+                          <TableHead>Reported By</TableHead>
+                          <TableHead>Reason</TableHead>
+                          <TableHead>Description</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Reported</TableHead>
+                          <TableHead>Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {productReports.map((report) => (
+                          <TableRow key={report.id}>
+                            <TableCell>
+                              <div>
+                                <p className="font-medium">{report.product?.title || 'Unknown Product'}</p>
+                                <p className="text-sm text-muted-foreground">
+                                  Seller: {report.seller?.full_name || 'Unknown'}
+                                </p>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div>
+                                <p className="font-medium">{report.reporter?.full_name || 'Unknown'}</p>
+                                <p className="text-sm text-muted-foreground">{report.reporter?.email}</p>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline">
+                                {report.reason.replace('_', ' ')}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="max-w-xs">
+                              <p className="text-sm truncate" title={report.description}>
+                                {report.description}
+                              </p>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={report.status === 'pending' ? 'destructive' : 'default'}>
+                                {report.status}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>{new Date(report.created_at).toLocaleDateString()}</TableCell>
+                            <TableCell>
+                              <div className="flex gap-2">
+                                <Dialog>
+                                  <DialogTrigger asChild>
+                                    <Button size="sm" variant="outline">
+                                      Email Seller
+                                    </Button>
+                                  </DialogTrigger>
+                                  <DialogContent>
+                                    <DialogHeader>
+                                      <DialogTitle>Send Email to Seller</DialogTitle>
+                                      <DialogDescription>
+                                        Send an email notification to {report.seller?.full_name} about the reported issue
+                                      </DialogDescription>
+                                    </DialogHeader>
+                                    <div className="space-y-4">
+                                      <div>
+                                        <Label>Seller Email</Label>
+                                        <Input value={report.seller?.email || ''} disabled />
+                                      </div>
+                                      <div>
+                                        <Label>Subject</Label>
+                                        <Input 
+                                          defaultValue={`Issue Reported: ${report.product?.title}`}
+                                          id={`subject-${report.id}`}
+                                        />
+                                      </div>
+                                      <div>
+                                        <Label>Message</Label>
+                                        <Textarea 
+                                          defaultValue={`Hello ${report.seller?.full_name},\n\nA user has reported an issue with your product "${report.product?.title}".\n\nReason: ${report.reason.replace('_', ' ')}\nDescription: ${report.description}\n\nPlease review your product listing and make any necessary corrections.\n\nBest regards,\nCampusConnect Admin Team`}
+                                          rows={8}
+                                          id={`message-${report.id}`}
+                                        />
+                                      </div>
+                                      <div className="flex justify-end gap-2">
+                                        <DialogTrigger asChild>
+                                          <Button variant="outline">Cancel</Button>
+                                        </DialogTrigger>
+                                        <Button 
+                                          onClick={async () => {
+                                            const subject = (document.getElementById(`subject-${report.id}`) as HTMLInputElement)?.value;
+                                            const message = (document.getElementById(`message-${report.id}`) as HTMLTextAreaElement)?.value;
+                                            
+                                            try {
+                                              await supabase.functions.invoke('send-notification-email', {
+                                                body: {
+                                                  email: report.seller?.email,
+                                                  name: report.seller?.full_name,
+                                                  subject: subject,
+                                                  message: message,
+                                                  type: 'custom'
+                                                }
+                                              });
+                                              
+                                              // Update report status
+                                              await supabase
+                                                .from('product_reports')
+                                                .update({ status: 'reviewed' })
+                                                .eq('id', report.id);
+                                              
+                                              toast.success('Email sent successfully');
+                                              fetchEscrowData();
+                                            } catch (error) {
+                                              console.error('Email send error:', error);
+                                              toast.error('Failed to send email');
+                                            }
+                                          }}
+                                        >
+                                          Send Email
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  </DialogContent>
+                                </Dialog>
+                                {report.status === 'pending' && (
+                                  <Button 
+                                    size="sm" 
+                                    variant="default"
+                                    onClick={async () => {
+                                      try {
+                                        await supabase
+                                          .from('product_reports')
+                                          .update({ status: 'resolved' })
+                                          .eq('id', report.id);
+                                        
+                                        toast.success('Report marked as resolved');
+                                        fetchEscrowData();
+                                      } catch (error) {
+                                        console.error('Update error:', error);
+                                        toast.error('Failed to update report');
+                                      }
+                                    }}
+                                  >
+                                    Mark Resolved
+                                  </Button>
+                                )}
                               </div>
                             </TableCell>
                           </TableRow>
@@ -1503,50 +1881,84 @@ export default function Admin() {
                             </TableCell>
                             <TableCell>
                               <div className="flex gap-2">
-                                {user.face_photo_url && (
-                                  <Dialog>
-                                    <DialogTrigger asChild>
-                                      <Button variant="outline" size="sm">
-                                        <Eye className="h-4 w-4 mr-1" />
-                                        Face Photo
-                                      </Button>
-                                    </DialogTrigger>
-                                    <DialogContent>
-                                      <DialogHeader>
-                                        <DialogTitle>Face Verification Photo</DialogTitle>
-                                      </DialogHeader>
-                                      <div className="flex justify-center">
-                                        <img 
-                                          src={`${supabase.storage.from('verification-photos').getPublicUrl(user.face_photo_url).data.publicUrl}`}
-                                          alt="Face verification"
-                                          className="max-w-full max-h-96 object-contain"
-                                        />
-                                      </div>
-                                    </DialogContent>
-                                  </Dialog>
-                                )}
-                                {user.student_id_photo_url && (
-                                  <Dialog>
-                                    <DialogTrigger asChild>
-                                      <Button variant="outline" size="sm">
-                                        <IdCard className="h-4 w-4 mr-1" />
-                                        ID Photo
-                                      </Button>
-                                    </DialogTrigger>
-                                    <DialogContent>
-                                      <DialogHeader>
-                                        <DialogTitle>Student ID Verification Photo</DialogTitle>
-                                      </DialogHeader>
-                                      <div className="flex justify-center">
-                                        <img 
-                                          src={`${supabase.storage.from('verification-photos').getPublicUrl(user.student_id_photo_url).data.publicUrl}`}
-                                          alt="Student ID verification"
-                                          className="max-w-full max-h-96 object-contain"
-                                        />
-                                      </div>
-                                    </DialogContent>
-                                  </Dialog>
-                                )}
+                                <Dialog>
+                                  <DialogTrigger asChild>
+                                    <Button variant="outline" size="sm">
+                                      <Eye className="h-4 w-4 mr-1" />
+                                      Face Photo
+                                    </Button>
+                                  </DialogTrigger>
+                                  <DialogContent>
+                                    <DialogHeader>
+                                      <DialogTitle>Face Verification Photo</DialogTitle>
+                                      <DialogDescription>View the user's face verification photo</DialogDescription>
+                                    </DialogHeader>
+                                    <div className="flex justify-center flex-col items-center gap-2">
+                                      {user.face_photo_url ? (
+                                        <>
+                                          <img 
+                                            src={user.face_photo_url}
+                                            alt="Face verification"
+                                            className="max-w-full max-h-96 object-contain border rounded"
+                                            onLoad={() => console.log('✅ Face photo loaded:', user.face_photo_url)}
+                                            onError={(e) => {
+                                              console.error('❌ Face photo failed:', user.face_photo_url);
+                                              const target = e.currentTarget as HTMLImageElement;
+                                              target.style.display = 'none';
+                                              const errorMsg = target.nextElementSibling as HTMLElement;
+                                              if (errorMsg) errorMsg.style.display = 'block';
+                                            }}
+                                          />
+                                          <div className="text-red-500 text-sm text-center" style={{display: 'none'}}>
+                                            ❌ Image failed to load<br/>
+                                            <span className="text-xs">Check storage permissions or run fix_profile_photos.sql</span>
+                                          </div>
+                                        </>
+                                      ) : (
+                                        <p className="text-muted-foreground">No face photo uploaded</p>
+                                      )}
+                                    </div>
+                                  </DialogContent>
+                                </Dialog>
+                                <Dialog>
+                                  <DialogTrigger asChild>
+                                    <Button variant="outline" size="sm">
+                                      <IdCard className="h-4 w-4 mr-1" />
+                                      ID Photo
+                                    </Button>
+                                  </DialogTrigger>
+                                  <DialogContent>
+                                    <DialogHeader>
+                                      <DialogTitle>Student ID Verification Photo</DialogTitle>
+                                      <DialogDescription>View the user's student ID verification photo</DialogDescription>
+                                    </DialogHeader>
+                                    <div className="flex justify-center flex-col items-center gap-2">
+                                      {user.student_id_photo_url ? (
+                                        <>
+                                          <img 
+                                            src={user.student_id_photo_url}
+                                            alt="Student ID verification"
+                                            className="max-w-full max-h-96 object-contain border rounded"
+                                            onLoad={() => console.log('✅ ID photo loaded:', user.student_id_photo_url)}
+                                            onError={(e) => {
+                                              console.error('❌ ID photo failed:', user.student_id_photo_url);
+                                              const target = e.currentTarget as HTMLImageElement;
+                                              target.style.display = 'none';
+                                              const errorMsg = target.nextElementSibling as HTMLElement;
+                                              if (errorMsg) errorMsg.style.display = 'block';
+                                            }}
+                                          />
+                                          <div className="text-red-500 text-sm text-center" style={{display: 'none'}}>
+                                            ❌ Image failed to load<br/>
+                                            <span className="text-xs">Check storage permissions or run fix_profile_photos.sql</span>
+                                          </div>
+                                        </>
+                                      ) : (
+                                        <p className="text-muted-foreground">No ID photo uploaded</p>
+                                      )}
+                                    </div>
+                                  </DialogContent>
+                                </Dialog>
                               </div>
                             </TableCell>
                             <TableCell>
@@ -2059,11 +2471,16 @@ export default function Admin() {
                               <div>
                                 <p className="font-medium">Order #{dispute.order_id.slice(0, 8)}</p>
                                 <p className="text-sm text-muted-foreground">
-                                  Dispute Case
+                                  {dispute.orders?.products?.title || 'Product'}
                                 </p>
                               </div>
                             </TableCell>
-                            <TableCell>User #{dispute.reported_by.slice(0, 8)}</TableCell>
+                            <TableCell>
+                              <div>
+                                <p className="font-medium">{dispute.reporter?.full_name || 'Unknown'}</p>
+                                <p className="text-sm text-muted-foreground">Buyer</p>
+                              </div>
+                            </TableCell>
                             <TableCell>
                               <div>
                                 <p className="font-medium">{dispute.reason.replace('_', ' ')}</p>

@@ -62,17 +62,6 @@ export default function Notifications() {
     try {
       console.log('Fetching notifications for user:', user.id);
       
-      // Test database connection first
-      const { data: testData, error: testError } = await supabase
-        .from('notifications')
-        .select('count')
-        .limit(1);
-      
-      if (testError) {
-        console.error('Database connection test failed:', testError);
-        throw new Error('Database connection failed');
-      }
-      
       const { data, error } = await supabase
         .from('notifications')
         .select('*')
@@ -81,17 +70,59 @@ export default function Notifications() {
 
       if (error) {
         console.error('Supabase error fetching notifications:', error);
+        
+        // Check if table exists
+        if (error.code === '42P01') {
+          toast.error('Notifications table not found. Please run the database migration.');
+          return;
+        }
+        
+        // Check for RLS issues
+        if (error.code === '42501') {
+          toast.error('Permission denied. Please check RLS policies.');
+          return;
+        }
+        
         throw error;
       }
       
-      console.log('Fetched notifications:', data);
+      console.log('✅ Fetched notifications:', data?.length || 0, 'notifications');
       setNotifications(data || []);
+      
+      // If no notifications exist, create a welcome notification
+      if (!data || data.length === 0) {
+        console.log('No notifications found, creating welcome notification');
+        await createWelcomeNotification();
+      }
     } catch (error) {
-      console.error('Error fetching notifications:', error);
+      console.error('❌ Error fetching notifications:', error);
       toast.error(`Failed to load notifications: ${error.message}`);
       setNotifications([]);
     } finally {
       setLoadingNotifications(false);
+    }
+  };
+  
+  const createWelcomeNotification = async () => {
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .insert({
+          user_id: user.id,
+          title: 'Welcome to UniMarket! 🎉',
+          message: 'Your notification system is working! You\'ll receive updates about orders, messages, and account activities here.',
+          type: 'success'
+        });
+        
+      if (error) {
+        console.error('Failed to create welcome notification:', error);
+      } else {
+        console.log('✅ Welcome notification created');
+        // Refresh notifications
+        setTimeout(fetchNotifications, 1000);
+      }
+    } catch (error) {
+      console.error('Error creating welcome notification:', error);
     }
   };
 

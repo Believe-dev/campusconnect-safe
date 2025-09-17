@@ -111,7 +111,10 @@ const VerificationRequest = () => {
           status: 'pending'
         });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Verification request error:', error);
+        throw error;
+      }
 
       // Notify admins
       const { data: admins } = await supabase
@@ -121,13 +124,29 @@ const VerificationRequest = () => {
 
       if (admins) {
         for (const admin of admins) {
-          await supabase.from('notifications').insert({
+          const { error: adminNotifError } = await supabase.from('notifications').insert({
             user_id: admin.user_id,
-            title: 'New Verification Request',
-            message: `User has requested verification: ${reason.substring(0, 50)}...`,
+            title: 'New Verification Request 📝',
+            message: `${profile.full_name} has requested verification: ${reason.substring(0, 50)}...`,
             type: 'info'
           });
+          
+          if (adminNotifError) {
+            console.error('Failed to notify admin:', adminNotifError);
+          }
         }
+      }
+      
+      // Send confirmation notification to user
+      const { error: userNotifError } = await supabase.from('notifications').insert({
+        user_id: user.id,
+        title: 'Verification Request Submitted ✅',
+        message: 'Your verification request has been submitted and is under review. You will be notified once it is processed.',
+        type: 'success'
+      });
+      
+      if (userNotifError) {
+        console.error('Failed to create user confirmation notification:', userNotifError);
       }
 
       toast({

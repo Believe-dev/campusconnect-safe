@@ -28,6 +28,10 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { useCartCount } from '@/hooks/useCartCount';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
+import { useNotifications } from '@/hooks/useNotifications';
+import { useOrdersCount } from '@/hooks/useOrdersCount';
+import { useMessagesCount } from '@/hooks/useMessagesCount';
+import { useProfile } from '@/contexts/ProfileContext';
 import SmartSearchInput from '@/components/search/SmartSearchInput';
 import MobileSearchDialog from '@/components/search/MobileSearchDialog';
 
@@ -41,9 +45,12 @@ interface Profile {
 
 const Header = () => {
   const { user, isAdmin, loading } = useAuth();
+  const { profile } = useProfile();
   const { cartCount } = useCartCount();
   const { isOnline, isSlowConnection } = useNetworkStatus();
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const { unreadCount } = useNotifications();
+  const { ordersCount } = useOrdersCount();
+  const { messagesCount } = useMessagesCount();
   const [searchQuery, setSearchQuery] = useState('');
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -99,36 +106,10 @@ const Header = () => {
     );
   };
 
-  useEffect(() => {
-    if (user) {
-      fetchUserProfile(user.id);
-    } else {
-      setProfile(null);
-    }
-  }, [user]);
 
-  const fetchUserProfile = async (userId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('full_name, is_verified, account_type, seller_status, avatar_url')
-        .eq('user_id', userId)
-        .single();
-
-      if (error) {
-        console.error('Error fetching profile:', error);
-        return;
-      }
-
-      setProfile(data);
-    } catch (error) {
-      console.error('Error in fetchUserProfile:', error);
-    }
-  };
 
   const handleSignOut = async () => {
     try {
-      setProfile(null);
       
       const { error } = await supabase.auth.signOut({ scope: 'global' });
       if (error) {
@@ -189,7 +170,7 @@ const Header = () => {
           {/* User Profile Section */}
           {user && profile && (
             <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
-              <Avatar className="h-12 w-12">
+              <Avatar className="h-12 w-12 avatar-stable">
                 <AvatarImage src={profile?.avatar_url} alt={profile?.full_name} />
                 <AvatarFallback className="bg-university-green text-white">
                   {profile?.full_name ? getInitials(profile.full_name) : 'U'}
@@ -240,10 +221,18 @@ const Header = () => {
                 </Link>
               </Button>
               
-              <Button variant="ghost" size="lg" asChild className="justify-start">
+              <Button variant="ghost" size="lg" asChild className="justify-start relative">
                 <Link to="/notifications">
                   <Bell className="mr-3 h-5 w-5" />
                   Notifications
+                  {unreadCount > 0 && (
+                    <Badge 
+                      variant="destructive" 
+                      className="ml-auto h-5 w-5 flex items-center justify-center p-0 text-xs font-bold rounded-full bg-red-500 text-white"
+                    >
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </Badge>
+                  )}
                 </Link>
               </Button>
               
@@ -278,17 +267,33 @@ const Header = () => {
                 </Button>
               )}
               
-              <Button variant="ghost" size="lg" asChild className="justify-start">
+              <Button variant="ghost" size="lg" asChild className="justify-start relative">
                 <Link to="/messages">
                   <MessageCircle className="mr-3 h-5 w-5" />
                   Messages
+                  {messagesCount > 0 && (
+                    <Badge 
+                      variant="destructive" 
+                      className="ml-auto h-5 w-5 flex items-center justify-center p-0 text-xs font-bold rounded-full bg-red-500 text-white"
+                    >
+                      {messagesCount > 99 ? '99+' : messagesCount}
+                    </Badge>
+                  )}
                 </Link>
               </Button>
               
-              <Button variant="ghost" size="lg" asChild className="justify-start">
+              <Button variant="ghost" size="lg" asChild className="justify-start relative">
                 <Link to="/orders">
                   <Package className="mr-3 h-5 w-5" />
                   Orders
+                  {ordersCount > 0 && (
+                    <Badge 
+                      variant="destructive" 
+                      className="ml-auto h-5 w-5 flex items-center justify-center p-0 text-xs font-bold rounded-full bg-red-500 text-white"
+                    >
+                      {ordersCount > 99 ? '99+' : ordersCount}
+                    </Badge>
+                  )}
                 </Link>
               </Button>
 
@@ -416,9 +421,17 @@ const Header = () => {
                     <Link to="/learn-more">Learn More</Link>
                   </Button>
 
-                  <Button variant="ghost" size="icon" asChild>
+                  <Button variant="ghost" size="icon" asChild className="relative">
                     <Link to="/notifications">
                       <Bell className="h-5 w-5" />
+                      {unreadCount > 0 && (
+                        <Badge 
+                          variant="destructive" 
+                          className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center p-0 text-xs font-bold rounded-full bg-red-500 text-white border-2 border-background"
+                        >
+                          {unreadCount > 99 ? '99+' : unreadCount}
+                        </Badge>
+                      )}
                     </Link>
                   </Button>
 
@@ -437,15 +450,31 @@ const Header = () => {
                     </Button>
                   )}
 
-                  <Button variant="ghost" size="icon" asChild>
+                  <Button variant="ghost" size="icon" asChild className="relative">
                     <Link to="/messages">
                       <MessageCircle className="h-5 w-5" />
+                      {messagesCount > 0 && (
+                        <Badge 
+                          variant="destructive" 
+                          className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center p-0 text-xs font-bold rounded-full bg-red-500 text-white border-2 border-background"
+                        >
+                          {messagesCount > 99 ? '99+' : messagesCount}
+                        </Badge>
+                      )}
                     </Link>
                   </Button>
 
-                  <Button variant="ghost" size="icon" asChild>
+                  <Button variant="ghost" size="icon" asChild className="relative">
                     <Link to="/orders">
                       <Package className="h-5 w-5" />
+                      {ordersCount > 0 && (
+                        <Badge 
+                          variant="destructive" 
+                          className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center p-0 text-xs font-bold rounded-full bg-red-500 text-white border-2 border-background"
+                        >
+                          {ordersCount > 99 ? '99+' : ordersCount}
+                        </Badge>
+                      )}
                     </Link>
                   </Button>
 
@@ -453,15 +482,17 @@ const Header = () => {
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" className="relative h-10 w-10 rounded-full">
-                        <Avatar className="h-10 w-10">
+                        <Avatar className="h-10 w-10 avatar-stable">
                           <AvatarImage src={profile?.avatar_url} alt={profile?.full_name} />
                           <AvatarFallback className="bg-university-green text-white">
                             {profile?.full_name ? getInitials(profile.full_name) : 'U'}
                           </AvatarFallback>
                         </Avatar>
                         {profile?.is_verified && (
-                          <div className="absolute -bottom-1 -right-1 bg-verified-blue rounded-full p-1">
-                            <Shield className="h-3 w-3 text-white" />
+                          <div className="absolute -bottom-1 -right-1 bg-blue-500 rounded-full p-1">
+                            <svg className="h-3 w-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                            </svg>
                           </div>
                         )}
                       </Button>

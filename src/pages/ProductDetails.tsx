@@ -5,6 +5,10 @@ import { Button } from '@/components/ui/enhanced-button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { 
   Heart, 
@@ -18,7 +22,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Copy,
-  Check
+  Check,
+  Flag
 } from 'lucide-react';
 import Header from '@/components/layout/Header';
 import ProductCard from '@/components/marketplace/ProductCard';
@@ -54,6 +59,9 @@ const ProductDetails = () => {
   const [similarLoading, setSimilarLoading] = useState(true);
   const [quantity, setQuantity] = useState(1);
   const [copied, setCopied] = useState(false);
+  const [reportReason, setReportReason] = useState('');
+  const [reportDescription, setReportDescription] = useState('');
+  const [reportDialogOpen, setReportDialogOpen] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -286,6 +294,85 @@ const ProductDetails = () => {
       .slice(0, 2);
   };
 
+  const handleReportIssue = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      navigate('/auth');
+      return;
+    }
+
+    if (!product || !reportReason.trim() || !reportDescription.trim()) {
+      toast({
+        title: "Error",
+        description: "Please fill in all fields",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // Create product report
+      const { error: reportError } = await supabase
+        .from('product_reports')
+        .insert({
+          product_id: product.id,
+          reported_by: user.id,
+          reason: reportReason,
+          description: reportDescription,
+          status: 'pending'
+        });
+
+      if (reportError) throw reportError;
+
+      // Send notification to seller
+      const { error: notificationError } = await supabase
+        .from('notifications')
+        .insert({
+          user_id: product.seller_id,
+          title: 'Product Issue Reported',
+          message: `A user has reported an issue with your product "${product.title}". Reason: ${reportReason}`,
+          type: 'warning'
+        });
+
+      if (notificationError) {
+        console.error('Failed to send notification:', notificationError);
+      }
+
+      // Notify admins
+      const { data: admins } = await supabase
+        .from('user_roles')
+        .select('user_id')
+        .eq('role', 'admin');
+
+      if (admins) {
+        for (const admin of admins) {
+          await supabase.from('notifications').insert({
+            user_id: admin.user_id,
+            title: 'Product Report Received',
+            message: `Product "${product.title}" has been reported for: ${reportReason}`,
+            type: 'info'
+          });
+        }
+      }
+
+      toast({
+        title: "Report Submitted",
+        description: "Your report has been submitted and the seller has been notified.",
+      });
+
+      setReportDialogOpen(false);
+      setReportReason('');
+      setReportDescription('');
+    } catch (error) {
+      console.error('Error submitting report:', error);
+      toast({
+        title: "Error",
+        description: "Failed to submit report. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background">
@@ -377,6 +464,57 @@ const ProductDetails = () => {
                     <Button variant="ghost" size="icon" onClick={handleShare}>
                       {copied ? <Check className="h-4 w-4" /> : <Share2 className="h-4 w-4" />}
                     </Button>
+                    <Dialog open={reportDialogOpen} onOpenChange={setReportDialogOpen}>
+                      <DialogTrigger asChild>
+                        <Button variant="ghost" size="icon" title="Report Issue">
+                          <Flag className="h-4 w-4" />
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Report Issue with Product</DialogTitle>
+                          <DialogDescription>
+                            Report any issues with this product. The seller will be notified.
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-4">
+                          <div>
+                            <Label htmlFor="reason">Reason for Report</Label>
+                            <Select value={reportReason} onValueChange={setReportReason}>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select a reason" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="misleading_description">Misleading Description</SelectItem>
+                                <SelectItem value="wrong_price">Wrong Price</SelectItem>
+                                <SelectItem value="fake_product">Fake/Counterfeit Product</SelectItem>
+                                <SelectItem value="inappropriate_content">Inappropriate Content</SelectItem>
+                                <SelectItem value="spam">Spam</SelectItem>
+                                <SelectItem value="other">Other</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label htmlFor="description">Description</Label>
+                            <Textarea
+                              id="description"
+                              placeholder="Please provide more details about the issue..."
+                              value={reportDescription}
+                              onChange={(e) => setReportDescription(e.target.value)}
+                              rows={4}
+                            />
+                          </div>
+                          <div className="flex justify-end gap-2">
+                            <Button variant="outline" onClick={() => setReportDialogOpen(false)}>
+                              Cancel
+                            </Button>
+                            <Button onClick={handleReportIssue}>
+                              Submit Report
+                            </Button>
+                          </div>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
                   </div>
                 </div>
 
@@ -425,8 +563,10 @@ const ProductDetails = () => {
                         </AvatarFallback>
                       </Avatar>
                       {product.seller?.is_verified && (
-                        <div className="absolute -bottom-1 -right-1 bg-verified-blue rounded-full p-1">
-                          <Shield className="h-3 w-3 text-white" />
+                        <div className="absolute -bottom-1 -right-1 bg-blue-500 rounded-full p-1">
+                          <svg className="h-3 w-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                          </svg>
                         </div>
                       )}
                     </div>

@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { useOptimizedQuery } from '@/hooks/useOptimizedQuery';
+import { useOfflineStorage } from '@/hooks/useOfflineStorage';
+import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/enhanced-button';
 import { Badge } from '@/components/ui/badge';
@@ -46,54 +49,61 @@ interface Order {
 }
 
 const Orders = () => {
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('buyer');
-  const [user, setUser] = useState<any>(null);
   const { toast } = useToast();
-
-  useEffect(() => {
-    checkUser();
-  }, []);
-
-  const checkUser = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    setUser(user);
-    if (user) {
-      fetchOrders();
-    }
-  };
+  const [offlineOrders, setOfflineOrders] = useOfflineStorage<Order[]>({
+    key: `orders_${user?.id}`,
+    defaultValue: [],
+    ttl: 30 * 60 * 1000 // 30 minutes
+  });
 
   const fetchOrders = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+    if (!user) return [];
 
-      const { data, error } = await supabase
-        .from('orders')
-        .select(`
-          *,
-          products:product_id (title, images),
-          seller_profile:seller_id (full_name),
-          buyer_profile:buyer_id (full_name),
-          escrow_transactions (id, status, seller_amount, auto_release_at)
-        `)
-        .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
-        .order('created_at', { ascending: false });
+    const { data, error } = await supabase
+      .from('orders')
+      .select(`
+        *,
+        products!inner (title, images),
+        seller_profile:profiles!orders_seller_id_fkey (full_name),
+        buyer_profile:profiles!orders_buyer_id_fkey (full_name),
+        escrow_transactions (id, status, seller_amount, auto_release_at)
+      `)
+      .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
+      .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      setOrders(data || []);
-    } catch (error) {
-      console.error('Error fetching orders:', error);
+    if (error) throw error;
+    
+    // Transform data to match expected structure
+    const transformedOrders = (data || []).map(order => ({
+      ...order,
+      product: order.products,
+      seller: order.seller_profile,
+      buyer: order.buyer_profile
+    }));
+    
+    // Store offline for next time
+    setOfflineOrders(transformedOrders);
+    return transformedOrders;
+  };
+
+  const { data: orders = offlineOrders, isLoading, error } = useOptimizedQuery({
+    queryKey: ['orders', user?.id],
+    queryFn: fetchOrders,
+    enabled: !!user,
+    placeholderData: offlineOrders
+  });
+
+  useEffect(() => {
+    if (error) {
       toast({
         title: "Error",
         description: "Failed to load orders",
         variant: "destructive",
       });
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [error, toast]);
 
   const updateOrderStatus = async (orderId: string, status: string, trackingInfo?: string) => {
     try {
@@ -201,41 +211,46 @@ const Orders = () => {
       if (!user) return;
 
       const order = orders.find(o => o.id === orderId);
-      if (!order?.escrow_transactions?.[0]) {
+      if (!order) {
         toast({
           title: "Error",
-          description: "No escrow transaction found for this order",
+          description: "Order not found",
           variant: "destructive",
         });
         return;
       }
 
-      // Create dispute
-      const { error: disputeError } = await supabase
-        .from('disputes')
-        .insert({
-          order_id: orderId,
-          escrow_transaction_id: order.escrow_transactions[0].id,
-          reported_by: user.id,
-          reason,
-          description
-        });
-
-      if (disputeError) throw disputeError;
-
-      // Update order status
+      // Just update order status to disputed
       await updateOrderStatus(orderId, 'disputed');
 
       toast({
         title: "Issue Reported",
-        description: "Your issue has been reported and is under review",
+        description: "Your issue has been reported and the order is now under review",
       });
 
     } catch (error) {
       console.error('Error reporting issue:', error);
       toast({
         title: "Error",
-        description: "Failed to report issue",
+        description: "Failed to report issue. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const withdrawDispute = async (orderId: string) => {
+    try {
+      await updateOrderStatus(orderId, 'delivered');
+      
+      toast({
+        title: "Dispute Withdrawn",
+        description: "Your dispute has been withdrawn. Order status restored to delivered.",
+      });
+    } catch (error) {
+      console.error('Error withdrawing dispute:', error);
+      toast({
+        title: "Error",
+        description: "Failed to withdraw dispute",
         variant: "destructive",
       });
     }
@@ -435,6 +450,18 @@ const Orders = () => {
                       </Dialog>
                     </div>
                   )}
+                  {order.status === 'disputed' && (
+                    <div className="flex flex-col gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => withdrawDispute(order.id)}
+                        className="w-full sm:w-auto text-xs sm:text-sm"
+                      >
+                        Withdraw Dispute
+                      </Button>
+                    </div>
+                  )}
                 </>
               )}
             </div>
@@ -444,7 +471,7 @@ const Orders = () => {
     );
   };
 
-  if (loading) {
+  if (isLoading && orders.length === 0) {
     return (
       <div className="min-h-screen bg-background">
         <Header />

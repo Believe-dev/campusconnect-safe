@@ -142,6 +142,14 @@
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
+    /* Prevent flash of unstyled content */
+    opacity: 1;
+    transition: opacity 0.1s ease-in-out;
+  }
+  
+  /* Prevent layout shifts */
+  html {
+    scroll-behavior: smooth;
   }
 }
 
@@ -234,5 +242,36 @@
   /* Mobile-optimized focus states */
   .focus-mobile {
     @apply focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2;
+  }
+  
+  /* Page transitions */
+  .page-transition {
+    animation: fadeIn 0.2s ease-in-out;
+  }
+  
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  /* Prevent layout shift during navigation */
+  .layout-stable {
+    min-height: 100vh;
+    contain: layout;
+  }
+  
+  /* Avatar transition */
+  .avatar-stable {
+    transition: none !important;
+  }
+  
+  .avatar-stable img {
+    transition: opacity 0.15s ease-in-out;
   }
 }

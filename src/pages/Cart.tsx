@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { useOptimizedQuery } from '@/hooks/useOptimizedQuery';
+import { useOfflineStorage } from '@/hooks/useOfflineStorage';
+import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/enhanced-button';
 import { SAFE_PROFILE_SELECT } from '@/lib/profileSecurity';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -62,67 +65,67 @@ interface CartProduct {
 }
 
 const Cart = () => {
-  const [cartItems, setCartItems] = useState<CartItem[]>([]);
+  const { user } = useAuth();
   const [recommendedProducts, setRecommendedProducts] = useState<CartProduct[]>([]);
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
   const [loadingRecommended, setLoadingRecommended] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const [offlineCartItems, setOfflineCartItems] = useOfflineStorage<CartItem[]>({
+    key: `cart_${user?.id}`,
+    defaultValue: [],
+    ttl: 10 * 60 * 1000 // 10 minutes
+  });
 
-  useEffect(() => {
-    checkAuth();
-  }, []);
+  // Remove automatic redirect - let user stay on page even if not authenticated
 
-  const checkAuth = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        navigate('/auth');
-        return;
-      }
-      setUser(user);
-      await fetchCartItems(user.id);
-    } catch (error) {
-      console.error('Error checking auth:', error);
-      navigate('/auth');
-    }
+  const fetchCartItems = async () => {
+    if (!user) return [];
+
+    const { data, error } = await supabase
+      .from('cart')
+      .select(`
+        *,
+        products (
+          *,
+          profiles!products_seller_id_fkey (
+            full_name,
+            rating,
+            is_verified
+          )
+        )
+      `)
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    
+    const allItems = data || [];
+    setOfflineCartItems(allItems);
+    return allItems;
   };
 
-  const fetchCartItems = async (userId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('cart')
-        .select(`
-          *,
-          products (
-            *,
-            profiles!products_seller_id_fkey (
-              full_name,
-              rating,
-              is_verified
-            )
-          )
-        `)
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false });
+  const { data: cartItems = offlineCartItems, isLoading, error } = useOptimizedQuery({
+    queryKey: ['cart', user?.id],
+    queryFn: fetchCartItems,
+    enabled: !!user,
+    placeholderData: offlineCartItems
+  });
 
-      if (error) throw error;
-      setCartItems(data || []);
-      
-      // Fetch recommended products after cart items are loaded
-      await fetchRecommendedProducts(data || []);
-    } catch (error) {
-      console.error('Error fetching cart items:', error);
+  useEffect(() => {
+    if (cartItems.length > 0) {
+      fetchRecommendedProducts(cartItems);
+    }
+  }, [cartItems]);
+
+  useEffect(() => {
+    if (error) {
       toast({
         title: "Error",
         description: "Failed to load cart items",
         variant: "destructive",
       });
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [error, toast]);
 
   const fetchRecommendedProducts = async (currentCartItems: CartItem[]) => {
     setLoadingRecommended(true);
@@ -143,13 +146,21 @@ const Cart = () => {
 
       if (currentCartItems.length > 0) {
         // Get categories from cart items for "You might also like"
-        const categories = [...new Set(currentCartItems.map(item => item.products.category))];
-        const productIds = currentCartItems.map(item => item.products.id);
+        const categories = [...new Set(currentCartItems
+          .filter(item => item.products?.category)
+          .map(item => item.products.category))];
+        const productIds = currentCartItems
+          .filter(item => item.products?.id)
+          .map(item => item.products.id);
         
-        query = query
-          .in('category', categories)
-          .not('id', 'in', `(${productIds.join(',')})`)
-          .order('created_at', { ascending: false });
+        if (categories.length > 0 && productIds.length > 0) {
+          query = query
+            .in('category', categories)
+            .not('id', 'in', `(${productIds.join(',')})`)
+            .order('created_at', { ascending: false });
+        } else {
+          query = query.order('created_at', { ascending: false });
+        }
       } else {
         // Get popular/recent products for empty cart
         query = query.order('created_at', { ascending: false });
@@ -159,27 +170,29 @@ const Cart = () => {
       if (error) throw error;
 
       // Transform the data to match our Product interface
-      const transformedData = (data || []).map(item => ({
-        id: item.id,
-        title: item.title,
-        description: item.description || '',
-        price: item.price,
-        category: item.category,
-        campus: item.campus || 'Unknown Campus',
-        condition: item.condition,
-        images: item.images || [],
-        seller_id: item.seller_id,
-        stock_quantity: item.stock_quantity,
-        seller: item.profiles ? {
-          full_name: item.profiles.full_name,
-          rating: item.profiles.rating,
-          is_verified: item.profiles.is_verified
-        } : {
-          full_name: 'Unknown Seller',
-          rating: 0,
-          is_verified: false
-        }
-      }));
+      const transformedData = (data || [])
+        .filter(item => item && item.id && item.title && item.images && item.images.length > 0)
+        .map(item => ({
+          id: item.id,
+          title: item.title,
+          description: item.description || '',
+          price: item.price || 0,
+          category: item.category || 'Other',
+          campus: item.campus || 'Unknown Campus',
+          condition: item.condition || 'good',
+          images: item.images || [],
+          seller_id: item.seller_id,
+          stock_quantity: item.stock_quantity || 0,
+          seller: item.profiles ? {
+            full_name: item.profiles.full_name || 'Unknown Seller',
+            rating: item.profiles.rating || 0,
+            is_verified: item.profiles.is_verified || false
+          } : {
+            full_name: 'Unknown Seller',
+            rating: 0,
+            is_verified: false
+          }
+        }));
 
       setRecommendedProducts(transformedData);
     } catch (error) {
@@ -243,17 +256,20 @@ const Cart = () => {
   };
 
   const getTotalPrice = () => {
-    return cartItems.reduce((total, item) => 
-      total + (item.products.price * item.quantity), 0
-    );
+    return cartItems
+      .filter(item => item.products?.price)
+      .reduce((total, item) => total + ((item.products?.price || 0) * item.quantity), 0);
   };
 
   const getTotalItems = () => {
-    return cartItems.reduce((total, item) => total + item.quantity, 0);
+    return cartItems
+      .filter(item => item.products && item.products.id)
+      .reduce((total, item) => total + item.quantity, 0);
   };
 
   const proceedToCheckout = () => {
-    if (cartItems.length === 0) {
+    const validItems = cartItems.filter(item => item.products && item.products.id);
+    if (validItems.length === 0) {
       toast({
         title: "Empty cart",
         description: "Add some items to your cart first",
@@ -331,7 +347,27 @@ const Cart = () => {
     }
   };
 
-  if (loading) {
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <main className="container mx-auto px-4 py-8">
+          <Card>
+            <CardContent className="p-8 text-center">
+              <ShoppingCart className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+              <h3 className="text-xl font-semibold mb-2">Sign in to view your cart</h3>
+              <p className="text-muted-foreground mb-6">Please sign in to access your shopping cart</p>
+              <Button variant="brand" asChild>
+                <a href="/auth">Sign In</a>
+              </Button>
+            </CardContent>
+          </Card>
+        </main>
+      </div>
+    );
+  }
+
+  if (isLoading && cartItems.length === 0) {
     return (
       <div className="min-h-screen bg-background">
         <Header />
@@ -400,24 +436,44 @@ const Cart = () => {
                 {cartItems.map((item) => (
                   <Card key={item.id}>
                     <CardContent className="p-4 sm:p-6">
+                      {!item.products ? (
+                        <div className="flex items-center gap-3 p-4 bg-muted rounded">
+                          <Package className="h-8 w-8 text-muted-foreground" />
+                          <div>
+                            <p className="font-medium text-muted-foreground">Product no longer available</p>
+                            <p className="text-xs text-muted-foreground">This item has been removed or is no longer available</p>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => removeFromCart(item.id)}
+                              className="mt-2"
+                            >
+                              Remove from cart
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
                       <div className="flex gap-3 sm:gap-4">
-                        {item.products.images && item.products.images[0] && (
+                        {item.products?.images?.[0] && (
                           <img
                             src={item.products.images[0]}
-                            alt={item.products.title}
+                            alt={item.products?.title || 'Product image'}
                             className="w-16 h-16 sm:w-20 sm:h-20 object-cover rounded flex-shrink-0"
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none';
+                            }}
                           />
                         )}
                         
                         <div className="flex-1 min-w-0">
                           <div className="flex items-start justify-between mb-2 gap-2">
                             <div className="min-w-0 flex-1">
-                              <h3 className="font-semibold text-base sm:text-lg line-clamp-2">{item.products.title}</h3>
+                              <h3 className="font-semibold text-base sm:text-lg line-clamp-2">{item.products?.title || 'Unknown Product'}</h3>
                               <p className="text-xs sm:text-sm text-muted-foreground truncate">
-                                by {item.products.profiles?.full_name}
+                                by {item.products?.profiles?.full_name || 'Unknown Seller'}
                               </p>
                               <Badge variant="outline" className="mt-1 text-xs">
-                                {item.products.condition}
+                                {item.products?.condition?.replace('_', ' ') || 'Unknown'}
                               </Badge>
                             </div>
                             <Button
@@ -447,26 +503,27 @@ const Cart = () => {
                                 size="icon"
                                 className="h-7 w-7 sm:h-8 sm:w-8"
                                 onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                                disabled={item.quantity >= item.products.stock_quantity}
+                                disabled={item.quantity >= (item.products?.stock_quantity || 0)}
                               >
                                 <Plus className="h-3 w-3" />
                               </Button>
                               <span className="text-xs text-muted-foreground ml-2">
-                                ({item.products.stock_quantity} available)
+                                ({Math.max(0, (item.products?.stock_quantity || 0))} available)
                               </span>
                             </div>
 
                             <div className="text-right">
                               <div className="text-base sm:text-lg font-bold">
-                                ₦{(item.products.price * item.quantity).toLocaleString()}
+                                ₦{((item.products?.price || 0) * item.quantity).toLocaleString()}
                               </div>
                               <div className="text-xs sm:text-sm text-muted-foreground">
-                                ₦{item.products.price.toLocaleString()} each
+                                ₦{(item.products?.price || 0).toLocaleString()} each
                               </div>
                             </div>
                           </div>
                         </div>
                       </div>
+                      )}
                     </CardContent>
                   </Card>
                 ))}

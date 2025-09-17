@@ -12,12 +12,20 @@ serve(async (req) => {
   }
 
   try {
-    const { email, name, type } = await req.json()
+    const { email, name, type, subject: customSubject, message: customMessage } = await req.json()
 
     let subject = ''
     let html = ''
 
-    if (type === 'approved') {
+    if (type === 'custom') {
+      subject = customSubject || 'Message from CampusConnect Admin'
+      html = `
+        <h2>Message from CampusConnect Admin</h2>
+        <p>Hello ${name},</p>
+        <div style="white-space: pre-line; margin: 20px 0;">${customMessage}</div>
+        <p>Best regards,<br>CampusConnect Admin Team</p>
+      `
+    } else if (type === 'approved') {
       subject = 'Seller Account Approved - CampusConnect'
       html = `
         <h2>Congratulations! Your Seller Account is Approved 🎉</h2>

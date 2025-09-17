@@ -47,12 +47,17 @@ export const useCartCount = () => {
     try {
       const { data, error } = await supabase
         .from('cart')
-        .select('quantity')
+        .select(`
+          quantity,
+          products!inner(id)
+        `)
         .eq('user_id', user.id);
 
       if (error) throw error;
 
-      const totalItems = data?.reduce((sum, item) => sum + item.quantity, 0) || 0;
+      // Only count items that have valid products
+      const validItems = data?.filter(item => item.products?.id) || [];
+      const totalItems = validItems.reduce((sum, item) => sum + item.quantity, 0);
       setCartCount(totalItems);
     } catch (error) {
       console.error('Error fetching cart count:', error);
