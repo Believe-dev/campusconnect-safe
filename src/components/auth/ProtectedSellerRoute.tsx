@@ -27,7 +27,7 @@ const ProtectedSellerRoute = ({ children }: ProtectedSellerRouteProps) => {
 
       const { data: profile, error } = await supabase
         .from('profiles')
-        .select('account_type, verification_status')
+        .select('account_type, seller_status')
         .eq('user_id', user.id)
         .single();
 
