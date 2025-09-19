@@ -42,6 +42,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { toast } from 'sonner';
 import Header from '@/components/layout/Header';
+import { triggerProfileUpdate } from '@/utils/realTimeEvents';
 
 interface User {
   id: string;
@@ -174,6 +175,7 @@ export default function Admin() {
   
   // Modal states
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [showBulkActions, setShowBulkActions] = useState(false);
 
@@ -308,8 +310,12 @@ export default function Admin() {
       return filePath;
     }
     
-    // Build public URL - this should work if bucket is public
-    return `https://ssqplkrxtrvfptrsnpow.supabase.co/storage/v1/object/public/verification-photos/${filePath}`;
+    // Get public URL using Supabase client
+    const { data } = supabase.storage
+      .from('verification-photos')
+      .getPublicUrl(filePath);
+    
+    return data.publicUrl;
   };
 
   const fetchVerificationRequests = async () => {
@@ -376,15 +382,30 @@ export default function Admin() {
 
   const approveSeller = async (userId: string, userEmail: string, fullName: string) => {
     try {
-      // Simple approval - just update verification status
+      // Update both seller status and account type
       const { error: profileError } = await supabase
         .from('profiles')
         .update({ 
-          seller_status: 'approved'
+          seller_status: 'approved',
+          account_type: 'seller'
         })
         .eq('user_id', userId);
 
       if (profileError) throw profileError;
+
+      // Add seller role
+      const { error: roleError } = await supabase
+        .from('user_roles')
+        .upsert({ 
+          user_id: userId, 
+          role: 'seller' 
+        }, { 
+          onConflict: 'user_id,role' 
+        });
+
+      if (roleError) {
+        console.warn('Failed to add seller role:', roleError);
+      }
 
       // Create in-app notification
       const { error: notifError } = await supabase
@@ -434,6 +455,9 @@ export default function Admin() {
       toast.success('Seller approved successfully');
       fetchPendingSellers();
       fetchUsers();
+      
+      // Trigger real-time profile update for the approved seller
+      triggerProfileUpdate();
     } catch (error) {
       console.error('Approve seller error:', error);
       toast.error('Failed to approve seller');
@@ -508,6 +532,9 @@ export default function Admin() {
       toast.success('Seller application rejected');
       fetchPendingSellers();
       fetchUsers();
+      
+      // Trigger real-time profile update for the rejected seller
+      triggerProfileUpdate();
     } catch (error) {
       console.error('Reject seller error:', error);
       toast.error('Failed to reject seller');
@@ -772,6 +799,24 @@ export default function Admin() {
     }
   };
 
+  const updateUserDetails = async (userId: string, updates: Partial<User>) => {
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update(updates)
+        .eq('user_id', userId);
+
+      if (error) throw error;
+
+      toast.success('User details updated successfully');
+      fetchUsers();
+      setEditingUser(null);
+    } catch (error) {
+      console.error('Update user details error:', error);
+      toast.error('Failed to update user details');
+    }
+  };
+
   const approveVerification = async (requestId: string, userId: string, userEmail: string, fullName: string) => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -850,7 +895,7 @@ export default function Admin() {
     }
   };
 
-  const rejectVerification = async (requestId: string, userId: string, userEmail: string, fullName: string) => {
+  const rejectVerification = async (requestId: string, userId: string, userEmail: string, fullName: string, rejectionReason: string) => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
@@ -861,19 +906,20 @@ export default function Admin() {
         .update({ 
           status: 'rejected',
           reviewed_by: user.id,
-          reviewed_at: new Date().toISOString()
+          reviewed_at: new Date().toISOString(),
+          rejection_reason: rejectionReason
         })
         .eq('id', requestId);
 
       if (error) throw error;
 
-      // Send notification
+      // Send notification with rejection reason
       const { error: notifError } = await supabase
         .from('notifications')
         .insert({
           user_id: userId,
-          title: 'Verification Request Update',
-          message: 'Your verification request was not approved at this time. You can reapply later.',
+          title: 'Verification Request Rejected',
+          message: `Your verification request was rejected. Reason: ${rejectionReason}. You can reapply after addressing the issues.`,
           type: 'warning'
         });
       
@@ -892,7 +938,7 @@ export default function Admin() {
           await supabase.from('notifications').insert({
             user_id: admin.user_id,
             title: 'Verification Rejected',
-            message: `${fullName}'s verification request has been rejected`,
+            message: `${fullName}'s verification request has been rejected: ${rejectionReason}`,
             type: 'warning'
           });
         }
@@ -964,6 +1010,23 @@ export default function Admin() {
     } catch (error) {
       console.error('Delete product error:', error);
       toast.error('Failed to delete product');
+    }
+  };
+
+  const deleteMessage = async (messageId: string) => {
+    try {
+      const { error } = await supabase
+        .from('messages')
+        .delete()
+        .eq('id', messageId);
+
+      if (error) throw error;
+
+      toast.success('Message deleted successfully');
+      fetchMessages();
+    } catch (error) {
+      console.error('Delete message error:', error);
+      toast.error('Failed to delete message');
     }
   };
 
@@ -1341,71 +1404,230 @@ export default function Admin() {
                                     size="sm"
                                     onClick={() => setSelectedUser(user)}
                                   >
-                                    <Edit className="h-4 w-4" />
+                                    <Eye className="h-4 w-4" />
                                   </Button>
                                 </DialogTrigger>
-                                <DialogContent>
+                                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                                   <DialogHeader>
-                                    <DialogTitle>Edit User</DialogTitle>
+                                    <DialogTitle>User Details - {selectedUser?.full_name}</DialogTitle>
                                   </DialogHeader>
-                                  <div className="space-y-4">
-                                    <div>
-                                      <Label>Name: {selectedUser?.full_name}</Label>
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    {/* User Info */}
+                                    <div className="space-y-4">
+                                      <div className="flex items-center gap-4">
+                                        <Avatar className="h-16 w-16">
+                                          <AvatarImage src={selectedUser?.avatar_url} />
+                                          <AvatarFallback className="bg-university-green text-white">
+                                            {selectedUser?.full_name ? selectedUser.full_name.split(' ').map(n => n[0]).join('').slice(0, 2) : 'U'}
+                                          </AvatarFallback>
+                                        </Avatar>
+                                        <div>
+                                          <h3 className="font-semibold text-lg">{selectedUser?.full_name}</h3>
+                                          <p className="text-muted-foreground">{selectedUser?.email}</p>
+                                          <div className="flex gap-2 mt-1">
+                                            <Badge variant="outline">{selectedUser?.account_type}</Badge>
+                                            {selectedUser?.is_verified && <Badge variant="secondary">Verified</Badge>}
+                                            {selectedUser?.is_banned && <Badge variant="destructive">Banned</Badge>}
+                                          </div>
+                                        </div>
+                                      </div>
+                                      
+                                      <div className="grid grid-cols-2 gap-4 text-sm">
+                                        <div>
+                                          <Label className="font-medium">University</Label>
+                                          <p>{selectedUser?.university_name || 'Not set'}</p>
+                                        </div>
+                                        <div>
+                                          <Label className="font-medium">Campus</Label>
+                                          <p>{selectedUser?.campus || 'Not set'}</p>
+                                        </div>
+                                        <div>
+                                          <Label className="font-medium">Student ID</Label>
+                                          <p>{selectedUser?.student_id || 'Not set'}</p>
+                                        </div>
+                                        <div>
+                                          <Label className="font-medium">Phone</Label>
+                                          <p>{selectedUser?.phone_number || 'Not set'}</p>
+                                        </div>
+                                        <div>
+                                          <Label className="font-medium">Joined</Label>
+                                          <p>{selectedUser?.created_at ? new Date(selectedUser.created_at).toLocaleDateString() : 'Unknown'}</p>
+                                        </div>
+                                        <div>
+                                          <Label className="font-medium">Role</Label>
+                                          <p>{selectedUser?.user_roles?.[0]?.role || 'buyer'}</p>
+                                        </div>
+                                      </div>
+                                      
+                                      {selectedUser?.bio && (
+                                        <div>
+                                          <Label className="font-medium">Bio</Label>
+                                          <p className="text-sm text-muted-foreground">{selectedUser.bio}</p>
+                                        </div>
+                                      )}
                                     </div>
-                                    <div>
-                                      <Label>Email: {selectedUser?.email}</Label>
+                                    
+                                    {/* Photos */}
+                                    <div className="space-y-4">
+                                      <div>
+                                        <Label className="font-medium mb-2 block">Profile Photo</Label>
+                                        {selectedUser?.avatar_url ? (
+                                          <img 
+                                            src={selectedUser.avatar_url} 
+                                            alt="Profile" 
+                                            className="w-full max-w-xs h-auto rounded border"
+                                          />
+                                        ) : (
+                                          <p className="text-muted-foreground text-sm">No profile photo</p>
+                                        )}
+                                      </div>
+                                      
+                                      <div>
+                                        <Label className="font-medium mb-2 block">Student ID Card</Label>
+                                        {selectedUser?.student_id_photo_url ? (
+                                          <img 
+                                            src={getImageUrl(selectedUser.student_id_photo_url)} 
+                                            alt="Student ID" 
+                                            className="w-full max-w-xs h-auto rounded border"
+                                            onError={(e) => {
+                                              console.error('Failed to load student ID photo:', selectedUser.student_id_photo_url);
+                                              const target = e.currentTarget as HTMLImageElement;
+                                              target.style.display = 'none';
+                                            }}
+                                          />
+                                        ) : (
+                                          <p className="text-muted-foreground text-sm">No student ID photo</p>
+                                        )}
+                                      </div>
+                                      
+                                      {selectedUser?.face_photo_url && (
+                                        <div>
+                                          <Label className="font-medium mb-2 block">Face Verification Photo</Label>
+                                          <img 
+                                            src={getImageUrl(selectedUser.face_photo_url)} 
+                                            alt="Face verification" 
+                                            className="w-full max-w-xs h-auto rounded border"
+                                            onError={(e) => {
+                                              console.error('Failed to load face photo:', selectedUser.face_photo_url);
+                                              const target = e.currentTarget as HTMLImageElement;
+                                              target.style.display = 'none';
+                                            }}
+                                          />
+                                        </div>
+                                      )}
                                     </div>
-                                    <div>
-                                      <Label htmlFor="role">Role</Label>
-                                      <Select onValueChange={(value: 'admin' | 'seller' | 'buyer') => updateUserRole(user.user_id, value)}>
-                                        <SelectTrigger>
-                                          <SelectValue placeholder="Select role" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                          <SelectItem value="buyer">Buyer</SelectItem>
-                                          <SelectItem value="seller">Seller</SelectItem>
-                                          <SelectItem value="admin">Admin</SelectItem>
-                                        </SelectContent>
-                                      </Select>
-                                    </div>
-                                    <div className="flex items-center space-x-2">
-                                      <Button
-                                        variant={user.is_verified ? "outline" : "default"}
-                                        size="sm"
-                                        onClick={() => toggleUserVerification(user.user_id, user.is_verified, user.email, user.full_name)}
-                                      >
-                                        <Shield className="h-4 w-4 mr-2" />
-                                        {user.is_verified ? 'Remove Verification' : 'Verify User'}
-                                      </Button>
-                                    </div>
+                                  </div>
+                                  
+                                  {/* Actions */}
+                                  <div className="flex gap-2 mt-6 pt-4 border-t">
+                                    <Select onValueChange={(value: 'admin' | 'seller' | 'buyer') => updateUserRole(user.user_id, value)}>
+                                      <SelectTrigger className="w-40">
+                                        <SelectValue placeholder="Change role" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="buyer">Buyer</SelectItem>
+                                        <SelectItem value="seller">Seller</SelectItem>
+                                        <SelectItem value="admin">Admin</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                    
+                                    <Button
+                                      variant={user.is_verified ? "outline" : "default"}
+                                      size="sm"
+                                      onClick={() => toggleUserVerification(user.user_id, user.is_verified, user.email, user.full_name)}
+                                    >
+                                      <Shield className="h-4 w-4 mr-2" />
+                                      {user.is_verified ? 'Remove Verification' : 'Verify User'}
+                                    </Button>
+                                    
+                                    <Button
+                                      variant={user.is_banned ? "outline" : "destructive"}
+                                      size="sm"
+                                      onClick={() => toggleUserBan(user.user_id, user.is_banned)}
+                                    >
+                                      <Ban className="h-4 w-4 mr-2" />
+                                      {user.is_banned ? 'Unban' : 'Ban'} User
+                                    </Button>
                                   </div>
                                 </DialogContent>
                               </Dialog>
-                              <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                  <Button variant="outline" size="sm">
-                                    <Ban className="h-4 w-4" />
-                                  </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                  <AlertDialogHeader>
-                                    <AlertDialogTitle>
-                                      {user.is_banned ? 'Unban' : 'Ban'} User
-                                    </AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                      Are you sure you want to {user.is_banned ? 'unban' : 'ban'} {user.full_name}?
-                                    </AlertDialogDescription>
-                                  </AlertDialogHeader>
-                                  <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                    <AlertDialogAction
-                                      onClick={() => toggleUserBan(user.user_id, user.is_banned)}
-                                    >
-                                      {user.is_banned ? 'Unban' : 'Ban'}
-                                    </AlertDialogAction>
-                                  </AlertDialogFooter>
-                                </AlertDialogContent>
-                              </AlertDialog>
+                              
+                              {/* Edit User Dialog */}
+                              <Dialog open={editingUser?.user_id === user.user_id} onOpenChange={() => setEditingUser(null)}>
+                                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                                  <DialogHeader>
+                                    <DialogTitle>Edit User - {editingUser?.full_name}</DialogTitle>
+                                  </DialogHeader>
+                                  {editingUser && (
+                                    <form onSubmit={(e) => {
+                                      e.preventDefault();
+                                      const formData = new FormData(e.currentTarget);
+                                      const updates = {
+                                        full_name: formData.get('full_name') as string,
+                                        email: formData.get('email') as string,
+                                        university_name: formData.get('university_name') as string,
+                                        campus: formData.get('campus') as string,
+                                        bio: formData.get('bio') as string,
+                                        phone_number: formData.get('phone_number') as string,
+                                        student_id: formData.get('student_id') as string,
+                                        rating: parseFloat(formData.get('rating') as string) || 0,
+                                        total_reviews: parseInt(formData.get('total_reviews') as string) || 0
+                                      };
+                                      updateUserDetails(editingUser.user_id, updates);
+                                    }} className="space-y-4">
+                                      <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                          <Label htmlFor="full_name">Full Name</Label>
+                                          <Input name="full_name" defaultValue={editingUser.full_name} required />
+                                        </div>
+                                        <div>
+                                          <Label htmlFor="email">Email</Label>
+                                          <Input name="email" type="email" defaultValue={editingUser.email} required />
+                                        </div>
+                                        <div>
+                                          <Label htmlFor="university_name">University</Label>
+                                          <Input name="university_name" defaultValue={editingUser.university_name} />
+                                        </div>
+                                        <div>
+                                          <Label htmlFor="campus">Campus</Label>
+                                          <Input name="campus" defaultValue={editingUser.campus} />
+                                        </div>
+                                        <div>
+                                          <Label htmlFor="phone_number">Phone Number</Label>
+                                          <Input name="phone_number" defaultValue={editingUser.phone_number} />
+                                        </div>
+                                        <div>
+                                          <Label htmlFor="student_id">Student ID</Label>
+                                          <Input name="student_id" defaultValue={editingUser.student_id} />
+                                        </div>
+                                        <div>
+                                          <Label htmlFor="rating">Rating</Label>
+                                          <Input name="rating" type="number" step="0.1" min="0" max="5" defaultValue={editingUser.rating} />
+                                        </div>
+                                        <div>
+                                          <Label htmlFor="total_reviews">Total Reviews</Label>
+                                          <Input name="total_reviews" type="number" min="0" defaultValue={editingUser.total_reviews} />
+                                        </div>
+                                      </div>
+                                      <div>
+                                        <Label htmlFor="bio">Bio</Label>
+                                        <Textarea name="bio" defaultValue={editingUser.bio} rows={3} />
+                                      </div>
+                                      <div className="flex justify-end gap-2">
+                                        <Button type="button" variant="outline" onClick={() => setEditingUser(null)}>Cancel</Button>
+                                        <Button type="submit">Save Changes</Button>
+                                      </div>
+                                    </form>
+                                  )}
+                                </DialogContent>
+                              </Dialog>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setEditingUser(user)}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
                             </div>
                           </TableCell>
                         </TableRow>
@@ -1991,31 +2213,50 @@ export default function Admin() {
                                   </AlertDialogContent>
                                 </AlertDialog>
                                 
-                                <AlertDialog>
-                                  <AlertDialogTrigger asChild>
+                                <Dialog>
+                                  <DialogTrigger asChild>
                                     <Button variant="outline" size="sm">
                                       <UserX className="h-4 w-4 mr-1" />
                                       Reject
                                     </Button>
-                                  </AlertDialogTrigger>
-                                  <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                      <AlertDialogTitle>Reject Verification Request</AlertDialogTitle>
-                                      <AlertDialogDescription>
-                                        Are you sure you want to reject {user.full_name}'s verification request? 
-                                        They will not receive a verification badge at this time.
-                                      </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                      <AlertDialogAction 
-                                        onClick={() => rejectVerification(user.id, user.user_id, user.email, user.full_name || 'User')}
-                                      >
-                                        Reject
-                                      </AlertDialogAction>
-                                    </AlertDialogFooter>
-                                  </AlertDialogContent>
-                                </AlertDialog>
+                                  </DialogTrigger>
+                                  <DialogContent>
+                                    <DialogHeader>
+                                      <DialogTitle>Reject Verification Request</DialogTitle>
+                                      <DialogDescription>
+                                        Provide a reason for rejecting {user.full_name}'s verification request.
+                                      </DialogDescription>
+                                    </DialogHeader>
+                                    <form onSubmit={(e) => {
+                                      e.preventDefault();
+                                      const formData = new FormData(e.currentTarget);
+                                      const reason = formData.get('rejection_reason') as string;
+                                      if (reason.trim()) {
+                                        rejectVerification(user.id, user.user_id, user.email, user.full_name || 'User', reason.trim());
+                                      }
+                                    }}>
+                                      <div className="space-y-4">
+                                        <div>
+                                          <Label htmlFor="rejection_reason">Rejection Reason *</Label>
+                                          <Textarea
+                                            name="rejection_reason"
+                                            placeholder="e.g., Photo quality is poor, Student ID is not clear, Additional verification needed..."
+                                            required
+                                            rows={3}
+                                          />
+                                        </div>
+                                        <div className="flex justify-end gap-2">
+                                          <DialogTrigger asChild>
+                                            <Button type="button" variant="outline">Cancel</Button>
+                                          </DialogTrigger>
+                                          <Button type="submit" variant="destructive">
+                                            Reject Request
+                                          </Button>
+                                        </div>
+                                      </div>
+                                    </form>
+                                  </DialogContent>
+                                </Dialog>
                               </div>
                             </TableCell>
                           </TableRow>
@@ -2230,9 +2471,35 @@ export default function Admin() {
                           </TableCell>
                           <TableCell>{new Date(message.created_at).toLocaleString()}</TableCell>
                           <TableCell>
-                            <Button variant="outline" size="sm">
-                              <Eye className="h-4 w-4" />
-                            </Button>
+                            <div className="flex gap-2">
+                              <Button variant="outline" size="sm">
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button variant="outline" size="sm">
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Delete Message</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      Are you sure you want to delete this message? This action cannot be undone.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction
+                                      onClick={() => deleteMessage(message.id)}
+                                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                    >
+                                      Delete
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}

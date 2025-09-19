@@ -1,13 +1,11 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { Book, Laptop, Shirt, Utensils, MapPin, ShoppingBag } from 'lucide-react';
-import { CATEGORIES, CAMPUSES } from '@/lib/constants';
+import { Book, Laptop, Shirt, Utensils, ShoppingBag, Dumbbell, Home, PenTool, Users } from 'lucide-react';
+import { CATEGORIES } from '@/lib/constants';
 
 interface ProductFiltersProps {
   selectedCategory: string;
-  selectedCampus: string;
   onCategoryChange: (category: string) => void;
-  onCampusChange: (campus: string) => void;
 }
 
 const categoryIcons = {
@@ -16,62 +14,46 @@ const categoryIcons = {
   Shirt,
   Utensils,
   ShoppingBag,
+  Dumbbell,
+  Home,
+  PenTool,
+  Users,
 };
 
 export const ProductFilters: React.FC<ProductFiltersProps> = ({
   selectedCategory,
-  selectedCampus,
   onCategoryChange,
-  onCampusChange,
 }) => {
   const categories = [
-    { id: 'all', name: 'All Categories', icon: 'ShoppingBag' },
+    { id: 'all', name: 'All Categories', icon: 'ShoppingBag', keywords: [] },
     ...CATEGORIES,
   ];
 
-  const campuses = [
-    { id: 'all', name: 'All Campuses' },
-    ...CAMPUSES,
-  ];
-
   return (
-    <div className="flex flex-col gap-4 mb-6 sm:mb-8">
+    <div className="mb-6 sm:mb-8">
       {/* Categories */}
       <div className="overflow-x-auto">
         <div className="flex gap-2 pb-2 min-w-max">
           {categories.map((category) => {
             const IconComponent = categoryIcons[category.icon as keyof typeof categoryIcons] || ShoppingBag;
+            const isActive = selectedCategory === category.id;
             return (
               <Button
                 key={category.id}
-                variant={selectedCategory === category.id ? "marketplace" : "outline"}
+                variant={isActive ? "default" : "outline"}
                 size="sm"
                 onClick={() => onCategoryChange(category.id)}
-                className="gap-2 flex-shrink-0"
+                className={`gap-2 flex-shrink-0 micro-bounce hover-lift transition-all duration-200 hover:scale-105 ${
+                  isActive 
+                    ? 'bg-gradient-to-r from-primary to-primary/90 text-primary-foreground shadow-md' 
+                    : 'hover:bg-primary/5 hover:text-primary hover:border-primary/30'
+                }`}
               >
                 <IconComponent className="h-3 w-3 sm:h-4 sm:w-4" />
-                <span className="text-xs sm:text-sm">{category.name}</span>
+                <span className="text-xs sm:text-sm font-medium whitespace-nowrap">{category.name}</span>
               </Button>
             );
           })}
-        </div>
-      </div>
-      
-      {/* Campus Filter */}
-      <div className="overflow-x-auto">
-        <div className="flex gap-2 pb-2 min-w-max">
-          {campuses.map((campus) => (
-            <Button
-              key={campus.id}
-              variant={selectedCampus === campus.id ? "marketplace" : "outline"}
-              size="sm"
-              onClick={() => onCampusChange(campus.id)}
-              className="gap-2 flex-shrink-0"
-            >
-              <MapPin className="h-3 w-3" />
-              <span className="text-xs sm:text-sm">{campus.name}</span>
-            </Button>
-          ))}
         </div>
       </div>
     </div>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/enhanced-button';
@@ -8,8 +8,9 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
-import { Shield, Upload } from 'lucide-react';
+import { Shield, Upload, AlertCircle } from 'lucide-react';
 import Header from '@/components/layout/Header';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 const VerificationRequest = () => {
   const { user } = useAuth();
@@ -18,74 +19,45 @@ const VerificationRequest = () => {
   const [loading, setLoading] = useState(false);
   const [documents, setDocuments] = useState<File[]>([]);
   const [reason, setReason] = useState('');
-  const [studentIdPhoto, setStudentIdPhoto] = useState<File | null>(null);
-  const [hasStudentIdPhoto, setHasStudentIdPhoto] = useState(false);
+  const [profile, setProfile] = useState<any>(null);
+  const [canRequest, setCanRequest] = useState(false);
+
+  useEffect(() => {
+    if (user) {
+      checkProfile();
+    }
+  }, [user]);
+
+  const checkProfile = async () => {
+    if (!user) return;
+
+    const { data: profileData } = await supabase
+      .from('profiles')
+      .select('full_name, university_name, student_id, phone_number, account_type, student_id_photo_url, avatar_url')
+      .eq('user_id', user.id)
+      .single();
+
+    if (profileData) {
+      setProfile(profileData);
+      
+      const hasRequiredFields = profileData.full_name && 
+                               profileData.university_name && 
+                               profileData.phone_number &&
+                               (profileData.account_type === 'seller' || profileData.account_type === 'both');
+      
+      const hasPhotos = profileData.avatar_url && profileData.student_id_photo_url;
+      
+      setCanRequest(hasRequiredFields && hasPhotos);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !reason.trim()) return;
 
-    // Check if user has complete profile
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('full_name, university_name, student_id, phone_number, account_type, student_id_photo_url')
-      .eq('user_id', user.id)
-      .single();
-
-    if (!profile) {
-      toast({
-        title: "Error",
-        description: "Profile not found. Please try again.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Check required fields (student_id is optional)
-    const missingFields = [];
-    if (!profile.full_name) missingFields.push('Full Name');
-    if (!profile.university_name) missingFields.push('University');
-    if (!profile.phone_number) missingFields.push('Phone Number');
-    
-    if (missingFields.length > 0) {
-      toast({
-        title: "Complete Your Profile",
-        description: `Please fill in: ${missingFields.join(', ')}`,
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (profile.account_type === 'buyer') {
-      toast({
-        title: "Sellers Only",
-        description: "Only sellers can request verification.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setHasStudentIdPhoto(!!profile.student_id_photo_url);
-
     setLoading(true);
     try {
-      // Upload student ID photo if provided
-      if (studentIdPhoto) {
-        const fileExt = studentIdPhoto.name.split('.').pop();
-        const fileName = `${user.id}/student_id-${Date.now()}.${fileExt}`;
-        
-        const { data, error } = await supabase.storage
-          .from('verification-photos')
-          .upload(fileName, studentIdPhoto);
-        
-        if (error) throw error;
-        
-        // Update profile with student ID photo
-        await supabase
-          .from('profiles')
-          .update({ student_id_photo_url: data.path })
-          .eq('user_id', user.id);
-      }
+
       
       // Upload documents if any
       const documentUrls = [];
@@ -127,7 +99,7 @@ const VerificationRequest = () => {
           const { error: adminNotifError } = await supabase.from('notifications').insert({
             user_id: admin.user_id,
             title: 'New Verification Request 📝',
-            message: `${profile.full_name} has requested verification: ${reason.substring(0, 50)}...`,
+            message: `${profile?.full_name || 'User'} has requested verification: ${reason.substring(0, 50)}...`,
             type: 'info'
           });
           
@@ -179,53 +151,80 @@ const VerificationRequest = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <Label htmlFor="reason">Reason for Verification</Label>
-                <Textarea
-                  id="reason"
-                  placeholder="Explain why you need verification (e.g., I'm a trusted seller, student representative, etc.)"
-                  value={reason}
-                  onChange={(e) => setReason(e.target.value)}
-                  required
-                />
+            {!canRequest ? (
+              <div className="space-y-4">
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    You need to complete your profile before requesting verification.
+                  </AlertDescription>
+                </Alert>
+                
+                <div className="space-y-2">
+                  <h3 className="font-medium">Required for Verification:</h3>
+                  <div className="space-y-1 text-sm">
+                    <p className={profile?.full_name ? 'text-green-600' : 'text-red-600'}>
+                      {profile?.full_name ? '✓' : '✗'} Complete profile information
+                    </p>
+                    <p className={profile?.avatar_url ? 'text-green-600' : 'text-red-600'}>
+                      {profile?.avatar_url ? '✓' : '✗'} Profile photo (will be used as face verification)
+                    </p>
+                    <p className={profile?.student_id_photo_url ? 'text-green-600' : 'text-red-600'}>
+                      {profile?.student_id_photo_url ? '✓' : '✗'} Student ID photo
+                    </p>
+                    <p className={(profile?.account_type === 'seller' || profile?.account_type === 'both') ? 'text-green-600' : 'text-red-600'}>
+                      {(profile?.account_type === 'seller' || profile?.account_type === 'both') ? '✓' : '✗'} Seller account
+                    </p>
+                  </div>
+                </div>
+                
+                <Button onClick={() => navigate('/profile')} className="w-full">
+                  Complete Profile
+                </Button>
               </div>
-              
-              {!hasStudentIdPhoto && (
+            ) : (
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="bg-muted/50 p-4 rounded-lg">
+                  <h3 className="font-medium mb-2">Verification Process</h3>
+                  <div className="space-y-2 text-sm text-muted-foreground">
+                    <p>✓ Your profile photo will be used as face verification</p>
+                    <p>✓ Your uploaded student ID will be used for identity verification</p>
+                    <p>• Only provide your reason and any additional supporting documents</p>
+                  </div>
+                </div>
+                
                 <div>
-                  <Label htmlFor="student-id">Student ID Photo *</Label>
-                  <Input
-                    id="student-id"
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => setStudentIdPhoto(e.target.files?.[0] || null)}
+                  <Label htmlFor="reason">Reason for Verification *</Label>
+                  <Textarea
+                    id="reason"
+                    placeholder="Explain why you need verification (e.g., I'm a trusted seller, student representative, active community member, etc.)"
+                    value={reason}
+                    onChange={(e) => setReason(e.target.value)}
                     required
+                    rows={4}
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="documents">Additional Supporting Documents (Optional)</Label>
+                  <Input
+                    id="documents"
+                    type="file"
+                    multiple
+                    accept="image/*,.pdf"
+                    onChange={(e) => setDocuments(Array.from(e.target.files || []))}
                   />
                   <p className="text-xs text-muted-foreground mt-1">
-                    Upload a clear photo of your student ID card
+                    Upload certificates, awards, or other documents that support your verification request
                   </p>
                 </div>
-              )}
-              
-              <div>
-                <Label htmlFor="documents">Supporting Documents (Optional)</Label>
-                <Input
-                  id="documents"
-                  type="file"
-                  multiple
-                  accept="image/*,.pdf"
-                  onChange={(e) => setDocuments(Array.from(e.target.files || []))}
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Upload certificates or other supporting documents
-                </p>
-              </div>
 
-              <Button type="submit" disabled={loading} className="w-full">
-                <Upload className="h-4 w-4 mr-2" />
-                {loading ? 'Submitting...' : 'Submit Request'}
-              </Button>
-            </form>
+                <Button type="submit" disabled={loading || !reason.trim()} className="w-full">
+                  <Upload className="h-4 w-4 mr-2" />
+                  {loading ? 'Submitting...' : 'Submit Verification Request'}
+                </Button>
+              </form>
+            )}
           </CardContent>
         </Card>
       </main>

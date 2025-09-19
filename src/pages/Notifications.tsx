@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -21,6 +21,7 @@ interface Notification {
 
 export default function Notifications() {
   const { user, loading } = useAuth();
+  const navigate = useNavigate();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loadingNotifications, setLoadingNotifications] = useState(true);
 
@@ -167,6 +168,24 @@ export default function Notifications() {
     }
   };
 
+  const handleNotificationClick = (notification: Notification) => {
+    markAsRead(notification.id);
+    
+    if (notification.type === 'order_shipped' || notification.type === 'order_delivered') {
+      navigate('/orders');
+    } else if (notification.type === 'new_message') {
+      navigate('/messages');
+    } else if (notification.type === 'seller_approved') {
+      navigate('/dashboard');
+    } else {
+      if (notification.message.toLowerCase().includes('order')) {
+        navigate('/orders');
+      } else if (notification.message.toLowerCase().includes('message')) {
+        navigate('/messages');
+      }
+    }
+  };
+
   const markAllAsRead = async () => {
     try {
       const { error } = await supabase
@@ -258,7 +277,13 @@ export default function Notifications() {
         ) : (
           <div className="space-y-4">
             {notifications.map((notification) => (
-              <Card key={notification.id} className={!notification.is_read ? 'ring-2 ring-primary/20' : ''}>
+              <Card 
+                key={notification.id} 
+                className={`cursor-pointer hover:shadow-md transition-shadow ${
+                  !notification.is_read ? 'ring-2 ring-primary/20' : ''
+                }`}
+                onClick={() => handleNotificationClick(notification)}
+              >
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
                     <div className="flex items-start gap-3">
@@ -279,7 +304,10 @@ export default function Notifications() {
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() => markAsRead(notification.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            markAsRead(notification.id);
+                          }}
                         >
                           <Check className="h-4 w-4" />
                         </Button>
@@ -287,7 +315,10 @@ export default function Notifications() {
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => deleteNotification(notification.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteNotification(notification.id);
+                        }}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>

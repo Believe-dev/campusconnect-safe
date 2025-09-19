@@ -27,9 +27,14 @@ export const useCartCount = () => {
           }
         )
         .subscribe();
+        
+      // Listen for custom cart update events
+      const handleCartUpdate = () => fetchCartCount();
+      window.addEventListener('cartUpdated', handleCartUpdate);
 
       return () => {
         supabase.removeChannel(channel);
+        window.removeEventListener('cartUpdated', handleCartUpdate);
       };
     } else {
       setCartCount(0);

@@ -8,6 +8,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Search as SearchIcon, Filter, SlidersHorizontal, ShoppingCart, MessageCircle } from 'lucide-react';
 import Header from '@/components/layout/Header';
 import ProductCard from '@/components/marketplace/ProductCard';
+import { expandSearchTerms } from '@/utils/searchUtils';
 
 interface SearchProduct {
   id: string;
@@ -73,7 +74,9 @@ const Search = () => {
       const { data: { user } } = await supabase.auth.getUser();
       setUser(user);
     } catch (error) {
-      console.error('Error checking auth:', error);
+      // Secure error logging
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('[AUTH_CHECK_ERROR]', errorMessage.replace(/[\r\n]/g, ''));
     }
   };
 
@@ -101,11 +104,11 @@ const Search = () => {
         `)
         .eq('is_active', true);
 
-      // Apply smart search query
+      // Apply enhanced search query with synonyms
       const searchTerm = searchParams.get('q') || searchQuery;
       if (searchTerm) {
-        const terms = searchTerm.toLowerCase().split(' ').filter(Boolean);
-        const searchConditions = terms.map(term => 
+        const expandedTerms = expandSearchTerms(searchTerm);
+        const searchConditions = expandedTerms.map(term => 
           `title.ilike.%${term}%,description.ilike.%${term}%,category.ilike.%${term}%,campus.ilike.%${term}%`
         ).join(',');
         query = query.or(searchConditions);
@@ -174,7 +177,9 @@ const Search = () => {
       
       setProducts(transformedData);
     } catch (error) {
-      console.error('Error searching products:', error);
+      // Secure error logging
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('[SEARCH_PRODUCTS_ERROR]', errorMessage.replace(/[\r\n]/g, ''));
     } finally {
       setLoading(false);
     }
@@ -243,10 +248,11 @@ const Search = () => {
         if (error) throw error;
       }
 
-      // Show success message (you might want to add toast here)
-      console.log('Added to cart successfully');
+      // Success - no logging needed for security
     } catch (error) {
-      console.error('Error adding to cart:', error);
+      // Secure error logging
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('[CART_ADD_ERROR]', errorMessage.replace(/[\r\n]/g, ''));
     }
   };
 
@@ -377,7 +383,7 @@ const Search = () => {
             {/* Results Grid */}
             <div className="lg:col-span-3">
               {loading ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                   {Array.from({ length: 6 }).map((_, i) => (
                     <div key={i} className="animate-pulse">
                       <div className="bg-muted aspect-square rounded-lg mb-2"></div>
@@ -398,7 +404,7 @@ const Search = () => {
                   </CardContent>
                 </Card>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                    {products.map(product => (
                      <ProductCard
                        key={product.id}

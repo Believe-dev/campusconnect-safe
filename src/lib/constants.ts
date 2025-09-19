@@ -8,10 +8,10 @@ export const APP_CONFIG = {
 
 export const API_CONFIG = {
   paystack: {
-    publicKey: 'pk_test_5fdf1c7e08e4950078f88266e68ede32e832baf7',
+    publicKey: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || 'pk_test_5fdf1c7e08e4950078f88266e68ede32e832baf7',
   },
   supabase: {
-    storageUrl: 'https://ssqplkrxtrvfptrsnpow.supabase.co/storage/v1/object/public',
+    storageUrl: import.meta.env.VITE_SUPABASE_STORAGE_URL || 'https://ssqplkrxtrvfptrsnpow.supabase.co/storage/v1/object/public',
   },
 } as const;
 
@@ -61,12 +61,14 @@ export const ROUTES = {
 } as const;
 
 export const CATEGORIES = [
-  { id: 'Books & Textbooks', name: 'Books', icon: 'Book' },
-  { id: 'Electronics', name: 'Electronics', icon: 'Laptop' },
-  { id: 'Fashion & Accessories', name: 'Fashion', icon: 'Shirt' },
-  { id: 'Food & Beverages', name: 'Food & Snacks', icon: 'Utensils' },
-  { id: 'Sports & Recreation', name: 'Sports', icon: 'Dumbbell' },
-  { id: 'Home & Living', name: 'Home', icon: 'Home' },
+  { id: 'books-textbooks', name: 'Books & Textbooks', icon: 'Book', keywords: ['book', 'textbook', 'novel', 'study', 'academic', 'literature', 'manual', 'guide'] },
+  { id: 'electronics', name: 'Electronics', icon: 'Laptop', keywords: ['laptop', 'phone', 'computer', 'tablet', 'headphone', 'speaker', 'charger', 'gadget', 'tech'] },
+  { id: 'fashion-accessories', name: 'Fashion & Accessories', icon: 'Shirt', keywords: ['clothes', 'shirt', 'dress', 'shoes', 'bag', 'watch', 'jewelry', 'fashion', 'style'] },
+  { id: 'food-beverages', name: 'Food & Beverages', icon: 'Utensils', keywords: ['food', 'snack', 'drink', 'beverage', 'meal', 'lunch', 'breakfast', 'dinner'] },
+  { id: 'sports-recreation', name: 'Sports & Recreation', icon: 'Dumbbell', keywords: ['sport', 'fitness', 'gym', 'exercise', 'ball', 'equipment', 'recreation', 'game'] },
+  { id: 'home-living', name: 'Home & Living', icon: 'Home', keywords: ['furniture', 'decor', 'kitchen', 'bedroom', 'living', 'home', 'appliance', 'household'] },
+  { id: 'stationery-supplies', name: 'Stationery & Supplies', icon: 'PenTool', keywords: ['pen', 'pencil', 'paper', 'notebook', 'stationery', 'supplies', 'office', 'writing'] },
+  { id: 'services', name: 'Services', icon: 'Users', keywords: ['service', 'tutoring', 'help', 'assistance', 'consultation', 'repair', 'maintenance'] }
 ] as const;
 
 export const CAMPUSES = [

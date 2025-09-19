@@ -67,7 +67,7 @@ const Sell = () => {
       if (error) throw error;
 
       setUserProfile(profile);
-      // Auto-populate campus from user's profile
+      // Auto-populate campus from user's profile - this cannot be changed
       if (profile.campus) {
         setFormData(prev => ({ ...prev, campus: profile.campus }));
       }
@@ -224,17 +224,17 @@ const Sell = () => {
                 </div>
 
                 <div>
-                  <Label htmlFor="campus">Campus</Label>
-                  <Select onValueChange={(value) => setFormData({ ...formData, campus: value })} value={formData.campus}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select campus" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {campuses.map(campus => (
-                        <SelectItem key={campus} value={campus}>{campus}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Label htmlFor="campus">University/Campus</Label>
+                  <Input
+                    id="campus"
+                    value={formData.campus || userProfile?.campus || 'Not set'}
+                    disabled
+                    className="bg-muted text-muted-foreground cursor-not-allowed"
+                    placeholder="Your university will appear here"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    University is set from your profile and cannot be changed here
+                  </p>
                 </div>
               </div>
 

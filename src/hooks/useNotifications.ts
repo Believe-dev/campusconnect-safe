@@ -49,9 +49,14 @@ export function useNotifications() {
         () => fetchUnreadCount()
       )
       .subscribe();
+      
+    // Listen for custom notification update events
+    const handleNotificationUpdate = () => fetchUnreadCount();
+    window.addEventListener('notificationsUpdated', handleNotificationUpdate);
 
     return () => {
       subscription.unsubscribe();
+      window.removeEventListener('notificationsUpdated', handleNotificationUpdate);
     };
   }, [user]);
 

@@ -2,124 +2,164 @@ import React, { Suspense } from 'react';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { useScrollToTop } from "@/hooks/useScrollToTop";
 import { useBackgroundSync } from "@/hooks/useBackgroundSync";
+import { useRealTimeUpdates } from "@/hooks/useRealTimeUpdates";
 import { ErrorBoundary } from "@/components/common/ErrorBoundary";
 import { LoadingSkeleton } from "@/components/common/LoadingState";
 import { ROUTES } from "@/lib/constants";
 import BottomNav from "@/components/layout/BottomNav";
 import ProtectedSellerRoute from "./components/auth/ProtectedSellerRoute";
 import { ProfileProvider } from "@/contexts/ProfileContext";
+import { PopupNotification } from "@/components/notifications/PopupNotification";
+import { OfflineNotification } from "@/components/common/OfflineNotification";
+import { OnboardingModal } from "@/components/onboarding/OnboardingModal";
+import { AIChatbot } from "@/components/chatbot/AIChatbot";
+import { SecurityProvider } from "@/components/security/SecurityProvider";
+import { ProfileCompletionModal } from "@/components/profile/ProfileCompletionModal";
+import { useProfileCompletion } from "@/hooks/useProfileCompletion";
+import FloatingBackButton from "@/components/ui/back-button";
 
-// Lazy load pages for better performance
-const Index = React.lazy(() => import('./pages/Index'));
-const NotFound = React.lazy(() => import('./pages/NotFound'));
-const ProductDetails = React.lazy(() => import('./pages/ProductDetails'));
-const Profile = React.lazy(() => import('./pages/Profile'));
-const SellerProfile = React.lazy(() => import('./components/profiles/SellerProfile'));
-const Messages = React.lazy(() => import('./pages/Messages'));
-const Orders = React.lazy(() => import('./pages/Orders'));
-const Search = React.lazy(() => import('./pages/Search'));
-const Settings = React.lazy(() => import('./pages/Settings'));
-const Sell = React.lazy(() => import('./pages/Sell'));
-const Dashboard = React.lazy(() => import('./pages/Dashboard'));
-const Marketplace = React.lazy(() => import('./pages/Marketplace'));
-const Cart = React.lazy(() => import('./pages/Cart'));
-const Checkout = React.lazy(() => import('./pages/Checkout'));
-const Favorites = React.lazy(() => import('./pages/Favorites'));
-const AuthPage = React.lazy(() => import('./components/auth/AuthPage'));
-const Admin = React.lazy(() => import('./pages/Admin'));
-const LearnMore = React.lazy(() => import('./pages/LearnMore'));
-const Notifications = React.lazy(() => import('./pages/Notifications'));
-const VerificationRequest = React.lazy(() => import('./pages/VerificationRequest'));
-const Wallet = React.lazy(() => import('./pages/Wallet'));
+// Lazy load pages for better performance with error boundaries
+const Index = React.lazy(() => import('./pages/Index').catch(() => ({ default: () => <div>Error loading page</div> })));
+const NotFound = React.lazy(() => import('./pages/NotFound').catch(() => ({ default: () => <div>Error loading page</div> })));
+const ProductDetails = React.lazy(() => import('./pages/ProductDetails').catch(() => ({ default: () => <div>Error loading page</div> })));
+const Profile = React.lazy(() => import('./pages/Profile').catch(() => ({ default: () => <div>Error loading page</div> })));
+const SellerProfile = React.lazy(() => import('./components/profiles/SellerProfile').catch(() => ({ default: () => <div>Error loading page</div> })));
+const Messages = React.lazy(() => import('./pages/Messages').catch(() => ({ default: () => <div>Error loading page</div> })));
+const Orders = React.lazy(() => import('./pages/Orders').catch(() => ({ default: () => <div>Error loading page</div> })));
+const Search = React.lazy(() => import('./pages/Search').catch(() => ({ default: () => <div>Error loading page</div> })));
+const SellerSearch = React.lazy(() => import('./pages/SellerSearch').catch(() => ({ default: () => <div>Error loading page</div> })));
+const Settings = React.lazy(() => import('./pages/Settings').catch(() => ({ default: () => <div>Error loading page</div> })));
+const Sell = React.lazy(() => import('./pages/Sell').catch(() => ({ default: () => <div>Error loading page</div> })));
+const Dashboard = React.lazy(() => import('./pages/Dashboard').catch(() => ({ default: () => <div>Error loading page</div> })));
+const Marketplace = React.lazy(() => import('./pages/Marketplace').catch(() => ({ default: () => <div>Error loading page</div> })));
+const Cart = React.lazy(() => import('./pages/Cart').catch(() => ({ default: () => <div>Error loading page</div> })));
+const Checkout = React.lazy(() => import('./pages/Checkout').catch(() => ({ default: () => <div>Error loading page</div> })));
+const Favorites = React.lazy(() => import('./pages/Favorites').catch(() => ({ default: () => <div>Error loading page</div> })));
+const AuthPage = React.lazy(() => import('./components/auth/AuthPage').catch(() => ({ default: () => <div>Error loading page</div> })));
+const Admin = React.lazy(() => import('./pages/Admin').catch(() => ({ default: () => <div>Error loading page</div> })));
+const LearnMore = React.lazy(() => import('./pages/LearnMore').catch(() => ({ default: () => <div>Error loading page</div> })));
+const Notifications = React.lazy(() => import('./pages/Notifications').catch(() => ({ default: () => <div>Error loading page</div> })));
+const VerificationRequest = React.lazy(() => import('./pages/VerificationRequest').catch(() => ({ default: () => <div>Error loading page</div> })));
+const Wallet = React.lazy(() => import('./pages/Wallet').catch(() => ({ default: () => <div>Error loading page</div> })));
 
-// Optimized query client for slow connections
+// Optimized query client for high concurrent users (400+)
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 15 * 60 * 1000, // 15 minutes - keep data fresh longer
-      cacheTime: 60 * 60 * 1000, // 1 hour - cache longer for slow connections
+      staleTime: 5 * 60 * 1000, // 5 minutes - shorter for real-time feel
+      cacheTime: 30 * 60 * 1000, // 30 minutes - balance memory usage
       retry: (failureCount, error: any) => {
         if (error?.status >= 400 && error?.status < 500) return false;
-        return failureCount < 2; // Fewer retries for slow connections
+        return failureCount < 1; // Single retry to reduce server load
       },
       refetchOnWindowFocus: false,
-      refetchOnReconnect: 'always',
-      refetchOnMount: false, // Don't refetch on mount if data exists
-      networkMode: 'offlineFirst', // Work offline first
-      // Background refetch with lower priority
-      refetchInterval: 30 * 60 * 1000, // 30 minutes background refresh
-      refetchIntervalInBackground: true,
+      refetchOnReconnect: true,
+      refetchOnMount: false,
+      networkMode: 'online', // Require network for better performance
+      refetchInterval: false, // Disable polling, use real-time instead
     },
     mutations: {
-      retry: 1,
-      networkMode: 'offlineFirst',
+      retry: 0, // No retries for mutations to prevent duplicate actions
+      networkMode: 'online',
     },
   },
+  // Limit cache size for memory efficiency
+  queryCache: new QueryCache({
+    onError: (error) => {
+      // Secure error logging without exposing sensitive data
+      const errorMessage = error instanceof Error ? error.message : 'Unknown query error';
+      console.error('[QUERY_ERROR]', errorMessage.replace(/[\r\n]/g, ''));
+    },
+  }),
+  mutationCache: new MutationCache({
+    onError: (error) => {
+      // Secure error logging without exposing sensitive data
+      const errorMessage = error instanceof Error ? error.message : 'Unknown mutation error';
+      console.error('[MUTATION_ERROR]', errorMessage.replace(/[\r\n]/g, ''));
+    },
+  }),
 });
 
 const AppContent = () => {
   useScrollToTop();
   useBackgroundSync();
+  useRealTimeUpdates();
+  const { showModal, missingFields, dismissModal, completeProfile } = useProfileCompletion();
   
   return (
-    <div className="pb-16 md:pb-0 layout-stable">
-      <Suspense fallback={<LoadingSkeleton />}>
-        <div className="page-transition">
-          <Routes>
-          <Route path={ROUTES.home} element={<Index />} />
-          <Route path={ROUTES.auth} element={<AuthPage />} />
-          <Route path="/learn-more" element={<LearnMore />} />
-          <Route path="/notifications" element={<Notifications />} />
-          <Route path={ROUTES.marketplace} element={<Marketplace />} />
-          <Route path="/product/:id" element={<ProductDetails />} />
-          <Route path={ROUTES.profile} element={<Profile />} />
-          <Route path="/seller/:sellerId" element={<SellerProfile />} />
-          <Route path="/messages" element={<Messages />} />
-          <Route path={ROUTES.orders} element={<Orders />} />
-          <Route path="/search" element={<Search />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route path={ROUTES.sell} element={
-            <ProtectedSellerRoute>
-              <Sell />
-            </ProtectedSellerRoute>
-          } />
-          <Route path={ROUTES.dashboard} element={
-            <ProtectedSellerRoute>
-              <Dashboard />
-            </ProtectedSellerRoute>
-          } />
-          <Route path="/favorites" element={<Favorites />} />
-          <Route path={ROUTES.cart} element={<Cart />} />
-          <Route path={ROUTES.checkout} element={<Checkout />} />
-          <Route path={ROUTES.admin} element={<Admin />} />
-          <Route path="/verification-request" element={<VerificationRequest />} />
-          <Route path="/wallet" element={<Wallet />} />
-          <Route path="*" element={<NotFound />} />
-          </Routes>
-        </div>
-      </Suspense>
+    <>
+      <div className="pb-16 md:pb-0 layout-stable">
+        <Suspense fallback={<LoadingSkeleton />}>
+          <div className="page-transition student-focus">
+            <Routes>
+            <Route path={ROUTES.home} element={<Index />} />
+            <Route path={ROUTES.auth} element={<AuthPage />} />
+            <Route path="/learn-more" element={<LearnMore />} />
+            <Route path="/notifications" element={<Notifications />} />
+            <Route path={ROUTES.marketplace} element={<Marketplace />} />
+            <Route path="/product/:id" element={<ProductDetails />} />
+            <Route path={ROUTES.profile} element={<Profile />} />
+            <Route path="/seller/:sellerId" element={<SellerProfile />} />
+            <Route path="/messages" element={<Messages />} />
+            <Route path={ROUTES.orders} element={<Orders />} />
+            <Route path="/search" element={<Search />} />
+            <Route path="/sellers" element={<SellerSearch />} />
+            <Route path="/settings" element={<Settings />} />
+            <Route path={ROUTES.sell} element={
+              <ProtectedSellerRoute>
+                <Sell />
+              </ProtectedSellerRoute>
+            } />
+            <Route path={ROUTES.dashboard} element={
+              <ProtectedSellerRoute>
+                <Dashboard />
+              </ProtectedSellerRoute>
+            } />
+            <Route path="/favorites" element={<Favorites />} />
+            <Route path={ROUTES.cart} element={<Cart />} />
+            <Route path={ROUTES.checkout} element={<Checkout />} />
+            <Route path={ROUTES.admin} element={<Admin />} />
+            <Route path="/verification-request" element={<VerificationRequest />} />
+            <Route path="/wallet" element={<Wallet />} />
+            <Route path="*" element={<NotFound />} />
+            </Routes>
+          </div>
+        </Suspense>
+      </div>
       <BottomNav />
-    </div>
+      <PopupNotification />
+      <OfflineNotification />
+      <AIChatbot />
+      <FloatingBackButton />
+      <ProfileCompletionModal 
+        open={showModal}
+        onClose={dismissModal}
+        missingFields={missingFields}
+        onComplete={completeProfile}
+      />
+    </>
   );
 };
 
 const App = () => (
   <ErrorBoundary>
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <ProfileProvider>
-            <AppContent />
-          </ProfileProvider>
-        </BrowserRouter>
-      </TooltipProvider>
-    </QueryClientProvider>
+    <BrowserRouter>
+      <SecurityProvider>
+        <QueryClientProvider client={queryClient}>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <ProfileProvider>
+              <AppContent />
+            </ProfileProvider>
+          </TooltipProvider>
+        </QueryClientProvider>
+      </SecurityProvider>
+    </BrowserRouter>
   </ErrorBoundary>
 );
 

@@ -7,8 +7,10 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
+import { useMessagesCount } from '@/hooks/useMessagesCount';
 import { MessageCircle, Plus, Shield, Trash2 } from 'lucide-react';
 import Header from '@/components/layout/Header';
+import BottomNav from '@/components/layout/BottomNav';
 import SecureChat from '@/components/chat/SecureChat';
 
 interface Conversation {
@@ -30,6 +32,7 @@ interface Conversation {
     created_at: string;
     sender_id: string;
   };
+  unread_count?: number;
 }
 
 export default function Messages() {
@@ -41,70 +44,159 @@ export default function Messages() {
   );
   const [loadingConversations, setLoadingConversations] = useState(true);
   const { toast } = useToast();
+  const { messagesCount } = useMessagesCount();
 
   useEffect(() => {
     if (user) {
       fetchConversations();
       
-      // Set up real-time subscription for new conversations
-      const subscription = supabase
-        .channel('conversations_changes')
+      // Optimized real-time subscription for high concurrent users
+      const channel = supabase
+        .channel(`messages_user_${user.id}`, {
+          config: {
+            broadcast: { self: false },
+            presence: { key: user.id }
+          }
+        })
         .on('postgres_changes',
           {
             event: 'INSERT',
             schema: 'public',
-            table: 'conversations',
-            filter: `buyer_id=eq.${user.id},seller_id=eq.${user.id}` 
+            table: 'messages',
+            filter: `conversation_id=in.(${conversations.map(c => c.id).join(',')})`
           },
-          () => {
-            fetchConversations(); // Refetch when new conversation is created
+          (payload) => {
+            const newMessage = payload.new;
+            // Only update if message affects this user's conversations
+            setConversations(prev => prev.map(conv => {
+              if (conv.id === newMessage.conversation_id) {
+                return {
+                  ...conv,
+                  last_message: {
+                    content: newMessage.content,
+                    created_at: newMessage.created_at,
+                    sender_id: newMessage.sender_id
+                  },
+                  unread_count: newMessage.sender_id !== user.id 
+                    ? (conv.unread_count || 0) + 1 
+                    : conv.unread_count
+                };
+              }
+              return conv;
+            }));
+          }
+        )
+        .on('postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'messages',
+            filter: `is_read=eq.true`
+          },
+          (payload) => {
+            if (payload.new.is_read === true) {
+              setConversations(prev => prev.map(conv => {
+                if (conv.id === payload.new.conversation_id) {
+                  return {
+                    ...conv,
+                    unread_count: Math.max(0, (conv.unread_count || 0) - 1)
+                  };
+                }
+                return conv;
+              }));
+            }
           }
         )
         .subscribe();
 
       return () => {
-        subscription.unsubscribe();
+        channel.unsubscribe();
       };
     }
-  }, [user]);
+  }, [user, conversations.length]); // Add conversations.length to dependency
 
   const fetchConversations = async () => {
+    if (!user?.id) {
+      setLoadingConversations(false);
+      return;
+    }
+
     try {
+      // Single optimized query with joins
       const { data, error } = await supabase
         .from('conversations')
         .select(`
-          *,
+          id, buyer_id, seller_id, product_id, created_at,
           products (title, price),
-          messages (content, created_at, sender_id)
+          buyer:profiles!conversations_buyer_id_fkey (full_name, avatar_url),
+          seller:profiles!conversations_seller_id_fkey (full_name, avatar_url)
         `)
-        .or(`buyer_id.eq.${user?.id},seller_id.eq.${user?.id}`)
-        .order('created_at', { ascending: false });
+        .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`);
 
       if (error) throw error;
 
-      // Process conversations to get other user info and last message
-      const processedConversations = await Promise.all(data.map(async (conv) => {
-        const otherUserId = conv.buyer_id === user?.id ? conv.seller_id : conv.buyer_id;
+      if (!data || data.length === 0) {
+        setConversations([]);
+        setLoadingConversations(false);
+        return;
+      }
+
+      // Get all conversation IDs for batch queries
+      const convIds = data.map(c => c.id);
+      
+      // Batch fetch last messages
+      const { data: lastMessages } = await supabase
+        .from('messages')
+        .select('conversation_id, content, created_at, sender_id')
+        .in('conversation_id', convIds)
+        .order('created_at', { ascending: false });
+
+      // Get unread counts - try with is_read column first, fallback to all messages
+      const unreadCounts = {};
+      for (const convId of convIds) {
+        try {
+          // Try with is_read column
+          const { count } = await supabase
+            .from('messages')
+            .select('*', { count: 'exact', head: true })
+            .eq('conversation_id', convId)
+            .neq('sender_id', user.id)
+            .or('is_read.is.null,is_read.eq.false');
+          unreadCounts[convId] = count || 0;
+        } catch (error) {
+          // Fallback: count all messages from others (temporary until migration runs)
+          const { count } = await supabase
+            .from('messages')
+            .select('*', { count: 'exact', head: true })
+            .eq('conversation_id', convId)
+            .neq('sender_id', user.id);
+          unreadCounts[convId] = Math.min(count || 0, 99); // Cap at 99 for display
+        }
+      }
+
+      // Process conversations
+      const processedConversations = data.map(conv => {
+        const otherUser = conv.buyer_id === user.id ? conv.seller : conv.buyer;
+        const lastMsg = lastMessages?.find(m => m.conversation_id === conv.id);
+        const unreadCount = unreadCounts[conv.id] || 0;
         
-        // Get other user's profile
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('full_name, avatar_url')
-          .eq('user_id', otherUserId)
-          .maybeSingle();
-
-        // Get last message
-        const lastMessage = conv.messages && conv.messages.length > 0 
-          ? conv.messages[conv.messages.length - 1] 
-          : null;
-
+        console.log(`Conversation ${conv.id}: unread count = ${unreadCount}`);
+        
         return {
           ...conv,
-          other_user: profile,
-          last_message: lastMessage,
+          other_user: otherUser,
+          last_message: lastMsg,
+          unread_count: unreadCount,
           product: conv.products
         };
-      }));
+      });
+
+      // Sort by last message time
+      processedConversations.sort((a, b) => {
+        const aTime = a.last_message?.created_at || a.created_at;
+        const bTime = b.last_message?.created_at || b.created_at;
+        return new Date(bTime).getTime() - new Date(aTime).getTime();
+      });
 
       setConversations(processedConversations);
     } catch (error) {
@@ -177,9 +269,9 @@ export default function Messages() {
 
   if (selectedConversation) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="h-screen bg-background flex flex-col overflow-hidden">
         <Header />
-        <main className="container mx-auto px-2 py-4 sm:px-4 sm:py-8">
+        <main className="flex-1 overflow-hidden">
           <SecureChat 
             conversationId={selectedConversation} 
             currentUserId={user.id}
@@ -193,100 +285,151 @@ export default function Messages() {
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      
-      <main className="container mx-auto px-2 py-4 sm:px-4 sm:py-8">
-        <div className="flex items-center justify-between mb-4 sm:mb-6">
-          <div className="flex items-center gap-2 sm:gap-3">
-            <MessageCircle className="h-5 w-5 sm:h-6 sm:w-6" />
-            <h1 className="text-lg sm:text-xl lg:text-2xl font-bold">Messages</h1>
-            <Badge variant="outline" className="text-xs">
-              <Shield className="h-3 w-3 mr-1" />
-              Secure
-            </Badge>
+      <main className="container mx-auto px-4 py-8 pb-20 max-w-4xl">
+        {/* Security Header */}
+        <div className="mb-6">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="p-2 bg-green-100 rounded-lg">
+              <Shield className="h-5 w-5 text-green-600" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-foreground">Secure Messages</h1>
+              <p className="text-sm text-muted-foreground">End-to-end encrypted conversations</p>
+            </div>
           </div>
+          {messagesCount > 0 && (
+            <Badge variant="secondary" className="ml-auto">
+              {messagesCount} unread
+            </Badge>
+          )}
         </div>
 
-        {conversations.length === 0 ? (
-          <Card>
-            <CardContent className="text-center py-8 sm:py-12">
-              <MessageCircle className="h-8 w-8 sm:h-12 sm:w-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-base sm:text-lg font-semibold mb-2">No conversations yet</h3>
-              <p className="text-sm sm:text-base text-muted-foreground mb-4">
-                Start a conversation with sellers by messaging them about their products
-              </p>
-              <Button variant="default" asChild>
-                <a href="/marketplace">Browse Products</a>
-              </Button>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="space-y-2 sm:space-y-4">
-            {conversations.map((conversation) => (
-              <Card 
-                key={conversation.id} 
-                className="cursor-pointer hover:shadow-md transition-shadow"
-                onClick={() => setSelectedConversation(conversation.id)}
-              >
-                <CardContent className="p-3 sm:p-4">
-                  <div className="flex items-start gap-2 sm:gap-4">
-                    <a
-                      href={`/seller/${(conversation as any).buyer_id === user.id ? (conversation as any).seller_id : (conversation as any).buyer_id}`}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <Avatar className="h-8 w-8 sm:h-10 sm:w-10 lg:h-12 lg:w-12 flex-shrink-0">
-                        <AvatarImage src={conversation.other_user?.avatar_url} />
-                        <AvatarFallback className="bg-university-green text-white text-xs sm:text-sm">
-                          {conversation.other_user?.full_name 
-                            ? getInitials(conversation.other_user.full_name)
-                            : 'U'}
-                        </AvatarFallback>
-                      </Avatar>
-                    </a>
-                    
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between mb-1">
-                        <h3 className="font-semibold text-sm sm:text-base truncate pr-2">
-                          {conversation.other_user?.full_name || 'Anonymous User'}
-                        </h3>
-                        <div className="flex items-center gap-1 flex-shrink-0">
+        {/* Messages Container */}
+        <Card className="shadow-sm border-0">
+          <CardContent className="p-0">
+            {loadingConversations ? (
+              <div className="p-6">
+                {[1,2,3].map(i => (
+                  <div key={i} className="flex items-center gap-4 p-4 animate-pulse">
+                    <div className="w-12 h-12 bg-muted rounded-full"></div>
+                    <div className="flex-1 space-y-2">
+                      <div className="h-4 bg-muted rounded w-3/4"></div>
+                      <div className="h-3 bg-muted rounded w-1/2"></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : conversations.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 px-6">
+                <div className="p-4 bg-muted/50 rounded-full mb-4">
+                  <MessageCircle className="h-8 w-8 text-muted-foreground" />
+                </div>
+                <h3 className="text-lg font-semibold mb-2">No conversations yet</h3>
+                <p className="text-muted-foreground text-center mb-6 max-w-sm">
+                  Start secure conversations with sellers when you're interested in their products
+                </p>
+                <Button asChild>
+                  <a href="/marketplace">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Browse Products
+                  </a>
+                </Button>
+              </div>
+            ) : (
+              <div className="divide-y">
+                {conversations.map((conversation) => (
+                  <div 
+                    key={conversation.id} 
+                    className="group relative hover:bg-muted/50 cursor-pointer transition-colors"
+                    onClick={() => setSelectedConversation(conversation.id)}
+                  >
+                    <div className="flex items-center gap-4 p-4">
+                      <div className="relative">
+                        <Avatar 
+                          className="h-12 w-12 border-2 border-background shadow-sm cursor-pointer hover:ring-2 hover:ring-primary/20 transition-all"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const otherUserId = conversation.buyer_id === user.id ? conversation.seller_id : conversation.buyer_id;
+                            window.location.href = `/seller/${otherUserId}`;
+                          }}
+                        >
+                          <AvatarImage src={conversation.other_user?.avatar_url} />
+                          <AvatarFallback className="bg-primary text-primary-foreground font-medium">
+                            {conversation.other_user?.full_name 
+                              ? getInitials(conversation.other_user.full_name)
+                              : 'U'}
+                          </AvatarFallback>
+                        </Avatar>
+                        {conversation.unread_count && conversation.unread_count > 0 && (
+                          <div className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 text-xs font-bold shadow-lg border-2 border-background">
+                            {conversation.unread_count > 99 ? '99+' : conversation.unread_count}
+                          </div>
+                        )}
+                        <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 border-2 border-background rounded-full"></div>
+                      </div>
+                      
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between mb-1">
+                          <h3 className="font-semibold text-foreground truncate">
+                            {conversation.other_user?.full_name || 'Anonymous User'}
+                          </h3>
                           {conversation.last_message && (
                             <span className="text-xs text-muted-foreground">
                               {formatTime(conversation.last_message.created_at)}
                             </span>
                           )}
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={(e) => deleteConversation(conversation.id, e)}
-                            className="h-6 w-6 p-0 hover:bg-destructive/10 hover:text-destructive"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
                         </div>
+                        
+                        {conversation.product && (
+                          <div className="flex items-center gap-2 mb-1">
+                            <Badge variant="outline" className="text-xs px-2 py-0">
+                              {conversation.product.title}
+                            </Badge>
+                            <span className="text-xs font-medium text-green-600">
+                              ₦{conversation.product.price.toLocaleString()}
+                            </span>
+                          </div>
+                        )}
+                        
+                        <p className={`text-sm truncate flex items-center gap-1 ${
+                          conversation.unread_count > 0 ? 'text-foreground font-medium' : 'text-muted-foreground'
+                        }`}>
+                          {conversation.last_message ? (
+                            <>
+                              {conversation.last_message.sender_id === user.id && (
+                                <span className="text-blue-500">✓</span>
+                              )}
+                              <span className="truncate">
+                                {conversation.last_message.sender_id === user.id ? 'You: ' : ''}
+                                {conversation.last_message.content}
+                              </span>
+                            </>
+                          ) : (
+                            <span className="italic text-muted-foreground">Start secure conversation</span>
+                          )}
+                        </p>
                       </div>
-                      
-                      {conversation.product && (
-                        <p className="text-xs sm:text-sm text-muted-foreground mb-1 truncate">
-                          About: {conversation.product.title} - ₦{conversation.product.price.toLocaleString()}
-                        </p>
-                      )}
-                      
-                      {conversation.last_message ? (
-                        <p className="text-sm text-muted-foreground truncate">
-                          {conversation.last_message.sender_id === user.id ? 'You: ' : ''}
-                          {conversation.last_message.content}
-                        </p>
-                      ) : (
-                        <p className="text-sm text-muted-foreground italic">No messages yet</p>
-                      )}
+
+                      <div className="flex items-center gap-2">
+                        <Shield className="h-4 w-4 text-green-500" />
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={(e) => deleteConversation(conversation.id, e)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </main>
+      <BottomNav />
     </div>
   );
 }

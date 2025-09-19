@@ -1,15 +1,18 @@
 import { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/enhanced-button';
 import { Separator } from '@/components/ui/separator';
-import { Star, MessageCircle, MapPin, GraduationCap, ShieldCheck, User } from 'lucide-react';
+import { Star, MessageCircle, MapPin, GraduationCap, ShieldCheck, User, Package, Heart, ShoppingCart } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { Textarea } from '@/components/ui/textarea';
+import Header from '@/components/layout/Header';
+import BottomNav from '@/components/layout/BottomNav';
+import { findOrCreateConversation, navigateToChat } from '@/utils/conversationUtils';
 
 interface SellerProfile {
   id: string;
@@ -37,21 +40,37 @@ interface Review {
   };
 }
 
+interface Product {
+  id: string;
+  title: string;
+  description: string;
+  price: number;
+  category: string;
+  condition: string;
+  images: string[];
+  stock_quantity: number;
+  created_at: string;
+}
+
 const SellerProfile = () => {
   const { sellerId } = useParams();
   const { user } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [seller, setSeller] = useState<SellerProfile | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [submittingReview, setSubmittingReview] = useState(false);
   const [ratingInput, setRatingInput] = useState<number>(0);
   const [commentInput, setCommentInput] = useState<string>('');
+  const [visibleProducts, setVisibleProducts] = useState(5);
 
   useEffect(() => {
     if (sellerId) {
       fetchSellerProfile();
       fetchSellerReviews();
+      fetchSellerProducts();
     }
   }, [sellerId]);
 
@@ -64,16 +83,17 @@ const SellerProfile = () => {
           user_id,
           full_name,
           campus,
+          university_name,
           bio,
           avatar_url,
           rating,
           total_reviews,
           is_verified,
           seller_status,
+          account_type,
           created_at
         `)
         .eq('user_id', sellerId)
-        .eq('seller_status', 'approved')
         .single();
 
       if (error) throw error;
@@ -82,7 +102,7 @@ const SellerProfile = () => {
       console.error('Error fetching seller profile:', error);
       toast({
         title: "Error",
-        description: "Could not load seller profile.",
+        description: "Could not load profile.",
         variant: "destructive",
       });
     } finally {
@@ -115,6 +135,22 @@ const SellerProfile = () => {
     }
   };
 
+  const fetchSellerProducts = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .eq('seller_id', sellerId)
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setProducts(data || []);
+    } catch (error) {
+      console.error('Error fetching seller products:', error);
+    }
+  };
+
   const startConversation = async () => {
     if (!user || !seller) {
       toast({
@@ -126,23 +162,13 @@ const SellerProfile = () => {
     }
 
     try {
-      const { data, error } = await supabase
-        .from('conversations')
-        .insert([
-          {
-            buyer_id: user.id,
-            seller_id: seller.user_id,
-          }
-        ])
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      toast({
-        title: "Conversation Started",
-        description: "You can now message this seller.",
-      });
+      const conversationId = await findOrCreateConversation(user.id, seller.user_id);
+      
+      if (conversationId) {
+        navigateToChat(conversationId);
+      } else {
+        throw new Error('Failed to create conversation');
+      }
     } catch (error) {
       console.error('Error starting conversation:', error);
       toast({
@@ -169,11 +195,12 @@ const SellerProfile = () => {
 
     setSubmittingReview(true);
     try {
-      // Find a related order between reviewer and reviewed user (either direction)
+      // Find a related order between reviewer and reviewed user
       const { data: order } = await supabase
         .from('orders')
-        .select('id, buyer_id, seller_id')
-        .or(`and(buyer_id.eq.${user.id},seller_id.eq.${seller.user_id}),and(buyer_id.eq.${seller.user_id},seller_id.eq.${user.id})`)
+        .select('id')
+        .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
+        .or(`buyer_id.eq.${seller.user_id},seller_id.eq.${seller.user_id}`)
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -184,7 +211,7 @@ const SellerProfile = () => {
         return;
       }
 
-      const { data: newReview, error } = await supabase
+      const { error } = await supabase
         .from('reviews')
         .insert({
           order_id: order.id,
@@ -192,35 +219,22 @@ const SellerProfile = () => {
           reviewed_id: seller.user_id,
           rating: ratingInput,
           comment: commentInput || null
-        })
-        .select(`
-          id,
-          rating,
-          comment,
-          created_at,
-          reviewer:profiles!reviews_reviewer_id_fkey(full_name, avatar_url)
-        `)
-        .single();
+        });
 
       if (error) throw error;
 
-      // Optimistically add to UI
-      setReviews(prev => newReview ? [newReview as any, ...prev] : prev);
       setRatingInput(0);
       setCommentInput('');
-
-      // Create notification for reviewed user
-      await supabase.from('notifications').insert({
-        user_id: seller.user_id,
-        title: 'New review received',
-        message: `${seller.full_name} received a ${ratingInput}-star review`,
-        type: 'info'
-      });
+      fetchSellerReviews(); // Refresh reviews
 
       toast({ title: 'Review submitted', description: 'Thanks for your feedback!' });
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error submitting review:', err);
-      toast({ title: 'Error', description: 'Could not submit review.', variant: 'destructive' });
+      if (err.message?.includes('relation') || err.message?.includes('does not exist')) {
+        toast({ title: 'Reviews not available', description: 'Review system is not set up yet.', variant: 'destructive' });
+      } else {
+        toast({ title: 'Error', description: 'Could not submit review.', variant: 'destructive' });
+      }
     } finally {
       setSubmittingReview(false);
     }
@@ -237,31 +251,65 @@ const SellerProfile = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen gradient-hero flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-university-green"></div>
-          <p className="mt-4 text-muted-foreground">Loading seller profile...</p>
+      <div className="min-h-screen bg-background">
+        <Header />
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-university-green"></div>
+            <p className="mt-4 text-muted-foreground">Loading seller profile...</p>
+          </div>
         </div>
+        <BottomNav />
       </div>
     );
   }
 
   if (!seller) {
     return (
-      <div className="min-h-screen gradient-hero flex items-center justify-center">
-        <Card className="text-center p-8">
-          <CardContent>
-            <User className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
-            <h2 className="text-2xl font-bold mb-2">Seller Not Found</h2>
-            <p className="text-muted-foreground">This seller profile is not available or not approved yet.</p>
-          </CardContent>
-        </Card>
+      <div className="min-h-screen bg-background">
+        <Header />
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <Card className="text-center p-8">
+            <CardContent>
+              <User className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
+              <h2 className="text-2xl font-bold mb-2">Profile Not Found</h2>
+              <p className="text-muted-foreground">This profile is not available.</p>
+            </CardContent>
+          </Card>
+        </div>
+        <BottomNav />
+      </div>
+    );
+  }
+
+  // Check if this is a buyer-only account
+  if (seller.account_type === 'buyer' || seller.seller_status !== 'approved') {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <div className="flex items-center justify-center min-h-[60vh]">
+          <Card className="text-center p-8 max-w-md">
+            <CardContent>
+              <User className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
+              <h2 className="text-2xl font-bold mb-2">Buyer Account</h2>
+              <p className="text-muted-foreground mb-4">
+                This is a buyer's account and has no seller profile.
+              </p>
+              <Button onClick={() => window.history.back()} variant="outline">
+                Go Back
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+        <BottomNav />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen gradient-hero py-8">
+    <div className="min-h-screen bg-background">
+      <Header />
+      <div className="py-8 pb-20 md:pb-8">
       <div className="max-w-4xl mx-auto px-4 space-y-6">
         {/* Seller Info Card */}
         <Card className="shadow-brand">
@@ -286,14 +334,10 @@ const SellerProfile = () => {
                 </div>
                 
                 <div className="flex items-center gap-4 text-muted-foreground mb-4">
-                  <div className="flex items-center gap-1">
-                    <GraduationCap className="h-4 w-4" />
-                    <span>{seller.university_name}</span>
-                  </div>
-                  {seller.campus && (
+                  {(seller.university_name || seller.campus) && (
                     <div className="flex items-center gap-1">
                       <MapPin className="h-4 w-4" />
-                      <span>{seller.campus}</span>
+                      <span>{seller.university_name || seller.campus}</span>
                     </div>
                   )}
                 </div>
@@ -319,6 +363,70 @@ const SellerProfile = () => {
               </div>
             </div>
           </CardHeader>
+        </Card>
+
+        {/* Products Section */}
+        <Card className="shadow-brand">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Package className="h-5 w-5" />
+              Products ({products.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {products.length === 0 ? (
+              <p className="text-muted-foreground text-center py-8">No products available.</p>
+            ) : (
+              <>
+                <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {products.slice(0, visibleProducts).map((product) => (
+                    <Card 
+                      key={product.id} 
+                      className="cursor-pointer hover:shadow-lg transition-shadow"
+                      onClick={() => navigate(`/product/${product.id}`)}
+                    >
+                      <div className="relative">
+                        {product.images && product.images[0] && (
+                          <img
+                            src={product.images[0]}
+                            alt={product.title}
+                            className="w-full h-48 object-cover rounded-t-lg"
+                          />
+                        )}
+                        <Badge 
+                          className="absolute top-2 left-2"
+                          variant={product.condition === 'new' ? 'default' : 'secondary'}
+                        >
+                          {product.condition}
+                        </Badge>
+                      </div>
+                      <CardContent className="p-4">
+                        <h3 className="font-semibold text-lg mb-2 line-clamp-1">{product.title}</h3>
+                        <p className="text-muted-foreground text-sm mb-2 line-clamp-2">{product.description}</p>
+                        <div className="flex items-center justify-between">
+                          <span className="text-lg font-bold text-primary">₦{product.price.toLocaleString()}</span>
+                          <Badge variant="outline">{product.category}</Badge>
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-2">
+                          {product.stock_quantity} available
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+                {visibleProducts < products.length && (
+                  <div className="text-center mt-6">
+                    <Button 
+                      variant="outline" 
+                      onClick={() => setVisibleProducts(prev => prev + 10)}
+                    >
+                      Show More
+                    </Button>
+                  </div>
+                )}
+              </>
+            )}
+          </CardContent>
         </Card>
 
         {/* Reviews Section */}
@@ -401,6 +509,8 @@ const SellerProfile = () => {
           </CardContent>
         </Card>
       </div>
+      </div>
+      <BottomNav />
     </div>
   );
 };

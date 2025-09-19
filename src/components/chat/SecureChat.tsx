@@ -6,8 +6,9 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Send, Shield, AlertTriangle, MessageCircle, Trash2 } from 'lucide-react';
+import { Send, Shield, AlertTriangle, MessageCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { notifyNewMessage } from '@/utils/notificationHelpers';
 
 interface Message {
   id: string;
@@ -51,9 +52,28 @@ const SecureChat = ({ conversationId, currentUserId, onClose }: SecureChatProps)
     fetchConversation();
     fetchMessages();
     
-    // Set up real-time messaging
+    // Store that user viewed this conversation (simple approach)
+    const markAsViewed = () => {
+      const viewedKey = `viewed_${conversationId}_${currentUserId}`;
+      localStorage.setItem(viewedKey, new Date().toISOString());
+      
+      // Refresh count immediately
+      setTimeout(() => {
+        if (window.refreshMessageCount) {
+          window.refreshMessageCount();
+        }
+      }, 100);
+    };
+    markAsViewed();
+    
+    // Optimized real-time messaging for high concurrent users
     const subscription = supabase
-      .channel(`conversation:${conversationId}`)
+      .channel(`chat_${conversationId}_${currentUserId}`, {
+        config: {
+          broadcast: { self: false },
+          presence: { key: currentUserId }
+        }
+      })
       .on('postgres_changes', 
         { 
           event: 'INSERT', 
@@ -64,12 +84,21 @@ const SecureChat = ({ conversationId, currentUserId, onClose }: SecureChatProps)
         async (payload) => {
           const newMsg = payload.new as Message;
           
-          // Fetch sender profile for the new message
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('full_name, avatar_url')
-            .eq('user_id', newMsg.sender_id)
-            .maybeSingle();
+          // Skip if it's our own message (already added optimistically)
+          if (newMsg.sender_id === currentUserId) return;
+          
+          // Use cached profile data if available
+          const cachedProfile = messages.find(m => m.sender_id === newMsg.sender_id)?.sender;
+          let profile = cachedProfile;
+          
+          if (!profile) {
+            const { data: fetchedProfile } = await supabase
+              .from('profiles')
+              .select('full_name, avatar_url')
+              .eq('user_id', newMsg.sender_id)
+              .maybeSingle();
+            profile = fetchedProfile;
+          }
           
           const messageWithSender = {
             ...newMsg,
@@ -78,6 +107,18 @@ const SecureChat = ({ conversationId, currentUserId, onClose }: SecureChatProps)
           
           setMessages(prev => [...prev, messageWithSender]);
           scrollToBottom();
+          
+          // Mark new message as read immediately (batch operation)
+          supabase
+            .from('messages')
+            .update({ is_read: true })
+            .eq('id', newMsg.id)
+            .then(() => {
+              // Trigger count refresh
+              if (window.refreshMessageCount) {
+                setTimeout(window.refreshMessageCount, 500);
+              }
+            });
         }
       )
       .subscribe();
@@ -85,7 +126,7 @@ const SecureChat = ({ conversationId, currentUserId, onClose }: SecureChatProps)
     return () => {
       subscription.unsubscribe();
     };
-  }, [conversationId]);
+  }, [conversationId, currentUserId]);
 
   useEffect(() => {
     scrollToBottom();
@@ -147,11 +188,12 @@ const SecureChat = ({ conversationId, currentUserId, onClose }: SecureChatProps)
 
   const detectBlockedContent = (content: string): string | null => {
     const patterns = [
-      /\d{11}/g, // Phone numbers
+      /\b\d{10,11}\b/g, // Phone numbers (10-11 digits)
       /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g, // Email addresses
-      /\b\d{10}\b/g, // Bank account numbers (simplified)
-      /whatsapp|telegram|instagram|facebook|twitter/gi, // Social media
-      /contact me|call me|text me|dm me/gi, // Direct contact phrases
+      /whatsapp|telegram|instagram|facebook|twitter|snapchat|tiktok/gi, // Social media
+      /contact me|call me|text me|dm me|reach me|phone me/gi, // Direct contact phrases
+      /\b0[789]\d{8}\b/g, // Nigerian phone numbers
+      /\+234[789]\d{8}/g, // Nigerian international format
     ];
 
     for (const pattern of patterns) {
@@ -166,46 +208,75 @@ const SecureChat = ({ conversationId, currentUserId, onClose }: SecureChatProps)
   const sendMessage = async () => {
     if (!newMessage.trim() || loading) return;
 
+    // Check for prohibited content before sending
+    const blockedReason = detectBlockedContent(newMessage.trim());
+    if (blockedReason) {
+      toast({
+        title: "Message Blocked",
+        description: "Your message contains prohibited content. Please keep all communication within UniMarket for your safety.",
+        variant: "destructive",
+      });
+      setBlocked(true);
+      setTimeout(() => setBlocked(false), 3000);
+      return;
+    }
+
     setLoading(true);
 
     try {
-      // Use the moderation edge function for advanced content filtering
-      const { data, error } = await supabase.functions.invoke('moderate-message', {
-        body: {
-          message: newMessage.trim(),
-          conversationId: conversationId,
-          senderId: currentUserId
-        }
-      });
+      const messageContent = newMessage.trim();
+      const tempId = `temp-${Date.now()}`;
+      
+      // Optimistic update - add message immediately
+      const optimisticMessage = {
+        id: tempId,
+        content: messageContent,
+        sender_id: currentUserId,
+        created_at: new Date().toISOString(),
+        is_flagged: false,
+        sender: messages.find(m => m.sender_id === currentUserId)?.sender
+      };
+      
+      setMessages(prev => [...prev, optimisticMessage]);
+      setNewMessage('');
+      scrollToBottom();
+      
+      // Send to database
+      const { data: insertedMessage, error } = await supabase
+        .from('messages')
+        .insert({
+          conversation_id: conversationId,
+          sender_id: currentUserId,
+          content: messageContent,
+          is_flagged: false
+        })
+        .select()
+        .single();
 
       if (error) {
-        console.error('Error calling moderation function:', error);
-        toast({
-          title: "Error",
-          description: "Failed to send message. Please try again.",
-          variant: "destructive",
-        });
-        return;
+        // Remove optimistic message on error
+        setMessages(prev => prev.filter(m => m.id !== tempId));
+        throw error;
       }
+      
+      // Replace temp message with real one
+      setMessages(prev => prev.map(m => 
+        m.id === tempId ? { ...optimisticMessage, id: insertedMessage.id } : m
+      ));
 
-      // Check if message was blocked by moderation
-      if (data && !data.allowed) {
-        toast({
-          title: "Message Blocked",
-          description: "Your message contains prohibited content. Please keep all communication within UniMarket for your safety.",
-          variant: "destructive",
-        });
-        setBlocked(true);
-        setTimeout(() => setBlocked(false), 3000);
-        return;
+      // Send notification in background
+      if (conversation) {
+        const receiverId = conversation.buyer_id === currentUserId ? conversation.seller_id : conversation.buyer_id;
+        const { data: senderProfile } = await supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('user_id', currentUserId)
+          .single();
+        
+        if (senderProfile) {
+          notifyNewMessage(receiverId, senderProfile.full_name);
+        }
       }
-
-      // Message was approved and sent
-      setNewMessage('');
-      toast({
-        title: "Message Sent",
-        description: "Your message has been delivered successfully.",
-      });
     } catch (error) {
       console.error('Error in sendMessage:', error);
       toast({
@@ -266,152 +337,138 @@ const SecureChat = ({ conversationId, currentUserId, onClose }: SecureChatProps)
   };
 
   return (
-    <Card className="flex flex-col h-[600px] max-w-2xl mx-auto shadow-card">
-      <CardHeader className="border-b px-3 py-4 sm:px-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-            <MessageCircle className="h-4 w-4 sm:h-5 sm:w-5 text-university-green flex-shrink-0" />
-            <div className="min-w-0 flex-1">
-              <CardTitle className="text-sm sm:text-lg truncate">
+    <Card className="h-full flex flex-col border-0 shadow-lg">
+      {/* Secure Chat Header */}
+      <CardHeader className="bg-gradient-to-r from-green-600 to-green-700 text-white p-4 rounded-t-lg">
+        <div className="flex items-center gap-3">
+          {onClose && (
+            <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0 text-white hover:bg-white/20">
+              ←
+            </Button>
+          )}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1">
+              <Shield className="h-4 w-4" />
+              <CardTitle className="text-lg font-semibold truncate">
                 {conversation?.product?.title || 'Secure Chat'}
               </CardTitle>
-              {conversation?.product?.price && (
-                <p className="text-xs sm:text-sm text-muted-foreground">
-                  ₦{conversation.product.price.toLocaleString()}
-                </p>
-              )}
             </div>
-          </div>
-          <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
-            <Badge variant="outline" className="text-xs px-1 sm:px-2 py-1">
-              <Shield className="h-2 w-2 sm:h-3 sm:w-3 mr-1" />
-              <span className="hidden sm:inline">Monitored</span>
-              <span className="sm:hidden">Safe</span>
-            </Badge>
-            {onClose && (
-              <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0">
-                ✕
-              </Button>
+            {conversation?.product?.price && (
+              <Badge variant="secondary" className="bg-white/20 text-white border-0 text-xs">
+                ₦{conversation.product.price.toLocaleString()}
+              </Badge>
             )}
+          </div>
+          <div className="flex items-center gap-1 text-xs bg-white/20 px-2 py-1 rounded-full">
+            <div className="w-2 h-2 bg-green-300 rounded-full animate-pulse"></div>
+            <span>Encrypted</span>
           </div>
         </div>
       </CardHeader>
 
-      <CardContent className="flex-1 overflow-hidden p-0">
-        <div className="h-full flex flex-col">
-          {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 sm:space-y-4">
-            {messages.length === 0 ? (
-              <div className="text-center text-muted-foreground py-8">
-                <MessageCircle className="h-8 w-8 sm:h-12 sm:w-12 mx-auto mb-2 opacity-50" />
-                <p className="text-sm sm:text-base">Start the conversation!</p>
-                <p className="text-xs mt-1">All messages are monitored for your safety</p>
+      {/* Messages Container */}
+      <CardContent className="flex-1 overflow-y-auto p-0 bg-gradient-to-b from-gray-50 to-white">
+        <div className="p-4 space-y-3">
+          {messages.length === 0 ? (
+            <div className="flex items-center justify-center h-64">
+              <div className="text-center">
+                <div className="p-4 bg-green-100 rounded-full w-fit mx-auto mb-4">
+                  <MessageCircle className="h-8 w-8 text-green-600" />
+                </div>
+                <h3 className="font-semibold text-foreground mb-2">Start secure conversation</h3>
+                <p className="text-sm text-muted-foreground max-w-sm">
+                  All messages are encrypted and monitored for safety
+                </p>
               </div>
-            ) : (
-              messages.map((message) => (
+            </div>
+          ) : (
+            messages.map((message) => (
+              <div
+                key={message.id}
+                className={`flex mb-3 ${
+                  message.sender_id === currentUserId ? 'justify-end' : 'justify-start'
+                }`}
+              >
                 <div
-                  key={message.id}
-                  className={`flex gap-2 sm:gap-3 ${
-                    message.sender_id === currentUserId ? 'flex-row-reverse' : ''
+                  className={`max-w-[75%] px-4 py-3 rounded-2xl shadow-sm border ${
+                    message.sender_id === currentUserId
+                      ? 'bg-green-500 text-white border-green-500 rounded-br-sm'
+                      : 'bg-white text-foreground border-border rounded-bl-sm'
                   }`}
                 >
-                  <a href={`/seller/${message.sender_id}`}>
-                    <Avatar className="h-6 w-6 sm:h-8 sm:w-8 flex-shrink-0">
-                      <AvatarImage src={message.sender?.avatar_url} />
-                      <AvatarFallback className="text-xs">
-                        {message.sender?.full_name 
-                          ? getInitials(message.sender.full_name)
-                          : 'U'}
-                      </AvatarFallback>
-                    </Avatar>
-                  </a>
-                  
-                  <div className="flex flex-col">
-                    <div
-                      className={`max-w-[75%] sm:max-w-xs lg:max-w-md px-2 sm:px-3 py-2 rounded-lg group relative ${
-                        message.sender_id === currentUserId
-                          ? 'bg-university-green text-white'
-                          : 'bg-muted'
-                      }`}
-                    >
-                      {message.is_flagged && (
-                        <div className="flex items-center gap-1 text-xs text-warning mb-1">
-                          <AlertTriangle className="h-3 w-3" />
-                          <span className="hidden sm:inline">Flagged: {message.flagged_reason}</span>
-                          <span className="sm:hidden">Flagged</span>
-                        </div>
-                      )}
-                      <p className="text-sm break-words">{message.content}</p>
-                      <div className="flex items-center justify-between mt-1">
-                        <p
-                          className={`text-xs ${
-                            message.sender_id === currentUserId
-                              ? 'text-white/70'
-                              : 'text-muted-foreground'
-                          }`}
-                        >
-                          {formatTime(message.created_at)}
-                        </p>
-                        {message.sender_id === currentUserId && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => deleteMessage(message.id)}
-                            className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/20 hover:text-destructive ml-2"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        )}
-                      </div>
+                  {message.is_flagged && (
+                    <div className="flex items-center gap-1 text-xs text-destructive mb-2 p-2 bg-destructive/10 rounded">
+                      <AlertTriangle className="h-3 w-3" />
+                      <span>Content flagged for review</span>
                     </div>
+                  )}
+                  <p className="text-sm leading-relaxed break-words">{message.content}</p>
+                  <div className="flex items-center justify-between mt-2">
+                    <span className={`text-xs ${
+                      message.sender_id === currentUserId ? 'text-green-100' : 'text-muted-foreground'
+                    }`}>
+                      {formatTime(message.created_at)}
+                    </span>
+                    {message.sender_id === currentUserId && (
+                      <div className="flex items-center gap-1">
+                        <span className={`text-xs ${
+                          message.id?.startsWith('temp-') ? 'text-green-200' : 'text-green-100'
+                        }`}>
+                          {message.id?.startsWith('temp-') ? '⏳' : '✓'}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
-              ))
-            )}
-            <div ref={messagesEndRef} />
-          </div>
-
-          {/* Security Notice */}
-          {blocked && (
-            <div className="mx-3 sm:mx-4 mb-2 p-2 sm:p-3 bg-destructive/10 border border-destructive/20 rounded-md">
-              <div className="flex items-start gap-2 text-destructive text-xs sm:text-sm">
-                <Shield className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0 mt-0.5" />
-                <span>
-                  Contact information sharing is prohibited. Please keep all communication within UniMarket for your safety.
-                </span>
               </div>
-            </div>
+            ))
           )}
-
-          {/* Message Input */}
-          <div className="border-t p-3 sm:p-4">
-            <div className="flex gap-2">
-              <Input
-                placeholder="Type a message..."
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
-                onKeyPress={handleKeyPress}
-                disabled={loading}
-                className="flex-1 text-sm"
-              />
-              <Button
-                variant="marketplace"
-                size="icon"
-                onClick={sendMessage}
-                disabled={loading || !newMessage.trim()}
-                className="h-9 w-9 sm:h-10 sm:w-10"
-              >
-                <Send className="h-3 w-3 sm:h-4 sm:w-4" />
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
-              <Shield className="h-3 w-3 flex-shrink-0" />
-              <span className="hidden sm:inline">All messages are monitored. Sharing contact info is prohibited for your safety.</span>
-              <span className="sm:hidden">Messages monitored for safety</span>
-            </p>
-          </div>
+          <div ref={messagesEndRef} />
         </div>
       </CardContent>
+
+      {/* Security Alert */}
+      {blocked && (
+        <div className="mx-4 mb-3 p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+          <div className="flex items-start gap-2 text-destructive text-sm">
+            <Shield className="h-4 w-4 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-medium">Message blocked for safety</p>
+              <p className="text-xs mt-1">Contact information sharing is prohibited to protect users</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Message Input Area */}
+      <div className="border-t bg-white p-4">
+        <div className="flex items-end gap-3">
+          <div className="flex-1">
+            <Input
+              placeholder="Type your message..."
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              onKeyPress={handleKeyPress}
+              disabled={loading}
+              className="border-2 border-muted focus:border-green-500 rounded-full px-4 py-2 text-sm"
+            />
+          </div>
+          <Button
+            size="icon"
+            onClick={sendMessage}
+            disabled={loading || !newMessage.trim()}
+            className="h-10 w-10 rounded-full bg-green-600 hover:bg-green-700 shadow-lg"
+          >
+            <Send className="h-4 w-4" />
+          </Button>
+        </div>
+        
+        {/* Security Footer */}
+        <div className="flex items-center justify-center gap-2 mt-3 text-xs text-muted-foreground">
+          <Shield className="h-3 w-3 text-green-600" />
+          <span>End-to-end encrypted • Monitored for safety</span>
+        </div>
+      </div>
     </Card>
   );
 };

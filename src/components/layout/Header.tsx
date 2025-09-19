@@ -32,6 +32,7 @@ import { useNotifications } from '@/hooks/useNotifications';
 import { useOrdersCount } from '@/hooks/useOrdersCount';
 import { useMessagesCount } from '@/hooks/useMessagesCount';
 import { useProfile } from '@/contexts/ProfileContext';
+import { useRealTimeUpdates } from '@/hooks/useRealTimeUpdates';
 import SmartSearchInput from '@/components/search/SmartSearchInput';
 import MobileSearchDialog from '@/components/search/MobileSearchDialog';
 
@@ -54,6 +55,9 @@ const Header = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const navigate = useNavigate();
   const { toast } = useToast();
+  
+  // Enable real-time updates
+  useRealTimeUpdates();
 
   const NetworkIndicator = () => {
     const [connectionStrength, setConnectionStrength] = useState(5);
@@ -142,9 +146,13 @@ const Header = () => {
     }
   };
 
-  const getInitials = (name: string) => {
-    return name
-      .split(' ')
+  const getInitials = (name: string | undefined) => {
+    if (!name || name.trim() === '') return 'U';
+    
+    const words = name.trim().split(' ').filter(word => word.length > 0);
+    if (words.length === 0) return 'U';
+    
+    return words
       .map(word => word[0])
       .join('')
       .toUpperCase()
@@ -212,6 +220,13 @@ const Header = () => {
                 <Link to="/marketplace">
                   <Store className="mr-3 h-5 w-5" />
                   Marketplace
+                </Link>
+              </Button>
+              
+              <Button variant="ghost" size="lg" asChild className="justify-start">
+                <Link to="/sellers">
+                  <User className="mr-3 h-5 w-5" />
+                  Find Sellers
                 </Link>
               </Button>
               
@@ -364,16 +379,19 @@ const Header = () => {
   );
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <header className="sticky top-0 z-50 w-full border-b border-primary/10 bg-background/98 backdrop-blur-md supports-[backdrop-filter]:bg-background/80 shadow-sm">
       <div className="container mx-auto px-4">
         <div className="flex h-16 items-center justify-between">
           {/* Mobile Menu */}
           <MobileNav />
           
           {/* Logo */}
-          <Link to="/" className="flex items-center gap-2 flex-shrink-0">
-            <GraduationCap className="h-7 w-7 sm:h-8 sm:w-8 text-university-green" />
-            <span className="text-lg sm:text-xl font-bold text-university-green hidden xs:inline">UniMarket</span>
+          <Link to="/" className="flex items-center gap-2 flex-shrink-0 hover-lift micro-bounce transition-all duration-200 hover:scale-105">
+            <div className="relative">
+              <GraduationCap className="h-7 w-7 sm:h-8 sm:w-8 text-university-green drop-shadow-sm" />
+              <div className="absolute inset-0 bg-university-green/20 rounded-full blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+            </div>
+            <span className="text-lg sm:text-xl font-bold bg-gradient-to-r from-university-green to-university-green/80 bg-clip-text text-transparent hidden xs:inline">UniMarket</span>
           </Link>
 
           {/* Desktop Search - Hidden on mobile */}
@@ -397,18 +415,18 @@ const Header = () => {
               <MobileSearchDialog />
             </div>
 
-            {/* Mobile/Tablet Notification Icon */}
+            {/* Mobile Message Icon */}
             {user && (
               <div className="lg:hidden">
                 <Button variant="ghost" size="icon" asChild className="relative h-9 w-9 sm:h-10 sm:w-10">
-                  <Link to="/notifications">
-                    <Bell className="h-4 w-4 sm:h-5 sm:w-5" />
-                    {unreadCount > 0 && (
+                  <Link to="/messages">
+                    <MessageCircle className="h-4 w-4 sm:h-5 sm:w-5" />
+                    {messagesCount > 0 && (
                       <Badge 
                         variant="destructive" 
                         className="absolute -top-1 -right-1 sm:-top-2 sm:-right-2 h-4 w-4 sm:h-5 sm:w-5 flex items-center justify-center p-0 text-xs font-bold rounded-full bg-red-500 text-white border-2 border-background"
                       >
-                        {unreadCount > 99 ? '99+' : unreadCount}
+                        {messagesCount > 99 ? '99+' : messagesCount}
                       </Badge>
                     )}
                   </Link>
@@ -424,13 +442,13 @@ const Header = () => {
             ) : user ? (
               <>
                 {/* Cart - Always visible */}
-                <Button variant="ghost" size="icon" asChild className="relative h-9 w-9 sm:h-10 sm:w-10">
+                <Button variant="ghost" size="icon" asChild className="relative h-9 w-9 sm:h-10 sm:w-10 hover-lift micro-bounce">
                   <Link to="/cart">
-                    <ShoppingCart className="h-4 w-4 sm:h-5 sm:w-5" />
+                    <ShoppingCart className="h-4 w-4 sm:h-5 sm:w-5 transition-all duration-200" />
                     {cartCount > 0 && (
                       <Badge 
                         variant="destructive" 
-                        className="absolute -top-1 -right-1 sm:-top-2 sm:-right-2 h-4 w-4 sm:h-5 sm:w-5 flex items-center justify-center p-0 text-xs font-bold rounded-full bg-red-500 text-white border-2 border-background"
+                        className="absolute -top-1 -right-1 sm:-top-2 sm:-right-2 h-4 w-4 sm:h-5 sm:w-5 flex items-center justify-center p-0 text-xs font-bold rounded-full bg-gradient-to-r from-red-500 to-red-600 text-white border-2 border-background shadow-sm animate-pulse"
                       >
                         {cartCount > 99 ? '99+' : cartCount}
                       </Badge>
@@ -444,6 +462,13 @@ const Header = () => {
                     <Link to="/marketplace">
                       <Store className="mr-1 h-4 w-4" />
                       Marketplace
+                    </Link>
+                  </Button>
+
+                  <Button variant="ghost" size="sm" asChild>
+                    <Link to="/sellers">
+                      <User className="mr-1 h-4 w-4" />
+                      Sellers
                     </Link>
                   </Button>
 
@@ -589,10 +614,10 @@ const Header = () => {
               </>
             ) : (
               <div className="flex items-center gap-1 sm:gap-2">
-                <Button variant="outline" size="sm" asChild className="h-9 text-xs sm:h-10 sm:text-sm px-2 sm:px-4">
+                <Button variant="outline" size="sm" asChild className="h-9 text-xs sm:h-10 sm:text-sm px-2 sm:px-4 hover-lift micro-bounce">
                   <Link to="/auth">Sign In</Link>
                 </Button>
-                <Button variant="brand" size="sm" asChild className="h-9 text-xs sm:h-10 sm:text-sm px-2 sm:px-4">
+                <Button variant="default" size="sm" asChild className="h-9 text-xs sm:h-10 sm:text-sm px-2 sm:px-4 hover-lift micro-bounce shadow-sm hover:shadow-md">
                   <Link to="/auth">Join</Link>
                 </Button>
               </div>

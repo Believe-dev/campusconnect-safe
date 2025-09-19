@@ -9,7 +9,7 @@ import { ProductFilters } from '@/components/home/ProductFilters';
 import { ProductGrid } from '@/components/home/ProductGrid';
 import { useAuth } from '@/hooks/useAuth';
 import { useFeaturedProducts } from '@/hooks/useProducts';
-import { ROUTES, CAMPUSES } from '@/lib/constants';
+import { ROUTES, CATEGORIES } from '@/lib/constants';
 import { Filter } from 'lucide-react';
 
 
@@ -19,7 +19,6 @@ const Index = () => {
   const { user } = useAuth();
   const { products, loading } = useFeaturedProducts();
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [selectedCampus, setSelectedCampus] = useState<string>('all');
 
 
 
@@ -27,17 +26,24 @@ const Index = () => {
     navigate(`/product/${productId}`);
   };
 
-  // Filter products based on selected filters
+  // Enhanced filtering logic with keyword matching
   const filteredProducts = products.filter(product => {
-    const matchesCategory = selectedCategory === 'all' || product.category === selectedCategory;
-    let matchesCampus = true;
+    if (selectedCategory === 'all') return true;
     
-    if (selectedCampus !== 'all') {
-      const selectedCampusName = CAMPUSES.find(c => c.id === selectedCampus)?.name;
-      matchesCampus = product.campus === selectedCampusName;
+    // Find the selected category
+    const category = CATEGORIES.find(cat => cat.id === selectedCategory);
+    if (!category) return false;
+    
+    // Check if product category matches exactly
+    if (product.category === category.name || product.category === category.id) {
+      return true;
     }
     
-    return matchesCategory && matchesCampus;
+    // Check if product title or description contains category keywords
+    const searchText = `${product.title} ${product.description}`.toLowerCase();
+    return category.keywords.some(keyword => 
+      searchText.includes(keyword.toLowerCase())
+    );
   });
 
 
@@ -65,9 +71,7 @@ const Index = () => {
 
           <ProductFilters
             selectedCategory={selectedCategory}
-            selectedCampus={selectedCampus}
             onCategoryChange={setSelectedCategory}
-            onCampusChange={setSelectedCampus}
           />
 
           <ProductGrid

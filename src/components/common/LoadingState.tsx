@@ -22,20 +22,20 @@ export const LoadingState: React.FC<LoadingStateProps> = ({
 };
 
 export const LoadingSkeleton: React.FC = () => (
-  <div className="animate-pulse space-y-4">
-    <div className="h-4 bg-muted rounded w-3/4"></div>
-    <div className="h-4 bg-muted rounded w-1/2"></div>
-    <div className="h-32 bg-muted rounded"></div>
+  <div className="space-y-4 fade-in">
+    <div className="h-4 bg-gradient-to-r from-muted via-muted/50 to-muted rounded w-3/4 loading-shimmer"></div>
+    <div className="h-4 bg-gradient-to-r from-muted via-muted/50 to-muted rounded w-1/2 loading-shimmer"></div>
+    <div className="h-32 bg-gradient-to-r from-muted via-muted/50 to-muted rounded loading-shimmer"></div>
   </div>
 );
 
 export const CardSkeleton: React.FC = () => (
-  <Card className="animate-pulse">
-    <div className="aspect-square bg-muted" />
+  <Card className="student-card fade-in">
+    <div className="aspect-square bg-gradient-to-r from-muted via-muted/50 to-muted loading-shimmer" />
     <CardContent className="p-4 space-y-2">
-      <div className="h-4 bg-muted rounded" />
-      <div className="h-3 bg-muted rounded w-2/3" />
-      <div className="h-6 bg-muted rounded w-1/3" />
+      <div className="h-4 bg-gradient-to-r from-muted via-muted/50 to-muted rounded loading-shimmer" />
+      <div className="h-3 bg-gradient-to-r from-muted via-muted/50 to-muted rounded w-2/3 loading-shimmer" />
+      <div className="h-6 bg-gradient-to-r from-muted via-muted/50 to-muted rounded w-1/3 loading-shimmer" />
     </CardContent>
   </Card>
 );
@@ -61,15 +61,17 @@ interface ErrorStateProps {
 }
 
 export const ErrorState: React.FC<ErrorStateProps> = ({ error, onRetry }) => (
-  <Card className="max-w-md mx-auto">
+  <Card className="max-w-md mx-auto student-card fade-in">
     <CardContent className="pt-6 text-center space-y-4">
-      <AlertCircle className="h-12 w-12 text-destructive mx-auto" />
+      <div className="relative">
+        <AlertCircle className="h-12 w-12 text-destructive mx-auto animate-pulse" />
+      </div>
       <div>
-        <h3 className="font-semibold mb-2">Something went wrong</h3>
-        <p className="text-sm text-muted-foreground">{error}</p>
+        <h3 className="font-semibold mb-2 text-destructive">Oops! Something went wrong</h3>
+        <p className="text-sm text-muted-foreground leading-relaxed">{error}</p>
       </div>
       {onRetry && (
-        <Button onClick={onRetry} variant="outline">
+        <Button onClick={onRetry} variant="outline" className="hover-lift micro-bounce">
           <RefreshCw className="h-4 w-4 mr-2" />
           Try Again
         </Button>
@@ -84,10 +86,10 @@ export const EmptyState: React.FC<{
   action?: React.ReactNode;
   icon?: React.ReactNode;
 }> = ({ title, description, action, icon }) => (
-  <div className="text-center py-12 px-4">
-    {icon && <div className="mb-4">{icon}</div>}
-    <h3 className="text-lg font-semibold mb-2">{title}</h3>
-    <p className="text-muted-foreground mb-4 max-w-md mx-auto">{description}</p>
-    {action}
+  <div className="text-center py-12 px-4 fade-in">
+    {icon && <div className="mb-4 hover-lift">{icon}</div>}
+    <h3 className="text-lg font-semibold mb-2 bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">{title}</h3>
+    <p className="text-muted-foreground mb-4 max-w-md mx-auto leading-relaxed">{description}</p>
+    {action && <div className="hover-lift">{action}</div>}
   </div>
 );

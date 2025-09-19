@@ -46,11 +46,14 @@ interface Product {
     is_verified: boolean;
     rating: number;
     total_reviews: number;
+    campus?: string;
+    phone?: string;
+    email?: string;
   };
 }
 
 const ProductDetails = () => {
-  const { id } = useParams();
+  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [product, setProduct] = useState<Product | null>(null);
   const [similarProducts, setSimilarProducts] = useState<Product[]>([]);
@@ -62,6 +65,8 @@ const ProductDetails = () => {
   const [reportReason, setReportReason] = useState('');
   const [reportDescription, setReportDescription] = useState('');
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
+  const [isFavorited, setIsFavorited] = useState(false);
+  const [favoriteLoading, setFavoriteLoading] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -73,28 +78,38 @@ const ProductDetails = () => {
   useEffect(() => {
     if (product) {
       fetchSimilarProducts();
+      checkFavoriteStatus();
     }
   }, [product]);
 
   const fetchProduct = async () => {
     try {
-      const { data, error } = await supabase
+      const { data: productData, error } = await supabase
         .from('products')
-        .select(`
-          *,
-          profiles:seller_id (
-            full_name,
-            avatar_url,
-            is_verified,
-            rating,
-            total_reviews
-          )
-        `)
+        .select('*')
         .eq('id', id)
-        .eq('is_active', true)
         .single();
 
-      if (error) throw error;
+      if (error) {
+        // Secure error logging
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        console.error('[PRODUCT_FETCH_ERROR]', errorMessage.replace(/[\r\n]/g, ''));
+        throw error;
+      }
+
+      // Fetch seller info separately
+      const { data: sellerData } = await supabase
+        .from('profiles')
+        .select('full_name, avatar_url, is_verified, rating, total_reviews, campus, phone_number, email')
+        .eq('user_id', productData.seller_id)
+        .single();
+
+      const data = {
+        ...productData,
+        seller: sellerData
+      };
+
+      // Product loaded successfully
       setProduct(data);
       
       // Track product view
@@ -102,7 +117,9 @@ const ProductDetails = () => {
         await supabase.rpc('track_product_view', { p_product_id: data.id });
       }
     } catch (error) {
-      console.error('Error fetching product:', error);
+      // Secure error logging
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('[PRODUCT_DETAILS_ERROR]', errorMessage.replace(/[\r\n]/g, ''));
       toast({
         title: "Error",
         description: "Product not found",
@@ -122,23 +139,32 @@ const ProductDetails = () => {
         .from('products')
         .select(`
           *,
-          profiles:seller_id (
+          profiles!products_seller_id_fkey (
             full_name,
             avatar_url,
             is_verified,
             rating,
-            total_reviews
+            total_reviews,
+            campus
           )
         `)
         .eq('category', product.category)
-        .eq('is_active', true)
         .neq('id', product.id)
         .limit(4);
 
       if (error) throw error;
-      setSimilarProducts(data || []);
+      
+      // Transform data to match expected structure
+      const transformedData = (data || []).map(item => ({
+        ...item,
+        seller: item.profiles
+      }));
+      
+      setSimilarProducts(transformedData);
     } catch (error) {
-      console.error('Error fetching similar products:', error);
+      // Secure error logging
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('[SIMILAR_PRODUCTS_ERROR]', errorMessage.replace(/[\r\n]/g, ''));
     } finally {
       setSimilarLoading(false);
     }
@@ -191,7 +217,9 @@ const ProductDetails = () => {
         description: `${quantity} item(s) added to your cart`,
       });
     } catch (error) {
-      console.error('Error adding to cart:', error);
+      // Secure error logging
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('[CART_ADD_ERROR]', errorMessage.replace(/[\r\n]/g, ''));
       toast({
         title: "Error",
         description: "Failed to add item to cart",
@@ -239,7 +267,9 @@ const ProductDetails = () => {
 
       navigate(`/messages?conversation=${newConversation.id}`);
     } catch (error) {
-      console.error('Error starting chat:', error);
+      // Secure error logging
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('[CHAT_START_ERROR]', errorMessage.replace(/[\r\n]/g, ''));
       toast({
         title: "Error",
         description: "Failed to start chat",
@@ -294,6 +324,83 @@ const ProductDetails = () => {
       .slice(0, 2);
   };
 
+  const checkFavoriteStatus = async () => {
+    if (!product) return;
+    
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data } = await supabase
+        .from('favorites')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('product_id', product.id)
+        .single();
+
+      setIsFavorited(!!data);
+    } catch (error) {
+      // Not favorited or error - default to false
+      setIsFavorited(false);
+    }
+  };
+
+  const handleToggleFavorite = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      navigate('/auth');
+      return;
+    }
+
+    if (!product) return;
+
+    setFavoriteLoading(true);
+    try {
+      if (isFavorited) {
+        // Remove from favorites
+        const { error } = await supabase
+          .from('favorites')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('product_id', product.id);
+
+        if (error) throw error;
+
+        setIsFavorited(false);
+        toast({
+          title: "Removed from Favorites",
+          description: "Product removed from your favorites",
+        });
+      } else {
+        // Add to favorites
+        const { error } = await supabase
+          .from('favorites')
+          .insert({
+            user_id: user.id,
+            product_id: product.id
+          });
+
+        if (error) throw error;
+
+        setIsFavorited(true);
+        toast({
+          title: "Added to Favorites",
+          description: "Product added to your favorites",
+        });
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('[FAVORITE_TOGGLE_ERROR]', errorMessage.replace(/[\r\n]/g, ''));
+      toast({
+        title: "Error",
+        description: "Failed to update favorites",
+        variant: "destructive",
+      });
+    } finally {
+      setFavoriteLoading(false);
+    }
+  };
+
   const handleReportIssue = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
@@ -335,7 +442,9 @@ const ProductDetails = () => {
         });
 
       if (notificationError) {
-        console.error('Failed to send notification:', notificationError);
+        // Secure error logging
+        const errorMessage = notificationError instanceof Error ? notificationError.message : 'Unknown error';
+        console.error('[NOTIFICATION_ERROR]', errorMessage.replace(/[\r\n]/g, ''));
       }
 
       // Notify admins
@@ -364,7 +473,9 @@ const ProductDetails = () => {
       setReportReason('');
       setReportDescription('');
     } catch (error) {
-      console.error('Error submitting report:', error);
+      // Secure error logging
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('[REPORT_SUBMIT_ERROR]', errorMessage.replace(/[\r\n]/g, ''));
       toast({
         title: "Error",
         description: "Failed to submit report. Please try again.",
@@ -458,8 +569,13 @@ const ProductDetails = () => {
                 <div className="flex items-start justify-between mb-2">
                   <h1 className="text-3xl font-bold text-primary">{product.title}</h1>
                   <div className="flex gap-2">
-                    <Button variant="ghost" size="icon">
-                      <Heart className="h-4 w-4" />
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      onClick={handleToggleFavorite}
+                      disabled={favoriteLoading}
+                    >
+                      <Heart className={`h-4 w-4 ${isFavorited ? 'fill-red-500 text-red-500' : ''}`} />
                     </Button>
                     <Button variant="ghost" size="icon" onClick={handleShare}>
                       {copied ? <Check className="h-4 w-4" /> : <Share2 className="h-4 w-4" />}
@@ -521,10 +637,10 @@ const ProductDetails = () => {
                 <div className="flex items-center gap-2 mb-4">
                   <Badge variant="outline">{product.category}</Badge>
                   <Badge variant="outline">{product.condition}</Badge>
-                  {product.campus && (
+                  {(product.seller?.campus || product.campus) && (
                     <Badge variant="outline">
                       <MapPin className="h-3 w-3 mr-1" />
-                      {product.campus}
+                      {product.seller?.campus || product.campus}
                     </Badge>
                   )}
                 </div>
@@ -554,40 +670,72 @@ const ProductDetails = () => {
               {/* Seller Info */}
               <Card>
                 <CardContent className="pt-6">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="relative">
-                      <Avatar className="h-12 w-12">
-                        <AvatarImage src={product.seller?.avatar_url} />
-                        <AvatarFallback className="bg-university-green text-white">
-                          {product.seller?.full_name ? getInitials(product.seller.full_name) : 'S'}
-                        </AvatarFallback>
-                      </Avatar>
-                      {product.seller?.is_verified && (
-                        <div className="absolute -bottom-1 -right-1 bg-blue-500 rounded-full p-1">
-                          <svg className="h-3 w-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                          </svg>
-                        </div>
-                      )}
-                    </div>
+                  <div className="mb-4">
+                    <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
+                      <Shield className="h-4 w-4" />
+                      Seller Information
+                    </h3>
                     
-                    <div className="flex-1">
-                      <h4 className="font-semibold">{product.seller?.full_name}</h4>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <div className="flex items-center gap-1">
-                          <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                          <span>{product.seller?.rating.toFixed(1)}</span>
+                    <div className="flex items-start gap-3 mb-4">
+                      <div className="relative">
+                        <Avatar className="h-16 w-16">
+                          <AvatarImage src={product.seller?.avatar_url} />
+                          <AvatarFallback className="bg-university-green text-white text-lg">
+                            {product.seller?.full_name ? getInitials(product.seller.full_name) : 'S'}
+                          </AvatarFallback>
+                        </Avatar>
+                        {product.seller?.is_verified && (
+                          <div className="absolute -bottom-1 -right-1 bg-blue-500 rounded-full p-1.5">
+                            <svg className="h-4 w-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                            </svg>
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div className="flex-1 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-semibold text-lg">{product.seller?.full_name}</h4>
+                          {product.seller?.is_verified && (
+                            <Badge variant="secondary" className="text-xs">
+                              <Shield className="h-3 w-3 mr-1" />
+                              Verified
+                            </Badge>
+                          )}
                         </div>
-                        <span>•</span>
-                        <span>{product.seller?.total_reviews} reviews</span>
+                        
+                        <div className="flex items-center gap-4 text-sm">
+                          <div className="flex items-center gap-1">
+                            <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                            <span className="font-medium">{product.seller?.rating?.toFixed(1) || '0.0'}</span>
+                            <span className="text-muted-foreground">({product.seller?.total_reviews || 0} reviews)</span>
+                          </div>
+                        </div>
+                        
+                        {(product.seller?.campus || product.campus) && (
+                          <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                            <MapPin className="h-4 w-4" />
+                            <span>Campus: {product.seller?.campus || product.campus}</span>
+                          </div>
+                        )}
+                        
+                        <div className="text-sm text-muted-foreground">
+                          Member since {new Date(product.created_at).getFullYear()}
+                        </div>
                       </div>
                     </div>
                   </div>
 
-                  <Button onClick={handleStartChat} className="w-full mb-2" variant="outline">
-                    <MessageCircle className="h-4 w-4 mr-2" />
-                    Chat with Seller
-                  </Button>
+                  <div className="space-y-2">
+                    <Button onClick={handleStartChat} className="w-full" variant="outline">
+                      <MessageCircle className="h-4 w-4 mr-2" />
+                      Chat with Seller
+                    </Button>
+                    
+                    <div className="text-xs text-center text-muted-foreground">
+                      Safe transactions • Secure messaging • Campus verified
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
 
@@ -624,26 +772,11 @@ const ProductDetails = () => {
                 <p className="text-muted-foreground">You might also like these items in {product.category}</p>
               </div>
               
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
                 {similarProducts.map((similarProduct) => (
                   <ProductCard
                     key={similarProduct.id}
-                     product={{
-                       id: similarProduct.id,
-                       title: similarProduct.title,
-                       description: similarProduct.description || '',
-                       price: similarProduct.price,
-                       images: similarProduct.images || [],
-                       category: similarProduct.category || '',
-                       campus: similarProduct.campus || '',
-                       condition: similarProduct.condition || 'good',
-                        seller_id: similarProduct.seller_id || '',
-                        seller: {
-                          full_name: similarProduct.seller?.full_name || 'Unknown',
-                          rating: similarProduct.seller?.rating || 0,
-                          is_verified: similarProduct.seller?.is_verified || false,
-                        },
-                      }}
+                    product={similarProduct}
                     onViewProduct={(productId) => navigate(`/product/${productId}`)}
                     isAuthenticated={false}
                   />

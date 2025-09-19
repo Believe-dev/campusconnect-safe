@@ -14,6 +14,7 @@ interface ProfileContextType {
   profile: Profile | null;
   loading: boolean;
   refetch: () => void;
+  updateProfile: (updates: Partial<Profile>) => void;
 }
 
 const ProfileContext = createContext<ProfileContextType | undefined>(undefined);
@@ -73,6 +74,43 @@ export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ child
       } else {
         fetchProfile();
       }
+
+      // Set up real-time subscription for profile changes
+      const subscription = supabase
+        .channel(`profile_${user.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'profiles',
+            filter: `user_id=eq.${user.id}`
+          },
+          (payload) => {
+            console.log('Profile updated:', payload);
+            if (payload.eventType === 'UPDATE' && payload.new) {
+              const updatedProfile = {
+                full_name: payload.new.full_name,
+                is_verified: payload.new.is_verified,
+                account_type: payload.new.account_type,
+                seller_status: payload.new.seller_status,
+                avatar_url: payload.new.avatar_url
+              };
+              setProfile(updatedProfile);
+              localStorage.setItem(`cc_profile_${user.id}`, JSON.stringify(updatedProfile));
+            }
+          }
+        )
+        .subscribe();
+        
+      // Listen for custom profile update events
+      const handleProfileUpdate = () => fetchProfile();
+      window.addEventListener('profileUpdated', handleProfileUpdate);
+
+      return () => {
+        subscription.unsubscribe();
+        window.removeEventListener('profileUpdated', handleProfileUpdate);
+      };
     } else {
       setProfile(null);
       Object.keys(localStorage).forEach(key => {
@@ -83,8 +121,16 @@ export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   }, [user]);
 
+  const updateProfile = (updates: Partial<Profile>) => {
+    if (profile && user) {
+      const updatedProfile = { ...profile, ...updates };
+      setProfile(updatedProfile);
+      localStorage.setItem(`cc_profile_${user.id}`, JSON.stringify(updatedProfile));
+    }
+  };
+
   return (
-    <ProfileContext.Provider value={{ profile, loading, refetch: fetchProfile }}>
+    <ProfileContext.Provider value={{ profile, loading, refetch: fetchProfile, updateProfile }}>
       {children}
     </ProfileContext.Provider>
   );

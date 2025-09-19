@@ -6,9 +6,11 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Shield, Bell, User, CreditCard, HelpCircle, LogOut } from 'lucide-react';
+import { Shield, Bell, User, CreditCard, HelpCircle, LogOut, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/hooks/useAuth';
 import Header from '@/components/layout/Header';
 
 interface NotificationSettings {
@@ -29,6 +31,7 @@ const Settings = () => {
   });
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
+  const { user } = useAuth();
   const navigate = useNavigate();
 
   const handleSignOut = async () => {
@@ -56,6 +59,50 @@ const Settings = () => {
       title: "Settings Updated",
       description: "Your notification preferences have been saved",
     });
+  };
+
+  const deleteAccount = async () => {
+    if (!user) return;
+    
+    try {
+      setLoading(true);
+      
+      // Use RPC function to delete user completely
+      const { error } = await supabase.rpc('delete_user_account', {
+        user_id: user.id
+      });
+      
+      if (error) {
+        console.error('Delete account RPC error:', error);
+        // Fallback: delete profile only
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .delete()
+          .eq('user_id', user.id);
+        
+        if (profileError) throw profileError;
+      }
+      
+      // Sign out the user globally
+      await supabase.auth.signOut({ scope: 'global' });
+      
+      toast({
+        title: "Account Deleted",
+        description: "Your account has been permanently deleted",
+      });
+      
+      // Force redirect to home page and reload to clear all state
+      window.location.replace('/');
+    } catch (error) {
+      console.error('Delete account error:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete account. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -187,9 +234,32 @@ const Settings = () => {
                 <Button variant="outline" disabled>
                   Data Export
                 </Button>
-                <Button variant="outline" disabled>
-                  Delete Account
-                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive">
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete Account
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete Account</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Are you sure you want to permanently delete your account? This action cannot be undone and will remove all your data, including products, orders, and messages.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction 
+                        onClick={deleteAccount}
+                        disabled={loading}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        {loading ? 'Deleting...' : 'Delete Account'}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
                 <Button variant="outline" disabled>
                   Security Log
                 </Button>

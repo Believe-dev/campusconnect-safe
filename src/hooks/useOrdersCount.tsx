@@ -29,9 +29,14 @@ export const useOrdersCount = () => {
           }
         )
         .subscribe();
+        
+      // Listen for custom order update events
+      const handleOrderUpdate = () => fetchOrdersCount();
+      window.addEventListener('ordersUpdated', handleOrderUpdate);
 
       return () => {
         supabase.removeChannel(channel);
+        window.removeEventListener('ordersUpdated', handleOrderUpdate);
       };
     } else {
       setOrdersCount(0);

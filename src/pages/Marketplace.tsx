@@ -20,6 +20,7 @@ import {
 import Header from '@/components/layout/Header';
 import { OfflineNotice } from '@/components/ui/offline-notice';
 import { User } from '@supabase/supabase-js';
+import { searchProducts } from '@/utils/searchUtils';
 
 interface Product {
   id: string;
@@ -58,6 +59,7 @@ const Marketplace = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [user, setUser] = useState<User | null>(null);
+  const [userUniversity, setUserUniversity] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All Categories');
@@ -74,6 +76,7 @@ const Marketplace = () => {
       setUser(user);
       if (user) {
         fetchUserData(user.id);
+        fetchUserUniversity(user.id);
       }
     });
 
@@ -104,7 +107,8 @@ const Marketplace = () => {
           profiles!products_seller_id_fkey (
             full_name,
             rating,
-            is_verified
+            is_verified,
+            campus
           )
         `)
         .eq('is_active', true)
@@ -114,7 +118,9 @@ const Marketplace = () => {
       if (error) throw error;
       setProducts(data || []);
     } catch (error) {
-      console.error('Error fetching products:', error);
+      // Secure error logging
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('[PRODUCTS_FETCH_ERROR]', errorMessage.replace(/[\r\n]/g, ''));
       toast({
         title: "Error",
         description: "Failed to load products",
@@ -147,20 +153,34 @@ const Marketplace = () => {
         setCart(new Set(cartData.map(c => c.product_id)));
       }
     } catch (error) {
-      console.error('Error fetching user data:', error);
+      // Secure error logging
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('[USER_DATA_FETCH_ERROR]', errorMessage.replace(/[\r\n]/g, ''));
+    }
+  };
+
+  const fetchUserUniversity = async (userId: string) => {
+    try {
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('university_name')
+        .eq('user_id', userId)
+        .single();
+
+      if (profileData?.university_name) {
+        setUserUniversity(profileData.university_name);
+      }
+    } catch (error) {
+      console.error('Error fetching user university:', error);
     }
   };
 
   const filterProducts = () => {
     let filtered = [...products];
 
-    // Search filter
+    // Enhanced search filter with synonyms
     if (searchQuery) {
-      filtered = filtered.filter(product =>
-        product.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        product.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        product.category.toLowerCase().includes(searchQuery.toLowerCase())
-      );
+      filtered = searchProducts(filtered, searchQuery);
     }
 
     // Category filter
@@ -173,19 +193,59 @@ const Marketplace = () => {
       filtered = filtered.filter(product => product.condition === selectedCondition);
     }
 
-    // Sort
+    // Prioritize products from user's university
+    if (userUniversity) {
+      filtered.sort((a, b) => {
+        const aFromUserUni = (a.profiles?.campus || a.campus) === userUniversity;
+        const bFromUserUni = (b.profiles?.campus || b.campus) === userUniversity;
+        
+        if (aFromUserUni && !bFromUserUni) return -1;
+        if (!aFromUserUni && bFromUserUni) return 1;
+        return 0;
+      });
+    }
+
+    // Sort within university groups
     switch (sortBy) {
       case 'price_low':
-        filtered.sort((a, b) => a.price - b.price);
+        filtered.sort((a, b) => {
+          const aFromUserUni = userUniversity && (a.profiles?.campus || a.campus) === userUniversity;
+          const bFromUserUni = userUniversity && (b.profiles?.campus || b.campus) === userUniversity;
+          
+          if (aFromUserUni && !bFromUserUni) return -1;
+          if (!aFromUserUni && bFromUserUni) return 1;
+          return a.price - b.price;
+        });
         break;
       case 'price_high':
-        filtered.sort((a, b) => b.price - a.price);
+        filtered.sort((a, b) => {
+          const aFromUserUni = userUniversity && (a.profiles?.campus || a.campus) === userUniversity;
+          const bFromUserUni = userUniversity && (b.profiles?.campus || b.campus) === userUniversity;
+          
+          if (aFromUserUni && !bFromUserUni) return -1;
+          if (!aFromUserUni && bFromUserUni) return 1;
+          return b.price - a.price;
+        });
         break;
       case 'newest':
-        filtered.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        filtered.sort((a, b) => {
+          const aFromUserUni = userUniversity && (a.profiles?.campus || a.campus) === userUniversity;
+          const bFromUserUni = userUniversity && (b.profiles?.campus || b.campus) === userUniversity;
+          
+          if (aFromUserUni && !bFromUserUni) return -1;
+          if (!aFromUserUni && bFromUserUni) return 1;
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        });
         break;
       case 'oldest':
-        filtered.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+        filtered.sort((a, b) => {
+          const aFromUserUni = userUniversity && (a.profiles?.campus || a.campus) === userUniversity;
+          const bFromUserUni = userUniversity && (b.profiles?.campus || b.campus) === userUniversity;
+          
+          if (aFromUserUni && !bFromUserUni) return -1;
+          if (!aFromUserUni && bFromUserUni) return 1;
+          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+        });
         break;
     }
 
@@ -238,7 +298,9 @@ const Marketplace = () => {
       // Update analytics
       await updateAnalytics(productId, 'favorites_count', isFavorited ? -1 : 1);
     } catch (error) {
-      console.error('Error toggling favorite:', error);
+      // Secure error logging
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('[FAVORITE_TOGGLE_ERROR]', errorMessage.replace(/[\r\n]/g, ''));
       toast({
         title: "Error",
         description: "Failed to update favorites",
@@ -282,7 +344,9 @@ const Marketplace = () => {
       // Update analytics
       await updateAnalytics(productId, 'cart_additions', 1);
     } catch (error) {
-      console.error('Error adding to cart:', error);
+      // Secure error logging
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('[CART_ADD_ERROR]', errorMessage.replace(/[\r\n]/g, ''));
       toast({
         title: "Error",
         description: "Failed to add to cart",
@@ -319,7 +383,9 @@ const Marketplace = () => {
           });
       }
     } catch (error) {
-      console.error('Error updating analytics:', error);
+      // Secure error logging
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('[ANALYTICS_UPDATE_ERROR]', errorMessage.replace(/[\r\n]/g, ''));
     }
   };
 
@@ -351,7 +417,14 @@ const Marketplace = () => {
         <OfflineNotice />
         <div className="mb-6 sm:mb-8">
           <h1 className="text-2xl sm:text-3xl font-bold text-primary mb-2">Marketplace</h1>
-          <p className="text-sm sm:text-base text-muted-foreground">Discover products from fellow students</p>
+          <p className="text-sm sm:text-base text-muted-foreground">
+            Discover products from fellow students
+            {userUniversity && (
+              <span className="block text-xs text-blue-600 mt-1">
+                Showing products from {userUniversity} first
+              </span>
+            )}
+          </p>
         </div>
 
             {/* Filters */}
@@ -484,7 +557,7 @@ const Marketplace = () => {
                     </Badge>
                     <div className="flex items-center gap-1 text-xs text-muted-foreground">
                       <MapPin className="h-3 w-3" />
-                      <span className="truncate">{product.campus}</span>
+                      <span className="truncate">{product.profiles?.campus || product.campus}</span>
                     </div>
                   </div>
 

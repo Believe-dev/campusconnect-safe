@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { sanitizeInput, secureLog } from '@/utils/security';
 
 interface Product {
   id: string;
@@ -21,6 +22,7 @@ interface Product {
     full_name: string;
     rating: number;
     is_verified: boolean;
+    campus?: string;
   } | null;
 }
 
@@ -74,7 +76,7 @@ const ProductCard = ({
       );
 
       if (functionError) {
-        console.error('Error finding/creating conversation:', functionError);
+        secureLog.error('Error finding/creating conversation', functionError);
         toast({
           title: "Error",
           description: "Failed to start conversation. Please try again.",
@@ -87,7 +89,7 @@ const ProductCard = ({
       navigate(`/messages?conversation=${conversationId}`);
 
     } catch (error) {
-      console.error('Error in handleMessageSeller:', error);
+      secureLog.error('Error in handleMessageSeller', error);
       toast({
         title: "Error",
         description: "Something went wrong. Please try again.",
@@ -122,22 +124,22 @@ const ProductCard = ({
   }
 
   return (
-    <Card className="group hover:shadow-card transition-smooth overflow-hidden cursor-pointer relative" onClick={() => onViewProduct(product.id)}>
+    <Card className="group student-card hover-lift micro-bounce overflow-hidden cursor-pointer relative transition-all duration-200 hover:scale-[1.02] hover:shadow-lg flex flex-col h-full" onClick={() => onViewProduct(product.id)}>
       <div className="relative aspect-square overflow-hidden bg-muted">
         {product?.images?.[0] ? (
           <OptimizedImage
             src={product.images[0]}
             alt={product.title}
-            className="w-full h-full group-hover:scale-105 transition-smooth"
+            className="w-full h-full group-hover:scale-110 transition-all duration-300 ease-out"
             quality={60}
           />
         ) : (
-          <div className="flex items-center justify-center h-full bg-muted">
-            <span className="text-xs sm:text-sm text-muted-foreground">No Image</span>
+          <div className="flex items-center justify-center h-full bg-gradient-to-br from-muted to-muted/50">
+            <span className="text-xs sm:text-sm text-muted-foreground font-medium">No Image</span>
           </div>
         )}
-        <div className={`absolute top-1 right-1 sm:top-2 sm:right-2 px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-full text-xs font-medium border ${getConditionColor(product?.condition || 'good')}`}>
-          {(product?.condition || 'good').replace('_', ' ')}
+        <div className={`absolute top-2 right-2 px-2 py-1 rounded-full text-xs font-semibold border backdrop-blur-sm ${getConditionColor(product?.condition || 'good')} shadow-sm`}>
+          {(product?.condition || 'good').replace('_', ' ').toUpperCase()}
         </div>
         
         {/* Hover Actions - Hidden on mobile for better touch experience */}
@@ -176,22 +178,22 @@ const ProductCard = ({
         )}
       </div>
 
-      <CardContent className="p-2 sm:p-3">
-        <div className="space-y-1 sm:space-y-2">
-          <h3 className="font-semibold text-sm sm:text-base leading-tight line-clamp-2">
-            {product?.title || 'Unknown Product'}
+      <CardContent className="p-2 sm:p-3 flex-1 flex flex-col">
+        <div className="space-y-1 sm:space-y-2 flex-1">
+          <h3 className="font-semibold text-sm sm:text-base leading-tight line-clamp-2 min-h-[2.5rem] sm:min-h-[3rem]">
+            {sanitizeInput(product?.title || 'Unknown Product')}
           </h3>
-          <div className="font-bold text-base sm:text-lg text-university-green">
+          <div className="font-bold text-base sm:text-lg bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">
             {formatPrice(product?.price || 0)}
           </div>
           <div className="flex items-center gap-1 text-xs text-muted-foreground">
-            <MapPin className="h-3 w-3" />
-            <span className="truncate">{product?.campus || 'Unknown Campus'}</span>
+            <MapPin className="h-3 w-3 flex-shrink-0" />
+            <span className="truncate">{sanitizeInput(product?.seller?.campus || product?.campus || 'Unknown Campus')}</span>
           </div>
         </div>
       </CardContent>
 
-      <CardFooter className="p-2 sm:p-3 pt-0">
+      <CardFooter className="p-2 sm:p-3 pt-0 mt-auto">
         <div className="flex items-center justify-between w-full gap-2">
           <div 
             className="flex items-center gap-1 text-xs cursor-pointer hover:text-primary transition-colors min-w-0 flex-1"
@@ -201,7 +203,7 @@ const ProductCard = ({
             }}
           >
             <span className="font-medium truncate max-w-[60px] sm:max-w-[80px]">
-              {product.seller?.full_name || 'Unknown Seller'}
+              {sanitizeInput(product.seller?.full_name || 'Unknown Seller')}
             </span>
             {product.seller?.is_verified && (
               <div className="h-3 w-3 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">

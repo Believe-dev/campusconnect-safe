@@ -4,7 +4,7 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-smooth focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover-lift micro-bounce active:scale-95 hover:shadow-sm",
   {
     variants: {
       variant: {
@@ -16,15 +16,15 @@ const buttonVariants = cva(
         link: "text-primary underline-offset-4 hover:underline",
         
         // UniMarket specific variants
-        brand: "gradient-brand text-primary-foreground shadow-brand hover:opacity-90 font-semibold",
-        success: "bg-success text-success-foreground shadow-success hover:bg-success/90",
-        warning: "bg-warning text-warning-foreground shadow hover:bg-warning/90",
-        accent: "bg-accent text-accent-foreground shadow hover:bg-accent/90",
-        verified: "bg-verified-blue text-white shadow hover:bg-verified-blue/90",
-        trust: "bg-success/10 text-success border border-success/20 hover:bg-success/20",
-        marketplace: "bg-university-green text-white shadow-brand hover:bg-university-green/90",
-        seller: "bg-university-gold text-foreground shadow hover:bg-university-gold/90",
-        buyer: "bg-primary-muted text-primary hover:bg-primary-muted/90",
+        brand: "gradient-brand text-primary-foreground shadow-brand hover:opacity-90 hover:shadow-lg hover:-translate-y-0.5 font-semibold",
+        success: "bg-gradient-to-r from-success to-success/90 text-success-foreground shadow-success hover:from-success/90 hover:to-success hover:shadow-lg",
+        warning: "bg-gradient-to-r from-warning to-warning/90 text-warning-foreground shadow hover:from-warning/90 hover:to-warning hover:shadow-md",
+        accent: "bg-gradient-to-r from-accent to-accent/90 text-accent-foreground shadow hover:from-accent/90 hover:to-accent hover:shadow-md",
+        verified: "bg-gradient-to-r from-verified-blue to-verified-blue/90 text-white shadow hover:from-verified-blue/90 hover:to-verified-blue hover:shadow-lg",
+        trust: "bg-success/10 text-success border border-success/20 hover:bg-success/20 hover:border-success/30 hover:shadow-sm",
+        marketplace: "bg-gradient-to-r from-university-green to-university-green/90 text-white shadow-brand hover:from-university-green/90 hover:to-university-green hover:shadow-lg hover:-translate-y-0.5",
+        seller: "bg-gradient-to-r from-university-gold to-university-gold/90 text-foreground shadow hover:from-university-gold/90 hover:to-university-gold hover:shadow-md",
+        buyer: "bg-gradient-to-r from-primary-muted to-primary-muted/90 text-primary hover:from-primary-muted/90 hover:to-primary-muted hover:shadow-sm",
       },
       size: {
         default: "h-9 px-4 py-2",
