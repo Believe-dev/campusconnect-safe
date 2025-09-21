@@ -743,41 +743,26 @@ export default function Admin() {
     }
   };
 
-  const processPayoutRequest = async (payoutId: string, status: 'completed' | 'failed', notes?: string) => {
+  const processPayoutRequest = async (payoutId: string, approve: boolean, notes?: string) => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const { error } = await supabase
-        .from('payout_requests')
-        .update({
-          status,
-          admin_notes: notes,
-          processed_by: user.id,
-          processed_at: new Date().toISOString()
-        })
-        .eq('id', payoutId);
+      const { data, error } = await supabase.rpc('process_payout_request', {
+        payout_id: payoutId,
+        admin_user_id: user.id,
+        approve: approve,
+        notes: notes || null
+      });
 
       if (error) throw error;
 
-      // Notify all admins about payout processing
-      const { data: admins } = await supabase
-        .from('profiles')
-        .select('user_id')
-        .eq('account_type', 'admin');
-
-      if (admins) {
-        for (const admin of admins) {
-          await supabase.from('notifications').insert({
-            user_id: admin.user_id,
-            title: 'Payout Processed',
-            message: `Payout request has been ${status}`,
-            type: status === 'completed' ? 'success' : 'warning'
-          });
-        }
+      if (data === false) {
+        toast.error('Payout request not found or insufficient balance');
+        return;
       }
 
-      toast.success(`Payout request ${status}`);
+      toast.success(`Payout request ${approve ? 'approved' : 'rejected'}`);
       fetchEscrowData();
     } catch (error) {
       console.error('Process payout error:', error);
@@ -1326,7 +1311,7 @@ export default function Admin() {
               <DollarSign className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">${analytics.totalRevenue.toFixed(2)}</div>
+              <div className="text-2xl font-bold">₦{analytics.totalRevenue.toLocaleString()}</div>
               <p className="text-xs text-muted-foreground flex items-center">
                 <TrendingUp className="h-3 w-3 mr-1" />
                 +{analytics.monthlyGrowth}% from last month
@@ -2858,7 +2843,7 @@ export default function Admin() {
                             />
                           </TableCell>
                           <TableCell className="font-medium">{product.title}</TableCell>
-                          <TableCell>${product.price}</TableCell>
+                          <TableCell>₦{product.price}</TableCell>
                           <TableCell>{product.category}</TableCell>
                           <TableCell>{product.seller?.full_name || 'Unknown'}</TableCell>
                           <TableCell>
@@ -3143,7 +3128,7 @@ export default function Admin() {
                   <div className="space-y-4">
                     <div className="flex justify-between items-center">
                       <span>Total Revenue</span>
-                      <span className="font-bold text-lg">${analytics.totalRevenue.toFixed(2)}</span>
+                      <span className="font-bold text-lg">₦{analytics.totalRevenue.toLocaleString()}</span>
                     </div>
                     <div className="flex justify-between items-center">
                       <span>Monthly Growth</span>
@@ -3291,14 +3276,14 @@ export default function Admin() {
                                 <div className="flex gap-2">
                                   <Button
                                     size="sm"
-                                    onClick={() => processPayoutRequest(payout.id, 'completed')}
+                                    onClick={() => processPayoutRequest(payout.id, true, 'Payout approved by admin')}
                                   >
                                     Approve
                                   </Button>
                                   <Button
                                     size="sm"
                                     variant="outline"
-                                    onClick={() => processPayoutRequest(payout.id, 'failed', 'Rejected by admin')}
+                                    onClick={() => processPayoutRequest(payout.id, false, 'Rejected by admin')}
                                   >
                                     Reject
                                   </Button>

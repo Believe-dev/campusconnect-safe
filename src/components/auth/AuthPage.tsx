@@ -7,6 +7,10 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Check, ChevronsUpDown } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { Shield, UserCheck, Mail, Upload, Camera, IdCard, Eye, EyeOff } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { User, Session } from '@supabase/supabase-js';
@@ -22,6 +26,7 @@ const AuthPage = () => {
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [university, setUniversity] = useState('');
+  const [universityOpen, setUniversityOpen] = useState(false);
   const [studentId, setStudentId] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
 
@@ -326,33 +331,166 @@ const AuthPage = () => {
 
               <div className="space-y-2">
                 <Label htmlFor="signup-university">University *</Label>
-                <Select value={university} onValueChange={setUniversity}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select your university" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="University of Lagos">University of Lagos</SelectItem>
-                    <SelectItem value="University of Ibadan">University of Ibadan</SelectItem>
-                    <SelectItem value="Ahmadu Bello University">Ahmadu Bello University</SelectItem>
-                    <SelectItem value="University of Nigeria, Nsukka">University of Nigeria, Nsukka</SelectItem>
-                    <SelectItem value="Obafemi Awolowo University">Obafemi Awolowo University</SelectItem>
-                    <SelectItem value="University of Benin">University of Benin</SelectItem>
-                    <SelectItem value="Federal University of Technology, Akure">Federal University of Technology, Akure</SelectItem>
-                    <SelectItem value="Lagos State University">Lagos State University</SelectItem>
-                    <SelectItem value="Covenant University">Covenant University</SelectItem>
-                    <SelectItem value="Babcock University">Babcock University</SelectItem>
-                    <SelectItem value="University of Port Harcourt">University of Port Harcourt</SelectItem>
-                    <SelectItem value="Federal University of Technology, Minna">Federal University of Technology, Minna</SelectItem>
-                    <SelectItem value="University of Calabar">University of Calabar</SelectItem>
-                    <SelectItem value="Bayero University Kano">Bayero University Kano</SelectItem>
-                    <SelectItem value="University of Jos">University of Jos</SelectItem>
-                    <SelectItem value="Federal University, Oye-Ekiti">Federal University, Oye-Ekiti</SelectItem>
-                    <SelectItem value="Nnamdi Azikiwe University">Nnamdi Azikiwe University</SelectItem>
-                    <SelectItem value="University of Uyo">University of Uyo</SelectItem>
-                    <SelectItem value="Rivers State University">Rivers State University</SelectItem>
-                    <SelectItem value="Other">Other</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Popover open={universityOpen} onOpenChange={setUniversityOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={universityOpen}
+                      className="w-full justify-between"
+                    >
+                      {university || "Select your university..."}
+                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-full p-0">
+                    <Command>
+                      <CommandInput placeholder="Search universities..." />
+                      <CommandList>
+                        <CommandEmpty>No university found.</CommandEmpty>
+                        <CommandGroup>
+                          {[
+                            "Abia State University",
+                            "Abubakar Tafawa Balewa University",
+                            "Achievers University",
+                            "Adamawa State University",
+                            "Adeleke University",
+                            "Afe Babalola University",
+                            "African University of Science and Technology",
+                            "Ahmadu Bello University",
+                            "Ajayi Crowther University",
+                            "Akwa Ibom State University",
+                            "Alex Ekwueme Federal University",
+                            "American University of Nigeria",
+                            "Anchor University",
+                            "Augustine University",
+                            "Babcock University",
+                            "Baze University",
+                            "Bayero University Kano",
+                            "Bells University of Technology",
+                            "Benson Idahosa University",
+                            "Bingham University",
+                            "Bowen University",
+                            "Caleb University",
+                            "Caritas University",
+                            "Chrisland University",
+                            "Christopher University",
+                            "Clifford University",
+                            "Coal City University",
+                            "Covenant University",
+                            "Crawford University",
+                            "Cross River University of Technology",
+                            "Delta State University",
+                            "Eastern Palm University",
+                            "Ebonyi State University",
+                            "Edo University",
+                            "Ekiti State University",
+                            "Elizade University",
+                            "Enugu State University of Science and Technology",
+                            "Federal University Birnin Kebbi",
+                            "Federal University Dutse",
+                            "Federal University Dutsin-Ma",
+                            "Federal University Gashua",
+                            "Federal University Gusau",
+                            "Federal University Kashere",
+                            "Federal University Lafia",
+                            "Federal University Lokoja",
+                            "Federal University Ndufu-Alike",
+                            "Federal University of Agriculture, Abeokuta",
+                            "Federal University of Agriculture, Makurdi",
+                            "Federal University of Petroleum Resources",
+                            "Federal University of Technology, Akure",
+                            "Federal University of Technology, Minna",
+                            "Federal University of Technology, Owerri",
+                            "Federal University Otuoke",
+                            "Federal University Oye-Ekiti",
+                            "Federal University Wukari",
+                            "Fountain University",
+                            "Godfrey Okoye University",
+                            "Gombe State University",
+                            "Gregory University",
+                            "Hallmark University",
+                            "Hezekiah University",
+                            "Igbinedion University",
+                            "Imo State University",
+                            "Joseph Ayo Babalola University",
+                            "Kaduna State University",
+                            "Kano University of Science and Technology",
+                            "Kebbi State University of Science and Technology",
+                            "Kogi State University",
+                            "Kwara State University",
+                            "Ladoke Akintola University of Technology",
+                            "Lagos State University",
+                            "Landmark University",
+                            "Lead City University",
+                            "Madonna University",
+                            "Michael Okpara University of Agriculture",
+                            "Modibbo Adama University of Technology",
+                            "Mountain Top University",
+                            "Nasarawa State University",
+                            "Niger Delta University",
+                            "Nile University of Nigeria",
+                            "Nnamdi Azikiwe University",
+                            "Northwest University",
+                            "Novena University",
+                            "Obafemi Awolowo University",
+                            "Obong University",
+                            "Oduduwa University",
+                            "Olabisi Onabanjo University",
+                            "Osun State University",
+                            "Pan-Atlantic University",
+                            "Paul University",
+                            "Plateau State University",
+                            "Redeemer's University",
+                            "Renaissance University",
+                            "Rhema University",
+                            "Rivers State University",
+                            "Salem University",
+                            "Samuel Adegboyega University",
+                            "Sokoto State University",
+                            "Summit University",
+                            "Taraba State University",
+                            "Tansian University",
+                            "University of Abuja",
+                            "University of Agriculture and Environmental Sciences",
+                            "University of Benin",
+                            "University of Calabar",
+                            "University of Ibadan",
+                            "University of Ilorin",
+                            "University of Jos",
+                            "University of Lagos",
+                            "University of Maiduguri",
+                            "University of Nigeria, Nsukka",
+                            "University of Port Harcourt",
+                            "University of Uyo",
+                            "Veritas University",
+                            "Wesley University",
+                            "Western Delta University",
+                            "Yobe State University",
+                            "Yusuf Maitama Sule University"
+                          ].sort().map((uni) => (
+                            <CommandItem
+                              key={uni}
+                              value={uni}
+                              onSelect={(currentValue) => {
+                                setUniversity(currentValue === university ? "" : currentValue);
+                                setUniversityOpen(false);
+                              }}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  university === uni ? "opacity-100" : "opacity-0"
+                                )}
+                              />
+                              {uni}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
               </div>
 
 

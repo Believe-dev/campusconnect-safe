@@ -7,8 +7,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Wallet, TrendingUp, DollarSign, CreditCard, ArrowUpRight, ArrowDownLeft, Clock } from 'lucide-react';
+import { Wallet, TrendingUp, DollarSign, CreditCard, ArrowUpRight, ArrowDownLeft, Clock, Eye, Heart, ShoppingCart, Package } from 'lucide-react';
 
 interface WalletData {
   id: string;
@@ -16,6 +17,23 @@ interface WalletData {
   pending_balance: number;
   total_earnings: number;
   total_commission_paid: number;
+}
+
+interface ProductAnalytics {
+  product_id: string;
+  product_title: string;
+  views: number;
+  favorites_count: number;
+  cart_additions: number;
+  orders_count: number;
+  revenue: number;
+}
+
+interface UserProfile {
+  bank_account_name?: string;
+  bank_account_number?: string;
+  bank_name?: string;
+  email: string;
 }
 
 interface WalletTransaction {
@@ -41,8 +59,14 @@ const WalletDashboard = () => {
   const [wallet, setWallet] = useState<WalletData | null>(null);
   const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
   const [payoutRequests, setPayoutRequests] = useState<PayoutRequest[]>([]);
+  const [productAnalytics, setProductAnalytics] = useState<ProductAnalytics[]>([]);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [showPayoutDialog, setShowPayoutDialog] = useState(false);
+  const [showBankDetailsDialog, setShowBankDetailsDialog] = useState(false);
+  const [analyticsFilter, setAnalyticsFilter] = useState('best_selling');
+  const [emailVerification, setEmailVerification] = useState('');
+  const [passwordVerification, setPasswordVerification] = useState('');
   const { toast } = useToast();
 
   const [payoutForm, setPayoutForm] = useState({
@@ -52,8 +76,16 @@ const WalletDashboard = () => {
     bank_name: ''
   });
 
+  const [bankDetailsForm, setBankDetailsForm] = useState({
+    bank_account_name: '',
+    bank_account_number: '',
+    bank_name: ''
+  });
+
   useEffect(() => {
     fetchWalletData();
+    fetchProductAnalytics();
+    fetchUserProfile();
   }, []);
 
   const fetchWalletData = async () => {
@@ -107,6 +139,59 @@ const WalletDashboard = () => {
     }
   };
 
+  const fetchProductAnalytics = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from('product_analytics')
+        .select(`
+          *,
+          products!inner(title, seller_id)
+        `)
+        .eq('products.seller_id', user.id);
+
+      if (error) throw error;
+      
+      const analyticsWithTitle = (data || []).map(item => ({
+        ...item,
+        product_title: item.products.title
+      }));
+      
+      setProductAnalytics(analyticsWithTitle);
+    } catch (error) {
+      console.error('Error fetching product analytics:', error);
+    }
+  };
+
+  const fetchUserProfile = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('bank_account_name, bank_account_number, bank_name, email')
+        .eq('user_id', user.id)
+        .single();
+
+      if (error) throw error;
+      setUserProfile(data);
+      
+      // Pre-fill bank details form if available
+      if (data.bank_account_name) {
+        setBankDetailsForm({
+          bank_account_name: data.bank_account_name || '',
+          bank_account_number: data.bank_account_number || '',
+          bank_name: data.bank_name || ''
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching user profile:', error);
+    }
+  };
+
   const handlePayoutRequest = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -122,15 +207,29 @@ const WalletDashboard = () => {
         return;
       }
 
+      // Use saved bank details or form input
+      const bankDetails = {
+        bank_account_name: payoutForm.bank_account_name || userProfile?.bank_account_name || '',
+        bank_account_number: payoutForm.bank_account_number || userProfile?.bank_account_number || '',
+        bank_name: payoutForm.bank_name || userProfile?.bank_name || ''
+      };
+
+      if (!bankDetails.bank_account_name || !bankDetails.bank_account_number || !bankDetails.bank_name) {
+        toast({
+          title: "Missing Bank Details",
+          description: "Please provide complete bank details",
+          variant: "destructive",
+        });
+        return;
+      }
+
       const { error } = await supabase
         .from('payout_requests')
         .insert({
           user_id: user.id,
           wallet_id: wallet.id,
           amount,
-          bank_account_name: payoutForm.bank_account_name,
-          bank_account_number: payoutForm.bank_account_number,
-          bank_name: payoutForm.bank_name
+          ...bankDetails
         });
 
       if (error) throw error;
@@ -141,12 +240,7 @@ const WalletDashboard = () => {
       });
 
       setShowPayoutDialog(false);
-      setPayoutForm({
-        amount: '',
-        bank_account_name: '',
-        bank_account_number: '',
-        bank_name: ''
-      });
+      setPayoutForm({ amount: '', bank_account_name: '', bank_account_number: '', bank_name: '' });
       fetchWalletData();
 
     } catch (error) {
@@ -156,6 +250,87 @@ const WalletDashboard = () => {
         description: "Failed to submit payout request",
         variant: "destructive",
       });
+    }
+  };
+
+  const handleUpdateBankDetails = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user || !userProfile) return;
+
+      // Verify email and password
+      if (emailVerification !== userProfile.email) {
+        toast({
+          title: "Email Verification Failed",
+          description: "Please enter your correct email address",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Verify password by attempting to sign in
+      const { error: authError } = await supabase.auth.signInWithPassword({
+        email: userProfile.email,
+        password: passwordVerification
+      });
+
+      if (authError) {
+        toast({
+          title: "Password Verification Failed",
+          description: "Please enter your correct password",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          bank_account_name: bankDetailsForm.bank_account_name,
+          bank_account_number: bankDetailsForm.bank_account_number,
+          bank_name: bankDetailsForm.bank_name
+        })
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Bank Details Updated",
+        description: "Your bank details have been saved successfully",
+      });
+
+      setShowBankDetailsDialog(false);
+      setEmailVerification('');
+      setPasswordVerification('');
+      fetchUserProfile();
+
+    } catch (error) {
+      console.error('Error updating bank details:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update bank details",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const getFilteredAnalytics = () => {
+    const sorted = [...productAnalytics];
+    switch (analyticsFilter) {
+      case 'view_all':
+        return sorted;
+      case 'best_selling':
+        return sorted.sort((a, b) => b.orders_count - a.orders_count);
+      case 'most_views':
+        return sorted.sort((a, b) => b.views - a.views);
+      case 'most_cart_adds':
+        return sorted.sort((a, b) => b.cart_additions - a.cart_additions);
+      case 'most_favorited':
+        return sorted.sort((a, b) => b.favorites_count - a.favorites_count);
+      case 'highest_revenue':
+        return sorted.sort((a, b) => b.revenue - a.revenue);
+      default:
+        return sorted;
     }
   };
 
@@ -199,14 +374,80 @@ const WalletDashboard = () => {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold">Wallet Dashboard</h2>
-        <Dialog open={showPayoutDialog} onOpenChange={setShowPayoutDialog}>
-          <DialogTrigger asChild>
-            <Button disabled={!wallet || wallet.available_balance <= 0}>
-              <CreditCard className="h-4 w-4 mr-2" />
-              Request Payout
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
+        <div className="flex gap-2">
+          <Dialog open={showBankDetailsDialog} onOpenChange={setShowBankDetailsDialog}>
+            <DialogTrigger asChild>
+              <Button variant="outline">
+                <Wallet className="h-4 w-4 mr-2" />
+                Bank Details
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Update Bank Details</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="verify_email">Verify Email</Label>
+                  <Input
+                    id="verify_email"
+                    type="email"
+                    placeholder="Enter your email"
+                    value={emailVerification}
+                    onChange={(e) => setEmailVerification(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="verify_password">Verify Password</Label>
+                  <Input
+                    id="verify_password"
+                    type="password"
+                    placeholder="Enter your password"
+                    value={passwordVerification}
+                    onChange={(e) => setPasswordVerification(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="bank_account_name">Account Name</Label>
+                  <Input
+                    id="bank_account_name"
+                    placeholder="Full name on account"
+                    value={bankDetailsForm.bank_account_name}
+                    onChange={(e) => setBankDetailsForm({...bankDetailsForm, bank_account_name: e.target.value})}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="bank_account_number">Account Number</Label>
+                  <Input
+                    id="bank_account_number"
+                    placeholder="Bank account number"
+                    value={bankDetailsForm.bank_account_number}
+                    onChange={(e) => setBankDetailsForm({...bankDetailsForm, bank_account_number: e.target.value})}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="bank_name">Bank Name</Label>
+                  <Input
+                    id="bank_name"
+                    placeholder="Bank name"
+                    value={bankDetailsForm.bank_name}
+                    onChange={(e) => setBankDetailsForm({...bankDetailsForm, bank_name: e.target.value})}
+                  />
+                </div>
+                <Button onClick={handleUpdateBankDetails} className="w-full">
+                  Update Bank Details
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+          <Dialog open={showPayoutDialog} onOpenChange={setShowPayoutDialog}>
+            <DialogTrigger asChild>
+              <Button disabled={!wallet || wallet.available_balance <= 0}>
+                <CreditCard className="h-4 w-4 mr-2" />
+                Request Payout
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
             <DialogHeader>
               <DialogTitle>Request Payout</DialogTitle>
             </DialogHeader>
@@ -225,39 +466,51 @@ const WalletDashboard = () => {
                   max={wallet?.available_balance || 0}
                 />
               </div>
-              <div>
-                <Label htmlFor="bank_account_name">Account Name</Label>
-                <Input
-                  id="bank_account_name"
-                  placeholder="Full name on account"
-                  value={payoutForm.bank_account_name}
-                  onChange={(e) => setPayoutForm({...payoutForm, bank_account_name: e.target.value})}
-                />
-              </div>
-              <div>
-                <Label htmlFor="bank_account_number">Account Number</Label>
-                <Input
-                  id="bank_account_number"
-                  placeholder="Bank account number"
-                  value={payoutForm.bank_account_number}
-                  onChange={(e) => setPayoutForm({...payoutForm, bank_account_number: e.target.value})}
-                />
-              </div>
-              <div>
-                <Label htmlFor="bank_name">Bank Name</Label>
-                <Input
-                  id="bank_name"
-                  placeholder="Bank name"
-                  value={payoutForm.bank_name}
-                  onChange={(e) => setPayoutForm({...payoutForm, bank_name: e.target.value})}
-                />
-              </div>
+              {userProfile?.bank_account_name ? (
+                <div className="p-4 bg-muted rounded-lg">
+                  <p className="text-sm font-medium mb-2">Saved Bank Details:</p>
+                  <p className="text-sm">{userProfile.bank_account_name}</p>
+                  <p className="text-sm">{userProfile.bank_name}</p>
+                  <p className="text-sm">{userProfile.bank_account_number}</p>
+                </div>
+              ) : (
+                <>
+                  <div>
+                    <Label htmlFor="bank_account_name">Account Name</Label>
+                    <Input
+                      id="bank_account_name"
+                      placeholder="Full name on account"
+                      value={payoutForm.bank_account_name}
+                      onChange={(e) => setPayoutForm({...payoutForm, bank_account_name: e.target.value})}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="bank_account_number">Account Number</Label>
+                    <Input
+                      id="bank_account_number"
+                      placeholder="Bank account number"
+                      value={payoutForm.bank_account_number}
+                      onChange={(e) => setPayoutForm({...payoutForm, bank_account_number: e.target.value})}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="bank_name">Bank Name</Label>
+                    <Input
+                      id="bank_name"
+                      placeholder="Bank name"
+                      value={payoutForm.bank_name}
+                      onChange={(e) => setPayoutForm({...payoutForm, bank_name: e.target.value})}
+                    />
+                  </div>
+                </>
+              )}
               <Button onClick={handlePayoutRequest} className="w-full">
                 Submit Request
               </Button>
             </div>
-          </DialogContent>
-        </Dialog>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       {/* Balance Cards */}
@@ -286,12 +539,12 @@ const WalletDashboard = () => {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Commission Paid</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Pending Balance</CardTitle>
+            <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">₦{wallet?.total_commission_paid.toLocaleString() || 0}</div>
-            <p className="text-xs text-muted-foreground">Platform fees</p>
+            <div className="text-2xl font-bold">₦{wallet?.pending_balance.toLocaleString() || 0}</div>
+            <p className="text-xs text-muted-foreground">In escrow</p>
           </CardContent>
         </Card>
       </div>
@@ -301,6 +554,7 @@ const WalletDashboard = () => {
         <TabsList>
           <TabsTrigger value="transactions">Recent Transactions</TabsTrigger>
           <TabsTrigger value="payouts">Payout Requests</TabsTrigger>
+          <TabsTrigger value="analytics">Product Analytics</TabsTrigger>
         </TabsList>
 
         <TabsContent value="transactions">
@@ -380,6 +634,71 @@ const WalletDashboard = () => {
                           <strong>Admin Notes:</strong> {payout.admin_notes}
                         </p>
                       )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="analytics">
+          <Card>
+            <CardHeader>
+              <div className="flex justify-between items-center">
+                <CardTitle>Product Analytics</CardTitle>
+                <Select value={analyticsFilter} onValueChange={setAnalyticsFilter}>
+                  <SelectTrigger className="w-48">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="view_all">View All Products</SelectItem>
+                    <SelectItem value="best_selling">Best Selling</SelectItem>
+                    <SelectItem value="most_views">Most Views</SelectItem>
+                    <SelectItem value="most_cart_adds">Most Cart Adds</SelectItem>
+                    <SelectItem value="most_favorited">Most Favorited</SelectItem>
+                    <SelectItem value="highest_revenue">Highest Revenue</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {productAnalytics.length === 0 ? (
+                <div className="text-center py-8">
+                  <Package className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                  <p className="text-lg font-medium">No analytics data</p>
+                  <p className="text-muted-foreground">Analytics will appear once you have products with activity</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {getFilteredAnalytics().slice(0, analyticsFilter === 'view_all' ? productAnalytics.length : 10).map((analytics, index) => (
+                    <div key={analytics.product_id} className="flex items-center justify-between p-4 border rounded-lg">
+                      <div className="flex items-center space-x-3">
+                        <div className="flex items-center justify-center w-8 h-8 bg-primary/10 rounded-full text-sm font-bold">
+                          {index + 1}
+                        </div>
+                        <div>
+                          <p className="font-medium">{analytics.product_title}</p>
+                          <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
+                            <div className="flex items-center gap-1">
+                              <Eye className="h-3 w-3" />
+                              <span>{analytics.views}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Heart className="h-3 w-3" />
+                              <span>{analytics.favorites_count}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <ShoppingCart className="h-3 w-3" />
+                              <span>{analytics.cart_additions}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-lg">{analytics.orders_count} orders</p>
+                        <p className="text-sm text-muted-foreground">₦{analytics.revenue.toLocaleString()} revenue</p>
+                      </div>
                     </div>
                   ))}
                 </div>

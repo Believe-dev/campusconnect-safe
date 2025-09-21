@@ -9,51 +9,18 @@ import {
   User
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useCartCount } from '@/hooks/useCartCount';
 import { useAuth } from '@/hooks/useAuth';
-import { useMessagesCount } from '@/hooks/useMessagesCount';
-import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 
 const BottomNav = () => {
   const location = useLocation();
   const { user } = useAuth();
   const { cartCount } = useCartCount();
-  const { messagesCount } = useMessagesCount();
-  const [userProfile, setUserProfile] = useState<any>(null);
   
   // Hide bottom nav when in messages page (both list and chat)
   const isInMessages = location.pathname === '/messages';
 
-  useEffect(() => {
-    if (user) {
-      fetchUserProfile();
-    }
-  }, [user]);
 
-  const fetchUserProfile = async () => {
-    if (!user) return;
-    try {
-      const { data } = await supabase
-        .from('profiles')
-        .select('avatar_url, full_name')
-        .eq('user_id', user.id)
-        .single();
-      setUserProfile(data);
-    } catch (error) {
-      console.error('Error fetching user profile:', error);
-    }
-  };
-
-  const getInitials = (name: string) => {
-    return name
-      .split(' ')
-      .map(word => word[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2);
-  };
 
   if (!user || isInMessages) return null;
 
@@ -62,7 +29,7 @@ const BottomNav = () => {
     { to: '/marketplace', icon: Store, label: 'Shop' },
     { to: '/orders', icon: Package, label: 'Orders' },
     { to: '/favorites', icon: Heart, label: 'Favorites' },
-    { to: '/profile', icon: User, label: 'Profile', badge: messagesCount },
+    { to: '/profile', icon: User, label: 'Profile' },
   ];
 
   return (
@@ -83,19 +50,10 @@ const BottomNav = () => {
               )}
             >
               <div className="relative">
-                {label === 'Profile' ? (
-                  <Avatar className="h-5 w-5">
-                    <AvatarImage src={userProfile?.avatar_url} />
-                    <AvatarFallback className="bg-university-green text-white text-xs">
-                      {userProfile?.full_name ? getInitials(userProfile.full_name) : 'U'}
-                    </AvatarFallback>
-                  </Avatar>
-                ) : (
-                  <Icon className={cn(
-                    "h-5 w-5 transition-all duration-200",
-                    isActive ? "drop-shadow-sm" : ""
-                  )} />
-                )}
+                <Icon className={cn(
+                  "h-5 w-5 transition-all duration-200",
+                  isActive ? "drop-shadow-sm" : ""
+                )} />
                 {badge && badge > 0 && (
                   <Badge 
                     variant="destructive" 

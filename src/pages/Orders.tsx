@@ -25,6 +25,7 @@ interface Order {
   status: string;
   payment_method?: string;
   shipping_address?: string;
+  university_name?: string;
   tracking_info?: string;
   created_at: string;
   confirmed_at?: string;
@@ -162,10 +163,19 @@ const Orders = () => {
 
       // Handle escrow release for confirmed orders
       if (status === 'confirmed') {
-        await supabase
-          .from('escrow_transactions')
-          .update({ status: 'released' })
-          .eq('order_id', orderId);
+        try {
+          const { error: escrowError } = await supabase.rpc('release_escrow_to_wallet', {
+            order_id_param: orderId
+          });
+          
+          if (escrowError) {
+            console.error('Error releasing escrow:', escrowError);
+            // Don't show error to user, just log it
+          }
+        } catch (escrowError) {
+          console.error('Escrow release failed:', escrowError);
+          // Continue with order confirmation even if escrow fails
+        }
       }
 
       // Send notifications and emails for shipped/delivered status
@@ -229,12 +239,14 @@ const Orders = () => {
         description: `Order status updated to ${status}`,
       });
       
-      // Real-time subscription will handle the update
+      // Immediately refetch to update UI
+      refetch();
     } catch (error) {
       console.error('Error updating order:', error);
+      console.error('Error details:', JSON.stringify(error, null, 2));
       toast({
         title: "Error",
-        description: "Failed to update order",
+        description: error?.message || "Failed to update order",
         variant: "destructive",
       });
     }
@@ -372,6 +384,15 @@ const Orders = () => {
                     You'll receive: ₦{escrow.seller_amount.toLocaleString()}
                   </p>
                 )}
+                {isSeller && order.shipping_address && (
+                  <div className="mt-2 p-2 bg-muted/50 rounded text-xs">
+                    <p className="font-medium text-primary">📍 Shipping Details:</p>
+                    <p>{order.shipping_address}</p>
+                    {order.university_name && (
+                      <p className="text-blue-600">🏫 {order.university_name}</p>
+                    )}
+                  </div>
+                )}
               </div>
               <p className="text-xs text-muted-foreground">
                 Ordered on {new Date(order.created_at).toLocaleDateString()}
@@ -379,14 +400,14 @@ const Orders = () => {
               
               {order.tracking_info && (
                 <p className="text-xs sm:text-sm text-muted-foreground mt-2">
-                  Tracking: {order.tracking_info}
+                  📦 Tracking: {order.tracking_info}
                 </p>
               )}
               
               {daysUntilAutoRelease && daysUntilAutoRelease > 0 && order.status === 'delivered' && (
                 <div className="flex items-center gap-1 mt-2 text-xs text-orange-600">
                   <Timer className="h-3 w-3" />
-                  Auto-confirms in {daysUntilAutoRelease} days
+                  Auto-confirms in {daysUntilAutoRelease} day{daysUntilAutoRelease !== 1 ? 's' : ''}
                 </div>
               )}
             </div>

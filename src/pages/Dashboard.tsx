@@ -65,6 +65,7 @@ const Dashboard = () => {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
   const [userProfile, setUserProfile] = useState<any>(null);
+  const [analyticsFilter, setAnalyticsFilter] = useState('best_selling');
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -252,6 +253,26 @@ const Dashboard = () => {
       orders_count: 0,
       revenue: 0
     };
+  };
+
+  const getFilteredAnalytics = () => {
+    const sorted = [...analytics];
+    switch (analyticsFilter) {
+      case 'view_all':
+        return sorted;
+      case 'best_selling':
+        return sorted.sort((a, b) => b.orders_count - a.orders_count);
+      case 'most_views':
+        return sorted.sort((a, b) => b.views - a.views);
+      case 'most_cart_adds':
+        return sorted.sort((a, b) => b.cart_additions - a.cart_additions);
+      case 'most_favorited':
+        return sorted.sort((a, b) => b.favorites_count - a.favorites_count);
+      case 'highest_revenue':
+        return sorted.sort((a, b) => b.revenue - a.revenue);
+      default:
+        return sorted;
+    }
   };
 
   const totalRevenue = analytics.reduce((sum, a) => sum + Number(a.revenue), 0);
@@ -443,45 +464,71 @@ const Dashboard = () => {
           </TabsContent>
 
           <TabsContent value="analytics" className="space-y-4">
-            <div className="grid gap-4">
-              {products.map((product) => {
-                const productAnalytics = getProductAnalytics(product.id);
-                return (
-                  <Card key={product.id}>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <BarChart3 className="h-5 w-5" />
-                        {product.title}
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 text-sm lg:text-base">
-                        <div>
-                          <div className="text-2xl font-bold">{productAnalytics.views}</div>
-                          <div className="text-sm text-muted-foreground">Views</div>
+            <Card>
+              <CardHeader>
+                <div className="flex justify-between items-center">
+                  <CardTitle>Product Analytics</CardTitle>
+                  <Select value={analyticsFilter} onValueChange={setAnalyticsFilter}>
+                    <SelectTrigger className="w-48">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="view_all">View All Products</SelectItem>
+                      <SelectItem value="best_selling">Best Selling</SelectItem>
+                      <SelectItem value="most_views">Most Views</SelectItem>
+                      <SelectItem value="most_cart_adds">Most Cart Adds</SelectItem>
+                      <SelectItem value="most_favorited">Most Favorited</SelectItem>
+                      <SelectItem value="highest_revenue">Highest Revenue</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {analytics.length === 0 ? (
+                  <div className="text-center py-8">
+                    <BarChart3 className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                    <p className="text-lg font-medium">No analytics data</p>
+                    <p className="text-muted-foreground">Analytics will appear once you have products with activity</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {getFilteredAnalytics().slice(0, analyticsFilter === 'view_all' ? analytics.length : 10).map((productAnalytics, index) => {
+                      const product = products.find(p => p.id === productAnalytics.product_id);
+                      return (
+                        <div key={productAnalytics.product_id} className="flex items-center justify-between p-4 border rounded-lg">
+                          <div className="flex items-center space-x-3">
+                            <div className="flex items-center justify-center w-8 h-8 bg-primary/10 rounded-full text-sm font-bold">
+                              {index + 1}
+                            </div>
+                            <div>
+                              <p className="font-medium">{product?.title}</p>
+                              <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
+                                <div className="flex items-center gap-1">
+                                  <Eye className="h-3 w-3" />
+                                  <span>{productAnalytics.views}</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <Heart className="h-3 w-3" />
+                                  <span>{productAnalytics.favorites_count}</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <ShoppingCart className="h-3 w-3" />
+                                  <span>{productAnalytics.cart_additions}</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-bold text-lg">{productAnalytics.orders_count} orders</p>
+                            <p className="text-sm text-muted-foreground">₦{productAnalytics.revenue.toLocaleString()} revenue</p>
+                          </div>
                         </div>
-                        <div>
-                          <div className="text-2xl font-bold">{productAnalytics.favorites_count}</div>
-                          <div className="text-sm text-muted-foreground">Favorites</div>
-                        </div>
-                        <div>
-                          <div className="text-2xl font-bold">{productAnalytics.cart_additions}</div>
-                          <div className="text-sm text-muted-foreground">Cart Adds</div>
-                        </div>
-                        <div>
-                          <div className="text-2xl font-bold">{productAnalytics.orders_count}</div>
-                          <div className="text-sm text-muted-foreground">Orders</div>
-                        </div>
-                        <div>
-                          <div className="text-2xl font-bold">₦{Number(productAnalytics.revenue).toLocaleString()}</div>
-                          <div className="text-sm text-muted-foreground">Revenue</div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
 

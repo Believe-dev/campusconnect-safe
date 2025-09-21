@@ -49,6 +49,7 @@ interface CheckoutForm {
   fullName: string;
   email: string;
   phone: string;
+  universityName: string;
   address: string;
   city: string;
   state: string;
@@ -64,6 +65,7 @@ const Checkout = () => {
     fullName: "",
     email: "",
     phone: "",
+    universityName: "",
     address: "",
     city: "",
     state: "",
@@ -100,6 +102,7 @@ const Checkout = () => {
           fullName: profile.full_name || "",
           email: profile.email || user.email || "",
           phone: profile.phone_number || "",
+          universityName: profile.university_name || "",
         }));
       }
 
@@ -178,7 +181,7 @@ const Checkout = () => {
   };
 
   const validateForm = () => {
-    const required = ["fullName", "email", "phone", "address", "city", "state"];
+    const required = ["fullName", "email", "phone", "universityName", "address", "city", "state"];
     for (const field of required) {
       if (!formData[field as keyof CheckoutForm]) {
         toast({
@@ -292,11 +295,12 @@ const Checkout = () => {
               total_amount: totalAmount,
               commission_amount: commissionAmount,
               shipping_address: `${formData.address}, ${formData.city}, ${formData.state}`,
+              university_name: formData.universityName,
               payment_method: "paystack",
               payment_reference: paymentRef,
               status: "paid",
               auto_confirm_at: new Date(
-                Date.now() + 7 * 24 * 60 * 60 * 1000
+                Date.now() + 2 * 24 * 60 * 60 * 1000
               ).toISOString(),
             })
             .select()
@@ -354,6 +358,7 @@ const Checkout = () => {
                       <li><strong>Total Amount:</strong> ₦${orderTotal.toLocaleString()}</li>
                       <li><strong>Order Date:</strong> ${new Date().toLocaleDateString()}</li>
                     </ul>
+                    <p><strong>⚠️ Important:</strong> Payment will be automatically released in 2 days if the buyer doesn't confirm receipt.</p>
                     <p>Please log in to your dashboard to manage this order.</p>
                     <p>Best regards,<br>CampusConnect Team</p>
                   `
@@ -562,6 +567,18 @@ const Checkout = () => {
                         required
                       />
                     </div>
+                    <div>
+                      <Label htmlFor="universityName" className="text-sm sm:text-base">University Name *</Label>
+                      <Input
+                        id="universityName"
+                        value={formData.universityName}
+                        onChange={(e) =>
+                          handleInputChange("universityName", e.target.value)
+                        }
+                        placeholder="Enter your university name"
+                        required
+                      />
+                    </div>
                   </CardContent>
                 </Card>
 
@@ -611,12 +628,43 @@ const Checkout = () => {
                             <SelectValue placeholder="Select state" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="Lagos">Lagos</SelectItem>
-                            <SelectItem value="Abuja">Abuja</SelectItem>
+                            <SelectItem value="Abia">Abia</SelectItem>
+                            <SelectItem value="Adamawa">Adamawa</SelectItem>
+                            <SelectItem value="Akwa Ibom">Akwa Ibom</SelectItem>
+                            <SelectItem value="Anambra">Anambra</SelectItem>
+                            <SelectItem value="Bauchi">Bauchi</SelectItem>
+                            <SelectItem value="Bayelsa">Bayelsa</SelectItem>
+                            <SelectItem value="Benue">Benue</SelectItem>
+                            <SelectItem value="Borno">Borno</SelectItem>
+                            <SelectItem value="Cross River">Cross River</SelectItem>
+                            <SelectItem value="Delta">Delta</SelectItem>
+                            <SelectItem value="Ebonyi">Ebonyi</SelectItem>
+                            <SelectItem value="Edo">Edo</SelectItem>
+                            <SelectItem value="Ekiti">Ekiti</SelectItem>
+                            <SelectItem value="Enugu">Enugu</SelectItem>
+                            <SelectItem value="FCT">FCT (Abuja)</SelectItem>
+                            <SelectItem value="Gombe">Gombe</SelectItem>
+                            <SelectItem value="Imo">Imo</SelectItem>
+                            <SelectItem value="Jigawa">Jigawa</SelectItem>
+                            <SelectItem value="Kaduna">Kaduna</SelectItem>
                             <SelectItem value="Kano">Kano</SelectItem>
-                            <SelectItem value="Rivers">Rivers</SelectItem>
+                            <SelectItem value="Katsina">Katsina</SelectItem>
+                            <SelectItem value="Kebbi">Kebbi</SelectItem>
+                            <SelectItem value="Kogi">Kogi</SelectItem>
+                            <SelectItem value="Kwara">Kwara</SelectItem>
+                            <SelectItem value="Lagos">Lagos</SelectItem>
+                            <SelectItem value="Nasarawa">Nasarawa</SelectItem>
+                            <SelectItem value="Niger">Niger</SelectItem>
+                            <SelectItem value="Ogun">Ogun</SelectItem>
+                            <SelectItem value="Ondo">Ondo</SelectItem>
+                            <SelectItem value="Osun">Osun</SelectItem>
                             <SelectItem value="Oyo">Oyo</SelectItem>
-                            <SelectItem value="Other">Other</SelectItem>
+                            <SelectItem value="Plateau">Plateau</SelectItem>
+                            <SelectItem value="Rivers">Rivers</SelectItem>
+                            <SelectItem value="Sokoto">Sokoto</SelectItem>
+                            <SelectItem value="Taraba">Taraba</SelectItem>
+                            <SelectItem value="Yobe">Yobe</SelectItem>
+                            <SelectItem value="Zamfara">Zamfara</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
