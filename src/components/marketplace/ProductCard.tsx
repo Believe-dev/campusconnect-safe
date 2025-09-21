@@ -181,7 +181,7 @@ const ProductCard = ({
 
       <CardContent className="p-2 sm:p-3 flex-1 flex flex-col">
         <div className="space-y-1 sm:space-y-2 flex-1">
-          <h3 className="font-semibold text-sm sm:text-base leading-tight line-clamp-2 min-h-[2.5rem] sm:min-h-[3rem]">
+          <h3 className="font-semibold text-sm sm:text-base leading-tight line-clamp-3 min-h-[3rem] sm:min-h-[3.5rem]">
             {sanitizeInput(product?.title || 'Unknown Product')}
           </h3>
           <div className="font-bold text-base sm:text-lg bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">
@@ -207,11 +207,13 @@ const ProductCard = ({
               {sanitizeInput(product.seller?.full_name || 'Unknown Seller')}
             </span>
             {product.seller?.is_verified && (
-              <div className="verification-badge-inline flex-shrink-0" style={{ width: '12px', height: '12px' }}>
-                <svg fill="currentColor" viewBox="0 0 20 20" style={{ width: '6px', height: '6px' }}>
-                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                </svg>
-              </div>
+              <>
+                <div className="verification-badge-inline flex-shrink-0" style={{ width: '12px', height: '12px' }}>
+                  <svg fill="currentColor" viewBox="0 0 20 20" style={{ width: '6px', height: '6px' }}>
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                </div>
+              </>
             )}
             {product.seller?.rating && (
               <div className="flex items-center gap-1 flex-shrink-0">

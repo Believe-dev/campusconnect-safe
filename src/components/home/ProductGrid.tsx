@@ -25,7 +25,7 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
 }) => {
   if (loading) {
     return (
-      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
+      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
         {Array.from({ length: 8 }).map((_, i) => (
           <CardSkeleton key={i} />
         ))}
@@ -51,15 +51,24 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
   }
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
-      {filteredProducts.map((product) => (
-        <ProductCard
-          key={product.id}
-          product={product}
-          onViewProduct={onViewProduct}
-          isAuthenticated={isAuthenticated}
-        />
-      ))}
-    </div>
+    <>
+      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
+        {filteredProducts.map((product) => (
+          <ProductCard
+            key={product.id}
+            product={product}
+            onViewProduct={onViewProduct}
+            isAuthenticated={isAuthenticated}
+          />
+        ))}
+      </div>
+      {isAuthenticated && products.length > 0 && (
+        <div className="text-center mt-8">
+          <Button variant="brand" size="sm" className="sm:size-default" asChild>
+            <Link to={ROUTES.sell}>Start Selling</Link>
+          </Button>
+        </div>
+      )}
+    </>
   );
 };

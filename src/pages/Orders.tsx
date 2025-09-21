@@ -51,12 +51,27 @@ interface Order {
 const Orders = () => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('buyer');
+  const [profile, setProfile] = useState<any>(null);
   const { toast } = useToast();
   const [offlineOrders, setOfflineOrders] = useOfflineStorage<Order[]>({
     key: `orders_${user?.id}`,
     defaultValue: [],
     ttl: 30 * 60 * 1000 // 30 minutes
   });
+
+  // Fetch user profile to determine account type
+  useEffect(() => {
+    const fetchProfile = async () => {
+      if (!user) return;
+      const { data } = await supabase
+        .from('profiles')
+        .select('account_type')
+        .eq('user_id', user.id)
+        .single();
+      setProfile(data);
+    };
+    fetchProfile();
+  }, [user]);
 
   const fetchOrders = async () => {
     if (!user) return [];
@@ -137,10 +152,6 @@ const Orders = () => {
     try {
       const updateData: any = { status };
       if (trackingInfo) updateData.tracking_info = trackingInfo;
-      if (status === 'confirmed') {
-        updateData.confirmed_at = new Date().toISOString();
-        updateData.escrow_released = true;
-      }
 
       const { error } = await supabase
         .from('orders')
@@ -148,6 +159,14 @@ const Orders = () => {
         .eq('id', orderId);
 
       if (error) throw error;
+
+      // Handle escrow release for confirmed orders
+      if (status === 'confirmed') {
+        await supabase
+          .from('escrow_transactions')
+          .update({ status: 'released' })
+          .eq('order_id', orderId);
+      }
 
       // Send notifications and emails for shipped/delivered status
       if (status === 'shipped' || status === 'delivered') {
@@ -203,7 +222,7 @@ const Orders = () => {
         }
       }
 
-      // Escrow funds are automatically released via database trigger
+
 
       toast({
         title: "Order Updated",
@@ -508,44 +527,62 @@ const Orders = () => {
         <div className="max-w-4xl mx-auto">
           <h1 className="text-2xl sm:text-3xl font-bold text-primary mb-4 sm:mb-6">My Orders</h1>
 
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="buyer">As Buyer</TabsTrigger>
-              <TabsTrigger value="seller">As Seller</TabsTrigger>
-            </TabsList>
+          {profile?.account_type === 'buyer' ? (
+            // Buyer-only view
+            <div>
+              {orders.filter(order => order.buyer_id === user?.id).length === 0 ? (
+                <Card>
+                  <CardContent className="p-6 sm:pt-6 text-center">
+                    <Package className="h-10 w-10 sm:h-12 sm:w-12 mx-auto mb-3 sm:mb-4 text-muted-foreground" />
+                    <p className="text-base sm:text-lg font-medium">No orders yet</p>
+                    <p className="text-sm sm:text-base text-muted-foreground">Start shopping to see your orders here</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                orders.filter(order => order.buyer_id === user?.id).map(order => renderOrderCard(order, false))
+              )}
+            </div>
+          ) : (
+            // Seller view with tabs
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="buyer">As Buyer</TabsTrigger>
+                <TabsTrigger value="seller">As Seller</TabsTrigger>
+              </TabsList>
 
-            <TabsContent value="buyer" className="mt-6">
-              <div>
-                {orders.filter(order => order.buyer_id === user?.id).length === 0 ? (
-                  <Card>
-                    <CardContent className="p-6 sm:pt-6 text-center">
-                      <Package className="h-10 w-10 sm:h-12 sm:w-12 mx-auto mb-3 sm:mb-4 text-muted-foreground" />
-                      <p className="text-base sm:text-lg font-medium">No orders yet</p>
-                      <p className="text-sm sm:text-base text-muted-foreground">Start shopping to see your orders here</p>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  orders.filter(order => order.buyer_id === user?.id).map(order => renderOrderCard(order, false))
-                )}
-              </div>
-            </TabsContent>
+              <TabsContent value="buyer" className="mt-6">
+                <div>
+                  {orders.filter(order => order.buyer_id === user?.id).length === 0 ? (
+                    <Card>
+                      <CardContent className="p-6 sm:pt-6 text-center">
+                        <Package className="h-10 w-10 sm:h-12 sm:w-12 mx-auto mb-3 sm:mb-4 text-muted-foreground" />
+                        <p className="text-base sm:text-lg font-medium">No orders yet</p>
+                        <p className="text-sm sm:text-base text-muted-foreground">Start shopping to see your orders here</p>
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    orders.filter(order => order.buyer_id === user?.id).map(order => renderOrderCard(order, false))
+                  )}
+                </div>
+              </TabsContent>
 
-            <TabsContent value="seller" className="mt-6">
-              <div>
-                {orders.filter(order => order.seller_id === user?.id).length === 0 ? (
-                  <Card>
-                    <CardContent className="p-6 sm:pt-6 text-center">
-                      <Package className="h-10 w-10 sm:h-12 sm:w-12 mx-auto mb-3 sm:mb-4 text-muted-foreground" />
-                      <p className="text-base sm:text-lg font-medium">No sales yet</p>
-                      <p className="text-sm sm:text-base text-muted-foreground">Start selling to see your orders here</p>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  orders.filter(order => order.seller_id === user?.id).map(order => renderOrderCard(order, true))
-                )}
-              </div>
-            </TabsContent>
-          </Tabs>
+              <TabsContent value="seller" className="mt-6">
+                <div>
+                  {orders.filter(order => order.seller_id === user?.id).length === 0 ? (
+                    <Card>
+                      <CardContent className="p-6 sm:pt-6 text-center">
+                        <Package className="h-10 w-10 sm:h-12 sm:w-12 mx-auto mb-3 sm:mb-4 text-muted-foreground" />
+                        <p className="text-base sm:text-lg font-medium">No sales yet</p>
+                        <p className="text-sm sm:text-base text-muted-foreground">Start selling to see your orders here</p>
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    orders.filter(order => order.seller_id === user?.id).map(order => renderOrderCard(order, true))
+                  )}
+                </div>
+              </TabsContent>
+            </Tabs>
+          )}
         </div>
       </main>
     </div>

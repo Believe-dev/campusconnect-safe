@@ -151,8 +151,13 @@ const Sell = () => {
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      setImages(Array.from(e.target.files).slice(0, 2));
+      const newFiles = Array.from(e.target.files);
+      const remainingSlots = 3 - images.length;
+      const filesToAdd = newFiles.slice(0, remainingSlots);
+      setImages(prev => [...prev, ...filesToAdd]);
     }
+    // Reset input value to allow selecting the same file again
+    e.target.value = '';
   };
 
   const removeImage = (index: number) => {
@@ -290,20 +295,30 @@ const Sell = () => {
                     accept="image/*"
                     onChange={handleImageChange}
                     className="hidden"
+                    disabled={images.length >= 3}
                   />
                   <label
                     htmlFor="images"
-                    className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-muted-foreground/25 rounded-lg cursor-pointer hover:bg-muted/50"
+                    className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg transition-colors ${
+                      images.length >= 3 
+                        ? 'border-muted-foreground/10 bg-muted/30 cursor-not-allowed' 
+                        : 'border-muted-foreground/25 cursor-pointer hover:bg-muted/50'
+                    }`}
                   >
                     <Upload className="h-8 w-8 text-muted-foreground mb-2" />
-                    <span className="text-sm text-muted-foreground">
-                      Click to upload images (max 2)
+                    <span className={`text-sm ${
+                      images.length >= 3 ? 'text-muted-foreground/50' : 'text-muted-foreground'
+                    }`}>
+                      {images.length >= 3 
+                        ? `Maximum 3 images uploaded (${images.length}/3)` 
+                        : `Click to upload images (${images.length}/3)`
+                      }
                     </span>
                   </label>
                 </div>
 
                 {images.length > 0 && (
-                  <div className="grid grid-cols-2 gap-2 mt-4">
+                  <div className="grid grid-cols-3 gap-2 mt-4">
                     {images.map((file, index) => (
                       <div key={index} className="relative">
                         <img

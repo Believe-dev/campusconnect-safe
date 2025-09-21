@@ -46,6 +46,7 @@ export function useProducts(options: UseProductsOptions = {}): UseProductsReturn
           )
         `)
         .eq('is_active', isActive)
+        .order('profiles.is_verified', { ascending: false })
         .order('created_at', { ascending: false })
         .range(offset, offset + limit - 1);
 

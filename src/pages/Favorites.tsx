@@ -81,6 +81,17 @@ const Favorites = () => {
         .eq('products.is_active', true)
         .order('created_at', { ascending: false });
 
+      // Sort to prioritize verified sellers
+      if (data) {
+        data.sort((a, b) => {
+          const aVerified = a.products?.profiles?.is_verified;
+          const bVerified = b.products?.profiles?.is_verified;
+          if (aVerified && !bVerified) return -1;
+          if (!aVerified && bVerified) return 1;
+          return 0;
+        });
+      }
+
       if (error) throw error;
       setFavorites(data || []);
     } catch (error) {
@@ -230,6 +241,11 @@ const Favorites = () => {
                   : "You haven't added any favorites yet"
                 }
               </p>
+              {favorites.length > 0 && (
+                <div className="mt-2 text-xs text-muted-foreground bg-muted/30 p-2 rounded border">
+                  📌 Verified sellers' products are prioritized in your favorites
+                </div>
+              )}
             </div>
             {favorites.length > 0 && (
               <div className="hidden sm:flex items-center gap-2 text-sm text-muted-foreground">
@@ -254,7 +270,7 @@ const Favorites = () => {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
             {favorites.map((favorite) => {
               const product = favorite.products;
               return (
@@ -301,13 +317,13 @@ const Favorites = () => {
                     )}
                   </div>
 
-                  <CardContent className="p-3 sm:p-4 flex-1 flex flex-col">
+                  <CardContent className="p-2 sm:p-3 md:p-4 flex-1 flex flex-col">
                     <div className="space-y-2 flex-1">
-                      <h3 className="font-semibold text-base leading-tight line-clamp-2 group-hover:text-primary transition-colors min-h-[3rem]">
+                      <h3 className="font-semibold text-sm sm:text-base leading-tight line-clamp-3 group-hover:text-primary transition-colors min-h-[3rem] sm:min-h-[3.5rem]">
                         {product.title}
                       </h3>
                       {product.description && (
-                        <p className="text-sm text-muted-foreground line-clamp-2 min-h-[2.5rem]">
+                        <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2 min-h-[2rem] sm:min-h-[2.5rem] hidden sm:block">
                           {product.description}
                         </p>
                       )}
@@ -326,13 +342,13 @@ const Favorites = () => {
                     </div>
                   </CardContent>
 
-                  <div className="p-3 sm:p-4 pt-0 space-y-3 mt-auto">
+                  <div className="p-2 sm:p-3 md:p-4 pt-0 space-y-2 sm:space-y-3 mt-auto">
                     <div className="flex items-center justify-between">
                       <div className="space-y-1">
-                        <div className="font-bold text-xl text-university-green">
+                        <div className="font-bold text-lg sm:text-xl text-university-green">
                           ₦{product.price.toLocaleString()}
                         </div>
-                        <div className="flex items-center gap-1 text-sm">
+                        <div className="flex items-center gap-1 text-xs sm:text-sm">
                           <span className="text-muted-foreground">by</span>
                           <span className="font-medium truncate">{product.profiles?.full_name || 'Unknown Seller'}</span>
                           {product.profiles?.is_verified && (
@@ -353,11 +369,11 @@ const Favorites = () => {
                       </div>
                     </div>
 
-                    <div className="flex gap-2">
+                    <div className="flex gap-1 sm:gap-2">
                       <Button
                         variant="outline"
                         size="sm"
-                        className="flex-1 text-xs"
+                        className="flex-1 text-xs px-2 sm:px-3"
                         onClick={(e) => {
                           e.stopPropagation();
                           navigate('/messages');
@@ -370,7 +386,7 @@ const Favorites = () => {
                       <Button
                         variant="marketplace"
                         size="sm"
-                        className="flex-1 text-xs"
+                        className="flex-1 text-xs px-2 sm:px-3"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleAddToCart(product.id, product.title);

@@ -132,19 +132,19 @@ const Search = () => {
         query = query.lte('price', parseFloat(priceRange.max));
       }
 
-      // Apply sorting
+      // Apply sorting with verified sellers first
       switch (sortBy) {
         case 'price-low':
-          query = query.order('price', { ascending: true });
+          query = query.order('profiles.is_verified', { ascending: false }).order('price', { ascending: true });
           break;
         case 'price-high':
-          query = query.order('price', { ascending: false });
+          query = query.order('profiles.is_verified', { ascending: false }).order('price', { ascending: false });
           break;
         case 'oldest':
-          query = query.order('created_at', { ascending: true });
+          query = query.order('profiles.is_verified', { ascending: false }).order('created_at', { ascending: true });
           break;
         default:
-          query = query.order('created_at', { ascending: false });
+          query = query.order('profiles.is_verified', { ascending: false }).order('created_at', { ascending: false });
       }
 
       const { data, error } = await query;
@@ -300,6 +300,9 @@ const Search = () => {
                 )}
               </p>
             )}
+            <div className="mt-2 text-xs text-muted-foreground bg-muted/30 p-2 rounded border">
+              📌 Verified sellers' products are shown first in search results
+            </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -389,7 +392,7 @@ const Search = () => {
             {/* Results Grid */}
             <div className="lg:col-span-3">
               {loading ? (
-                <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-3 sm:gap-4">
                   {Array.from({ length: 6 }).map((_, i) => (
                     <div key={i} className="animate-pulse">
                       <div className="bg-muted aspect-square rounded-lg mb-2"></div>
@@ -410,7 +413,7 @@ const Search = () => {
                   </CardContent>
                 </Card>
               ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-3 sm:gap-4">
                    {products.map(product => (
                      <ProductCard
                        key={product.id}

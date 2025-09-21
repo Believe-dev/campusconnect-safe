@@ -24,6 +24,8 @@ import FloatingBackButton from "@/components/ui/back-button";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { BannedUserModal } from "@/components/auth/BannedUserModal";
 import { useBanCheck } from "@/hooks/useBanCheck";
+import { initializeOneSignal, requestNotificationPermission } from "@/utils/oneSignal";
+import { useEffect } from 'react';
 
 // Lazy load pages for better performance with error boundaries
 const Index = React.lazy(() => import('./pages/Index').catch(() => ({ default: () => <div>Error loading page</div> })));
@@ -109,6 +111,24 @@ const AppContent = () => {
   useRealTimeUpdates();
   const { showModal, missingFields, dismissModal, completeProfile } = useProfileCompletion();
   const { isBanned, banReason, userEmail } = useBanCheck();
+  
+  useEffect(() => {
+    const setupNotifications = async () => {
+      // Register service worker
+      if ('serviceWorker' in navigator) {
+        try {
+          await navigator.serviceWorker.register('/sw.js');
+          console.log('Service worker registered');
+        } catch (error) {
+          console.error('Service worker registration failed:', error);
+        }
+      }
+      
+      await requestNotificationPermission();
+      await initializeOneSignal();
+    };
+    setupNotifications();
+  }, []);
   
   if (isBanned) {
     return (

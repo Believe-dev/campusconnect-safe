@@ -205,13 +205,17 @@ const Marketplace = () => {
       });
     }
 
-    // Sort within university groups
+    // Sort with verified sellers first, then university groups
     switch (sortBy) {
       case 'price_low':
         filtered.sort((a, b) => {
+          const aVerified = a.profiles?.is_verified;
+          const bVerified = b.profiles?.is_verified;
           const aFromUserUni = userUniversity && (a.profiles?.campus || a.campus) === userUniversity;
           const bFromUserUni = userUniversity && (b.profiles?.campus || b.campus) === userUniversity;
           
+          if (aVerified && !bVerified) return -1;
+          if (!aVerified && bVerified) return 1;
           if (aFromUserUni && !bFromUserUni) return -1;
           if (!aFromUserUni && bFromUserUni) return 1;
           return a.price - b.price;
@@ -219,9 +223,13 @@ const Marketplace = () => {
         break;
       case 'price_high':
         filtered.sort((a, b) => {
+          const aVerified = a.profiles?.is_verified;
+          const bVerified = b.profiles?.is_verified;
           const aFromUserUni = userUniversity && (a.profiles?.campus || a.campus) === userUniversity;
           const bFromUserUni = userUniversity && (b.profiles?.campus || b.campus) === userUniversity;
           
+          if (aVerified && !bVerified) return -1;
+          if (!aVerified && bVerified) return 1;
           if (aFromUserUni && !bFromUserUni) return -1;
           if (!aFromUserUni && bFromUserUni) return 1;
           return b.price - a.price;
@@ -229,9 +237,13 @@ const Marketplace = () => {
         break;
       case 'newest':
         filtered.sort((a, b) => {
+          const aVerified = a.profiles?.is_verified;
+          const bVerified = b.profiles?.is_verified;
           const aFromUserUni = userUniversity && (a.profiles?.campus || a.campus) === userUniversity;
           const bFromUserUni = userUniversity && (b.profiles?.campus || b.campus) === userUniversity;
           
+          if (aVerified && !bVerified) return -1;
+          if (!aVerified && bVerified) return 1;
           if (aFromUserUni && !bFromUserUni) return -1;
           if (!aFromUserUni && bFromUserUni) return 1;
           return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
@@ -239,9 +251,13 @@ const Marketplace = () => {
         break;
       case 'oldest':
         filtered.sort((a, b) => {
+          const aVerified = a.profiles?.is_verified;
+          const bVerified = b.profiles?.is_verified;
           const aFromUserUni = userUniversity && (a.profiles?.campus || a.campus) === userUniversity;
           const bFromUserUni = userUniversity && (b.profiles?.campus || b.campus) === userUniversity;
           
+          if (aVerified && !bVerified) return -1;
+          if (!aVerified && bVerified) return 1;
           if (aFromUserUni && !bFromUserUni) return -1;
           if (!aFromUserUni && bFromUserUni) return 1;
           return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
@@ -504,6 +520,9 @@ const Marketplace = () => {
           <p className="text-xs sm:text-sm lg:text-base text-muted-foreground">
             Showing <span className="font-medium">{filteredProducts.length}</span> products
           </p>
+          <div className="mt-2 text-xs text-muted-foreground bg-muted/30 p-2 rounded border">
+            📌 Verified sellers' products are shown first in all listings
+          </div>
         </div>
 
           {/* Products Grid */}
@@ -516,7 +535,7 @@ const Marketplace = () => {
             </CardContent>
           </Card>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
+            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
             {filteredProducts.map((product) => (
               <Card 
                 key={product.id} 
@@ -562,7 +581,7 @@ const Marketplace = () => {
 
                 <CardContent className="p-2 sm:p-3 lg:p-4">
                   <div className="mb-2">
-                    <h3 className="font-semibold text-sm sm:text-base lg:text-lg line-clamp-1">{product.title}</h3>
+                    <h3 className="font-semibold text-sm sm:text-base lg:text-lg line-clamp-2 min-h-[2.5rem]">{product.title}</h3>
                     <p className="text-muted-foreground text-xs sm:text-sm line-clamp-2 mb-1 sm:mb-2 hidden sm:block">
                       {product.description}
                     </p>
@@ -588,11 +607,14 @@ const Marketplace = () => {
                   >
                     <span className="truncate underline text-primary font-medium">by {product.profiles?.full_name}</span>
                     {product.profiles?.is_verified && (
-                      <div className="bg-blue-500 rounded-full p-0.5 flex-shrink-0">
-                        <svg className="h-2 w-2 text-white" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                        </svg>
-                      </div>
+                      <>
+                        <div className="bg-blue-500 rounded-full p-0.5 flex-shrink-0">
+                          <svg className="h-2 w-2 text-white" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                          </svg>
+                        </div>
+
+                      </>
                     )}
                     <div className="flex items-center gap-1 flex-shrink-0">
                       <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />

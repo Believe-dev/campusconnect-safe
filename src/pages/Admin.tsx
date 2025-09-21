@@ -209,32 +209,48 @@ export default function Admin() {
 
   const fetchUsers = async () => {
     try {
-      // First get all profiles
-      const { data: profiles, error: profilesError } = await supabase
-        .from('profiles')
-        .select('*')
-        .order('created_at', { ascending: false });
+      // Get all auth users with their profiles using RPC function
+      const { data: authUsers, error: authError } = await supabase.rpc('get_all_users_with_profiles');
       
-      if (profilesError) throw profilesError;
-
-      // Then get roles for each user
-      if (profiles && profiles.length > 0) {
-        const userIds = profiles.map(p => p.user_id);
+      if (authError) {
+        console.error('Auth users fetch error:', authError);
+        // Fallback to profiles only
+        const { data: profiles, error: profilesError } = await supabase
+          .from('profiles')
+          .select('*')
+          .order('created_at', { ascending: false });
+        
+        if (profilesError) throw profilesError;
+        
+        const userIds = profiles?.map(p => p.user_id) || [];
         const { data: roles } = await supabase
           .from('user_roles')
           .select('user_id, role')
           .in('user_id', userIds);
 
-        // Combine profiles with their roles
-        const usersWithRoles = profiles.map(profile => ({
+        const usersWithRoles = (profiles || []).map(profile => ({
           ...profile,
           user_roles: roles?.filter(role => role.user_id === profile.user_id).map(r => ({ role: r.role })) || []
         }));
 
         setUsers(usersWithRoles);
-      } else {
-        setUsers([]);
+        return;
       }
+
+      // Get roles for all users
+      const userIds = authUsers?.map(u => u.user_id) || [];
+      const { data: roles } = await supabase
+        .from('user_roles')
+        .select('user_id, role')
+        .in('user_id', userIds);
+
+      // Combine auth users with their roles
+      const usersWithRoles = (authUsers || []).map(user => ({
+        ...user,
+        user_roles: roles?.filter(role => role.user_id === user.user_id).map(r => ({ role: r.role })) || [{ role: 'buyer' }]
+      }));
+
+      setUsers(usersWithRoles);
     } catch (error) {
       console.error('Users fetch error:', error);
       toast.error('Failed to fetch users');

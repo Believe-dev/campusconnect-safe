@@ -30,26 +30,31 @@ BEGIN
         <p style="color: #666; font-size: 12px;">
             Best regards,<br>
             UniMarket Team<br>
-            📧 connectngcampus@gmail.com
+            📧 noreply@unimarket.com
         </p>
     </div>';
     email_text := 'Hello ' || COALESCE(user_profile.full_name, 'User') || E',\n\n' || NEW.title || E'\n\n' || NEW.message || E'\n\nPlease log in to your UniMarket account to view this notification.\n\nBest regards,\nUniMarket Team';
     
-    -- Try to send email, but don't fail if it doesn't work
+    -- Send actual email using EmailJS
     BEGIN
         PERFORM
             net.http_post(
-                url := 'https://api.resend.com/emails',
+                url := 'https://api.emailjs.com/api/v1.0/email/send',
                 headers := jsonb_build_object(
-                    'Authorization', 'Bearer re_gikSXQzP_ArvK7pWvT2roWEnpwwS9vGxW',
                     'Content-Type', 'application/json'
                 ),
                 body := jsonb_build_object(
-                    'from', 'UniMarket <connectngcampus@gmail.com>',
-                    'to', ARRAY[user_profile.email],
-                    'subject', email_subject,
-                    'html', email_html,
-                    'text', email_text
+                    'service_id', 'service_gmail',
+                    'template_id', 'template_notification',
+                    'user_id', 'user_unimarket123',
+                    'template_params', jsonb_build_object(
+                        'to_email', user_profile.email,
+                        'to_name', COALESCE(user_profile.full_name, 'User'),
+                        'from_name', 'UniMarket Team',
+                        'subject', email_subject,
+                        'message_html', email_html,
+                        'message', email_text
+                    )
                 )
             );
         
@@ -69,13 +74,13 @@ BEGIN
             email_html,
             email_text,
             'sent',
-            'connectngcampus@gmail.com',
+            'noreply@unimarket.com',
             'UniMarket Team',
             NOW()
         );
     EXCEPTION
         WHEN OTHERS THEN
-            -- Log failed email but don't stop notification creation
+            -- Log failed email
             INSERT INTO email_logs (
                 recipient_email,
                 subject,
@@ -91,7 +96,7 @@ BEGIN
                 email_html,
                 email_text,
                 'failed',
-                'connectngcampus@gmail.com',
+                'noreply@unimarket.com',
                 'UniMarket Team',
                 NOW()
             );

@@ -58,6 +58,7 @@ const ProductDetails = () => {
   const [product, setProduct] = useState<Product | null>(null);
   const [similarProducts, setSimilarProducts] = useState<Product[]>([]);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [isAutoSliding, setIsAutoSliding] = useState(true);
   const [loading, setLoading] = useState(true);
   const [similarLoading, setSimilarLoading] = useState(true);
   const [quantity, setQuantity] = useState(1);
@@ -81,6 +82,45 @@ const ProductDetails = () => {
       checkFavoriteStatus();
     }
   }, [product]);
+
+  // Auto-slide functionality
+  useEffect(() => {
+    if (!product || !product.images || product.images.length <= 1 || !isAutoSliding) return;
+
+    const interval = setInterval(() => {
+      setCurrentImageIndex(prev => (prev + 1) % product.images.length);
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [product, isAutoSliding]);
+
+  // Touch/swipe support
+  const [touchStart, setTouchStart] = useState(0);
+  const [touchEnd, setTouchEnd] = useState(0);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setTouchStart(e.targetTouches[0].clientX);
+    setIsAutoSliding(false);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    setTouchEnd(e.targetTouches[0].clientX);
+  };
+
+  const handleTouchEnd = () => {
+    if (!touchStart || !touchEnd) return;
+    const distance = touchStart - touchEnd;
+    const isLeftSwipe = distance > 50;
+    const isRightSwipe = distance < -50;
+
+    if (isLeftSwipe && currentImageIndex < images.length - 1) {
+      setCurrentImageIndex(prev => prev + 1);
+    }
+    if (isRightSwipe && currentImageIndex > 0) {
+      setCurrentImageIndex(prev => prev - 1);
+    }
+    setTimeout(() => setIsAutoSliding(true), 5000);
+  };
 
   const fetchProduct = async () => {
     try {
@@ -502,40 +542,81 @@ const ProductDetails = () => {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             {/* Image Gallery */}
             <div className="space-y-4">
-              <div className="relative aspect-square overflow-hidden rounded-lg bg-muted">
+              <div 
+                className="relative aspect-square overflow-hidden rounded-lg bg-muted"
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
+                onMouseEnter={() => setIsAutoSliding(false)}
+                onMouseLeave={() => setIsAutoSliding(true)}
+              >
                 <img
                   src={images[currentImageIndex]}
                   alt={product.title}
-                  className="h-full w-full object-cover"
+                  className="h-full w-full object-cover transition-all duration-500 ease-in-out"
                 />
                 {images.length > 1 && (
                   <>
                     <button
-                      onClick={() => setCurrentImageIndex(Math.max(0, currentImageIndex - 1))}
-                      className="absolute left-2 top-1/2 -translate-y-1/2 bg-background/80 p-2 rounded-full"
-                      disabled={currentImageIndex === 0}
+                      onClick={() => {
+                        setCurrentImageIndex(currentImageIndex === 0 ? images.length - 1 : currentImageIndex - 1);
+                        setIsAutoSliding(false);
+                        setTimeout(() => setIsAutoSliding(true), 5000);
+                      }}
+                      className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/60 hover:bg-black/80 text-white p-2 rounded-full shadow-lg transition-all duration-200 hover:scale-110 backdrop-blur-sm border border-white/20"
                     >
-                      <ChevronLeft className="h-4 w-4" />
+                      <ChevronLeft className="h-5 w-5" />
                     </button>
                     <button
-                      onClick={() => setCurrentImageIndex(Math.min(images.length - 1, currentImageIndex + 1))}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 bg-background/80 p-2 rounded-full"
-                      disabled={currentImageIndex === images.length - 1}
+                      onClick={() => {
+                        setCurrentImageIndex(currentImageIndex === images.length - 1 ? 0 : currentImageIndex + 1);
+                        setIsAutoSliding(false);
+                        setTimeout(() => setIsAutoSliding(true), 5000);
+                      }}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/60 hover:bg-black/80 text-white p-2 rounded-full shadow-lg transition-all duration-200 hover:scale-110 backdrop-blur-sm border border-white/20"
                     >
-                      <ChevronRight className="h-4 w-4" />
+                      <ChevronRight className="h-5 w-5" />
                     </button>
+                    
+                    {/* Image counter */}
+                    <div className="absolute bottom-2 right-2 bg-black/60 text-white px-2 py-1 rounded text-xs font-medium backdrop-blur-sm">
+                      {currentImageIndex + 1} / {images.length}
+                    </div>
+                    
+                    {/* Slide indicators */}
+                    <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
+                      {images.map((_, index) => (
+                        <button
+                          key={index}
+                          onClick={() => {
+                            setCurrentImageIndex(index);
+                            setIsAutoSliding(false);
+                            setTimeout(() => setIsAutoSliding(true), 5000);
+                          }}
+                          className={`w-2 h-2 rounded-full transition-all duration-200 ${
+                            index === currentImageIndex ? 'bg-white' : 'bg-white/50'
+                          }`}
+                        />
+                      ))}
+                    </div>
                   </>
                 )}
               </div>
 
               {images.length > 1 && (
-                <div className="flex gap-2 overflow-x-auto">
+                <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin">
                   {images.map((image, index) => (
                     <button
                       key={index}
-                      onClick={() => setCurrentImageIndex(index)}
-                      className={`flex-shrink-0 w-20 h-20 overflow-hidden rounded border-2 ${
-                        index === currentImageIndex ? 'border-primary' : 'border-transparent'
+                      onClick={() => {
+                        setCurrentImageIndex(index);
+                        setIsAutoSliding(false);
+                        setTimeout(() => setIsAutoSliding(true), 5000);
+                      }}
+                      className={`flex-shrink-0 w-24 h-24 overflow-hidden rounded-lg border-2 transition-all duration-200 hover:scale-105 ${
+                        index === currentImageIndex 
+                          ? 'border-primary shadow-md ring-2 ring-primary/20' 
+                          : 'border-transparent hover:border-primary/50'
                       }`}
                     >
                       <img

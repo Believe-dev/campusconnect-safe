@@ -416,7 +416,7 @@ const Cart = () => {
               {recommendedProducts.length > 0 && (
                 <div className="mt-8 sm:mt-12">
                   <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6">Recommended for You</h2>
-                  <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
+                  <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
                      {recommendedProducts.slice(0, 4).map((product) => (
                        <ProductCard
                          key={product.id}
@@ -576,7 +576,7 @@ const Cart = () => {
           {cartItems.length > 0 && recommendedProducts.length > 0 && (
             <div className="mt-8 sm:mt-12">
               <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6">You Might Also Like</h2>
-              <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
+              <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
                 {recommendedProducts.slice(0, 4).map((product) => (
                   <ProductCard
                     key={product.id}

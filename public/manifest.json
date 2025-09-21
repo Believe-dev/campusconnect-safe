@@ -1,75 +1,17 @@
 {
-  "name": "UniMarket - Nigeria's University Marketplace",
+  "name": "UniMarket",
   "short_name": "UniMarket",
-  "description": "Buy and sell safely within Nigerian university communities. Verified students, secure payments, escrow protection.",
+  "description": "Campus marketplace for students",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#16a34a",
-  "orientation": "portrait-primary",
-  "scope": "/",
-  "lang": "en-NG",
-  "categories": ["shopping", "education", "social"],
+  "theme_color": "#0ea5e9",
   "icons": [
     {
       "src": "/logo.png",
-      "sizes": "256x256",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "/logo.png",
       "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "/logo.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any"
+      "type": "image/png"
     }
   ],
-  "screenshots": [
-    {
-      "src": "/logo.png",
-      "sizes": "1280x720",
-      "type": "image/png",
-      "form_factor": "wide"
-    },
-    {
-      "src": "/logo.png",
-      "sizes": "750x1334",
-      "type": "image/png",
-      "form_factor": "narrow"
-    }
-  ],
-  "shortcuts": [
-    {
-      "name": "Browse Marketplace",
-      "short_name": "Marketplace",
-      "description": "Browse products from verified student sellers",
-      "url": "/marketplace",
-      "icons": [
-        {
-          "src": "/logo.png",
-          "sizes": "96x96",
-          "type": "image/png"
-        }
-      ]
-    },
-    {
-      "name": "Find Sellers",
-      "short_name": "Sellers",
-      "description": "Search for verified student sellers",
-      "url": "/sellers",
-      "icons": [
-        {
-          "src": "/logo.png",
-          "sizes": "96x96",
-          "type": "image/png"
-        }
-      ]
-    }
-  ]
+  "gcm_sender_id": "482941778795"
 }

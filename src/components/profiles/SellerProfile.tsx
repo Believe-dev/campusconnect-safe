@@ -388,7 +388,7 @@ const SellerProfile = () => {
               <p className="text-muted-foreground text-center py-8">No products available.</p>
             ) : (
               <>
-                <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-3 sm:gap-4">
                   {products.slice(0, visibleProducts).map((product) => (
                     <Card 
                       key={product.id} 
@@ -411,7 +411,7 @@ const SellerProfile = () => {
                         </Badge>
                       </div>
                       <CardContent className="p-2 sm:p-3 md:p-4">
-                        <h3 className="font-semibold text-sm sm:text-base md:text-lg mb-1 sm:mb-2 line-clamp-1">{product.title}</h3>
+                        <h3 className="font-semibold text-sm sm:text-base md:text-lg mb-1 sm:mb-2 line-clamp-2 min-h-[2.5rem]">{product.title}</h3>
                         <p className="text-muted-foreground text-xs sm:text-sm mb-2 line-clamp-2 hidden sm:block">{product.description}</p>
                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2">
                           <span className="text-sm sm:text-base md:text-lg font-bold text-primary">₦{product.price.toLocaleString()}</span>

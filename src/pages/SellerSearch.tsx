@@ -19,6 +19,7 @@ interface Seller {
   rating: number;
   total_reviews: number;
   is_verified: boolean;
+  product_count?: number;
 }
 
 const SellerSearch = () => {
@@ -65,15 +66,23 @@ const SellerSearch = () => {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('user_id, full_name, university_name, campus, bio, avatar_url, rating, total_reviews, is_verified, account_type')
+        .select(`
+          user_id, full_name, university_name, campus, bio, avatar_url, rating, total_reviews, is_verified, account_type,
+          products!products_seller_id_fkey(id)
+        `)
         .in('account_type', ['seller', 'both'])
         .not('is_banned', 'eq', true)
         .order('rating', { ascending: false });
 
       if (error) throw error;
       
-      // Sort sellers: verified + same university first, then same university, then verified, then others
-      const sortedSellers = (data || []).sort((a, b) => {
+      // Add product count and sort sellers
+      const sellersWithCount = (data || []).map(seller => ({
+        ...seller,
+        product_count: seller.products?.filter((p: any) => p.id).length || 0
+      }));
+      
+      const sortedSellers = sellersWithCount.sort((a, b) => {
         const aVerified = a.is_verified;
         const bVerified = b.is_verified;
         const aFromUserUni = userUniversity && a.university_name === userUniversity;
@@ -227,12 +236,18 @@ const SellerSearch = () => {
                         </span>
                       </div>
                       
-                      <div className="flex items-center gap-1 mb-3">
+                      <div className="flex items-center gap-1 mb-2">
                         <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
                         <span className="text-sm font-medium">{seller.rating.toFixed(1)}</span>
                         <span className="text-sm text-muted-foreground">
                           ({seller.total_reviews} reviews)
                         </span>
+                      </div>
+                      
+                      <div className="mb-3">
+                        <Badge variant="outline" className="text-xs">
+                          {seller.product_count || 0} products
+                        </Badge>
                       </div>
                       
                       {seller.bio && (
