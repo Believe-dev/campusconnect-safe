@@ -22,6 +22,9 @@ const BottomNav = () => {
   const { cartCount } = useCartCount();
   const { messagesCount } = useMessagesCount();
   const [userProfile, setUserProfile] = useState<any>(null);
+  
+  // Hide bottom nav when in messages page (both list and chat)
+  const isInMessages = location.pathname === '/messages';
 
   useEffect(() => {
     if (user) {
@@ -52,7 +55,7 @@ const BottomNav = () => {
       .slice(0, 2);
   };
 
-  if (!user) return null;
+  if (!user || isInMessages) return null;
 
   const navItems = [
     { to: '/', icon: Home, label: 'Home' },

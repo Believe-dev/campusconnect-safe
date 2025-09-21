@@ -21,6 +21,9 @@ import { SecurityProvider } from "@/components/security/SecurityProvider";
 import { ProfileCompletionModal } from "@/components/profile/ProfileCompletionModal";
 import { useProfileCompletion } from "@/hooks/useProfileCompletion";
 import FloatingBackButton from "@/components/ui/back-button";
+import { AuthGuard } from "@/components/auth/AuthGuard";
+import { BannedUserModal } from "@/components/auth/BannedUserModal";
+import { useBanCheck } from "@/hooks/useBanCheck";
 
 // Lazy load pages for better performance with error boundaries
 const Index = React.lazy(() => import('./pages/Index').catch(() => ({ default: () => <div>Error loading page</div> })));
@@ -46,19 +49,30 @@ const Notifications = React.lazy(() => import('./pages/Notifications').catch(() 
 const VerificationRequest = React.lazy(() => import('./pages/VerificationRequest').catch(() => ({ default: () => <div>Error loading page</div> })));
 const Wallet = React.lazy(() => import('./pages/Wallet').catch(() => ({ default: () => <div>Error loading page</div> })));
 
+// Clear all caches on app start
+const clearAllCaches = async () => {
+  if ('caches' in window) {
+    const cacheNames = await caches.keys();
+    await Promise.all(cacheNames.map(name => caches.delete(name)));
+  }
+};
+
+// Clear caches on load
+clearAllCaches();
+
 // Optimized query client for high concurrent users (400+)
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 5 * 60 * 1000, // 5 minutes - shorter for real-time feel
-      cacheTime: 30 * 60 * 1000, // 30 minutes - balance memory usage
+      staleTime: 0, // Always fetch fresh data
+      cacheTime: 0, // Don't cache data
       retry: (failureCount, error: any) => {
         if (error?.status >= 400 && error?.status < 500) return false;
         return failureCount < 1; // Single retry to reduce server load
       },
-      refetchOnWindowFocus: false,
+      refetchOnWindowFocus: true,
       refetchOnReconnect: true,
-      refetchOnMount: false,
+      refetchOnMount: true,
       networkMode: 'online', // Require network for better performance
       refetchInterval: false, // Disable polling, use real-time instead
     },
@@ -84,18 +98,35 @@ const queryClient = new QueryClient({
   }),
 });
 
+// Clear query cache every 5 minutes to prevent stale data
+setInterval(() => {
+  queryClient.clear();
+}, 5 * 60 * 1000);
+
 const AppContent = () => {
   useScrollToTop();
   useBackgroundSync();
   useRealTimeUpdates();
   const { showModal, missingFields, dismissModal, completeProfile } = useProfileCompletion();
+  const { isBanned, banReason, userEmail } = useBanCheck();
+  
+  if (isBanned) {
+    return (
+      <BannedUserModal 
+        open={true}
+        userEmail={userEmail}
+        banReason={banReason}
+      />
+    );
+  }
   
   return (
     <>
       <div className="pb-16 md:pb-0 layout-stable">
-        <Suspense fallback={<LoadingSkeleton />}>
-          <div className="page-transition student-focus">
-            <Routes>
+        <AuthGuard>
+          <Suspense fallback={<LoadingSkeleton />}>
+            <div className="page-transition student-focus">
+              <Routes>
             <Route path={ROUTES.home} element={<Index />} />
             <Route path={ROUTES.auth} element={<AuthPage />} />
             <Route path="/learn-more" element={<LearnMore />} />
@@ -126,17 +157,19 @@ const AppContent = () => {
             <Route path="/verification-request" element={<VerificationRequest />} />
             <Route path="/wallet" element={<Wallet />} />
             <Route path="*" element={<NotFound />} />
-            </Routes>
-          </div>
-        </Suspense>
+              </Routes>
+            </div>
+          </Suspense>
+        </AuthGuard>
       </div>
       <BottomNav />
       <PopupNotification />
       <OfflineNotification />
       <AIChatbot />
       <FloatingBackButton />
+
       <ProfileCompletionModal 
-        open={showModal}
+        open={showModal && !isBanned}
         onClose={dismissModal}
         missingFields={missingFields}
         onComplete={completeProfile}

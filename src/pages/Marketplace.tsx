@@ -433,13 +433,30 @@ const Marketplace = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 lg:gap-4">
               <div className="sm:col-span-2 lg:col-span-2">
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
                   <Input
                     placeholder="Search products..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10 text-sm sm:text-base"
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        e.currentTarget.blur();
+                      }
+                    }}
+                    className="pl-10 pr-12 text-sm sm:text-base"
                   />
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => {
+                      document.activeElement?.blur();
+                      filterProducts();
+                    }}
+                    className="absolute right-1 top-1/2 -translate-y-1/2 h-8 px-3 z-10 hover:scale-100 hover:translate-y-[-50%]"
+                  >
+                    <Search className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
               
@@ -563,13 +580,13 @@ const Marketplace = () => {
 
                   {/* Seller Info */}
                   <div 
-                    className="flex items-center gap-1 sm:gap-2 mb-2 sm:mb-3 text-xs text-muted-foreground cursor-pointer hover:text-primary transition-colors"
+                    className="flex items-center gap-1 sm:gap-2 mb-2 sm:mb-3 text-xs cursor-pointer hover:text-primary transition-colors"
                     onClick={(e) => {
                       e.stopPropagation();
                       navigate(`/seller/${product.seller_id}`);
                     }}
                   >
-                    <span className="truncate">by {product.profiles?.full_name}</span>
+                    <span className="truncate underline text-primary font-medium">by {product.profiles?.full_name}</span>
                     {product.profiles?.is_verified && (
                       <div className="bg-blue-500 rounded-full p-0.5 flex-shrink-0">
                         <svg className="h-2 w-2 text-white" fill="currentColor" viewBox="0 0 20 20">

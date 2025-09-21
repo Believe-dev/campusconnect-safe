@@ -66,38 +66,37 @@ const Settings = () => {
     
     try {
       setLoading(true);
+      const userId = user.id;
       
-      // Use RPC function to delete user completely
-      const { error } = await supabase.rpc('delete_user_account', {
-        user_id: user.id
-      });
+      const { data, error } = await supabase.rpc('delete_user_completely');
       
-      if (error) {
-        console.error('Delete account RPC error:', error);
-        // Fallback: delete profile only
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .delete()
-          .eq('user_id', user.id);
-        
-        if (profileError) throw profileError;
+      if (error || !data) {
+        throw new Error('Failed to delete account');
       }
       
-      // Sign out the user globally
-      await supabase.auth.signOut({ scope: 'global' });
+      // Clear local storage and caches
+      localStorage.clear();
+      sessionStorage.clear();
+      
+      if ('caches' in window) {
+        const cacheNames = await caches.keys();
+        await Promise.all(cacheNames.map(name => caches.delete(name)));
+      }
+      
+
       
       toast({
-        title: "Account Deleted",
-        description: "Your account has been permanently deleted",
+        title: "Account Completely Deleted",
+        description: "Your account has been permanently deleted. You can no longer sign in with this email.",
       });
       
-      // Force redirect to home page and reload to clear all state
-      window.location.replace('/');
+      window.location.href = '/';
+      
     } catch (error) {
       console.error('Delete account error:', error);
       toast({
         title: "Error",
-        description: "Failed to delete account. Please try again.",
+        description: "Failed to delete account data. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -245,7 +244,7 @@ const Settings = () => {
                     <AlertDialogHeader>
                       <AlertDialogTitle>Delete Account</AlertDialogTitle>
                       <AlertDialogDescription>
-                        Are you sure you want to permanently delete your account? This action cannot be undone and will remove all your data, including products, orders, and messages.
+                        Are you sure you want to permanently delete your account? This will remove all your data from our database including products, orders, messages, and profile information. This action cannot be undone.
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>

@@ -85,8 +85,9 @@ const ProductCard = ({
         return;
       }
 
-      // Navigate to messages with the conversation ID
-      navigate(`/messages?conversation=${conversationId}`);
+      // Navigate to messages with the conversation ID and product draft
+      const draftMessage = `Hi! I'm interested in your ${product.title} listed for ${formatPrice(product.price)}. Is it still available?`;
+      navigate(`/messages?conversation=${conversationId}&draft=${encodeURIComponent(draftMessage)}`);
 
     } catch (error) {
       secureLog.error('Error in handleMessageSeller', error);
@@ -202,12 +203,12 @@ const ProductCard = ({
               navigate(`/seller/${product.seller_id}`);
             }}
           >
-            <span className="font-medium truncate max-w-[60px] sm:max-w-[80px]">
+            <span className="font-medium truncate max-w-[60px] sm:max-w-[80px] underline hover:no-underline text-primary">
               {sanitizeInput(product.seller?.full_name || 'Unknown Seller')}
             </span>
             {product.seller?.is_verified && (
-              <div className="h-3 w-3 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
-                <svg className="h-2 w-2 text-white" fill="currentColor" viewBox="0 0 20 20">
+              <div className="verification-badge-inline flex-shrink-0" style={{ width: '12px', height: '12px' }}>
+                <svg fill="currentColor" viewBox="0 0 20 20" style={{ width: '6px', height: '6px' }}>
                   <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                 </svg>
               </div>

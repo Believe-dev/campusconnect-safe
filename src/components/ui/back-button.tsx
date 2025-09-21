@@ -5,8 +5,10 @@ import { useNavigate, useLocation } from 'react-router-dom';
 const FloatingBackButton = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const isInMessages = location.pathname === '/messages';
 
-  const showBackButton = location.pathname !== '/' && location.pathname !== '/marketplace';
+  const showBackButton = location.pathname !== '/' && location.pathname !== '/marketplace' && !isInMessages;
 
   if (!showBackButton) return null;
 

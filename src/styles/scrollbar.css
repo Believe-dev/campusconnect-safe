@@ -20,3 +20,8 @@
 .scrollbar-thin::-webkit-scrollbar-thumb:hover {
   background: #9ca3af;
 }
+
+/* Mobile Safe Area */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}

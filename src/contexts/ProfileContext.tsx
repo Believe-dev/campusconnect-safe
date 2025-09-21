@@ -50,7 +50,16 @@ export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ child
         .eq('user_id', user.id)
         .single();
 
-      if (error) throw error;
+      if (error) {
+        // If profile doesn't exist, just set profile to null
+        // Don't sign out user as they might be newly registered
+        if (error.code === 'PGRST116') {
+          setProfile(null);
+          localStorage.removeItem(`cc_profile_${user.id}`);
+          return;
+        }
+        throw error;
+      }
 
       setProfile(data);
       localStorage.setItem(`cc_profile_${user.id}`, JSON.stringify(data));

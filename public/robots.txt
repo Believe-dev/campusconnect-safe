@@ -1,14 +1,48 @@
-User-agent: Googlebot
-Allow: /
+# UniMarket - Nigeria's Trusted University Marketplace
+# https://unimarket.ng
 
-User-agent: Bingbot
+User-agent: *
 Allow: /
+Allow: /marketplace
+Allow: /sellers
+Allow: /learn-more
+Allow: /search
+Allow: /product/*
+Allow: /seller/*
 
+# Disallow private/admin areas
+Disallow: /admin
+Disallow: /dashboard
+Disallow: /profile
+Disallow: /settings
+Disallow: /messages
+Disallow: /orders
+Disallow: /cart
+Disallow: /checkout
+Disallow: /wallet
+Disallow: /auth
+Disallow: /notifications
+Disallow: /favorites
+Disallow: /sell
+Disallow: /verification-request
+
+# Disallow API endpoints
+Disallow: /api/
+Disallow: /_next/
+Disallow: /static/
+
+# Allow social media crawlers
 User-agent: Twitterbot
 Allow: /
 
 User-agent: facebookexternalhit
 Allow: /
 
-User-agent: *
+User-agent: LinkedInBot
 Allow: /
+
+User-agent: WhatsApp
+Allow: /
+
+# Sitemap location
+Sitemap: https://unimarket.ng/sitemap.xml

@@ -1,6 +1,7 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/enhanced-button';
 import { AlertTriangle, CheckCircle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 interface ProfileCompletionModalProps {
   open: boolean;
@@ -15,6 +16,13 @@ export const ProfileCompletionModal = ({
   missingFields, 
   onComplete 
 }: ProfileCompletionModalProps) => {
+  const navigate = useNavigate();
+  
+  const handleComplete = () => {
+    onComplete();
+    navigate('/profile');
+  };
+  
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-md">
@@ -57,7 +65,7 @@ export const ProfileCompletionModal = ({
             <Button variant="outline" onClick={onClose} className="flex-1">
               Later
             </Button>
-            <Button onClick={onComplete} className="flex-1">
+            <Button onClick={handleComplete} className="flex-1">
               Complete Now
             </Button>
           </div>

@@ -24,6 +24,7 @@ export default function Notifications() {
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loadingNotifications, setLoadingNotifications] = useState(true);
+  const [expandedNotifications, setExpandedNotifications] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (user) {
@@ -169,6 +170,20 @@ export default function Notifications() {
   };
 
   const handleNotificationClick = (notification: Notification) => {
+    if (notification.is_read) {
+      // Toggle expansion for read notifications
+      setExpandedNotifications(prev => {
+        const newSet = new Set(prev);
+        if (newSet.has(notification.id)) {
+          newSet.delete(notification.id);
+        } else {
+          newSet.add(notification.id);
+        }
+        return newSet;
+      });
+      return;
+    }
+    
     markAsRead(notification.id);
     
     if (notification.type === 'order_shipped' || notification.type === 'order_delivered') {
@@ -237,17 +252,17 @@ export default function Notifications() {
       <Header />
       
       <main className="container mx-auto px-4 py-8">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
           <div className="flex items-center gap-3">
             <Bell className="h-6 w-6" />
-            <h1 className="text-2xl font-bold">Notifications</h1>
+            <h1 className="text-xl sm:text-2xl font-bold">Notifications</h1>
             {unreadCount > 0 && (
-              <Badge variant="destructive">{unreadCount} unread</Badge>
+              <Badge variant="destructive" className="text-xs">{unreadCount} unread</Badge>
             )}
           </div>
           
           {unreadCount > 0 && (
-            <Button onClick={markAllAsRead} variant="outline" size="sm">
+            <Button onClick={markAllAsRead} variant="outline" size="sm" className="w-full sm:w-auto">
               <Check className="h-4 w-4 mr-2" />
               Mark all as read
             </Button>
@@ -285,12 +300,14 @@ export default function Notifications() {
                 onClick={() => handleNotificationClick(notification)}
               >
                 <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-start gap-3">
-                      <div className={`w-3 h-3 rounded-full mt-2 ${getNotificationTypeColor(notification.type)}`} />
-                      <div className="flex-1">
-                        <CardTitle className="text-base">{notification.title}</CardTitle>
-                        <p className="text-sm text-muted-foreground mt-1">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-3 flex-1 min-w-0">
+                      <div className={`w-3 h-3 rounded-full mt-2 flex-shrink-0 ${getNotificationTypeColor(notification.type)}`} />
+                      <div className="flex-1 min-w-0">
+                        <CardTitle className="text-sm sm:text-base truncate">{notification.title}</CardTitle>
+                        <p className={`text-xs sm:text-sm text-muted-foreground mt-1 ${
+                          expandedNotifications.has(notification.id) ? '' : 'line-clamp-2'
+                        }`}>
                           {notification.message}
                         </p>
                         <p className="text-xs text-muted-foreground mt-2">
@@ -299,11 +316,12 @@ export default function Notifications() {
                       </div>
                     </div>
                     
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1 flex-shrink-0">
                       {!notification.is_read && (
                         <Button
                           size="sm"
                           variant="ghost"
+                          className="h-8 w-8 p-0"
                           onClick={(e) => {
                             e.stopPropagation();
                             markAsRead(notification.id);
@@ -315,6 +333,7 @@ export default function Notifications() {
                       <Button
                         size="sm"
                         variant="ghost"
+                        className="h-8 w-8 p-0"
                         onClick={(e) => {
                           e.stopPropagation();
                           deleteNotification(notification.id);

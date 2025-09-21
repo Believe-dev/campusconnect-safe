@@ -238,34 +238,20 @@ const ProductDetails = () => {
     if (!product) return;
 
     try {
-      // Check if conversation already exists
-      const { data: existingConversation } = await supabase
-        .from('conversations')
-        .select('id')
-        .eq('buyer_id', user.id)
-        .eq('seller_id', product.seller_id)
-        .eq('product_id', product.id)
-        .single();
-
-      if (existingConversation) {
-        navigate(`/messages?conversation=${existingConversation.id}`);
-        return;
-      }
-
-      // Create new conversation
-      const { data: newConversation, error } = await supabase
-        .from('conversations')
-        .insert({
-          buyer_id: user.id,
-          seller_id: product.seller_id,
-          product_id: product.id,
-        })
-        .select()
-        .single();
+      // Use the same function as ProductCard to find or create consolidated conversation
+      const { data: conversationId, error } = await supabase.rpc(
+        'find_or_create_conversation',
+        {
+          p_buyer_id: user.id,
+          p_seller_id: product.seller_id,
+          p_product_id: product.id
+        }
+      );
 
       if (error) throw error;
 
-      navigate(`/messages?conversation=${newConversation.id}`);
+      const draftMessage = `Hi! I'm interested in your ${product.title} listed for ₦${product.price.toLocaleString()}. Is it still available?`;
+      navigate(`/messages?conversation=${conversationId}&draft=${encodeURIComponent(draftMessage)}`);
     } catch (error) {
       // Secure error logging
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -677,16 +663,16 @@ const ProductDetails = () => {
                     </h3>
                     
                     <div className="flex items-start gap-3 mb-4">
-                      <div className="relative">
-                        <Avatar className="h-16 w-16">
+                      <div className="relative cursor-pointer" onClick={() => navigate(`/seller/${product.seller_id}`)}>
+                        <Avatar className="h-16 w-16 hover:ring-2 hover:ring-primary/20 transition-all">
                           <AvatarImage src={product.seller?.avatar_url} />
                           <AvatarFallback className="bg-university-green text-white text-lg">
                             {product.seller?.full_name ? getInitials(product.seller.full_name) : 'S'}
                           </AvatarFallback>
                         </Avatar>
                         {product.seller?.is_verified && (
-                          <div className="absolute -bottom-1 -right-1 bg-blue-500 rounded-full p-1.5">
-                            <svg className="h-4 w-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                          <div className="verification-tick">
+                            <svg fill="currentColor" viewBox="0 0 20 20">
                               <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                             </svg>
                           </div>
@@ -695,12 +681,16 @@ const ProductDetails = () => {
                       
                       <div className="flex-1 space-y-2">
                         <div className="flex items-center gap-2">
-                          <h4 className="font-semibold text-lg">{product.seller?.full_name}</h4>
+                          <h4 className="font-semibold text-lg cursor-pointer hover:text-primary transition-colors underline" onClick={() => navigate(`/seller/${product.seller_id}`)}>{product.seller?.full_name}</h4>
                           {product.seller?.is_verified && (
-                            <Badge variant="secondary" className="text-xs">
-                              <Shield className="h-3 w-3 mr-1" />
-                              Verified
-                            </Badge>
+                            <div className="trust-badge">
+                              <div className="verification-badge-inline">
+                                <svg fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                </svg>
+                              </div>
+                              <span className="text-xs font-medium">Verified</span>
+                            </div>
                           )}
                         </div>
                         

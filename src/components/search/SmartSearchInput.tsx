@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/enhanced-button';
 import { Command, CommandEmpty, CommandGroup, CommandItem } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Search, TrendingUp, Clock, Tag } from 'lucide-react';
+import { expandSearchTerms } from '@/utils/searchUtils';
 
 interface SearchSuggestion {
   id: string;
@@ -38,8 +39,11 @@ const SmartSearchInput = ({
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (value.length >= 2 && showSuggestions) {
-      fetchSuggestions(value);
+    if (value.length >= 1 && showSuggestions) {
+      const timeoutId = setTimeout(() => {
+        fetchSuggestions(value);
+      }, 300);
+      return () => clearTimeout(timeoutId);
     } else {
       setSuggestions([]);
     }
@@ -49,60 +53,75 @@ const SmartSearchInput = ({
     setLoading(true);
     try {
       const searchTerms = query.toLowerCase().trim();
+      const expandedTerms = expandSearchTerms(searchTerms);
       
-      // Get product suggestions
+      // Build smart search conditions
+      const searchConditions = expandedTerms.map(term => 
+        `title.ilike.%${term}%,description.ilike.%${term}%,category.ilike.%${term}%`
+      ).join(',');
+      
+      // Get product suggestions with smart matching
       const { data: products } = await supabase
         .from('products')
-        .select('title, category')
+        .select('title, category, price')
         .eq('is_active', true)
-        .or(`title.ilike.%${searchTerms}%,description.ilike.%${searchTerms}%,category.ilike.%${searchTerms}%`)
-        .limit(5);
+        .or(searchConditions)
+        .order('created_at', { ascending: false })
+        .limit(8);
 
-      // Get category suggestions
-      const { data: categories } = await supabase
+      // Get popular categories
+      const { data: categoryData } = await supabase
         .from('products')
         .select('category')
         .eq('is_active', true)
-        .ilike('category', `%${searchTerms}%`)
-        .limit(3);
+        .or(expandedTerms.map(term => `category.ilike.%${term}%`).join(','))
+        .limit(5);
 
       const newSuggestions: SearchSuggestion[] = [];
+      const addedTexts = new Set<string>();
 
-      // Add product suggestions
+      // Add exact product matches first
       if (products) {
         products.forEach(product => {
-          if (newSuggestions.length < 8 && product.title.toLowerCase().includes(searchTerms)) {
+          const titleLower = product.title.toLowerCase();
+          if (!addedTexts.has(titleLower) && newSuggestions.length < 6) {
             newSuggestions.push({
               id: `product-${product.title}`,
               text: product.title,
               type: 'product'
             });
+            addedTexts.add(titleLower);
           }
         });
       }
 
       // Add category suggestions
-      if (categories) {
-        const uniqueCategories = [...new Set(categories.map(c => c.category))];
-        uniqueCategories.forEach(category => {
-          if (newSuggestions.length < 8 && category && category.toLowerCase().includes(searchTerms)) {
-            newSuggestions.push({
-              id: `category-${category}`,
-              text: category,
-              type: 'category'
-            });
-          }
+      if (categoryData) {
+        const uniqueCategories = [...new Set(categoryData.map(c => c.category))]
+          .filter(cat => cat && !addedTexts.has(cat.toLowerCase()));
+        
+        uniqueCategories.slice(0, 3).forEach(category => {
+          newSuggestions.push({
+            id: `category-${category}`,
+            text: category,
+            type: 'category'
+          });
+          addedTexts.add(category.toLowerCase());
         });
       }
 
-      // Add trending suggestions if no matches
-      if (newSuggestions.length === 0) {
-        const trendingSuggestions = [
-          'Electronics', 'Books & Textbooks', 'Fashion & Accessories', 
-          'Food & Beverages', 'Services', 'Sports & Recreation'
-        ].filter(item => item.toLowerCase().includes(searchTerms));
+      // Add smart trending suggestions
+      if (newSuggestions.length < 6) {
+        const smartSuggestions = [
+          'iPhone', 'MacBook', 'Samsung', 'Textbooks', 'Laptop', 'Headphones',
+          'Nike Shoes', 'Backpack', 'Calculator', 'Notebook', 'Charger', 'Books'
+        ].filter(item => {
+          const itemLower = item.toLowerCase();
+          return !addedTexts.has(itemLower) && 
+                 (itemLower.includes(searchTerms) || searchTerms.includes(itemLower.slice(0, 3)));
+        });
         
-        trendingSuggestions.forEach(suggestion => {
+        smartSuggestions.slice(0, 6 - newSuggestions.length).forEach(suggestion => {
           newSuggestions.push({
             id: `trending-${suggestion}`,
             text: suggestion,
@@ -132,6 +151,7 @@ const SmartSearchInput = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setIsOpen(false);
+    inputRef.current?.blur(); // Dismiss keyboard on mobile
     if (onSubmit) {
       onSubmit(value);
     } else if (value.trim()) {
@@ -163,9 +183,9 @@ const SmartSearchInput = ({
             value={value}
             onChange={(e) => {
               onChange(e.target.value);
-              setIsOpen(e.target.value.length >= 2 && suggestions.length > 0);
+              setIsOpen(e.target.value.length >= 1 && showSuggestions);
             }}
-            onFocus={() => setIsOpen(value.length >= 2 && suggestions.length > 0)}
+            onFocus={() => setIsOpen(value.length >= 1 && suggestions.length > 0 && showSuggestions)}
             onBlur={() => setTimeout(() => setIsOpen(false), 200)}
             className="pl-10 pr-4"
             autoFocus={autoFocus}
@@ -176,27 +196,41 @@ const SmartSearchInput = ({
         </Button>
       </form>
       
-      {isOpen && suggestions.length > 0 && (
-        <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-background border rounded-md shadow-lg">
+      {isOpen && (suggestions.length > 0 || loading) && (
+        <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-background border rounded-md shadow-lg max-h-80 overflow-y-auto">
           <Command>
             <CommandEmpty>
-              {loading ? "Searching..." : "No suggestions found"}
+              {loading ? (
+                <div className="flex items-center justify-center py-4">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+                  <span className="ml-2 text-sm">Searching...</span>
+                </div>
+              ) : "No suggestions found"}
             </CommandEmpty>
             <CommandGroup>
               {suggestions.map((suggestion) => (
                 <CommandItem
                   key={suggestion.id}
                   onSelect={() => handleSuggestionSelect(suggestion)}
-                  className="flex items-center gap-2 cursor-pointer"
+                  className="flex items-center gap-3 cursor-pointer px-3 py-2 hover:bg-muted/50 transition-colors"
                 >
-                  {getSuggestionIcon(suggestion.type)}
-                  <span>{suggestion.text}</span>
-                  {suggestion.type === 'category' && (
-                    <span className="text-xs text-muted-foreground ml-auto">Category</span>
-                  )}
-                  {suggestion.type === 'trending' && (
-                    <span className="text-xs text-muted-foreground ml-auto">Trending</span>
-                  )}
+                  <div className="flex-shrink-0">
+                    {getSuggestionIcon(suggestion.type)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <span className="text-sm font-medium truncate block">{suggestion.text}</span>
+                  </div>
+                  <div className="flex-shrink-0">
+                    {suggestion.type === 'category' && (
+                      <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-full">Category</span>
+                    )}
+                    {suggestion.type === 'trending' && (
+                      <span className="text-xs text-muted-foreground bg-orange-100 text-orange-600 px-2 py-1 rounded-full">Trending</span>
+                    )}
+                    {suggestion.type === 'product' && (
+                      <span className="text-xs text-muted-foreground bg-blue-100 text-blue-600 px-2 py-1 rounded-full">Product</span>
+                    )}
+                  </div>
                 </CommandItem>
               ))}
             </CommandGroup>

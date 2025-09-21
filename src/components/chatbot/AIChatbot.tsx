@@ -27,6 +27,80 @@ export const AIChatbot = () => {
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [conversationContext, setConversationContext] = useState<string[]>([]);
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const buttonRef = useRef<HTMLButtonElement>(null);
+
+  // Initialize position on mount
+  useEffect(() => {
+    const savedPosition = localStorage.getItem('chatbot-position');
+    if (savedPosition) {
+      setPosition(JSON.parse(savedPosition));
+    } else {
+      // Default position (bottom right with safe margins)
+      setPosition({ x: window.innerWidth - 80, y: window.innerHeight - 150 });
+    }
+  }, []);
+
+  // Save position when it changes
+  useEffect(() => {
+    localStorage.setItem('chatbot-position', JSON.stringify(position));
+  }, [position]);
+
+  const handleStart = (clientX: number, clientY: number) => {
+    if (isOpen) return;
+    setIsDragging(true);
+    setDragStart({
+      x: clientX - position.x,
+      y: clientY - position.y
+    });
+  };
+
+  const handleMove = (clientX: number, clientY: number) => {
+    if (!isDragging || isOpen) return;
+    
+    const newX = Math.max(10, Math.min(window.innerWidth - 66, clientX - dragStart.x));
+    const newY = Math.max(10, Math.min(window.innerHeight - 150, clientY - dragStart.y));
+    
+    setPosition({ x: newX, y: newY });
+  };
+
+  const handleEnd = () => {
+    setIsDragging(false);
+  };
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    handleStart(e.clientX, e.clientY);
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    e.preventDefault();
+    const touch = e.touches[0];
+    handleStart(touch.clientX, touch.clientY);
+  };
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => handleMove(e.clientX, e.clientY);
+    const handleTouchMove = (e: TouchEvent) => {
+      e.preventDefault();
+      const touch = e.touches[0];
+      handleMove(touch.clientX, touch.clientY);
+    };
+
+    if (isDragging) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleEnd);
+      document.addEventListener('touchmove', handleTouchMove, { passive: false });
+      document.addEventListener('touchend', handleEnd);
+      return () => {
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleEnd);
+        document.removeEventListener('touchmove', handleTouchMove);
+        document.removeEventListener('touchend', handleEnd);
+      };
+    }
+  }, [isDragging, dragStart, isOpen]);
 
   // Load conversation from localStorage on mount (with decryption)
   useEffect(() => {
@@ -153,8 +227,19 @@ export const AIChatbot = () => {
   if (!isOpen) {
     return (
       <Button
-        onClick={() => setIsOpen(true)}
-        className="fixed bottom-20 right-4 z-50 h-14 w-14 rounded-full bg-university-green hover:bg-green-700 shadow-lg"
+        ref={buttonRef}
+        onClick={() => !isDragging && setIsOpen(true)}
+        onMouseDown={handleMouseDown}
+        onTouchStart={handleTouchStart}
+        className={`fixed z-50 h-14 w-14 rounded-full bg-university-green hover:bg-green-700 shadow-lg transition-all ${
+          isDragging ? 'cursor-grabbing scale-110' : 'cursor-grab hover:scale-105'
+        }`}
+        style={{
+          left: `${position.x}px`,
+          top: `${position.y}px`,
+          touchAction: 'none',
+          userSelect: 'none'
+        }}
         size="icon"
       >
         <Bot className="h-6 w-6 text-white" />
@@ -163,7 +248,9 @@ export const AIChatbot = () => {
   }
 
   return (
-    <Card className={`fixed bottom-20 right-4 z-50 w-96 shadow-xl transition-all ${isMinimized ? 'h-14' : 'h-[500px]'}`}>
+    <Card className={`fixed bottom-4 left-4 right-4 sm:right-4 sm:left-auto z-50 w-auto sm:w-96 max-w-none sm:max-w-sm shadow-xl transition-all ${
+      isMinimized ? 'h-14' : 'h-[70vh] sm:h-[500px]'
+    }`}>
       <CardHeader className="p-3 bg-university-green text-white rounded-t-lg">
         <div className="flex items-center justify-between">
           <CardTitle className="text-sm flex items-center gap-2">
@@ -212,7 +299,7 @@ export const AIChatbot = () => {
       </CardHeader>
 
       {!isMinimized && (
-        <CardContent className="p-0 flex flex-col h-[452px]">
+        <CardContent className="p-0 flex flex-col" style={{ height: 'calc(70vh - 56px)' }}>
           <div className="flex-1 overflow-y-auto p-3 space-y-3">
             {messages.map((message) => (
               <div key={message.id} className={`flex ${message.isBot ? 'justify-start' : 'justify-end'}`}>
@@ -293,12 +380,12 @@ export const AIChatbot = () => {
           <div className="border-t bg-gray-50 p-3">
             <div className="flex gap-2">
               <Input
-                placeholder="Ask me anything about UniMarket..."
+                placeholder="Ask me anything..."
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
                 disabled={loading}
-                className="text-sm border-gray-300 focus:border-university-green focus:ring-university-green"
+                className="text-xs sm:text-sm border-gray-300 focus:border-university-green focus:ring-university-green"
               />
               <Button
                 onClick={sendMessage}

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -21,30 +22,80 @@ interface Seller {
 }
 
 const SellerSearch = () => {
+  const { user } = useAuth();
   const [sellers, setSellers] = useState<Seller[]>([]);
   const [filteredSellers, setFilteredSellers] = useState<Seller[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
+  const [userUniversity, setUserUniversity] = useState<string | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
+    if (user) {
+      fetchUserUniversity();
+    }
     fetchSellers();
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     filterSellers();
-  }, [sellers, searchQuery]);
+  }, [sellers, searchQuery, userUniversity]);
+
+  useEffect(() => {
+    if (userUniversity && sellers.length > 0) {
+      fetchSellers(); // Re-fetch to apply university sorting
+    }
+  }, [userUniversity]);
+
+  const fetchUserUniversity = async () => {
+    if (!user?.id) return;
+    try {
+      const { data } = await supabase
+        .from('profiles')
+        .select('university_name')
+        .eq('user_id', user.id)
+        .single();
+      setUserUniversity(data?.university_name || null);
+    } catch (error) {
+      console.error('Error fetching user university:', error);
+    }
+  };
 
   const fetchSellers = async () => {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('*')
-        .eq('seller_status', 'approved')
+        .select('user_id, full_name, university_name, campus, bio, avatar_url, rating, total_reviews, is_verified, account_type')
+        .in('account_type', ['seller', 'both'])
+        .not('is_banned', 'eq', true)
         .order('rating', { ascending: false });
 
       if (error) throw error;
-      setSellers(data || []);
+      
+      // Sort sellers: verified + same university first, then same university, then verified, then others
+      const sortedSellers = (data || []).sort((a, b) => {
+        const aVerified = a.is_verified;
+        const bVerified = b.is_verified;
+        const aFromUserUni = userUniversity && a.university_name === userUniversity;
+        const bFromUserUni = userUniversity && b.university_name === userUniversity;
+        
+        // Priority 1: Verified + Same University
+        if (aVerified && aFromUserUni && !(bVerified && bFromUserUni)) return -1;
+        if (bVerified && bFromUserUni && !(aVerified && aFromUserUni)) return 1;
+        
+        // Priority 2: Same University (non-verified)
+        if (aFromUserUni && !aVerified && !bFromUserUni) return -1;
+        if (bFromUserUni && !bVerified && !aFromUserUni) return 1;
+        
+        // Priority 3: Verified (different university)
+        if (aVerified && !aFromUserUni && !bVerified && !bFromUserUni) return -1;
+        if (bVerified && !bFromUserUni && !aVerified && !aFromUserUni) return 1;
+        
+        // Within same priority group, sort by rating
+        return b.rating - a.rating;
+      });
+      
+      setSellers(sortedSellers);
     } catch (error) {
       console.error('Error fetching sellers:', error);
     } finally {
@@ -99,7 +150,15 @@ const SellerSearch = () => {
       <main className="container mx-auto px-4 py-8 pb-20 md:pb-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-primary mb-2">Find Sellers</h1>
-          <p className="text-muted-foreground">Discover trusted sellers in your university</p>
+          <p className="text-muted-foreground mb-3">Discover trusted sellers in your university</p>
+          {userUniversity && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <p className="text-sm text-blue-800">
+                <span className="font-medium">Smart Sorting:</span> Showing verified sellers from {userUniversity} first, 
+                followed by other sellers from your university, then verified sellers from other universities.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Search */}
@@ -153,7 +212,11 @@ const SellerSearch = () => {
                       <div className="flex items-center gap-2 mb-2">
                         <h3 className="font-semibold text-lg truncate">{seller.full_name}</h3>
                         {seller.is_verified && (
-                          <ShieldCheck className="h-4 w-4 text-blue-500" />
+                          <div className="verification-badge-inline">
+                            <svg fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                            </svg>
+                          </div>
                         )}
                       </div>
                       

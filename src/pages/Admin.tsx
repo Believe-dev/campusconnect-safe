@@ -43,6 +43,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { toast } from 'sonner';
 import Header from '@/components/layout/Header';
 import { triggerProfileUpdate } from '@/utils/realTimeEvents';
+import { emailService } from '@/utils/emailService';
 
 interface User {
   id: string;
@@ -188,6 +189,8 @@ export default function Admin() {
   const [payoutRequests, setPayoutRequests] = useState<PayoutRequest[]>([]);
   const [disputes, setDisputes] = useState<Dispute[]>([]);
   const [productReports, setProductReports] = useState<ProductReport[]>([]);
+  const [banAppeals, setBanAppeals] = useState<any[]>([]);
+  const [emailLogs, setEmailLogs] = useState<any[]>([]);
 
   useEffect(() => {
     if (isAdmin) {
@@ -199,6 +202,8 @@ export default function Admin() {
       fetchPendingSellers();
       fetchVerificationRequests();
       fetchEscrowData();
+      fetchBanAppeals();
+      fetchEmailLogs();
     }
   }, [isAdmin]);
 
@@ -393,6 +398,13 @@ export default function Admin() {
 
       if (profileError) throw profileError;
 
+      // Remove any existing buyer role and add seller role
+      await supabase
+        .from('user_roles')
+        .delete()
+        .eq('user_id', userId)
+        .eq('role', 'buyer');
+
       // Add seller role
       const { error: roleError } = await supabase
         .from('user_roles')
@@ -458,6 +470,9 @@ export default function Admin() {
       
       // Trigger real-time profile update for the approved seller
       triggerProfileUpdate();
+      
+      // Force refresh profile context for the approved user
+      window.dispatchEvent(new CustomEvent('profileUpdated', { detail: { userId } }));
     } catch (error) {
       console.error('Approve seller error:', error);
       toast.error('Failed to approve seller');
@@ -560,6 +575,37 @@ export default function Admin() {
     }
   };
 
+  const fetchBanAppeals = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('ban_appeals')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      setBanAppeals(data || []);
+    } catch (error) {
+      console.error('Ban appeals fetch error:', error);
+      setBanAppeals([]);
+    }
+  };
+
+  const fetchEmailLogs = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('email_logs')
+        .select('*')
+        .order('sent_at', { ascending: false })
+        .limit(100);
+      
+      if (error) throw error;
+      setEmailLogs(data || []);
+    } catch (error) {
+      console.error('Email logs fetch error:', error);
+      setEmailLogs([]);
+    }
+  };
+
   const fetchEscrowData = async () => {
     try {
       // Fetch escrow transactions
@@ -622,9 +668,8 @@ export default function Admin() {
         .from('product_reports')
         .select(`
           *,
-          product:products!inner (title, seller_id),
-          reporter:profiles!product_reports_reported_by_fkey (full_name, email),
-          seller:profiles!inner (full_name, email)
+          products!inner (title, seller_id),
+          profiles!product_reports_reported_by_fkey (full_name, email)
         `)
         .order('created_at', { ascending: false });
 
@@ -632,7 +677,25 @@ export default function Admin() {
         console.warn('Could not fetch product reports:', reportsError);
         setProductReports([]);
       } else {
-        setProductReports(reportsData || []);
+        // Get seller profiles separately
+        const reportsWithSellers = await Promise.all(
+          (reportsData || []).map(async (report) => {
+            const { data: sellerProfile } = await supabase
+              .from('profiles')
+              .select('full_name, email')
+              .eq('user_id', report.products.seller_id)
+              .single();
+            
+            return {
+              ...report,
+              product: report.products,
+              reporter: report.profiles,
+              seller: sellerProfile
+            };
+          })
+        );
+        
+        setProductReports(reportsWithSellers);
       }
 
     } catch (error) {
@@ -906,8 +969,7 @@ export default function Admin() {
         .update({ 
           status: 'rejected',
           reviewed_by: user.id,
-          reviewed_at: new Date().toISOString(),
-          rejection_reason: rejectionReason
+          reviewed_at: new Date().toISOString()
         })
         .eq('id', requestId);
 
@@ -1272,14 +1334,16 @@ export default function Admin() {
         {/* Tabs for different management areas */}
         <Tabs defaultValue="users" className="space-y-6">
           <div className="overflow-x-auto">
-            <TabsList className="grid w-full min-w-max grid-cols-9 md:grid-cols-9">
+            <TabsList className="grid w-full min-w-max grid-cols-11 md:grid-cols-11">
               <TabsTrigger value="users" className="text-xs md:text-sm">Users</TabsTrigger>
               <TabsTrigger value="sellers" className="text-xs md:text-sm">Sellers</TabsTrigger>
               <TabsTrigger value="verification" className="text-xs md:text-sm">Verify</TabsTrigger>
+              <TabsTrigger value="appeals" className="text-xs md:text-sm">Appeals</TabsTrigger>
               <TabsTrigger value="reports" className="text-xs md:text-sm">Reports</TabsTrigger>
               <TabsTrigger value="escrow" className="text-xs md:text-sm">Escrow</TabsTrigger>
               <TabsTrigger value="products" className="text-xs md:text-sm">Products</TabsTrigger>
               <TabsTrigger value="messages" className="text-xs md:text-sm">Messages</TabsTrigger>
+              <TabsTrigger value="emails" className="text-xs md:text-sm">Emails</TabsTrigger>
               <TabsTrigger value="analytics" className="text-xs md:text-sm">Analytics</TabsTrigger>
               <TabsTrigger value="settings" className="text-xs md:text-sm">Settings</TabsTrigger>
             </TabsList>
@@ -1298,14 +1362,66 @@ export default function Admin() {
                     </Button>
                     {selectedUsers.length > 0 && (
                       <div className="flex gap-2">
-                        <Button 
-                          onClick={() => handleBulkUserAction('ban')}
-                          variant="outline" 
-                          size="sm"
-                        >
-                          <UserX className="h-4 w-4 mr-2" />
-                          Ban Selected
-                        </Button>
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <Button variant="outline" size="sm">
+                              <UserX className="h-4 w-4 mr-2" />
+                              Ban Selected
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent>
+                            <DialogHeader>
+                              <DialogTitle>Ban Selected Users</DialogTitle>
+                              <DialogDescription>
+                                Provide a reason for banning {selectedUsers.length} selected users. This will be shown to them when they try to access their accounts.
+                              </DialogDescription>
+                            </DialogHeader>
+                            <form onSubmit={async (e) => {
+                              e.preventDefault();
+                              const formData = new FormData(e.currentTarget);
+                              const reason = formData.get('bulk_ban_reason') as string;
+                              
+                              try {
+                                const { error } = await supabase
+                                  .from('profiles')
+                                  .update({ 
+                                    is_banned: true,
+                                    admin_notes: reason.trim()
+                                  })
+                                  .in('user_id', selectedUsers);
+                              
+                                if (error) throw error;
+                                
+                                toast.success(`${selectedUsers.length} users banned successfully`);
+                                setSelectedUsers([]);
+                                fetchUsers();
+                              } catch (error) {
+                                console.error('Bulk ban error:', error);
+                                toast.error('Failed to ban users');
+                              }
+                            }}>
+                              <div className="space-y-4">
+                                <div>
+                                  <Label htmlFor="bulk_ban_reason">Ban Reason *</Label>
+                                  <Textarea
+                                    name="bulk_ban_reason"
+                                    placeholder="e.g., Violation of community guidelines, Spam, Inappropriate behavior..."
+                                    required
+                                    rows={3}
+                                  />
+                                </div>
+                                <div className="flex justify-end gap-2">
+                                  <DialogTrigger asChild>
+                                    <Button type="button" variant="outline">Cancel</Button>
+                                  </DialogTrigger>
+                                  <Button type="submit" variant="destructive">
+                                    Ban {selectedUsers.length} Users
+                                  </Button>
+                                </div>
+                              </div>
+                            </form>
+                          </DialogContent>
+                        </Dialog>
                         <Button 
                           onClick={() => handleBulkUserAction('unban')}
                           variant="outline" 
@@ -1540,14 +1656,111 @@ export default function Admin() {
                                       {user.is_verified ? 'Remove Verification' : 'Verify User'}
                                     </Button>
                                     
-                                    <Button
-                                      variant={user.is_banned ? "outline" : "destructive"}
-                                      size="sm"
-                                      onClick={() => toggleUserBan(user.user_id, user.is_banned)}
-                                    >
-                                      <Ban className="h-4 w-4 mr-2" />
-                                      {user.is_banned ? 'Unban' : 'Ban'} User
-                                    </Button>
+                                    {user.is_banned ? (
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => toggleUserBan(user.user_id, user.is_banned)}
+                                      >
+                                        <Ban className="h-4 w-4 mr-2" />
+                                        Unban User
+                                      </Button>
+                                    ) : (
+                                      <Dialog>
+                                        <DialogTrigger asChild>
+                                          <Button variant="destructive" size="sm">
+                                            <Ban className="h-4 w-4 mr-2" />
+                                            Ban User
+                                          </Button>
+                                        </DialogTrigger>
+                                        <DialogContent>
+                                          <DialogHeader>
+                                            <DialogTitle>Ban User - {user.full_name}</DialogTitle>
+                                            <DialogDescription>
+                                              Provide a reason for banning this user. This will be shown to them when they try to access their account.
+                                            </DialogDescription>
+                                          </DialogHeader>
+                                          <form onSubmit={async (e) => {
+                                            e.preventDefault();
+                                            const formData = new FormData(e.currentTarget);
+                                            const reason = formData.get('ban_reason') as string;
+                                            
+                                            try {
+                                              const { error } = await supabase
+                                                .from('profiles')
+                                                .update({ 
+                                                  is_banned: true,
+                                                  admin_notes: reason.trim()
+                                                })
+                                                .eq('user_id', user.user_id);
+                                            
+                                              if (error) throw error;
+                                            
+                                              toast.success('User banned successfully');
+                                              fetchUsers();
+                                            } catch (error) {
+                                              console.error('Ban user error:', error);
+                                              toast.error('Failed to ban user');
+                                            }
+                                          }}>
+                                            <div className="space-y-4">
+                                              <div>
+                                                <Label htmlFor="ban_reason">Ban Reason *</Label>
+                                                <Textarea
+                                                  name="ban_reason"
+                                                  placeholder="e.g., Violation of community guidelines, Spam, Inappropriate behavior..."
+                                                  required
+                                                  rows={3}
+                                                />
+                                              </div>
+                                              <div className="flex justify-end gap-2">
+                                                <DialogTrigger asChild>
+                                                  <Button type="button" variant="outline">Cancel</Button>
+                                                </DialogTrigger>
+                                                <Button type="submit" variant="destructive">
+                                                  Ban User
+                                                </Button>
+                                              </div>
+                                            </div>
+                                          </form>
+                                        </DialogContent>
+                                      </Dialog>
+                                    )}
+                                    
+                                    <AlertDialog>
+                                      <AlertDialogTrigger asChild>
+                                        <Button variant="destructive" size="sm">
+                                          <Trash2 className="h-4 w-4 mr-2" />
+                                          Delete
+                                        </Button>
+                                      </AlertDialogTrigger>
+                                      <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                          <AlertDialogTitle>Delete User Account</AlertDialogTitle>
+                                          <AlertDialogDescription>
+                                            Permanently delete {user.full_name}'s account and all data?
+                                          </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                          <AlertDialogAction 
+                                            onClick={async () => {
+                                              try {
+                                                const { error } = await supabase.rpc('delete_user_completely');
+                                                if (error) throw error;
+                                                toast.success('User deleted');
+                                                fetchUsers();
+                                              } catch (error) {
+                                                toast.error('Failed to delete user');
+                                              }
+                                            }}
+                                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                          >
+                                            Delete
+                                          </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                      </AlertDialogContent>
+                                    </AlertDialog>
                                   </div>
                                 </DialogContent>
                               </Dialog>
@@ -2022,6 +2235,256 @@ export default function Admin() {
                                   </Button>
                                 )}
                               </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Ban Appeals Tab */}
+          <TabsContent value="appeals">
+            <Card>
+              <CardHeader>
+                <div className="flex justify-between items-center">
+                  <CardTitle>Ban Appeals</CardTitle>
+                  <div className="flex items-center gap-2">
+                    {banAppeals.filter(a => a.status === 'pending').length > 0 && (
+                      <Badge variant="secondary">
+                        {banAppeals.filter(a => a.status === 'pending').length} pending
+                      </Badge>
+                    )}
+                    <Button onClick={fetchBanAppeals} variant="outline" size="sm">
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Refresh
+                    </Button>
+                  </div>
+                </div>
+                <p className="text-sm text-muted-foreground">Review appeals from banned users</p>
+              </CardHeader>
+              <CardContent>
+                {banAppeals.length === 0 ? (
+                  <div className="text-center py-12">
+                    <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold mb-2">No ban appeals</h3>
+                    <p className="text-muted-foreground">Banned users can submit appeals through the login screen</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>User Details</TableHead>
+                          <TableHead>Email</TableHead>
+                          <TableHead>Student ID</TableHead>
+                          <TableHead>Appeal Message</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Submitted</TableHead>
+                          <TableHead>Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {banAppeals.map((appeal) => (
+                          <TableRow key={appeal.id}>
+                            <TableCell>
+                              <div>
+                                <p className="font-medium">{appeal.full_name}</p>
+                                <p className="text-xs text-muted-foreground">Appeal #{appeal.id.slice(0, 8)}</p>
+                              </div>
+                            </TableCell>
+                            <TableCell>{appeal.user_email}</TableCell>
+                            <TableCell>{appeal.matric_number}</TableCell>
+                            <TableCell className="max-w-xs">
+                              <p className="text-sm truncate" title={appeal.message}>
+                                {appeal.message}
+                              </p>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={appeal.status === 'pending' ? 'secondary' : appeal.status === 'approved' ? 'default' : 'destructive'}>
+                                {appeal.status}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>{new Date(appeal.created_at).toLocaleDateString()}</TableCell>
+                            <TableCell>
+                              {appeal.status === 'pending' && (
+                                <div className="flex gap-2">
+                                  <Dialog>
+                                    <DialogTrigger asChild>
+                                      <Button size="sm" variant="default">
+                                        Approve
+                                      </Button>
+                                    </DialogTrigger>
+                                    <DialogContent>
+                                      <DialogHeader>
+                                        <DialogTitle>Approve Ban Appeal</DialogTitle>
+                                        <DialogDescription>
+                                          This will unban the user and send them a notification. Provide a response message.
+                                        </DialogDescription>
+                                      </DialogHeader>
+                                      <form onSubmit={async (e) => {
+                                        e.preventDefault();
+                                        const formData = new FormData(e.currentTarget);
+                                        const response = formData.get('admin_response') as string;
+                                        
+                                        try {
+                                          // Update appeal status
+                                          await supabase
+                                            .from('ban_appeals')
+                                            .update({ 
+                                              status: 'approved',
+                                              admin_response: response,
+                                              updated_at: new Date().toISOString()
+                                            })
+                                            .eq('id', appeal.id);
+                                          
+                                          // Find and unban the user
+                                          const { data: user } = await supabase
+                                            .from('profiles')
+                                            .select('user_id, full_name')
+                                            .eq('email', appeal.user_email)
+                                            .eq('student_id', appeal.matric_number)
+                                            .single();
+                                          
+                                          if (user) {
+                                            // Unban the user
+                                            await supabase
+                                              .from('profiles')
+                                              .update({ is_banned: false, admin_notes: null })
+                                              .eq('user_id', user.user_id);
+                                            
+                                            // Send secure email notification
+                                            try {
+                                              await emailService.sendBanApprovalEmail(
+                                                appeal.user_email,
+                                                appeal.full_name,
+                                                response || 'Your appeal was approved and your account has been restored.'
+                                              );
+                                            } catch (emailError) {
+                                              console.warn('Email notification failed:', emailError);
+                                            }
+                                          }
+                                          
+                                          toast.success('Appeal approved, user unbanned, and email sent');
+                                          fetchBanAppeals();
+                                          fetchUsers();
+                                        } catch (error) {
+                                          console.error('Approve appeal error:', error);
+                                          toast.error('Failed to approve appeal');
+                                        }
+                                      }}>
+                                        <div className="space-y-4">
+                                          <div>
+                                            <Label>Response to User</Label>
+                                            <Textarea
+                                              name="admin_response"
+                                              placeholder="Your appeal has been approved. Welcome back to UniMarket."
+                                              rows={3}
+                                            />
+                                          </div>
+                                          <div className="flex justify-end gap-2">
+                                            <DialogTrigger asChild>
+                                              <Button type="button" variant="outline">Cancel</Button>
+                                            </DialogTrigger>
+                                            <Button type="submit">
+                                              Approve Appeal
+                                            </Button>
+                                          </div>
+                                        </div>
+                                      </form>
+                                    </DialogContent>
+                                  </Dialog>
+                                  
+                                  <Dialog>
+                                    <DialogTrigger asChild>
+                                      <Button size="sm" variant="outline">
+                                        Reject
+                                      </Button>
+                                    </DialogTrigger>
+                                    <DialogContent>
+                                      <DialogHeader>
+                                        <DialogTitle>Reject Ban Appeal</DialogTitle>
+                                        <DialogDescription>
+                                          Provide a reason for rejecting this appeal.
+                                        </DialogDescription>
+                                      </DialogHeader>
+                                      <form onSubmit={async (e) => {
+                                        e.preventDefault();
+                                        const formData = new FormData(e.currentTarget);
+                                        const response = formData.get('admin_response') as string;
+                                        
+                                        try {
+                                          await supabase
+                                            .from('ban_appeals')
+                                            .update({ 
+                                              status: 'rejected',
+                                              admin_response: response,
+                                              updated_at: new Date().toISOString()
+                                            })
+                                            .eq('id', appeal.id);
+                                          
+                                          // Send rejection email
+                                          try {
+                                            await emailService.sendBanRejectionEmail(
+                                              appeal.user_email,
+                                              appeal.full_name,
+                                              response
+                                            );
+                                          } catch (emailError) {
+                                            console.warn('Email notification failed:', emailError);
+                                          }
+                                          
+                                          toast.success('Appeal rejected and email sent');
+                                          fetchBanAppeals();
+                                        } catch (error) {
+                                          console.error('Reject appeal error:', error);
+                                          toast.error('Failed to reject appeal');
+                                        }
+                                      }}>
+                                        <div className="space-y-4">
+                                          <div>
+                                            <Label>Rejection Reason</Label>
+                                            <Textarea
+                                              name="admin_response"
+                                              placeholder="Your appeal has been reviewed and rejected because..."
+                                              required
+                                              rows={3}
+                                            />
+                                          </div>
+                                          <div className="flex justify-end gap-2">
+                                            <DialogTrigger asChild>
+                                              <Button type="button" variant="outline">Cancel</Button>
+                                            </DialogTrigger>
+                                            <Button type="submit" variant="destructive">
+                                              Reject Appeal
+                                            </Button>
+                                          </div>
+                                        </div>
+                                      </form>
+                                    </DialogContent>
+                                  </Dialog>
+                                </div>
+                              )}
+                              {appeal.status !== 'pending' && appeal.admin_response && (
+                                <Dialog>
+                                  <DialogTrigger asChild>
+                                    <Button size="sm" variant="outline">
+                                      View Response
+                                    </Button>
+                                  </DialogTrigger>
+                                  <DialogContent>
+                                    <DialogHeader>
+                                      <DialogTitle>Admin Response</DialogTitle>
+                                    </DialogHeader>
+                                    <div className="space-y-2">
+                                      <p className="text-sm">{appeal.admin_response}</p>
+                                    </div>
+                                  </DialogContent>
+                                </Dialog>
+                              )}
                             </TableCell>
                           </TableRow>
                         ))}
@@ -2510,6 +2973,125 @@ export default function Admin() {
             </Card>
           </TabsContent>
 
+          {/* Emails Tab */}
+          <TabsContent value="emails">
+            <Card>
+              <CardHeader>
+                <div className="flex justify-between items-center">
+                  <CardTitle>Email Management</CardTitle>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary">
+                      {emailLogs.length} emails sent
+                    </Badge>
+                    <Button onClick={fetchEmailLogs} variant="outline" size="sm">
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Refresh
+                    </Button>
+                  </div>
+                </div>
+                <p className="text-sm text-muted-foreground">View all emails sent by the system</p>
+              </CardHeader>
+              <CardContent>
+                {emailLogs.length === 0 ? (
+                  <div className="text-center py-12">
+                    <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold mb-2">No emails sent</h3>
+                    <p className="text-muted-foreground">Email logs will appear here when notifications are sent</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Recipient</TableHead>
+                          <TableHead>Subject</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Sent At</TableHead>
+                          <TableHead>Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {emailLogs.map((email) => (
+                          <TableRow key={email.id}>
+                            <TableCell>
+                              <div>
+                                <p className="font-medium">{email.recipient_email}</p>
+                                <p className="text-xs text-muted-foreground">From: {email.from_name}</p>
+                              </div>
+                            </TableCell>
+                            <TableCell className="max-w-xs">
+                              <p className="truncate" title={email.subject}>
+                                {email.subject}
+                              </p>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={email.status === 'delivered' ? 'default' : 'destructive'}>
+                                {email.status}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>{new Date(email.sent_at).toLocaleString()}</TableCell>
+                            <TableCell>
+                              <Dialog>
+                                <DialogTrigger asChild>
+                                  <Button size="sm" variant="outline">
+                                    <Eye className="h-4 w-4 mr-1" />
+                                    View
+                                  </Button>
+                                </DialogTrigger>
+                                <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+                                  <DialogHeader>
+                                    <DialogTitle>Email Details</DialogTitle>
+                                  </DialogHeader>
+                                  <div className="space-y-4">
+                                    <div className="grid grid-cols-2 gap-4 text-sm">
+                                      <div>
+                                        <Label className="font-medium">To:</Label>
+                                        <p>{email.recipient_email}</p>
+                                      </div>
+                                      <div>
+                                        <Label className="font-medium">From:</Label>
+                                        <p>{email.from_name} &lt;{email.from_email}&gt;</p>
+                                      </div>
+                                      <div>
+                                        <Label className="font-medium">Subject:</Label>
+                                        <p>{email.subject}</p>
+                                      </div>
+                                      <div>
+                                        <Label className="font-medium">Status:</Label>
+                                        <Badge variant={email.status === 'delivered' ? 'default' : 'destructive'}>
+                                          {email.status}
+                                        </Badge>
+                                      </div>
+                                    </div>
+                                    
+                                    <div>
+                                      <Label className="font-medium">HTML Content:</Label>
+                                      <div 
+                                        className="mt-2 p-4 border rounded bg-muted/50 max-h-96 overflow-y-auto"
+                                        dangerouslySetInnerHTML={{ __html: email.html_content }}
+                                      />
+                                    </div>
+                                    
+                                    <div>
+                                      <Label className="font-medium">Text Content:</Label>
+                                      <pre className="mt-2 p-4 border rounded bg-muted/50 text-sm whitespace-pre-wrap max-h-96 overflow-y-auto">
+                                        {email.text_content}
+                                      </pre>
+                                    </div>
+                                  </div>
+                                </DialogContent>
+                              </Dialog>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           {/* Analytics Tab */}
           <TabsContent value="analytics">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -2783,14 +3365,165 @@ export default function Admin() {
 
           {/* Settings Tab */}
           <TabsContent value="settings">
-            <Card>
-              <CardHeader>
-                <CardTitle>System Settings</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-6">
-                  <div>
-                    <h3 className="text-lg font-semibold mb-4">Platform Configuration</h3>
+            <div className="space-y-6">
+              {/* Send Notifications */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Send Notifications</CardTitle>
+                  <p className="text-sm text-muted-foreground">Send notifications to users</p>
+                </CardHeader>
+                <CardContent>
+                  <form onSubmit={async (e) => {
+                    e.preventDefault();
+                    const formData = new FormData(e.currentTarget);
+                    const title = formData.get('title') as string;
+                    const message = formData.get('message') as string;
+                    const type = formData.get('type') as string;
+                    const recipient = formData.get('recipient') as string;
+                    const specificUserId = formData.get('specific_user_id') as string;
+                    
+                    try {
+                      if (recipient === 'all') {
+                        // Send to all users
+                        const { data: allUsers } = await supabase
+                          .from('profiles')
+                          .select('user_id');
+                        
+                        if (allUsers) {
+                          for (const user of allUsers) {
+                            await supabase.from('notifications').insert({
+                              user_id: user.user_id,
+                              title,
+                              message,
+                              type
+                            });
+                          }
+                        }
+                      } else if (recipient === 'sellers') {
+                        // Send to all sellers
+                        const { data: sellers } = await supabase
+                          .from('user_roles')
+                          .select('user_id')
+                          .eq('role', 'seller');
+                        
+                        if (sellers) {
+                          for (const seller of sellers) {
+                            await supabase.from('notifications').insert({
+                              user_id: seller.user_id,
+                              title,
+                              message,
+                              type
+                            });
+                          }
+                        }
+                      } else if (recipient === 'buyers') {
+                        // Send to all buyers (users without seller role)
+                        const { data: allUsers } = await supabase
+                          .from('profiles')
+                          .select('user_id');
+                        
+                        const { data: sellers } = await supabase
+                          .from('user_roles')
+                          .select('user_id')
+                          .eq('role', 'seller');
+                        
+                        const sellerIds = sellers?.map(s => s.user_id) || [];
+                        const buyers = allUsers?.filter(u => !sellerIds.includes(u.user_id)) || [];
+                        
+                        for (const buyer of buyers) {
+                          await supabase.from('notifications').insert({
+                            user_id: buyer.user_id,
+                            title,
+                            message,
+                            type
+                          });
+                        }
+                      } else if (recipient === 'specific' && specificUserId) {
+                        // Find user by student ID
+                        const { data: user, error: userError } = await supabase
+                          .from('profiles')
+                          .select('user_id, full_name')
+                          .eq('student_id', specificUserId.trim())
+                          .single();
+                        
+                        if (userError || !user) {
+                          throw new Error(`User not found with student ID: ${specificUserId}`);
+                        }
+                        
+                        await supabase.from('notifications').insert({
+                          user_id: user.user_id,
+                          title,
+                          message,
+                          type
+                        });
+                        
+                        toast.success(`Notification sent to ${user.full_name}`);
+                      }
+                      
+                      toast.success('Notifications sent successfully');
+                      (e.target as HTMLFormElement).reset();
+                    } catch (error) {
+                      console.error('Send notification error:', error);
+                      toast.error('Failed to send notifications');
+                    }
+                  }} className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="title">Title *</Label>
+                        <Input name="title" placeholder="Notification title" required />
+                      </div>
+                      <div>
+                        <Label htmlFor="type">Type</Label>
+                        <Select name="type" defaultValue="info">
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="info">Info</SelectItem>
+                            <SelectItem value="success">Success</SelectItem>
+                            <SelectItem value="warning">Warning</SelectItem>
+                            <SelectItem value="error">Error</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div>
+                      <Label htmlFor="message">Message *</Label>
+                      <Textarea name="message" placeholder="Notification message" required rows={3} />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="recipient">Send To</Label>
+                        <Select name="recipient" defaultValue="all">
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Users</SelectItem>
+                            <SelectItem value="sellers">All Sellers</SelectItem>
+                            <SelectItem value="buyers">All Buyers</SelectItem>
+                            <SelectItem value="specific">Specific User</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label htmlFor="specific_user_id">Student ID (if specific)</Label>
+                        <Input name="specific_user_id" placeholder="Enter student ID" />
+                      </div>
+                    </div>
+                    <Button type="submit">Send Notification</Button>
+                  </form>
+                </CardContent>
+              </Card>
+              
+              <Card>
+                <CardHeader>
+                  <CardTitle>System Settings</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-6">
+                    <div>
+                      <h3 className="text-lg font-semibold mb-4">Platform Configuration</h3>
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
                         <div>
@@ -2830,12 +3563,13 @@ export default function Admin() {
                     </div>
                   </div>
 
-                  <div className="flex justify-end">
-                    <Button>Save Settings</Button>
+                    <div className="flex justify-end">
+                      <Button>Save Settings</Button>
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
         </Tabs>
       </div>

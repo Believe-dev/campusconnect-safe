@@ -42,6 +42,13 @@ const synonymMap: Record<string, string[]> = {
   'pen': ['pencil', 'marker', 'highlighter', 'writing'],
   'paper': ['notebook', 'sheets', 'stationery'],
   'calculator': ['calc', 'scientific calculator'],
+  
+  // Nigerian university specific terms
+  'jamb': ['utme', 'university entrance', 'admission'],
+  'waec': ['wassce', 'senior secondary', 'o level'],
+  'gns': ['general studies', 'use of english'],
+  'hostel': ['accommodation', 'lodge', 'room'],
+  'handout': ['note', 'material', 'courseware'],
 };
 
 // Generate all possible search terms including synonyms
@@ -70,26 +77,53 @@ export const expandSearchTerms = (query: string): string[] => {
   return Array.from(expandedTerms);
 };
 
-// Enhanced search function for products
+// Enhanced search function with smart ranking
 export const searchProducts = (products: any[], query: string) => {
   if (!query.trim()) return products;
   
   const searchTerms = expandSearchTerms(query);
+  const queryLower = query.toLowerCase();
   
-  return products.filter(product => {
-    const searchableText = [
-      product.title,
-      product.description,
-      product.category,
-      product.condition
-    ].join(' ').toLowerCase();
-    
-    return searchTerms.some(term => 
-      searchableText.includes(term) ||
-      // Fuzzy matching for typos
-      searchableText.includes(term.slice(0, -1)) ||
-      searchableText.includes(term + 's') ||
-      searchableText.includes(term.slice(0, -1) + 'ing')
-    );
-  });
+  return products
+    .map(product => {
+      const searchableText = [
+        product.title,
+        product.description,
+        product.category,
+        product.condition
+      ].join(' ').toLowerCase();
+      
+      let score = 0;
+      
+      // Exact title match gets highest score
+      if (product.title.toLowerCase().includes(queryLower)) {
+        score += 100;
+      }
+      
+      // Category match
+      if (product.category.toLowerCase().includes(queryLower)) {
+        score += 50;
+      }
+      
+      // Synonym and expanded term matches
+      searchTerms.forEach(term => {
+        if (searchableText.includes(term)) {
+          score += 25;
+        }
+        // Fuzzy matching for typos
+        if (searchableText.includes(term.slice(0, -1)) || 
+            searchableText.includes(term + 's') ||
+            searchableText.includes(term.slice(0, -1) + 'ing')) {
+          score += 10;
+        }
+      });
+      
+      // Boost newer products slightly
+      const daysSinceCreated = (Date.now() - new Date(product.created_at).getTime()) / (1000 * 60 * 60 * 24);
+      if (daysSinceCreated < 7) score += 5;
+      
+      return { ...product, searchScore: score };
+    })
+    .filter(product => product.searchScore > 0)
+    .sort((a, b) => b.searchScore - a.searchScore);
 };

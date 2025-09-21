@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
 
 interface SecurityContextType {
   isSecure: boolean;
@@ -16,7 +17,7 @@ export const useSecurityContext = () => {
   return context;
 };
 
-export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const SecurityProvider = ({ children }: { children: ReactNode }) => {
   const [isSecure, setIsSecure] = useState(true);
   const [violations, setViolations] = useState<string[]>([]);
 
@@ -30,20 +31,7 @@ export const SecurityProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         checks.push('Insecure connection detected');
       }
 
-      // Disable right-click context menu
-      document.addEventListener('contextmenu', (e) => {
-        e.preventDefault();
-      });
-
-      // Disable common keyboard shortcuts
-      document.addEventListener('keydown', (e) => {
-        // Disable F12, Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+U
-        if (e.key === 'F12' || 
-            (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'J')) ||
-            (e.ctrlKey && e.key === 'u')) {
-          e.preventDefault();
-        }
-      });
+      // Security checks only - no UI blocking
 
       setViolations(checks);
       setIsSecure(checks.length === 0);

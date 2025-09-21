@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Send, Shield, AlertTriangle, MessageCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { notifyNewMessage } from '@/utils/notificationHelpers';
+import { useSearchParams } from 'react-router-dom';
 
 interface Message {
   id: string;
@@ -17,6 +18,7 @@ interface Message {
   created_at: string;
   is_flagged: boolean;
   flagged_reason?: string;
+  reactions?: { [emoji: string]: string[] };
   sender?: {
     full_name: string;
     avatar_url?: string;
@@ -31,6 +33,11 @@ interface Conversation {
     title: string;
     price: number;
   };
+  other_user?: {
+    full_name: string;
+    avatar_url?: string;
+    is_verified?: boolean;
+  };
 }
 
 interface SecureChatProps {
@@ -40,13 +47,26 @@ interface SecureChatProps {
 }
 
 const SecureChat = ({ conversationId, currentUserId, onClose }: SecureChatProps) => {
+  const [searchParams] = useSearchParams();
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [loading, setLoading] = useState(false);
   const [blocked, setBlocked] = useState(false);
+  const [selectedMessage, setSelectedMessage] = useState<string | null>(null);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
+
+  const emojis = ['👍', '❤️', '😂', '😮', '😢', '😡', '👏', '🔥'];
+  
+  // Set draft message from URL params on component mount
+  useEffect(() => {
+    const draftMessage = searchParams.get('draft');
+    if (draftMessage && !newMessage) {
+      setNewMessage(decodeURIComponent(draftMessage));
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     fetchConversation();
@@ -142,7 +162,9 @@ const SecureChat = ({ conversationId, currentUserId, onClose }: SecureChatProps)
         .from('conversations')
         .select(`
           *,
-          products (title, price)
+          products (title, price),
+          buyer:profiles!conversations_buyer_id_fkey (full_name, avatar_url, is_verified),
+          seller:profiles!conversations_seller_id_fkey (full_name, avatar_url, is_verified)
         `)
         .eq('id', conversationId)
         .single();
@@ -152,7 +174,9 @@ const SecureChat = ({ conversationId, currentUserId, onClose }: SecureChatProps)
         return;
       }
 
-      setConversation(data);
+      // Determine other user
+      const otherUser = data.buyer_id === currentUserId ? data.seller : data.buyer;
+      setConversation({ ...data, other_user: otherUser });
     } catch (error) {
       console.error('Error in fetchConversation:', error);
     }
@@ -186,34 +210,92 @@ const SecureChat = ({ conversationId, currentUserId, onClose }: SecureChatProps)
     }
   };
 
-  const detectBlockedContent = (content: string): string | null => {
-    const patterns = [
-      /\b\d{10,11}\b/g, // Phone numbers (10-11 digits)
-      /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g, // Email addresses
-      /whatsapp|telegram|instagram|facebook|twitter|snapchat|tiktok/gi, // Social media
-      /contact me|call me|text me|dm me|reach me|phone me/gi, // Direct contact phrases
-      /\b0[789]\d{8}\b/g, // Nigerian phone numbers
-      /\+234[789]\d{8}/g, // Nigerian international format
+  const detectBlockedContent = (content: string): { blocked: boolean; reason: string; severity: 'low' | 'medium' | 'high' } | null => {
+    const lowerContent = content.toLowerCase();
+    
+    // Contact information patterns
+    const contactPatterns = [
+      { pattern: /\b\d{10,11}\b/g, reason: 'Contains phone number' },
+      { pattern: /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g, reason: 'Contains email address' },
+      { pattern: /whatsapp|telegram|instagram|facebook|twitter|snapchat|tiktok/gi, reason: 'Contains social media reference' },
+      { pattern: /contact me|call me|text me|dm me|reach me|phone me/gi, reason: 'Contains direct contact request' },
+      { pattern: /\b0[789]\d{8}\b/g, reason: 'Contains Nigerian phone number' },
+      { pattern: /\+234[789]\d{8}/g, reason: 'Contains international phone number' },
     ];
-
-    for (const pattern of patterns) {
+    
+    // Foul language patterns
+    const foulLanguagePatterns = [
+      { pattern: /\b(fuck|shit|damn|bitch|bastard|asshole|motherfucker)\b/gi, reason: 'Contains profanity' },
+      { pattern: /\b(mumu|olodo|ode|werey|ashawo|agbaya|oponu)\b/gi, reason: 'Contains offensive language' },
+      { pattern: /\b(stupid|idiot|fool|moron|dumb)\b/gi, reason: 'Contains insulting language' },
+      { pattern: /\b(kill|die|murder|suicide)\b/gi, reason: 'Contains threatening language' },
+    ];
+    
+    // Check contact information (high severity)
+    for (const { pattern, reason } of contactPatterns) {
       if (pattern.test(content)) {
-        return 'Contains prohibited contact information';
+        return { blocked: true, reason, severity: 'high' };
       }
     }
-
+    
+    // Check foul language (medium severity)
+    for (const { pattern, reason } of foulLanguagePatterns) {
+      if (pattern.test(content)) {
+        return { blocked: true, reason, severity: 'medium' };
+      }
+    }
+    
     return null;
+  };
+  
+  const notifyAdminsOfViolation = async (violationType: string, content: string, userId: string, severity: 'low' | 'medium' | 'high') => {
+    try {
+      const { data: userProfile } = await supabase
+        .from('profiles')
+        .select('full_name, student_id')
+        .eq('user_id', userId)
+        .single();
+      
+      const { data: admins } = await supabase
+        .from('user_roles')
+        .select('user_id')
+        .eq('role', 'admin');
+      
+      if (admins) {
+        const notificationTitle = `🚨 Message Violation Detected`;
+        const notificationMessage = `User: ${userProfile?.full_name || 'Unknown'} (ID: ${userProfile?.student_id || 'N/A'})\nViolation: ${violationType}\nSeverity: ${severity.toUpperCase()}\nContent: "${content.substring(0, 100)}${content.length > 100 ? '...' : ''}"\nTime: ${new Date().toLocaleString()}`;
+        
+        for (const admin of admins) {
+          await supabase.from('notifications').insert({
+            user_id: admin.user_id,
+            title: notificationTitle,
+            message: notificationMessage,
+            type: severity === 'high' ? 'error' : 'warning'
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error notifying admins:', error);
+    }
   };
 
   const sendMessage = async () => {
     if (!newMessage.trim() || loading) return;
 
     // Check for prohibited content before sending
-    const blockedReason = detectBlockedContent(newMessage.trim());
-    if (blockedReason) {
+    const violationResult = detectBlockedContent(newMessage.trim());
+    if (violationResult) {
+      // Notify admins of the violation
+      await notifyAdminsOfViolation(
+        violationResult.reason,
+        newMessage.trim(),
+        currentUserId,
+        violationResult.severity
+      );
+      
       toast({
         title: "Message Blocked",
-        description: "Your message contains prohibited content. Please keep all communication within UniMarket for your safety.",
+        description: `Your message contains prohibited content: ${violationResult.reason}. Please keep all communication within UniMarket for your safety.`,
         variant: "destructive",
       });
       setBlocked(true);
@@ -337,29 +419,63 @@ const SecureChat = ({ conversationId, currentUserId, onClose }: SecureChatProps)
   };
 
   return (
-    <Card className="h-full flex flex-col border-0 shadow-lg">
+    <div className="h-screen flex flex-col">
+    <Card className="h-full flex flex-col border-0 shadow-lg rounded-none sm:rounded-lg">
       {/* Secure Chat Header */}
-      <CardHeader className="bg-gradient-to-r from-green-600 to-green-700 text-white p-4 rounded-t-lg">
-        <div className="flex items-center gap-3">
+      <CardHeader className="bg-gradient-to-r from-green-600 to-green-700 text-white p-3 sm:p-4 rounded-t-lg">
+        <div className="flex items-center gap-2 sm:gap-3">
           {onClose && (
-            <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 p-0 text-white hover:bg-white/20">
-              ←
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              onClick={onClose} 
+              className="h-10 w-10 p-0 text-white hover:bg-white/20 bg-white/10 rounded-full flex-shrink-0"
+            >
+              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
             </Button>
           )}
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1">
-              <Shield className="h-4 w-4" />
-              <CardTitle className="text-lg font-semibold truncate">
-                {conversation?.product?.title || 'Secure Chat'}
-              </CardTitle>
-            </div>
-            {conversation?.product?.price && (
-              <Badge variant="secondary" className="bg-white/20 text-white border-0 text-xs">
-                ₦{conversation.product.price.toLocaleString()}
-              </Badge>
+
+          <div className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer" onClick={() => {
+            if (conversation?.other_user) {
+              const otherUserId = conversation.buyer_id === currentUserId ? conversation.seller_id : conversation.buyer_id;
+              window.open(`/seller/${otherUserId}`, '_blank');
+            }
+          }}>
+            {conversation?.other_user && (
+              <Avatar className="h-8 w-8 border-2 border-white/20">
+                <AvatarImage src={conversation.other_user.avatar_url} />
+                <AvatarFallback className="bg-white/20 text-white text-xs">
+                  {getInitials(conversation.other_user.full_name)}
+                </AvatarFallback>
+              </Avatar>
             )}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1">
+                <CardTitle className="text-base sm:text-lg font-semibold truncate">
+                  {conversation?.other_user?.full_name || 'Secure Chat'}
+                </CardTitle>
+                {conversation?.other_user?.is_verified && (
+                  <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
+                    <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <Shield className="h-3 w-3 flex-shrink-0" />
+                <span className="text-xs opacity-90">Secure Chat</span>
+                {conversation?.product?.price && (
+                  <Badge variant="secondary" className="bg-white/20 text-white border-0 text-xs">
+                    ₦{conversation.product.price.toLocaleString()}
+                  </Badge>
+                )}
+              </div>
+            </div>
           </div>
-          <div className="flex items-center gap-1 text-xs bg-white/20 px-2 py-1 rounded-full">
+          <div className="hidden sm:flex items-center gap-1 text-xs bg-white/20 px-2 py-1 rounded-full">
             <div className="w-2 h-2 bg-green-300 rounded-full animate-pulse"></div>
             <span>Encrypted</span>
           </div>
@@ -368,7 +484,7 @@ const SecureChat = ({ conversationId, currentUserId, onClose }: SecureChatProps)
 
       {/* Messages Container */}
       <CardContent className="flex-1 overflow-y-auto p-0 bg-gradient-to-b from-gray-50 to-white">
-        <div className="p-4 space-y-3">
+        <div className="p-3 sm:p-4 space-y-3">
           {messages.length === 0 ? (
             <div className="flex items-center justify-center h-64">
               <div className="text-center">
@@ -390,11 +506,26 @@ const SecureChat = ({ conversationId, currentUserId, onClose }: SecureChatProps)
                 }`}
               >
                 <div
-                  className={`max-w-[75%] px-4 py-3 rounded-2xl shadow-sm border ${
+                  className={`max-w-[75%] px-4 py-3 rounded-2xl shadow-sm border cursor-pointer select-none ${
                     message.sender_id === currentUserId
                       ? 'bg-green-500 text-white border-green-500 rounded-br-sm'
                       : 'bg-white text-foreground border-border rounded-bl-sm'
-                  }`}
+                  } ${selectedMessage === message.id ? 'ring-2 ring-blue-500' : ''}`}
+                  onTouchStart={(e) => {
+                    const timer = setTimeout(() => {
+                      setSelectedMessage(message.id);
+                      navigator.vibrate?.(50);
+                    }, 500);
+                    e.currentTarget.dataset.timer = timer.toString();
+                  }}
+                  onTouchEnd={(e) => {
+                    const timer = e.currentTarget.dataset.timer;
+                    if (timer) clearTimeout(parseInt(timer));
+                  }}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    setSelectedMessage(message.id);
+                  }}
                 >
                   {message.is_flagged && (
                     <div className="flex items-center gap-1 text-xs text-destructive mb-2 p-2 bg-destructive/10 rounded">
@@ -403,6 +534,16 @@ const SecureChat = ({ conversationId, currentUserId, onClose }: SecureChatProps)
                     </div>
                   )}
                   <p className="text-sm leading-relaxed break-words">{message.content}</p>
+                  {message.reactions && Object.keys(message.reactions).length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {Object.entries(message.reactions).map(([emoji, userIds]) => (
+                        <div key={emoji} className="flex items-center gap-1 bg-gray-100 rounded-full px-2 py-1 text-xs">
+                          <span>{emoji}</span>
+                          <span className="text-gray-600">{userIds.length}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   <div className="flex items-center justify-between mt-2">
                     <span className={`text-xs ${
                       message.sender_id === currentUserId ? 'text-green-100' : 'text-muted-foreground'
@@ -440,9 +581,101 @@ const SecureChat = ({ conversationId, currentUserId, onClose }: SecureChatProps)
         </div>
       )}
 
+      {/* Message Actions Modal */}
+      {selectedMessage && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => setSelectedMessage(null)}>
+          <div className="bg-white rounded-t-3xl sm:rounded-2xl p-6 w-full sm:max-w-sm shadow-2xl border-t sm:border border-gray-100 animate-in slide-in-from-bottom-4 sm:slide-in-from-bottom-0 duration-300" onClick={(e) => e.stopPropagation()}>
+            <div className="w-12 h-1 bg-gray-300 rounded-full mx-auto mb-4 sm:hidden"></div>
+            <h3 className="font-bold text-lg text-center mb-6 text-gray-800">Message Actions</h3>
+            <div className="space-y-3">
+              <Button variant="outline" className="w-full justify-start h-12 text-left border-gray-200 hover:bg-gray-50 transition-all duration-200" onClick={async () => {
+                const message = messages.find(m => m.id === selectedMessage);
+                if (message) {
+                  try {
+                    await navigator.clipboard.writeText(message.content);
+                    toast({ title: "✅ Copied", description: "Message copied to clipboard" });
+                  } catch (error) {
+                    toast({ title: "❌ Error", description: "Failed to copy message", variant: "destructive" });
+                  }
+                }
+                setSelectedMessage(null);
+              }}>
+                <span className="text-lg mr-3">📋</span>
+                <span className="font-medium">Copy Message</span>
+              </Button>
+              <Button variant="outline" className="w-full justify-start h-12 text-left border-gray-200 hover:bg-gray-50 transition-all duration-200" onClick={() => {
+                setShowEmojiPicker(true);
+              }}>
+                <span className="text-lg mr-3">😊</span>
+                <span className="font-medium">React with Emoji</span>
+              </Button>
+              {messages.find(m => m.id === selectedMessage)?.sender_id === currentUserId && (
+                <Button variant="outline" className="w-full justify-start h-12 text-left border-red-200 text-red-600 hover:bg-red-50 transition-all duration-200" onClick={() => {
+                  deleteMessage(selectedMessage);
+                  setSelectedMessage(null);
+                }}>
+                  <span className="text-lg mr-3">🗑️</span>
+                  <span className="font-medium">Delete Message</span>
+                </Button>
+              )}
+            </div>
+            <Button variant="ghost" className="w-full mt-4 h-12 font-medium text-gray-600" onClick={() => setSelectedMessage(null)}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Emoji Picker Modal */}
+      {showEmojiPicker && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={() => setShowEmojiPicker(false)}>
+          <div className="bg-white rounded-t-3xl sm:rounded-2xl p-6 w-full sm:max-w-sm shadow-2xl border-t sm:border border-gray-100 animate-in slide-in-from-bottom-4 sm:slide-in-from-bottom-0 duration-300" onClick={(e) => e.stopPropagation()}>
+            <div className="w-12 h-1 bg-gray-300 rounded-full mx-auto mb-4 sm:hidden"></div>
+            <h3 className="font-bold text-lg text-center mb-6 text-gray-800">Choose Reaction</h3>
+            <div className="grid grid-cols-4 gap-4 mb-6">
+              {emojis.map((emoji) => (
+                <button
+                  key={emoji}
+                  className="text-3xl p-4 hover:bg-gray-100 rounded-2xl transition-all duration-200 hover:scale-110 active:scale-95"
+                  onClick={() => {
+                    const messageIndex = messages.findIndex(m => m.id === selectedMessage);
+                    if (messageIndex !== -1) {
+                      setMessages(prev => prev.map((msg, idx) => {
+                        if (idx === messageIndex) {
+                          const reactions = { ...msg.reactions };
+                          if (!reactions[emoji]) {
+                            reactions[emoji] = [];
+                          }
+                          if (!reactions[emoji].includes(currentUserId)) {
+                            reactions[emoji].push(currentUserId);
+                          }
+                          return { ...msg, reactions };
+                        }
+                        return msg;
+                      }));
+                    }
+                    toast({ title: "✅ Reacted!", description: `You reacted with ${emoji}` });
+                    setShowEmojiPicker(false);
+                    setSelectedMessage(null);
+                  }}
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
+            <Button variant="ghost" className="w-full h-12 font-medium text-gray-600" onClick={() => {
+              setShowEmojiPicker(false);
+              setSelectedMessage(null);
+            }}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Message Input Area */}
-      <div className="border-t bg-white p-4">
-        <div className="flex items-end gap-3">
+      <div className="border-t bg-white p-3 sm:p-4">
+        <div className="flex items-end gap-2 sm:gap-3">
           <div className="flex-1">
             <Input
               placeholder="Type your message..."
@@ -450,26 +683,27 @@ const SecureChat = ({ conversationId, currentUserId, onClose }: SecureChatProps)
               onChange={(e) => setNewMessage(e.target.value)}
               onKeyPress={handleKeyPress}
               disabled={loading}
-              className="border-2 border-muted focus:border-green-500 rounded-full px-4 py-2 text-sm"
+              className="border-2 border-muted focus:border-green-500 rounded-full px-3 sm:px-4 py-2 text-sm min-h-[40px]"
             />
           </div>
           <Button
             size="icon"
             onClick={sendMessage}
             disabled={loading || !newMessage.trim()}
-            className="h-10 w-10 rounded-full bg-green-600 hover:bg-green-700 shadow-lg"
+            className="h-10 w-10 rounded-full bg-green-600 hover:bg-green-700 shadow-lg flex-shrink-0"
           >
             <Send className="h-4 w-4" />
           </Button>
         </div>
         
         {/* Security Footer */}
-        <div className="flex items-center justify-center gap-2 mt-3 text-xs text-muted-foreground">
+        <div className="flex items-center justify-center gap-2 mt-2 sm:mt-3 text-xs text-muted-foreground">
           <Shield className="h-3 w-3 text-green-600" />
-          <span>End-to-end encrypted • Monitored for safety</span>
+          <span className="text-center">End-to-end encrypted • Monitored for safety</span>
         </div>
       </div>
     </Card>
+    </div>
   );
 };
 

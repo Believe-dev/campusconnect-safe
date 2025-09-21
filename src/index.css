@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-@import './styles/scrollbar.css';
+@import "./styles/scrollbar.css";
 
 /* UniMarket Design System - Nigerian University Marketplace */
 
@@ -56,12 +56,24 @@
     --university-gold: 45 95% 65%;
     --trust-orange: 25 85% 65%;
     --verified-blue: 210 85% 55%;
-    
+
     /* Gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(140 85% 25%), hsl(140 75% 35%));
-    --gradient-accent: linear-gradient(135deg, hsl(45 95% 65%), hsl(25 85% 65%));
-    --gradient-hero: linear-gradient(135deg, hsl(140 85% 25%) 0%, hsl(45 95% 65%) 100%);
-    
+    --gradient-primary: linear-gradient(
+      135deg,
+      hsl(140 85% 25%),
+      hsl(140 75% 35%)
+    );
+    --gradient-accent: linear-gradient(
+      135deg,
+      hsl(45 95% 65%),
+      hsl(25 85% 65%)
+    );
+    --gradient-hero: linear-gradient(
+      135deg,
+      hsl(140 85% 25%) 0%,
+      hsl(45 95% 65%) 100%
+    );
+
     /* Shadows */
     --shadow-brand: 0 10px 30px -10px hsl(140 85% 25% / 0.3);
     --shadow-card: 0 4px 20px hsl(140 15% 15% / 0.08);
@@ -148,7 +160,7 @@
     opacity: 1;
     transition: opacity 0.1s ease-in-out;
   }
-  
+
   /* Prevent layout shifts */
   html {
     scroll-behavior: smooth;
@@ -160,53 +172,148 @@
   .gradient-brand {
     background: var(--gradient-primary);
   }
-  
+
   .gradient-accent {
     background: var(--gradient-accent);
   }
-  
+
   .gradient-hero {
     background: var(--gradient-hero);
   }
-  
+
   .shadow-brand {
     box-shadow: var(--shadow-brand);
   }
-  
+
   .shadow-card {
     box-shadow: var(--shadow-card);
   }
-  
+
   .shadow-success {
     box-shadow: var(--shadow-success);
   }
-  
+
   .transition-smooth {
     transition: var(--transition-smooth);
   }
-  
+
   .transition-bounce {
     transition: var(--transition-bounce);
   }
-  
-  /* Verification Badge */
+
+  /* 3D Verification Badges */
   .verified-badge {
     @apply inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-verified-blue/10 text-verified-blue border border-verified-blue/20;
+    box-shadow: 
+      0 2px 4px rgba(59, 130, 246, 0.15),
+      inset 0 1px 0 rgba(255, 255, 255, 0.2),
+      inset 0 -1px 0 rgba(59, 130, 246, 0.1);
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(59, 130, 246, 0.05));
+    transform: translateZ(0);
+    transition: all 0.2s ease;
   }
-  
+
+  .verified-badge:hover {
+    transform: translateY(-1px) translateZ(0);
+    box-shadow: 
+      0 4px 8px rgba(59, 130, 246, 0.2),
+      inset 0 1px 0 rgba(255, 255, 255, 0.3),
+      inset 0 -1px 0 rgba(59, 130, 246, 0.15);
+  }
+
   .trust-badge {
-    @apply inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-success/10 text-success border border-success/20;
+    @apply inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-verified-blue/10 text-verified-blue border border-verified-blue/20;
+    box-shadow: 
+      0 2px 4px rgba(59, 130, 246, 0.15),
+      inset 0 1px 0 rgba(255, 255, 255, 0.2),
+      inset 0 -1px 0 rgba(59, 130, 246, 0.1);
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(59, 130, 246, 0.05));
+    transform: translateZ(0);
+    transition: all 0.2s ease;
   }
-  
+
+  .trust-badge:hover {
+    transform: translateY(-1px) translateZ(0);
+    box-shadow: 
+      0 4px 8px rgba(59, 130, 246, 0.2),
+      inset 0 1px 0 rgba(255, 255, 255, 0.3),
+      inset 0 -1px 0 rgba(59, 130, 246, 0.15);
+  }
+
+  /* Small 3D Verification Tick for Profile Pictures - Blue Theme */
+  .verification-tick {
+    position: absolute;
+    bottom: -2px;
+    right: -2px;
+    width: 16px;
+    height: 16px;
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 
+      0 2px 6px rgba(59, 130, 246, 0.4),
+      inset 0 1px 0 rgba(255, 255, 255, 0.3),
+      inset 0 -1px 0 rgba(37, 99, 235, 0.2);
+    transform: translateZ(0);
+    transition: all 0.2s ease;
+  }
+
+  .verification-tick:hover {
+    transform: translateY(-1px) scale(1.05) translateZ(0);
+    box-shadow: 
+      0 4px 10px rgba(59, 130, 246, 0.5),
+      inset 0 1px 0 rgba(255, 255, 255, 0.4),
+      inset 0 -1px 0 rgba(37, 99, 235, 0.3);
+  }
+
+  .verification-tick svg {
+    width: 8px;
+    height: 8px;
+    color: white;
+    filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.2));
+  }
+
+  /* Inline verification badge for consistent blue theme */
+  .verification-badge-inline {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    border-radius: 50%;
+    box-shadow: 
+      0 1px 3px rgba(59, 130, 246, 0.3),
+      inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    transform: translateZ(0);
+    transition: all 0.2s ease;
+  }
+
+  .verification-badge-inline:hover {
+    transform: translateY(-1px) scale(1.05) translateZ(0);
+    box-shadow: 
+      0 2px 6px rgba(59, 130, 246, 0.4),
+      inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  }
+
+  .verification-badge-inline svg {
+    width: 8px;
+    height: 8px;
+    color: white;
+    filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.2));
+  }
+
   /* Mobile-first responsive utilities */
   .safe-area-pb {
     padding-bottom: env(safe-area-inset-bottom);
   }
-  
+
   .safe-area-pt {
     padding-top: env(safe-area-inset-top);
   }
-  
+
   /* Text truncation utilities */
   .line-clamp-1 {
     overflow: hidden;
@@ -214,43 +321,43 @@
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 1;
   }
-  
+
   .line-clamp-2 {
     overflow: hidden;
     display: -webkit-box;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
   }
-  
+
   .line-clamp-3 {
     overflow: hidden;
     display: -webkit-box;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 3;
   }
-  
+
   /* Touch-friendly interactive elements */
   .touch-target {
     min-height: 44px;
     min-width: 44px;
   }
-  
+
   /* Smooth scrolling for mobile */
   .scroll-smooth {
     scroll-behavior: smooth;
     -webkit-overflow-scrolling: touch;
   }
-  
+
   /* Mobile-optimized focus states */
   .focus-mobile {
     @apply focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2;
   }
-  
+
   /* Page transitions - Optimized for low-end devices */
   .page-transition {
     animation: fadeIn 0.15s ease-out;
   }
-  
+
   @keyframes fadeIn {
     from {
       opacity: 0;
@@ -261,80 +368,84 @@
       transform: translateY(0);
     }
   }
-  
+
   /* Gentle hover animations */
   .hover-lift {
     transition: var(--transition-gentle);
   }
-  
+
   .hover-lift:hover {
     transform: translateY(-1px);
   }
-  
+
   /* Micro interactions */
   .micro-bounce {
     transition: var(--transition-micro);
   }
-  
+
   .micro-bounce:active {
     transform: scale(0.98);
   }
-  
+
   /* Smooth fade transitions */
   .fade-in {
     animation: fadeInGentle 0.2s ease-out;
   }
-  
+
   @keyframes fadeInGentle {
-    from { opacity: 0; }
-    to { opacity: 1; }
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
   }
-  
+
   /* Student-friendly colors */
   .student-card {
     @apply bg-gradient-to-br from-white to-primary/5 border border-primary/10 shadow-sm hover:shadow-md transition-all duration-200;
   }
-  
+
   .friendly-button {
     @apply bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary shadow-sm hover:shadow-md transition-all duration-200;
   }
-  
+
   /* Prevent layout shift during navigation */
   .layout-stable {
     min-height: 100vh;
     contain: layout;
   }
-  
+
   /* Avatar transition */
   .avatar-stable {
     transition: none !important;
   }
-  
+
   .avatar-stable img {
     transition: opacity 0.15s ease-in-out;
   }
-  
+
   /* Performance optimizations for low-end devices */
   @media (prefers-reduced-motion: reduce) {
     .hover-lift:hover {
       transform: none;
     }
-    
+
     .micro-bounce:active {
       transform: none;
     }
-    
+
     .page-transition {
       animation: none;
     }
-    
+
     * {
       animation-duration: 0.01ms !important;
       animation-iteration-count: 1 !important;
       transition-duration: 0.01ms !important;
     }
   }
-  
+
   /* GPU acceleration for smooth animations */
   .hover-lift,
   .micro-bounce,
@@ -342,32 +453,41 @@
     will-change: transform;
     transform: translateZ(0);
   }
-  
+
   /* Optimize for touch devices */
   @media (hover: none) and (pointer: coarse) {
     .hover-lift:hover {
       transform: none;
     }
-    
+
     .hover-lift:active {
       transform: translateY(-1px) scale(0.98);
     }
   }
-  
+
   /* Student-friendly focus states */
   .student-focus {
     @apply focus:outline-none focus:ring-2 focus:ring-primary/50 focus:ring-offset-2 focus:ring-offset-background;
   }
-  
+
   /* Smooth loading states */
   .loading-shimmer {
-    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.4),
+      transparent
+    );
     background-size: 200% 100%;
     animation: shimmer 1.5s infinite;
   }
-  
+
   @keyframes shimmer {
-    0% { background-position: -200% 0; }
-    100% { background-position: 200% 0; }
+    0% {
+      background-position: -200% 0;
+    }
+    100% {
+      background-position: 200% 0;
+    }
   }
 }

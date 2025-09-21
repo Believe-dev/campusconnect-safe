@@ -68,7 +68,8 @@ export const useProfileCompletion = () => {
 
   const completeProfile = () => {
     setShowModal(false);
-    window.location.href = '/profile';
+    // Temporarily dismiss for 1 hour to allow user to complete profile
+    localStorage.setItem('profile-completion-dismissed', (Date.now() + (60 * 60 * 1000)).toString());
   };
 
   return {

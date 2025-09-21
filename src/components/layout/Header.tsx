@@ -13,7 +13,6 @@ import {
   User, 
   Settings, 
   LogOut, 
-  GraduationCap,
   Shield,
   Package,
   Heart,
@@ -169,7 +168,11 @@ const Header = () => {
       <SheetContent side="left" className="w-full sm:w-80 h-full flex flex-col overflow-hidden">
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
-            <GraduationCap className="h-6 w-6 text-university-green" />
+            <img 
+              src="/logo.png" 
+              alt="UniMarket Logo" 
+              className="h-6 w-6 object-contain"
+            />
             <span className="text-lg font-bold text-university-green">UniMarket</span>
           </SheetTitle>
         </SheetHeader>
@@ -188,30 +191,25 @@ const Header = () => {
                 <p className="font-medium">{profile?.full_name}</p>
                 <p className="text-sm text-muted-foreground">{user.email}</p>
                 <div className="flex items-center gap-1 mt-1">
-                  <Badge variant="outline" className="text-xs">
+                  <Badge variant="outline" className="text-xs verified-badge">
                     {profile?.account_type}
                   </Badge>
                   {profile?.is_verified && (
-                    <Badge variant="outline" className="text-xs text-verified-blue">
-                      Verified
-                    </Badge>
+                    <div className="trust-badge">
+                      <div className="verification-badge-inline">
+                        <svg fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                      <span className="text-xs font-medium">Verified</span>
+                    </div>
                   )}
                 </div>
               </div>
             </div>
           )}
 
-          {/* Search Bar */}
-          <div className="px-2">
-            <SmartSearchInput
-              value={searchQuery}
-              onChange={setSearchQuery}
-              onSubmit={handleSearch}
-              placeholder="Search products, categories..."
-              autoFocus={false}
-              showSuggestions={false}
-            />
-          </div>
+
 
           {/* Navigation Links */}
           {user ? (
@@ -232,7 +230,11 @@ const Header = () => {
               
               <Button variant="ghost" size="lg" asChild className="justify-start">
                 <Link to="/learn-more">
-                  <GraduationCap className="mr-3 h-5 w-5" />
+                  <img 
+                    src="/logo.png" 
+                    alt="UniMarket Logo" 
+                    className="mr-3 h-5 w-5 object-contain"
+                  />
                   Learn More
                 </Link>
               </Button>
@@ -388,10 +390,14 @@ const Header = () => {
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2 flex-shrink-0 hover-lift micro-bounce transition-all duration-200 hover:scale-105">
             <div className="relative">
-              <GraduationCap className="h-7 w-7 sm:h-8 sm:w-8 text-university-green drop-shadow-sm" />
+              <img 
+                src="/logo.png" 
+                alt="UniMarket Logo" 
+                className="h-7 w-7 sm:h-8 sm:w-8 drop-shadow-sm object-contain"
+              />
               <div className="absolute inset-0 bg-university-green/20 rounded-full blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
             </div>
-            <span className="text-lg sm:text-xl font-bold bg-gradient-to-r from-university-green to-university-green/80 bg-clip-text text-transparent hidden xs:inline">UniMarket</span>
+            <span className="text-sm sm:text-lg md:text-xl font-bold bg-gradient-to-r from-university-green to-university-green/80 bg-clip-text text-transparent">UniMarket</span>
           </Link>
 
           {/* Desktop Search - Hidden on mobile */}
@@ -544,8 +550,8 @@ const Header = () => {
                           </AvatarFallback>
                         </Avatar>
                         {profile?.is_verified && (
-                          <div className="absolute -bottom-1 -right-1 bg-blue-500 rounded-full p-1">
-                            <svg className="h-3 w-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                          <div className="verification-tick">
+                            <svg fill="currentColor" viewBox="0 0 20 20">
                               <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                             </svg>
                           </div>
@@ -562,13 +568,13 @@ const Header = () => {
                               {profile?.account_type}
                             </Badge>
                             {profile?.is_verified && (
-                              <div className="flex items-center gap-1">
-                                <div className="w-3 h-3 bg-green-500 rounded-full flex items-center justify-center">
-                                  <svg className="w-2 h-2 text-white" fill="currentColor" viewBox="0 0 20 20">
+                              <div className="trust-badge">
+                                <div className="verification-badge-inline">
+                                  <svg fill="currentColor" viewBox="0 0 20 20">
                                     <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                                   </svg>
                                 </div>
-                                <span className="text-xs text-green-600">Verified</span>
+                                <span className="text-xs font-medium">Verified</span>
                               </div>
                             )}
                           </div>

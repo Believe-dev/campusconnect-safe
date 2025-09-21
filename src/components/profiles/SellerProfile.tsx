@@ -12,7 +12,6 @@ import { useAuth } from '@/hooks/useAuth';
 import { Textarea } from '@/components/ui/textarea';
 import Header from '@/components/layout/Header';
 import BottomNav from '@/components/layout/BottomNav';
-import { findOrCreateConversation, navigateToChat } from '@/utils/conversationUtils';
 
 interface SellerProfile {
   id: string;
@@ -162,13 +161,20 @@ const SellerProfile = () => {
     }
 
     try {
-      const conversationId = await findOrCreateConversation(user.id, seller.user_id);
-      
-      if (conversationId) {
-        navigateToChat(conversationId);
-      } else {
-        throw new Error('Failed to create conversation');
-      }
+      // Use the same function as ProductCard to find or create consolidated conversation
+      const { data: conversationId, error } = await supabase.rpc(
+        'find_or_create_conversation',
+        {
+          p_buyer_id: user.id,
+          p_seller_id: seller.user_id,
+          p_product_id: null
+        }
+      );
+
+      if (error) throw error;
+
+      const draftMessage = `Hi! I'm interested in your products. Can you tell me more about what you have available?`;
+      navigate(`/messages?conversation=${conversationId}&draft=${encodeURIComponent(draftMessage)}`);
     } catch (error) {
       console.error('Error starting conversation:', error);
       toast({
@@ -313,49 +319,53 @@ const SellerProfile = () => {
       <div className="max-w-4xl mx-auto px-4 space-y-6">
         {/* Seller Info Card */}
         <Card className="shadow-brand">
-          <CardHeader>
-            <div className="flex items-start gap-6">
-              <Avatar className="h-24 w-24">
+          <CardHeader className="p-4 sm:p-6">
+            <div className="flex flex-col sm:flex-row items-start gap-4 sm:gap-6">
+              <Avatar className="h-20 w-20 sm:h-24 sm:w-24 mx-auto sm:mx-0">
                 <AvatarImage src={seller.avatar_url} alt={seller.full_name} />
-                <AvatarFallback className="text-lg">
+                <AvatarFallback className="text-base sm:text-lg">
                   {getInitials(seller.full_name)}
                 </AvatarFallback>
               </Avatar>
               
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-2">
-                  <h1 className="text-3xl font-bold">{seller.full_name}</h1>
+              <div className="flex-1 text-center sm:text-left w-full">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-3">
+                  <h1 className="text-xl sm:text-2xl md:text-3xl font-bold break-words">{seller.full_name}</h1>
                   {seller.is_verified && (
-                    <Badge variant="secondary" className="flex items-center gap-1">
-                      <ShieldCheck className="h-3 w-3" />
-                      Verified
-                    </Badge>
-                  )}
-                </div>
-                
-                <div className="flex items-center gap-4 text-muted-foreground mb-4">
-                  {(seller.university_name || seller.campus) && (
-                    <div className="flex items-center gap-1">
-                      <MapPin className="h-4 w-4" />
-                      <span>{seller.university_name || seller.campus}</span>
+                    <div className="trust-badge mx-auto sm:mx-0">
+                      <div className="verification-badge-inline">
+                        <svg fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                      <span className="text-xs font-medium">Verified</span>
                     </div>
                   )}
                 </div>
                 
-                <div className="flex items-center gap-4 mb-4">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-muted-foreground mb-3">
+                  {(seller.university_name || seller.campus) && (
+                    <div className="flex items-center gap-1 justify-center sm:justify-start">
+                      <MapPin className="h-4 w-4 flex-shrink-0" />
+                      <span className="text-sm sm:text-base truncate">{seller.university_name || seller.campus}</span>
+                    </div>
+                  )}
+                </div>
+                
+                <div className="flex items-center gap-2 sm:gap-4 mb-4 justify-center sm:justify-start">
                   <div className="flex items-center gap-1">
                     <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                    <span className="font-medium">{seller.rating.toFixed(1)}</span>
-                    <span className="text-muted-foreground">({seller.total_reviews} reviews)</span>
+                    <span className="font-medium text-sm sm:text-base">{seller.rating.toFixed(1)}</span>
+                    <span className="text-muted-foreground text-sm sm:text-base">({seller.total_reviews} reviews)</span>
                   </div>
                 </div>
                 
                 {seller.bio && (
-                  <p className="text-muted-foreground mb-4">{seller.bio}</p>
+                  <p className="text-muted-foreground mb-4 text-sm sm:text-base break-words">{seller.bio}</p>
                 )}
                 
                 {user && user.id !== seller.user_id && (
-                  <Button onClick={startConversation} className="flex items-center gap-2">
+                  <Button onClick={startConversation} className="flex items-center gap-2 w-full sm:w-auto">
                     <MessageCircle className="h-4 w-4" />
                     Message Seller
                   </Button>
@@ -367,22 +377,22 @@ const SellerProfile = () => {
 
         {/* Products Section */}
         <Card className="shadow-brand">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Package className="h-5 w-5" />
+          <CardHeader className="p-4 sm:p-6">
+            <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
+              <Package className="h-4 w-4 sm:h-5 sm:w-5" />
               Products ({products.length})
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4 sm:p-6">
             {products.length === 0 ? (
               <p className="text-muted-foreground text-center py-8">No products available.</p>
             ) : (
               <>
-                <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                   {products.slice(0, visibleProducts).map((product) => (
                     <Card 
                       key={product.id} 
-                      className="cursor-pointer hover:shadow-lg transition-shadow"
+                      className="cursor-pointer hover:shadow-lg transition-shadow overflow-hidden"
                       onClick={() => navigate(`/product/${product.id}`)}
                     >
                       <div className="relative">
@@ -390,24 +400,24 @@ const SellerProfile = () => {
                           <img
                             src={product.images[0]}
                             alt={product.title}
-                            className="w-full h-48 object-cover rounded-t-lg"
+                            className="w-full h-32 sm:h-40 md:h-48 object-cover"
                           />
                         )}
                         <Badge 
-                          className="absolute top-2 left-2"
+                          className="absolute top-1 left-1 sm:top-2 sm:left-2 text-xs"
                           variant={product.condition === 'new' ? 'default' : 'secondary'}
                         >
                           {product.condition}
                         </Badge>
                       </div>
-                      <CardContent className="p-4">
-                        <h3 className="font-semibold text-lg mb-2 line-clamp-1">{product.title}</h3>
-                        <p className="text-muted-foreground text-sm mb-2 line-clamp-2">{product.description}</p>
-                        <div className="flex items-center justify-between">
-                          <span className="text-lg font-bold text-primary">₦{product.price.toLocaleString()}</span>
-                          <Badge variant="outline">{product.category}</Badge>
+                      <CardContent className="p-2 sm:p-3 md:p-4">
+                        <h3 className="font-semibold text-sm sm:text-base md:text-lg mb-1 sm:mb-2 line-clamp-1">{product.title}</h3>
+                        <p className="text-muted-foreground text-xs sm:text-sm mb-2 line-clamp-2 hidden sm:block">{product.description}</p>
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2">
+                          <span className="text-sm sm:text-base md:text-lg font-bold text-primary">₦{product.price.toLocaleString()}</span>
+                          <Badge variant="outline" className="text-xs w-fit">{product.category}</Badge>
                         </div>
-                        <div className="text-xs text-muted-foreground mt-2">
+                        <div className="text-xs text-muted-foreground mt-1 sm:mt-2">
                           {product.stock_quantity} available
                         </div>
                       </CardContent>
@@ -431,24 +441,25 @@ const SellerProfile = () => {
 
         {/* Reviews Section */}
         <Card className="shadow-brand">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Star className="h-5 w-5" />
+          <CardHeader className="p-4 sm:p-6">
+            <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
+              <Star className="h-4 w-4 sm:h-5 sm:w-5" />
               Reviews ({reviews.length})
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-4 sm:p-6">
             {user && user.id !== seller.user_id && (
-              <div className="mb-6 border rounded-md p-4">
-                <div className="flex items-center gap-2 mb-2">
+              <div className="mb-6 border rounded-md p-3 sm:p-4">
+                <h4 className="font-medium mb-3 text-sm sm:text-base">Leave a Review</h4>
+                <div className="flex items-center gap-1 sm:gap-2 mb-3">
                   {[1,2,3,4,5].map(i => (
                     <button
                       key={i}
                       onClick={() => setRatingInput(i)}
-                      className="p-1"
+                      className="p-1 touch-manipulation"
                       aria-label={`Rate ${i} star`}
                     >
-                      <Star className={`h-5 w-5 ${i <= ratingInput ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`} />
+                      <Star className={`h-6 w-6 sm:h-5 sm:w-5 ${i <= ratingInput ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`} />
                     </button>
                   ))}
                 </div>
@@ -456,9 +467,14 @@ const SellerProfile = () => {
                   placeholder="Leave an optional comment"
                   value={commentInput}
                   onChange={(e) => setCommentInput(e.target.value)}
-                  className="mb-2"
+                  className="mb-3 text-sm sm:text-base"
+                  rows={3}
                 />
-                <Button onClick={submitReview} disabled={submittingReview || ratingInput === 0}>
+                <Button 
+                  onClick={submitReview} 
+                  disabled={submittingReview || ratingInput === 0}
+                  className="w-full sm:w-auto"
+                >
                   {submittingReview ? 'Submitting...' : 'Submit Review'}
                 </Button>
               </div>
@@ -470,17 +486,17 @@ const SellerProfile = () => {
                 {reviews.map((review) => (
                   <div key={review.id} className="border-b pb-4 last:border-b-0">
                     <div className="flex items-start gap-3">
-                      <Avatar className="h-8 w-8">
+                      <Avatar className="h-8 w-8 flex-shrink-0">
                         <AvatarImage src={review.reviewer.avatar_url} />
-                        <AvatarFallback>
+                        <AvatarFallback className="text-xs">
                           {getInitials(review.reviewer.full_name)}
                         </AvatarFallback>
                       </Avatar>
                       
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-medium">{review.reviewer.full_name}</span>
-                          <div className="flex items-center">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 mb-2">
+                          <span className="font-medium text-sm sm:text-base truncate">{review.reviewer.full_name}</span>
+                          <div className="flex items-center gap-1">
                             {[...Array(5)].map((_, i) => (
                               <Star
                                 key={i}
@@ -498,7 +514,7 @@ const SellerProfile = () => {
                         </div>
                         
                         {review.comment && (
-                          <p className="text-sm text-muted-foreground">{review.comment}</p>
+                          <p className="text-sm text-muted-foreground break-words">{review.comment}</p>
                         )}
                       </div>
                     </div>

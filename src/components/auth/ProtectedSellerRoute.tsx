@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useProfile } from '@/contexts/ProfileContext';
 
 interface ProtectedSellerRouteProps {
   children: React.ReactNode;
@@ -12,10 +13,11 @@ const ProtectedSellerRoute = ({ children }: ProtectedSellerRouteProps) => {
   const [authorized, setAuthorized] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { profile } = useProfile();
 
   useEffect(() => {
     checkSellerAccess();
-  }, []);
+  }, [profile]); // Re-check when profile changes
 
   const checkSellerAccess = async () => {
     try {
@@ -25,15 +27,20 @@ const ProtectedSellerRoute = ({ children }: ProtectedSellerRouteProps) => {
         return;
       }
 
-      const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('account_type, seller_status')
-        .eq('user_id', user.id)
-        .single();
+      // Use profile from context if available, otherwise fetch
+      let userProfile = profile;
+      if (!userProfile) {
+        const { data: fetchedProfile, error } = await supabase
+          .from('profiles')
+          .select('account_type, seller_status')
+          .eq('user_id', user.id)
+          .single();
 
-      if (error) throw error;
+        if (error) throw error;
+        userProfile = fetchedProfile;
+      }
 
-      if (profile.account_type === 'buyer') {
+      if (userProfile.account_type === 'buyer') {
         toast({
           title: "Access Denied",
           description: "Only seller accounts can access this page.",
@@ -43,7 +50,7 @@ const ProtectedSellerRoute = ({ children }: ProtectedSellerRouteProps) => {
         return;
       }
 
-      if (profile.seller_status !== 'approved') {
+      if (userProfile.seller_status !== 'approved') {
         toast({
           title: "Seller Approval Required",
           description: "Your seller account must be approved by admin before accessing seller features.",

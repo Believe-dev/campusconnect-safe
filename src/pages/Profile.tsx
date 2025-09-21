@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import Header from '@/components/layout/Header';
 import { User as SupabaseUser } from '@supabase/supabase-js';
 import { OnboardingModal } from '@/components/onboarding/OnboardingModal';
+import { SellerDocumentReminder } from '@/components/seller/SellerDocumentReminder';
 
 interface Profile {
   full_name: string;
@@ -185,32 +186,32 @@ const Profile = () => {
     setDeleting(true);
 
     try {
-      // Use RPC function to delete user completely
-      const { error } = await supabase.rpc('delete_user_account', {
-        user_id: user.id
-      });
+      const userId = user.id;
       
-      if (error) {
-        console.error('Delete account RPC error:', error);
-        // Fallback: delete profile only
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .delete()
-          .eq('user_id', user.id);
-        
-        if (profileError) throw profileError;
+      const { data, error } = await supabase.rpc('delete_user_completely');
+      
+      if (error || !data) {
+        throw new Error('Failed to delete account');
       }
       
-      // Sign out the user globally
-      await supabase.auth.signOut({ scope: 'global' });
+      // Clear local storage and caches
+      localStorage.clear();
+      sessionStorage.clear();
+      
+      if ('caches' in window) {
+        const cacheNames = await caches.keys();
+        await Promise.all(cacheNames.map(name => caches.delete(name)));
+      }
+      
+
 
       toast({
-        title: "Account Deleted",
-        description: "Your account and all data have been permanently deleted.",
+        title: "Account Completely Deleted",
+        description: "Your account has been permanently deleted. You can no longer sign in with this email.",
       });
       
-      // Force redirect and reload to clear all state
-      window.location.replace('/');
+      // Force redirect
+      window.location.href = '/';
     } catch (error) {
       console.error('Error deleting account:', error);
       toast({
@@ -342,6 +343,7 @@ const Profile = () => {
       <Header />
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto space-y-6">
+          <SellerDocumentReminder />
           <div className="flex items-center justify-between">
             <h1 className="text-3xl font-bold text-primary">Profile</h1>
             <Button
@@ -387,6 +389,28 @@ const Profile = () => {
                         disabled={uploadingPhoto}
                       />
                     </div>
+                  </div>
+                  
+                  {/* Upload Profile Picture Button */}
+                  <div className="w-full">
+                    <label htmlFor="profile-upload-btn" className="cursor-pointer">
+                      <Button variant="outline" size="sm" className="w-full" asChild>
+                        <span>
+                          {uploadingPhoto ? 'Uploading...' : 'Upload Profile Picture'}
+                        </span>
+                      </Button>
+                    </label>
+                    <input
+                      id="profile-upload-btn"
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handlePhotoUpload(file);
+                      }}
+                      disabled={uploadingPhoto}
+                    />
                   </div>
 
                   <div className="text-center">

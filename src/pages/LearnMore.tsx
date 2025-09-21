@@ -11,7 +11,6 @@ import {
   Truck,
   Star,
   BookOpen,
-  GraduationCap
 } from 'lucide-react';
 
 export default function LearnMore() {
@@ -141,7 +140,11 @@ export default function LearnMore() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <GraduationCap className="h-6 w-6" />
+                  <img 
+                    src="/logo.png" 
+                    alt="UniMarket Logo" 
+                    className="h-6 w-6 object-contain"
+                  />
                   For Sellers
                 </CardTitle>
               </CardHeader>

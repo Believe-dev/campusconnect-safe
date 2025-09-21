@@ -43,8 +43,24 @@ export default function Messages() {
     searchParams.get('conversation')
   );
   const [loadingConversations, setLoadingConversations] = useState(true);
+  const [selectedConversationForAction, setSelectedConversationForAction] = useState<string | null>(null);
   const { toast } = useToast();
   const { messagesCount } = useMessagesCount();
+
+  // Handle browser back button
+  useEffect(() => {
+    const handlePopState = () => {
+      if (selectedConversation) {
+        setSelectedConversation(null);
+        window.history.pushState(null, '', '/messages');
+      }
+    };
+
+    if (selectedConversation) {
+      window.addEventListener('popstate', handlePopState);
+      return () => window.removeEventListener('popstate', handlePopState);
+    }
+  }, [selectedConversation]);
 
   useEffect(() => {
     if (user) {
@@ -270,7 +286,6 @@ export default function Messages() {
   if (selectedConversation) {
     return (
       <div className="h-screen bg-background flex flex-col overflow-hidden">
-        <Header />
         <main className="flex-1 overflow-hidden">
           <SecureChat 
             conversationId={selectedConversation} 
@@ -342,9 +357,24 @@ export default function Messages() {
                     key={conversation.id} 
                     className="group relative hover:bg-muted/50 cursor-pointer transition-colors"
                     onClick={() => setSelectedConversation(conversation.id)}
+                    onTouchStart={(e) => {
+                      const timer = setTimeout(() => {
+                        setSelectedConversationForAction(conversation.id);
+                        navigator.vibrate?.(50);
+                      }, 500);
+                      e.currentTarget.dataset.timer = timer.toString();
+                    }}
+                    onTouchEnd={(e) => {
+                      const timer = e.currentTarget.dataset.timer;
+                      if (timer) clearTimeout(parseInt(timer));
+                    }}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      setSelectedConversationForAction(conversation.id);
+                    }}
                   >
-                    <div className="flex items-center gap-4 p-4">
-                      <div className="relative">
+                    <div className="flex items-center gap-3 p-4">
+                      <div className="relative flex-shrink-0">
                         <Avatar 
                           className="h-12 w-12 border-2 border-background shadow-sm cursor-pointer hover:ring-2 hover:ring-primary/20 transition-all"
                           onClick={(e) => {
@@ -368,24 +398,33 @@ export default function Messages() {
                         <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 border-2 border-background rounded-full"></div>
                       </div>
                       
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between mb-1">
-                          <h3 className="font-semibold text-foreground truncate">
-                            {conversation.other_user?.full_name || 'Anonymous User'}
-                          </h3>
+                      <div className="flex-1 min-w-0 overflow-hidden">
+                        <div className="flex items-start justify-between mb-1">
+                          <div className="flex items-center gap-2 min-w-0 flex-1">
+                            <h3 className="font-semibold text-foreground truncate text-sm sm:text-base">
+                              {conversation.other_user?.full_name || 'Anonymous User'}
+                            </h3>
+                            {conversation.other_user?.is_verified && (
+                              <div className="w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
+                                <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                </svg>
+                              </div>
+                            )}
+                          </div>
                           {conversation.last_message && (
-                            <span className="text-xs text-muted-foreground">
+                            <span className="text-xs text-muted-foreground flex-shrink-0 ml-2">
                               {formatTime(conversation.last_message.created_at)}
                             </span>
                           )}
                         </div>
                         
                         {conversation.product && (
-                          <div className="flex items-center gap-2 mb-1">
-                            <Badge variant="outline" className="text-xs px-2 py-0">
+                          <div className="flex items-center gap-2 mb-1 overflow-hidden">
+                            <Badge variant="outline" className="text-xs px-2 py-0 truncate max-w-[120px]">
                               {conversation.product.title}
                             </Badge>
-                            <span className="text-xs font-medium text-green-600">
+                            <span className="text-xs font-medium text-green-600 flex-shrink-0">
                               ₦{conversation.product.price.toLocaleString()}
                             </span>
                           </div>
@@ -397,7 +436,7 @@ export default function Messages() {
                           {conversation.last_message ? (
                             <>
                               {conversation.last_message.sender_id === user.id && (
-                                <span className="text-blue-500">✓</span>
+                                <span className="text-blue-500 flex-shrink-0">✓</span>
                               )}
                               <span className="truncate">
                                 {conversation.last_message.sender_id === user.id ? 'You: ' : ''}
@@ -410,12 +449,12 @@ export default function Messages() {
                         </p>
                       </div>
 
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1 flex-shrink-0">
                         <Shield className="h-4 w-4 text-green-500" />
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="opacity-0 group-hover:opacity-100 transition-opacity"
+                          className="opacity-0 group-hover:opacity-100 transition-opacity hidden sm:flex"
                           onClick={(e) => deleteConversation(conversation.id, e)}
                         >
                           <Trash2 className="h-4 w-4" />
@@ -429,7 +468,48 @@ export default function Messages() {
           </CardContent>
         </Card>
       </main>
-      <BottomNav />
+
+      
+      {/* Conversation Actions Modal */}
+      {selectedConversationForAction && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4" onClick={() => setSelectedConversationForAction(null)}>
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl border border-gray-100 animate-in slide-in-from-bottom-4 duration-300" onClick={(e) => e.stopPropagation()}>
+
+            <h3 className="font-bold text-lg text-center mb-6 text-gray-800">Conversation Actions</h3>
+            <div className="space-y-3">
+              <Button variant="outline" className="w-full justify-start h-12 text-left border-gray-200 hover:bg-gray-50 transition-all duration-200" onClick={async () => {
+                try {
+                  const { error } = await supabase
+                    .from('messages')
+                    .delete()
+                    .eq('conversation_id', selectedConversationForAction);
+                  
+                  if (error) throw error;
+                  
+                  toast({ title: "✅ Chat Cleared", description: "All messages have been cleared" });
+                  fetchConversations();
+                } catch (error) {
+                  toast({ title: "❌ Error", description: "Failed to clear chat", variant: "destructive" });
+                }
+                setSelectedConversationForAction(null);
+              }}>
+                <span className="text-lg mr-3">🧹</span>
+                <span className="font-medium">Clear Chat</span>
+              </Button>
+              <Button variant="outline" className="w-full justify-start h-12 text-left border-red-200 text-red-600 hover:bg-red-50 transition-all duration-200" onClick={(e) => {
+                deleteConversation(selectedConversationForAction, e);
+                setSelectedConversationForAction(null);
+              }}>
+                <span className="text-lg mr-3">🗑️</span>
+                <span className="font-medium">Delete Conversation</span>
+              </Button>
+            </div>
+            <Button variant="ghost" className="w-full mt-4 h-12 font-medium text-gray-600" onClick={() => setSelectedConversationForAction(null)}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

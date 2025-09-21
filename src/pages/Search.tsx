@@ -270,6 +270,12 @@ const Search = () => {
                   placeholder="Search products, categories..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      e.currentTarget.blur();
+                    }
+                  }}
                   className="pl-10"
                 />
               </div>

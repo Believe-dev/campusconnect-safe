@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/enhanced-button';
 import Header from '@/components/layout/Header';
 import { OfflineNotice } from '@/components/ui/offline-notice';
+import { SellerDocumentReminder } from '@/components/seller/SellerDocumentReminder';
 import { HeroSection } from '@/components/home/HeroSection';
 import { FeaturesSection } from '@/components/home/FeaturesSection';
 import { ProductFilters } from '@/components/home/ProductFilters';
@@ -52,6 +53,7 @@ const Index = () => {
       <Header />
       <div className="container mx-auto px-4">
         <OfflineNotice />
+        <SellerDocumentReminder />
       </div>
       
       <HeroSection isAuthenticated={!!user} />

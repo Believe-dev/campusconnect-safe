@@ -31,6 +31,8 @@ export const useAuth = () => {
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
+        console.log('Auth state change:', event, session?.user?.id);
+        
         setSession(session);
         setUser(session?.user ?? null);
         
@@ -40,8 +42,10 @@ export const useAuth = () => {
           localStorage.setItem('cc_session', JSON.stringify(session));
           checkAdminRole(session.user.id);
         } else {
+          // Clear all cached data when signed out
           localStorage.removeItem('cc_user');
           localStorage.removeItem('cc_session');
+          localStorage.removeItem('profile-completion-dismissed');
           setIsAdmin(false);
         }
         setLoading(false);
@@ -58,10 +62,21 @@ export const useAuth = () => {
           localStorage.setItem('cc_user', JSON.stringify(session.user));
           localStorage.setItem('cc_session', JSON.stringify(session));
           checkAdminRole(session.user.id);
+        } else {
+          // Clear cached data if no valid session
+          localStorage.removeItem('cc_user');
+          localStorage.removeItem('cc_session');
+          localStorage.removeItem('profile-completion-dismissed');
         }
         setLoading(false);
       }).catch(() => {
-        // If session check fails, keep cached state
+        // If session check fails, clear cached state
+        localStorage.removeItem('cc_user');
+        localStorage.removeItem('cc_session');
+        localStorage.removeItem('profile-completion-dismissed');
+        setUser(null);
+        setSession(null);
+        setIsAdmin(false);
         setLoading(false);
       });
     } else {
