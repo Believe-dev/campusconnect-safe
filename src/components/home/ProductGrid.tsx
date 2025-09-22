@@ -134,7 +134,7 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
               </div>
             </CardContent>
           </Card>
-        ))
+        ))}
       </div>
       {isAuthenticated && products.length > 0 && (
         <div className="text-center mt-8">
