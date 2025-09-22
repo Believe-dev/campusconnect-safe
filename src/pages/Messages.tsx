@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { Navigate, useSearchParams } from 'react-router-dom';
+import { Navigate, useSearchParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -38,6 +38,7 @@ interface Conversation {
 export default function Messages() {
   const { user, loading } = useAuth();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<string | null>(
     searchParams.get('conversation')
@@ -106,11 +107,11 @@ export default function Messages() {
           {
             event: 'UPDATE',
             schema: 'public',
-            table: 'messages',
-            filter: `is_read=eq.true`
+            table: 'messages'
           },
           (payload) => {
-            if (payload.new.is_read === true) {
+            // Update unread count when messages are marked as read
+            if (payload.new.is_read === true && payload.old?.is_read !== true) {
               setConversations(prev => prev.map(conv => {
                 if (conv.id === payload.new.conversation_id) {
                   return {
@@ -167,27 +168,16 @@ export default function Messages() {
         .in('conversation_id', convIds)
         .order('created_at', { ascending: false });
 
-      // Get unread counts - try with is_read column first, fallback to all messages
+      // Get unread counts - only count unread messages
       const unreadCounts = {};
       for (const convId of convIds) {
-        try {
-          // Try with is_read column
-          const { count } = await supabase
-            .from('messages')
-            .select('*', { count: 'exact', head: true })
-            .eq('conversation_id', convId)
-            .neq('sender_id', user.id)
-            .or('is_read.is.null,is_read.eq.false');
-          unreadCounts[convId] = count || 0;
-        } catch (error) {
-          // Fallback: count all messages from others (temporary until migration runs)
-          const { count } = await supabase
-            .from('messages')
-            .select('*', { count: 'exact', head: true })
-            .eq('conversation_id', convId)
-            .neq('sender_id', user.id);
-          unreadCounts[convId] = Math.min(count || 0, 99); // Cap at 99 for display
-        }
+        const { count } = await supabase
+          .from('messages')
+          .select('*', { count: 'exact', head: true })
+          .eq('conversation_id', convId)
+          .neq('sender_id', user.id)
+          .or('is_read.is.null,is_read.eq.false');
+        unreadCounts[convId] = count || 0;
       }
 
       // Process conversations
@@ -283,19 +273,7 @@ export default function Messages() {
     return <Navigate to="/auth" replace />;
   }
 
-  if (selectedConversation) {
-    return (
-      <div className="h-screen bg-background flex flex-col overflow-hidden">
-        <main className="flex-1 overflow-hidden">
-          <SecureChat 
-            conversationId={selectedConversation} 
-            currentUserId={user.id}
-            onClose={() => setSelectedConversation(null)}
-          />
-        </main>
-      </div>
-    );
-  }
+
 
   return (
     <div className="min-h-screen bg-background">
@@ -356,7 +334,7 @@ export default function Messages() {
                   <div 
                     key={conversation.id} 
                     className="group relative hover:bg-muted/50 cursor-pointer transition-colors"
-                    onClick={() => setSelectedConversation(conversation.id)}
+                    onClick={() => navigate(`/chat/${conversation.id}`)}
                     onTouchStart={(e) => {
                       const timer = setTimeout(() => {
                         setSelectedConversationForAction(conversation.id);
@@ -390,7 +368,7 @@ export default function Messages() {
                               : 'U'}
                           </AvatarFallback>
                         </Avatar>
-                        {conversation.unread_count && conversation.unread_count > 0 && (
+                        {conversation.unread_count > 0 && (
                           <div className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 text-xs font-bold shadow-lg border-2 border-background">
                             {conversation.unread_count > 99 ? '99+' : conversation.unread_count}
                           </div>
@@ -422,11 +400,8 @@ export default function Messages() {
                         {conversation.product && (
                           <div className="flex items-center gap-2 mb-1 overflow-hidden">
                             <Badge variant="outline" className="text-xs px-2 py-0 truncate max-w-[120px]">
-                              {conversation.product.title}
+                              Product Discussion
                             </Badge>
-                            <span className="text-xs font-medium text-green-600 flex-shrink-0">
-                              ₦{conversation.product.price.toLocaleString()}
-                            </span>
                           </div>
                         )}
                         

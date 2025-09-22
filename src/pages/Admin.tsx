@@ -8,6 +8,9 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -37,7 +40,9 @@ import {
   TrendingDown,
   DollarSign,
   IdCard,
-  Flag
+  Flag,
+  Check,
+  ChevronsUpDown
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { toast } from 'sonner';
@@ -64,10 +69,14 @@ interface User {
 interface Product {
   id: string;
   title: string;
+  description?: string;
   price: number;
   category: string;
+  condition?: string;
+  stock_quantity?: number;
   is_active: boolean;
   created_at: string;
+  images?: string[];
   seller: { full_name: string; email: string };
 }
 
@@ -191,6 +200,7 @@ export default function Admin() {
   const [productReports, setProductReports] = useState<ProductReport[]>([]);
   const [banAppeals, setBanAppeals] = useState<any[]>([]);
   const [emailLogs, setEmailLogs] = useState<any[]>([]);
+  const [disputeTemplates, setDisputeTemplates] = useState<any[]>([]);
 
   useEffect(() => {
     if (isAdmin) {
@@ -204,50 +214,29 @@ export default function Admin() {
       fetchEscrowData();
       fetchBanAppeals();
       fetchEmailLogs();
+      fetchDisputeTemplates();
     }
   }, [isAdmin]);
 
   const fetchUsers = async () => {
     try {
-      // Get all auth users with their profiles using RPC function
-      const { data: authUsers, error: authError } = await supabase.rpc('get_all_users_with_profiles');
+      // Fetch profiles directly
+      const { data: profiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('*')
+        .order('created_at', { ascending: false });
       
-      if (authError) {
-        console.error('Auth users fetch error:', authError);
-        // Fallback to profiles only
-        const { data: profiles, error: profilesError } = await supabase
-          .from('profiles')
-          .select('*')
-          .order('created_at', { ascending: false });
-        
-        if (profilesError) throw profilesError;
-        
-        const userIds = profiles?.map(p => p.user_id) || [];
-        const { data: roles } = await supabase
-          .from('user_roles')
-          .select('user_id, role')
-          .in('user_id', userIds);
-
-        const usersWithRoles = (profiles || []).map(profile => ({
-          ...profile,
-          user_roles: roles?.filter(role => role.user_id === profile.user_id).map(r => ({ role: r.role })) || []
-        }));
-
-        setUsers(usersWithRoles);
-        return;
-      }
-
-      // Get roles for all users
-      const userIds = authUsers?.map(u => u.user_id) || [];
+      if (profilesError) throw profilesError;
+      
+      const userIds = profiles?.map(p => p.user_id) || [];
       const { data: roles } = await supabase
         .from('user_roles')
         .select('user_id, role')
         .in('user_id', userIds);
 
-      // Combine auth users with their roles
-      const usersWithRoles = (authUsers || []).map(user => ({
-        ...user,
-        user_roles: roles?.filter(role => role.user_id === user.user_id).map(r => ({ role: r.role })) || [{ role: 'buyer' }]
+      const usersWithRoles = (profiles || []).map(profile => ({
+        ...profile,
+        user_roles: roles?.filter(role => role.user_id === profile.user_id).map(r => ({ role: r.role })) || []
       }));
 
       setUsers(usersWithRoles);
@@ -263,13 +252,30 @@ export default function Admin() {
       const { data, error } = await supabase
         .from('products')
         .select(`
-          *,
-          seller:profiles!inner(full_name, email)
+          id,
+          title,
+          description,
+          price,
+          category,
+          condition,
+          stock_quantity,
+          is_active,
+          created_at,
+          images,
+          seller_id,
+          seller:profiles(full_name, email)
         `)
         .order('created_at', { ascending: false });
       
       if (error) throw error;
-      setProducts(data || []);
+      
+      // Transform data to handle missing seller profiles
+      const transformedData = (data || []).map(product => ({
+        ...product,
+        seller: product.seller || { full_name: 'Unknown Seller', email: 'unknown@example.com' }
+      }));
+      
+      setProducts(transformedData);
     } catch (error) {
       console.error('Products fetch error:', error);
       toast.error('Failed to fetch products');
@@ -315,8 +321,14 @@ export default function Admin() {
         return;
       }
       
-      setPendingSellers(data || []);
-      console.log('Pending sellers loaded:', (data || []).length);
+      // Transform data to use face photo as profile picture
+      const transformedData = (data || []).map(seller => ({
+        ...seller,
+        avatar_url: getImageUrl(seller.face_photo_url) || seller.avatar_url // Use face photo as profile picture
+      }));
+      
+      setPendingSellers(transformedData);
+      console.log('Pending sellers loaded:', transformedData.length);
     } catch (error) {
       console.error('Pending sellers fetch error:', error);
       setPendingSellers([]);
@@ -341,32 +353,14 @@ export default function Admin() {
 
   const fetchVerificationRequests = async () => {
     try {
-      // First get verification requests
-      const { data: requests, error: requestsError } = await supabase
-        .from('verification_requests')
-        .select('*')
-        .eq('status', 'pending')
-        .order('created_at', { ascending: false });
-      
-      if (requestsError) {
-        console.error('Verification requests fetch error:', requestsError);
-        setVerificationRequests([]);
-        return;
-      }
-      
-      console.log('Raw verification requests:', requests);
-      
-      if (!requests || requests.length === 0) {
-        setVerificationRequests([]);
-        return;
-      }
-      
-      // Get user profiles for each request
-      const userIds = requests.map(req => req.user_id);
+      // Get all profiles with verification documents
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
         .select('*')
-        .in('user_id', userIds);
+        .not('face_photo_url', 'is', null)
+        .not('student_id_photo_url', 'is', null)
+        .eq('is_verified', false)
+        .order('created_at', { ascending: false });
       
       if (profilesError) {
         console.error('Profiles fetch error:', profilesError);
@@ -374,24 +368,26 @@ export default function Admin() {
         return;
       }
       
-      // Combine requests with profiles and get image URLs
-      const transformedData = requests.map(req => {
-        const profile = profiles?.find(p => p.user_id === req.user_id);
-        
-        return {
-          id: req.id,
-          user_id: req.user_id,
-          full_name: profile?.full_name || 'Unknown',
-          email: profile?.email || 'Unknown',
-          university_name: profile?.university_name || 'N/A',
-          campus: profile?.campus || 'N/A',
-          avatar_url: profile?.avatar_url,
-          face_photo_url: getImageUrl(profile?.face_photo_url),
-          student_id_photo_url: getImageUrl(profile?.student_id_photo_url),
-          created_at: req.created_at,
-          reason: req.reason
-        };
-      });
+      // Transform data for verification requests
+      const transformedData = (profiles || []).map(profile => ({
+        id: profile.id,
+        user_id: profile.user_id,
+        full_name: profile.full_name || 'Unknown',
+        email: profile.email || 'Unknown',
+        university_name: profile.university_name || 'N/A',
+        campus: profile.campus || 'N/A',
+        student_id: profile.student_id || 'N/A',
+        phone_number: profile.phone_number || 'N/A',
+        bio: profile.bio || 'No bio provided',
+        account_type: profile.account_type || 'buyer',
+        rating: profile.rating || 0,
+        total_reviews: profile.total_reviews || 0,
+        avatar_url: getImageUrl(profile.face_photo_url), // Use face photo as profile picture
+        face_photo_url: getImageUrl(profile.face_photo_url),
+        student_id_photo_url: getImageUrl(profile.student_id_photo_url),
+        created_at: profile.created_at,
+        reason: 'Verification badge request'
+      }));
       
       setVerificationRequests(transformedData);
       console.log('Verification requests loaded:', transformedData.length);
@@ -622,6 +618,21 @@ export default function Admin() {
     }
   };
 
+  const fetchDisputeTemplates = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('dispute_notification_templates')
+        .select('*')
+        .order('dispute_type');
+      
+      if (error) throw error;
+      setDisputeTemplates(data || []);
+    } catch (error) {
+      console.error('Dispute templates fetch error:', error);
+      setDisputeTemplates([]);
+    }
+  };
+
   const fetchEscrowData = async () => {
     try {
       // Fetch escrow transactions
@@ -679,39 +690,50 @@ export default function Admin() {
 
       setDisputes(transformedDisputes);
 
-      // Fetch product reports
+      // Fetch product reports with manual joins
       const { data: reportsData, error: reportsError } = await supabase
         .from('product_reports')
-        .select(`
-          *,
-          products!inner (title, seller_id),
-          profiles!product_reports_reported_by_fkey (full_name, email)
-        `)
+        .select('*')
         .order('created_at', { ascending: false });
 
       if (reportsError) {
         console.warn('Could not fetch product reports:', reportsError);
         setProductReports([]);
       } else {
-        // Get seller profiles separately
-        const reportsWithSellers = await Promise.all(
+        // Get related data separately
+        const reportsWithData = await Promise.all(
           (reportsData || []).map(async (report) => {
-            const { data: sellerProfile } = await supabase
+            // Get product info
+            const { data: product } = await supabase
+              .from('products')
+              .select('title, seller_id')
+              .eq('id', report.product_id)
+              .single();
+            
+            // Get reporter info
+            const { data: reporter } = await supabase
               .from('profiles')
               .select('full_name, email')
-              .eq('user_id', report.products.seller_id)
+              .eq('user_id', report.reported_by)
+              .single();
+            
+            // Get seller info
+            const { data: seller } = await supabase
+              .from('profiles')
+              .select('full_name, email')
+              .eq('user_id', product?.seller_id)
               .single();
             
             return {
               ...report,
-              product: report.products,
-              reporter: report.profiles,
-              seller: sellerProfile
+              product: product || { title: 'Unknown Product', seller_id: null },
+              reporter: reporter || { full_name: 'Unknown Reporter', email: 'unknown@example.com' },
+              seller: seller || { full_name: 'Unknown Seller', email: 'unknown@example.com' }
             };
           })
         );
         
-        setProductReports(reportsWithSellers);
+        setProductReports(reportsWithData);
       }
 
     } catch (error) {
@@ -964,17 +986,16 @@ export default function Admin() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Update verification request
-      const { error } = await supabase
-        .from('verification_requests')
+      // Clear verification photos from profile to remove from pending list
+      const { error: profileError } = await supabase
+        .from('profiles')
         .update({ 
-          status: 'rejected',
-          reviewed_by: user.id,
-          reviewed_at: new Date().toISOString()
+          face_photo_url: null,
+          student_id_photo_url: null
         })
-        .eq('id', requestId);
+        .eq('user_id', userId);
 
-      if (error) throw error;
+      if (profileError) throw profileError;
 
       // Send notification with rejection reason
       const { error: notifError } = await supabase
@@ -982,7 +1003,7 @@ export default function Admin() {
         .insert({
           user_id: userId,
           title: 'Verification Request Rejected',
-          message: `Your verification request was rejected. Reason: ${rejectionReason}. You can reapply after addressing the issues.`,
+          message: `Your verification request was rejected. Reason: ${rejectionReason}. Please upload new verification documents to reapply.`,
           type: 'warning'
         });
       
@@ -1264,6 +1285,141 @@ export default function Admin() {
     );
   }
 
+  // Dispute Investigation Form Component
+  const DisputeInvestigationForm = ({ dispute, onSuccess }: { dispute: Dispute, onSuccess: () => void }) => {
+    const [selectedTemplate, setSelectedTemplate] = useState('');
+    const [customMessage, setCustomMessage] = useState('');
+    const [useCustomMessage, setUseCustomMessage] = useState(false);
+    const [sending, setSending] = useState(false);
+
+    const handleSendInvestigation = async () => {
+      if (!selectedTemplate && !useCustomMessage) {
+        toast.error('Please select a template or write a custom message');
+        return;
+      }
+
+      if (useCustomMessage && !customMessage.trim()) {
+        toast.error('Please enter a custom message');
+        return;
+      }
+
+      setSending(true);
+      try {
+        const { error } = await supabase.rpc('send_dispute_investigation_notification', {
+          p_order_id: dispute.order_id,
+          p_dispute_type: selectedTemplate || 'other',
+          p_custom_message: useCustomMessage ? customMessage : null
+        });
+
+        if (error) throw error;
+
+        toast.success('Investigation notification sent to seller');
+        onSuccess();
+      } catch (error) {
+        console.error('Send investigation error:', error);
+        toast.error('Failed to send investigation notification');
+      } finally {
+        setSending(false);
+      }
+    };
+
+    const getTemplatePreview = () => {
+      const template = disputeTemplates.find(t => t.dispute_type === selectedTemplate);
+      if (!template) return '';
+      
+      return template.message
+        .replace('{seller_name}', dispute.orders?.seller_profile?.full_name || 'Seller')
+        .replace('{product_title}', dispute.orders?.products?.title || 'Product')
+        .replace('{order_id}', dispute.order_id.slice(0, 8) + '...')
+        .replace('{buyer_name}', dispute.orders?.buyer_profile?.full_name || 'Buyer')
+        .replace('{order_date}', new Date(dispute.created_at).toLocaleDateString());
+    };
+
+    return (
+      <div className="space-y-4">
+        <div className="p-4 bg-muted/50 rounded">
+          <h4 className="font-medium mb-2">Dispute Details</h4>
+          <p><strong>Product:</strong> {dispute.orders?.products?.title}</p>
+          <p><strong>Seller:</strong> {dispute.orders?.seller_profile?.full_name}</p>
+          <p><strong>Buyer:</strong> {dispute.orders?.buyer_profile?.full_name}</p>
+          <p><strong>Reason:</strong> {dispute.reason.replace('_', ' ')}</p>
+          {dispute.description && <p><strong>Description:</strong> {dispute.description}</p>}
+        </div>
+
+        <div className="space-y-3">
+          <div className="flex items-center space-x-2">
+            <input
+              type="radio"
+              id="use-template"
+              checked={!useCustomMessage}
+              onChange={() => setUseCustomMessage(false)}
+            />
+            <Label htmlFor="use-template">Use Template Message</Label>
+          </div>
+          
+          {!useCustomMessage && (
+            <div>
+              <Label>Select Template</Label>
+              <select 
+                className="w-full p-2 border rounded"
+                value={selectedTemplate}
+                onChange={(e) => setSelectedTemplate(e.target.value)}
+              >
+                <option value="">Select a template...</option>
+                {disputeTemplates.map(template => (
+                  <option key={template.id} value={template.dispute_type}>
+                    {template.template_name}
+                  </option>
+                ))}
+              </select>
+              
+              {selectedTemplate && (
+                <div className="mt-3 p-3 bg-muted/30 rounded text-sm">
+                  <Label className="font-medium">Preview:</Label>
+                  <pre className="whitespace-pre-wrap mt-2 text-xs">{getTemplatePreview()}</pre>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="flex items-center space-x-2">
+            <input
+              type="radio"
+              id="use-custom"
+              checked={useCustomMessage}
+              onChange={() => setUseCustomMessage(true)}
+            />
+            <Label htmlFor="use-custom">Write Custom Message</Label>
+          </div>
+          
+          {useCustomMessage && (
+            <div>
+              <Label>Custom Investigation Message</Label>
+              <Textarea
+                value={customMessage}
+                onChange={(e) => setCustomMessage(e.target.value)}
+                placeholder="Write your custom investigation message to the seller..."
+                rows={8}
+              />
+            </div>
+          )}
+        </div>
+
+        <div className="flex justify-end gap-2">
+          <DialogTrigger asChild>
+            <Button variant="outline" disabled={sending}>Cancel</Button>
+          </DialogTrigger>
+          <Button 
+            onClick={handleSendInvestigation}
+            disabled={sending || (!selectedTemplate && !useCustomMessage) || (useCustomMessage && !customMessage.trim())}
+          >
+            {sending ? 'Sending...' : 'Send Investigation Notice'}
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
@@ -1335,7 +1491,7 @@ export default function Admin() {
         {/* Tabs for different management areas */}
         <Tabs defaultValue="users" className="space-y-6">
           <div className="overflow-x-auto">
-            <TabsList className="grid w-full min-w-max grid-cols-11 md:grid-cols-11">
+            <TabsList className="grid w-full min-w-max grid-cols-12 md:grid-cols-12">
               <TabsTrigger value="users" className="text-xs md:text-sm">Users</TabsTrigger>
               <TabsTrigger value="sellers" className="text-xs md:text-sm">Sellers</TabsTrigger>
               <TabsTrigger value="verification" className="text-xs md:text-sm">Verify</TabsTrigger>
@@ -1345,6 +1501,7 @@ export default function Admin() {
               <TabsTrigger value="products" className="text-xs md:text-sm">Products</TabsTrigger>
               <TabsTrigger value="messages" className="text-xs md:text-sm">Messages</TabsTrigger>
               <TabsTrigger value="emails" className="text-xs md:text-sm">Emails</TabsTrigger>
+              <TabsTrigger value="templates" className="text-xs md:text-sm">Templates</TabsTrigger>
               <TabsTrigger value="analytics" className="text-xs md:text-sm">Analytics</TabsTrigger>
               <TabsTrigger value="settings" className="text-xs md:text-sm">Settings</TabsTrigger>
             </TabsList>
@@ -1476,9 +1633,9 @@ export default function Admin() {
                         </TableHead>
                         <TableHead>Name</TableHead>
                         <TableHead>Email</TableHead>
+                        <TableHead>University</TableHead>
                         <TableHead>Role</TableHead>
                         <TableHead>Status</TableHead>
-                        <TableHead>Campus</TableHead>
                         <TableHead>Joined</TableHead>
                         <TableHead>Actions</TableHead>
                       </TableRow>
@@ -1500,6 +1657,7 @@ export default function Admin() {
                           </TableCell>
                           <TableCell className="font-medium">{user.full_name}</TableCell>
                           <TableCell>{user.email}</TableCell>
+                          <TableCell>{user.university_name || 'N/A'}</TableCell>
                           <TableCell>
                             <Badge variant="outline">
                               {user.user_roles?.[0]?.role || 'buyer'}
@@ -1510,7 +1668,6 @@ export default function Admin() {
                               {user.is_banned ? 'Banned' : 'Active'}
                             </Badge>
                           </TableCell>
-                          <TableCell>{user.campus || 'N/A'}</TableCell>
                           <TableCell>{new Date(user.created_at).toLocaleDateString()}</TableCell>
                           <TableCell>
                             <div className="flex space-x-2">
@@ -1553,10 +1710,6 @@ export default function Admin() {
                                         <div>
                                           <Label className="font-medium">University</Label>
                                           <p>{selectedUser?.university_name || 'Not set'}</p>
-                                        </div>
-                                        <div>
-                                          <Label className="font-medium">Campus</Label>
-                                          <p>{selectedUser?.campus || 'Not set'}</p>
                                         </div>
                                         <div>
                                           <Label className="font-medium">Student ID</Label>
@@ -1773,14 +1926,13 @@ export default function Admin() {
                                     <DialogTitle>Edit User - {editingUser?.full_name}</DialogTitle>
                                   </DialogHeader>
                                   {editingUser && (
-                                    <form onSubmit={(e) => {
+                                    <form data-university-form onSubmit={(e) => {
                                       e.preventDefault();
                                       const formData = new FormData(e.currentTarget);
                                       const updates = {
                                         full_name: formData.get('full_name') as string,
                                         email: formData.get('email') as string,
                                         university_name: formData.get('university_name') as string,
-                                        campus: formData.get('campus') as string,
                                         bio: formData.get('bio') as string,
                                         phone_number: formData.get('phone_number') as string,
                                         student_id: formData.get('student_id') as string,
@@ -1800,11 +1952,169 @@ export default function Admin() {
                                         </div>
                                         <div>
                                           <Label htmlFor="university_name">University</Label>
-                                          <Input name="university_name" defaultValue={editingUser.university_name} />
-                                        </div>
-                                        <div>
-                                          <Label htmlFor="campus">Campus</Label>
-                                          <Input name="campus" defaultValue={editingUser.campus} />
+                                          <Popover>
+                                            <PopoverTrigger asChild>
+                                              <Button
+                                                variant="outline"
+                                                role="combobox"
+                                                className="w-full justify-between"
+                                              >
+                                                {editingUser.university_name || "Select university..."}
+                                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                              </Button>
+                                            </PopoverTrigger>
+                                            <PopoverContent className="w-full p-0">
+                                              <Command>
+                                                <CommandInput placeholder="Search universities..." />
+                                                <CommandList>
+                                                  <CommandEmpty>No university found.</CommandEmpty>
+                                                  <CommandGroup>
+                                                    {[
+                                                      "Abia State University",
+                                                      "Abubakar Tafawa Balewa University",
+                                                      "Achievers University",
+                                                      "Adamawa State University",
+                                                      "Adeleke University",
+                                                      "Afe Babalola University",
+                                                      "African University of Science and Technology",
+                                                      "Ahmadu Bello University",
+                                                      "Ajayi Crowther University",
+                                                      "Akwa Ibom State University",
+                                                      "Alex Ekwueme Federal University",
+                                                      "American University of Nigeria",
+                                                      "Anchor University",
+                                                      "Augustine University",
+                                                      "Babcock University",
+                                                      "Baze University",
+                                                      "Bayero University Kano",
+                                                      "Bells University of Technology",
+                                                      "Benson Idahosa University",
+                                                      "Bingham University",
+                                                      "Bowen University",
+                                                      "Caleb University",
+                                                      "Caritas University",
+                                                      "Chrisland University",
+                                                      "Christopher University",
+                                                      "Clifford University",
+                                                      "Coal City University",
+                                                      "Covenant University",
+                                                      "Crawford University",
+                                                      "Cross River University of Technology",
+                                                      "Delta State University",
+                                                      "Eastern Palm University",
+                                                      "Ebonyi State University",
+                                                      "Edo University",
+                                                      "Ekiti State University",
+                                                      "Elizade University",
+                                                      "Enugu State University of Science and Technology",
+                                                      "Federal University Birnin Kebbi",
+                                                      "Federal University Dutse",
+                                                      "Federal University Dutsin-Ma",
+                                                      "Federal University Gashua",
+                                                      "Federal University Gusau",
+                                                      "Federal University Kashere",
+                                                      "Federal University Lafia",
+                                                      "Federal University Lokoja",
+                                                      "Federal University Ndufu-Alike",
+                                                      "Federal University of Agriculture, Abeokuta",
+                                                      "Federal University of Agriculture, Makurdi",
+                                                      "Federal University of Petroleum Resources",
+                                                      "Federal University of Technology, Akure",
+                                                      "Federal University of Technology, Minna",
+                                                      "Federal University of Technology, Owerri",
+                                                      "Federal University Otuoke",
+                                                      "Federal University Oye-Ekiti",
+                                                      "Federal University Wukari",
+                                                      "Fountain University",
+                                                      "Godfrey Okoye University",
+                                                      "Gombe State University",
+                                                      "Gregory University",
+                                                      "Hallmark University",
+                                                      "Hezekiah University",
+                                                      "Igbinedion University",
+                                                      "Imo State University",
+                                                      "Joseph Ayo Babalola University",
+                                                      "Kaduna State University",
+                                                      "Kano University of Science and Technology",
+                                                      "Kebbi State University of Science and Technology",
+                                                      "Kogi State University",
+                                                      "Kwara State University",
+                                                      "Ladoke Akintola University of Technology",
+                                                      "Lagos State University",
+                                                      "Landmark University",
+                                                      "Lead City University",
+                                                      "Madonna University",
+                                                      "Michael Okpara University of Agriculture",
+                                                      "Modibbo Adama University of Technology",
+                                                      "Mountain Top University",
+                                                      "Nasarawa State University",
+                                                      "Niger Delta University",
+                                                      "Nile University of Nigeria",
+                                                      "Nnamdi Azikiwe University",
+                                                      "Northwest University",
+                                                      "Novena University",
+                                                      "Obafemi Awolowo University",
+                                                      "Obong University",
+                                                      "Oduduwa University",
+                                                      "Olabisi Onabanjo University",
+                                                      "Osun State University",
+                                                      "Pan-Atlantic University",
+                                                      "Paul University",
+                                                      "Plateau State University",
+                                                      "Redeemer's University",
+                                                      "Renaissance University",
+                                                      "Rhema University",
+                                                      "Rivers State University",
+                                                      "Salem University",
+                                                      "Samuel Adegboyega University",
+                                                      "Sokoto State University",
+                                                      "Summit University",
+                                                      "Taraba State University",
+                                                      "Tansian University",
+                                                      "University of Abuja",
+                                                      "University of Agriculture and Environmental Sciences",
+                                                      "University of Benin",
+                                                      "University of Calabar",
+                                                      "University of Ibadan",
+                                                      "University of Ilorin",
+                                                      "University of Jos",
+                                                      "University of Lagos",
+                                                      "University of Maiduguri",
+                                                      "University of Nigeria, Nsukka",
+                                                      "University of Port Harcourt",
+                                                      "University of Uyo",
+                                                      "Veritas University",
+                                                      "Wesley University",
+                                                      "Western Delta University",
+                                                      "Yobe State University",
+                                                      "Yusuf Maitama Sule University"
+                                                    ].sort().map((uni) => (
+                                                      <CommandItem
+                                                        key={uni}
+                                                        value={uni}
+                                                        onSelect={(currentValue) => {
+                                                          const form = document.querySelector('form[data-university-form]') as HTMLFormElement;
+                                                          if (form) {
+                                                            const input = form.querySelector('input[name="university_name"]') as HTMLInputElement;
+                                                            if (input) input.value = currentValue;
+                                                          }
+                                                        }}
+                                                      >
+                                                        <Check
+                                                          className={cn(
+                                                            "mr-2 h-4 w-4",
+                                                            editingUser.university_name === uni ? "opacity-100" : "opacity-0"
+                                                          )}
+                                                        />
+                                                        {uni}
+                                                      </CommandItem>
+                                                    ))}
+                                                  </CommandGroup>
+                                                </CommandList>
+                                              </Command>
+                                            </PopoverContent>
+                                          </Popover>
+                                          <Input name="university_name" type="hidden" defaultValue={editingUser.university_name} />
                                         </div>
                                         <div>
                                           <Label htmlFor="phone_number">Phone Number</Label>
@@ -1892,7 +2202,6 @@ export default function Admin() {
                           <TableHead>Applicant</TableHead>
                           <TableHead>Email</TableHead>
                           <TableHead>University</TableHead>
-                          <TableHead>Campus</TableHead>
                           <TableHead>Applied</TableHead>
                           <TableHead>Verification Photos</TableHead>
                           <TableHead>Actions</TableHead>
@@ -1919,7 +2228,6 @@ export default function Admin() {
                               <p className="font-medium">{seller.email}</p>
                             </TableCell>
                             <TableCell>{seller.university_name || 'N/A'}</TableCell>
-                            <TableCell>{seller.campus || 'N/A'}</TableCell>
                             <TableCell>
                               {new Date(seller.created_at).toLocaleDateString()}
                             </TableCell>
@@ -2536,7 +2844,6 @@ export default function Admin() {
                           <TableHead>User</TableHead>
                           <TableHead>Email</TableHead>
                           <TableHead>University</TableHead>
-                          <TableHead>Campus</TableHead>
                           <TableHead>Requested</TableHead>
                           <TableHead>Verification Photos</TableHead>
                           <TableHead>Actions</TableHead>
@@ -2555,17 +2862,25 @@ export default function Admin() {
                                 </Avatar>
                                 <div>
                                   <p className="font-medium">{user.full_name || 'N/A'}</p>
-                                  <p className="text-xs text-muted-foreground">ID: {user.user_id.slice(0, 8)}...</p>
+                                  <p className="text-xs text-muted-foreground">ID: {user.student_id || user.user_id.slice(0, 8)}</p>
+                                  <p className="text-xs text-muted-foreground">{user.account_type} • Rating: {user.rating?.toFixed(1) || '0.0'}</p>
                                 </div>
                               </div>
                             </TableCell>
                             <TableCell>
                               <p className="font-medium">{user.email}</p>
                             </TableCell>
-                            <TableCell>{user.university_name || 'N/A'}</TableCell>
-                            <TableCell>{user.campus || 'N/A'}</TableCell>
                             <TableCell>
-                              {new Date(user.created_at).toLocaleDateString()}
+                              <div>
+                                <p>{user.university_name || 'N/A'}</p>
+                                <p className="text-xs text-muted-foreground">{user.phone_number || 'No phone'}</p>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div>
+                                <p>{new Date(user.created_at).toLocaleDateString()}</p>
+                                <p className="text-xs text-muted-foreground">{user.total_reviews || 0} reviews</p>
+                              </div>
                             </TableCell>
                             <TableCell>
                               <div className="flex gap-2">
@@ -2612,38 +2927,89 @@ export default function Admin() {
                                   <DialogTrigger asChild>
                                     <Button variant="outline" size="sm">
                                       <IdCard className="h-4 w-4 mr-1" />
-                                      ID Photo
+                                      View Profile
                                     </Button>
                                   </DialogTrigger>
-                                  <DialogContent>
+                                  <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                                     <DialogHeader>
-                                      <DialogTitle>Student ID Verification Photo</DialogTitle>
-                                      <DialogDescription>View the user's student ID verification photo</DialogDescription>
+                                      <DialogTitle>Complete Seller Profile - {user.full_name}</DialogTitle>
+                                      <DialogDescription>View all seller details and verification documents</DialogDescription>
                                     </DialogHeader>
-                                    <div className="flex justify-center flex-col items-center gap-2">
-                                      {user.student_id_photo_url ? (
-                                        <>
-                                          <img 
-                                            src={user.student_id_photo_url}
-                                            alt="Student ID verification"
-                                            className="max-w-full max-h-96 object-contain border rounded"
-                                            onLoad={() => console.log('✅ ID photo loaded:', user.student_id_photo_url)}
-                                            onError={(e) => {
-                                              console.error('❌ ID photo failed:', user.student_id_photo_url);
-                                              const target = e.currentTarget as HTMLImageElement;
-                                              target.style.display = 'none';
-                                              const errorMsg = target.nextElementSibling as HTMLElement;
-                                              if (errorMsg) errorMsg.style.display = 'block';
-                                            }}
-                                          />
-                                          <div className="text-red-500 text-sm text-center" style={{display: 'none'}}>
-                                            ❌ Image failed to load<br/>
-                                            <span className="text-xs">Check storage permissions or run fix_profile_photos.sql</span>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                      <div className="space-y-4">
+                                        <div className="flex items-center gap-4">
+                                          <Avatar className="h-16 w-16">
+                                            <AvatarImage src={user.avatar_url} />
+                                            <AvatarFallback className="bg-university-green text-white">
+                                              {user.full_name ? user.full_name.split(' ').map(n => n[0]).join('').slice(0, 2) : 'U'}
+                                            </AvatarFallback>
+                                          </Avatar>
+                                          <div>
+                                            <h3 className="font-semibold text-lg">{user.full_name}</h3>
+                                            <p className="text-muted-foreground">{user.email}</p>
+                                            <div className="flex gap-2 mt-1">
+                                              <Badge variant="outline">{user.account_type}</Badge>
+                                              {user.is_verified && <Badge variant="secondary">Verified</Badge>}
+                                            </div>
                                           </div>
-                                        </>
-                                      ) : (
-                                        <p className="text-muted-foreground">No ID photo uploaded</p>
-                                      )}
+                                        </div>
+                                        
+                                        <div className="grid grid-cols-2 gap-4 text-sm">
+                                          <div>
+                                            <Label className="font-medium">University</Label>
+                                            <p>{user.university_name || 'Not set'}</p>
+                                          </div>
+                                          <div>
+                                            <Label className="font-medium">Student ID</Label>
+                                            <p>{user.student_id || 'Not set'}</p>
+                                          </div>
+                                          <div>
+                                            <Label className="font-medium">Phone</Label>
+                                            <p>{user.phone_number || 'Not set'}</p>
+                                          </div>
+                                          <div>
+                                            <Label className="font-medium">Rating</Label>
+                                            <p>{user.rating?.toFixed(1) || '0.0'} ({user.total_reviews || 0} reviews)</p>
+                                          </div>
+                                        </div>
+                                        
+                                        {user.bio && (
+                                          <div>
+                                            <Label className="font-medium">Bio</Label>
+                                            <p className="text-sm text-muted-foreground">{user.bio}</p>
+                                          </div>
+                                        )}
+                                      </div>
+                                      
+                                      <div className="space-y-4">
+                                        <div>
+                                          <Label className="font-medium mb-2 block">Face Verification Photo</Label>
+                                          {user.face_photo_url ? (
+                                            <img 
+                                              src={user.face_photo_url}
+                                              alt="Face verification"
+                                              className="w-full max-w-xs h-auto rounded border"
+                                            />
+                                          ) : (
+                                            <p className="text-muted-foreground text-sm">No face photo</p>
+                                          )}
+                                        </div>
+                                        
+                                        <div>
+                                          <Label className="font-medium mb-2 block">Student ID Card (Click to enlarge)</Label>
+                                          {user.student_id_photo_url ? (
+                                            <img 
+                                              src={user.student_id_photo_url}
+                                              alt="Student ID verification"
+                                              className="w-full h-auto rounded border cursor-pointer hover:opacity-80 transition-opacity"
+                                              onClick={() => window.open(user.student_id_photo_url, '_blank')}
+                                              title="Click to view full size"
+                                            />
+                                          ) : (
+                                            <p className="text-muted-foreground text-sm">No ID photo</p>
+                                          )}
+                                        </div>
+                                      </div>
                                     </div>
                                   </DialogContent>
                                 </Dialog>
@@ -2854,12 +3220,94 @@ export default function Admin() {
                           <TableCell>{new Date(product.created_at).toLocaleDateString()}</TableCell>
                           <TableCell>
                             <div className="flex space-x-2">
+                              <Dialog>
+                                <DialogTrigger asChild>
+                                  <Button variant="outline" size="sm">
+                                    <Eye className="h-4 w-4" />
+                                  </Button>
+                                </DialogTrigger>
+                                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                                  <DialogHeader>
+                                    <DialogTitle>Product Details - {product.title}</DialogTitle>
+                                  </DialogHeader>
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className="space-y-4">
+                                      <div>
+                                        <Label className="font-medium">Title</Label>
+                                        <p>{product.title}</p>
+                                      </div>
+                                      <div>
+                                        <Label className="font-medium">Description</Label>
+                                        <p className="text-sm">{product.description || 'No description'}</p>
+                                      </div>
+                                      <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                          <Label className="font-medium">Price</Label>
+                                          <p>₦{product.price.toLocaleString()}</p>
+                                        </div>
+                                        <div>
+                                          <Label className="font-medium">Category</Label>
+                                          <p>{product.category}</p>
+                                        </div>
+                                        <div>
+                                          <Label className="font-medium">Status</Label>
+                                          <Badge variant={product.is_active ? 'default' : 'secondary'}>
+                                            {product.is_active ? 'Active' : 'Inactive'}
+                                          </Badge>
+                                        </div>
+                                        <div>
+                                          <Label className="font-medium">Created</Label>
+                                          <p>{new Date(product.created_at).toLocaleDateString()}</p>
+                                        </div>
+                                      </div>
+                                      <div>
+                                        <Label className="font-medium">Seller</Label>
+                                        <p>{product.seller?.full_name} ({product.seller?.email})</p>
+                                      </div>
+                                    </div>
+                                    <div className="space-y-4">
+                                      <div>
+                                        <Label className="font-medium">Product Images</Label>
+                                        {product.images && product.images.length > 0 ? (
+                                          <div className="grid grid-cols-2 gap-2 mt-2">
+                                            {product.images.map((image, index) => (
+                                              <img
+                                                key={index}
+                                                src={image}
+                                                alt={`Product ${index + 1}`}
+                                                className="w-full h-32 object-cover rounded border"
+                                              />
+                                            ))}
+                                          </div>
+                                        ) : (
+                                          <p className="text-muted-foreground text-sm">No images uploaded</p>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div className="flex gap-2 mt-6 pt-4 border-t">
+                                    <Button
+                                      variant="outline"
+                                      onClick={() => setEditingProduct(product)}
+                                    >
+                                      <Edit className="h-4 w-4 mr-2" />
+                                      Edit Product
+                                    </Button>
+                                    <Button
+                                      variant={product.is_active ? "outline" : "default"}
+                                      onClick={() => toggleProductStatus(product.id, product.is_active)}
+                                    >
+                                      {product.is_active ? 'Deactivate' : 'Activate'}
+                                    </Button>
+                                  </div>
+                                </DialogContent>
+                              </Dialog>
                               <Button
                                 variant="outline"
                                 size="sm"
-                                onClick={() => toggleProductStatus(product.id, product.is_active)}
+                                onClick={() => setEditingProduct(product)}
                               >
-                                <Eye className="h-4 w-4" />
+                                <Edit className="h-4 w-4" />
                               </Button>
                               <AlertDialog>
                                 <AlertDialogTrigger asChild>
@@ -3082,6 +3530,178 @@ export default function Admin() {
                                   </div>
                                 </DialogContent>
                               </Dialog>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Templates Tab */}
+          <TabsContent value="templates">
+            <Card>
+              <CardHeader>
+                <div className="flex justify-between items-center">
+                  <CardTitle>Dispute Notification Templates</CardTitle>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary">
+                      {disputeTemplates.length} templates
+                    </Badge>
+                    <Button onClick={fetchDisputeTemplates} variant="outline" size="sm">
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Refresh
+                    </Button>
+                  </div>
+                </div>
+                <p className="text-sm text-muted-foreground">Manage email templates for dispute investigations</p>
+              </CardHeader>
+              <CardContent>
+                {disputeTemplates.length === 0 ? (
+                  <div className="text-center py-12">
+                    <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold mb-2">No templates found</h3>
+                    <p className="text-muted-foreground">Run the dispute system migration to create default templates</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Dispute Type</TableHead>
+                          <TableHead>Template Name</TableHead>
+                          <TableHead>Subject</TableHead>
+                          <TableHead>Last Updated</TableHead>
+                          <TableHead>Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {disputeTemplates.map((template) => (
+                          <TableRow key={template.id}>
+                            <TableCell>
+                              <Badge variant="outline">
+                                {template.dispute_type.replace('_', ' ')}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="font-medium">{template.template_name}</TableCell>
+                            <TableCell className="max-w-xs truncate">{template.subject}</TableCell>
+                            <TableCell>{new Date(template.updated_at).toLocaleDateString()}</TableCell>
+                            <TableCell>
+                              <div className="flex gap-2">
+                                <Dialog>
+                                  <DialogTrigger asChild>
+                                    <Button size="sm" variant="outline">
+                                      <Eye className="h-4 w-4 mr-1" />
+                                      View
+                                    </Button>
+                                  </DialogTrigger>
+                                  <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+                                    <DialogHeader>
+                                      <DialogTitle>Template: {template.template_name}</DialogTitle>
+                                    </DialogHeader>
+                                    <div className="space-y-4">
+                                      <div>
+                                        <Label className="font-medium">Dispute Type:</Label>
+                                        <p>{template.dispute_type.replace('_', ' ')}</p>
+                                      </div>
+                                      <div>
+                                        <Label className="font-medium">Subject:</Label>
+                                        <p>{template.subject}</p>
+                                      </div>
+                                      <div>
+                                        <Label className="font-medium">Message Template:</Label>
+                                        <pre className="mt-2 p-4 border rounded bg-muted/50 text-sm whitespace-pre-wrap max-h-96 overflow-y-auto">
+                                          {template.message}
+                                        </pre>
+                                      </div>
+                                      <div className="text-xs text-muted-foreground">
+                                        <p><strong>Available placeholders:</strong></p>
+                                        <p>{'{seller_name}'} - Seller's full name</p>
+                                        <p>{'{product_title}'} - Product title</p>
+                                        <p>{'{order_id}'} - Order ID</p>
+                                        <p>{'{buyer_name}'} - Buyer's full name</p>
+                                        <p>{'{order_date}'} - Order creation date</p>
+                                      </div>
+                                    </div>
+                                  </DialogContent>
+                                </Dialog>
+                                <Dialog>
+                                  <DialogTrigger asChild>
+                                    <Button size="sm" variant="outline">
+                                      <Edit className="h-4 w-4 mr-1" />
+                                      Edit
+                                    </Button>
+                                  </DialogTrigger>
+                                  <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                                    <DialogHeader>
+                                      <DialogTitle>Edit Template: {template.template_name}</DialogTitle>
+                                    </DialogHeader>
+                                    <form onSubmit={async (e) => {
+                                      e.preventDefault();
+                                      const formData = new FormData(e.currentTarget);
+                                      const updates = {
+                                        template_name: formData.get('template_name') as string,
+                                        subject: formData.get('subject') as string,
+                                        message: formData.get('message') as string,
+                                        updated_at: new Date().toISOString()
+                                      };
+                                      
+                                      try {
+                                        const { error } = await supabase
+                                          .from('dispute_notification_templates')
+                                          .update(updates)
+                                          .eq('id', template.id);
+                                        
+                                        if (error) throw error;
+                                        
+                                        toast.success('Template updated successfully');
+                                        fetchDisputeTemplates();
+                                      } catch (error) {
+                                        console.error('Update template error:', error);
+                                        toast.error('Failed to update template');
+                                      }
+                                    }} className="space-y-4">
+                                      <div>
+                                        <Label htmlFor="template_name">Template Name</Label>
+                                        <Input name="template_name" defaultValue={template.template_name} required />
+                                      </div>
+                                      <div>
+                                        <Label htmlFor="subject">Email Subject</Label>
+                                        <Input name="subject" defaultValue={template.subject} required />
+                                      </div>
+                                      <div>
+                                        <Label htmlFor="message">Message Template</Label>
+                                        <Textarea 
+                                          name="message" 
+                                          defaultValue={template.message} 
+                                          required 
+                                          rows={12}
+                                          className="font-mono text-sm"
+                                        />
+                                      </div>
+                                      <div className="text-xs text-muted-foreground p-3 bg-muted/50 rounded">
+                                        <p><strong>Available placeholders:</strong></p>
+                                        <div className="grid grid-cols-2 gap-2 mt-2">
+                                          <p>{'{seller_name}'} - Seller's full name</p>
+                                          <p>{'{product_title}'} - Product title</p>
+                                          <p>{'{order_id}'} - Order ID</p>
+                                          <p>{'{buyer_name}'} - Buyer's full name</p>
+                                          <p>{'{order_date}'} - Order creation date</p>
+                                        </div>
+                                      </div>
+                                      <div className="flex justify-end gap-2">
+                                        <DialogTrigger asChild>
+                                          <Button type="button" variant="outline">Cancel</Button>
+                                        </DialogTrigger>
+                                        <Button type="submit">Save Changes</Button>
+                                      </div>
+                                    </form>
+                                  </DialogContent>
+                                </Dialog>
+                              </div>
                             </TableCell>
                           </TableRow>
                         ))}
@@ -3349,9 +3969,25 @@ export default function Admin() {
                             <TableCell>{new Date(dispute.created_at).toLocaleDateString()}</TableCell>
                             <TableCell>
                               {dispute.status === 'open' && (
-                                <Button size="sm" variant="outline">
-                                  Investigate
-                                </Button>
+                                <Dialog>
+                                  <DialogTrigger asChild>
+                                    <Button size="sm" variant="outline">
+                                      Investigate
+                                    </Button>
+                                  </DialogTrigger>
+                                  <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                                    <DialogHeader>
+                                      <DialogTitle>Investigate Dispute</DialogTitle>
+                                      <DialogDescription>
+                                        Send investigation notification to seller with custom message
+                                      </DialogDescription>
+                                    </DialogHeader>
+                                    <DisputeInvestigationForm 
+                                      dispute={dispute} 
+                                      onSuccess={() => fetchEscrowData()}
+                                    />
+                                  </DialogContent>
+                                </Dialog>
                               )}
                             </TableCell>
                           </TableRow>
@@ -3573,7 +4209,103 @@ export default function Admin() {
             </div>
           </TabsContent>
         </Tabs>
+
+        {/* Edit Product Dialog */}
+        {editingProduct && (
+          <Dialog open={!!editingProduct} onOpenChange={() => setEditingProduct(null)}>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Edit Product - {editingProduct.title}</DialogTitle>
+              </DialogHeader>
+              <form onSubmit={(e) => {
+                e.preventDefault();
+                const formData = new FormData(e.currentTarget);
+                const updates = {
+                  title: formData.get('title') as string,
+                  description: formData.get('description') as string,
+                  category: formData.get('category') as string,
+                  price: parseFloat(formData.get('price') as string),
+                  stock_quantity: parseInt(formData.get('stock_quantity') as string),
+                  condition: formData.get('condition') as string,
+                  is_active: formData.get('is_active') === 'true'
+                };
+                updateProductDetails(editingProduct.id, updates);
+              }} className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="title">Title</Label>
+                    <Input name="title" defaultValue={editingProduct.title} required />
+                  </div>
+                  <div>
+                    <Label htmlFor="category">Category</Label>
+                    <Input name="category" defaultValue={editingProduct.category} required />
+                  </div>
+                  <div>
+                    <Label htmlFor="price">Price (₦)</Label>
+                    <Input name="price" type="number" step="0.01" defaultValue={editingProduct.price} required />
+                  </div>
+                  <div>
+                    <Label htmlFor="stock_quantity">Stock Quantity</Label>
+                    <Input name="stock_quantity" type="number" defaultValue={editingProduct.stock_quantity} required />
+                  </div>
+                  <div>
+                    <Label htmlFor="condition">Condition</Label>
+                    <Select name="condition" defaultValue={editingProduct.condition}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="new">New</SelectItem>
+                        <SelectItem value="excellent">Excellent</SelectItem>
+                        <SelectItem value="good">Good</SelectItem>
+                        <SelectItem value="fair">Fair</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="is_active">Status</Label>
+                    <Select name="is_active" defaultValue={editingProduct.is_active.toString()}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="true">Active</SelectItem>
+                        <SelectItem value="false">Inactive</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div>
+                  <Label htmlFor="description">Description</Label>
+                  <Textarea name="description" defaultValue={editingProduct.description} rows={3} />
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button type="button" variant="outline" onClick={() => setEditingProduct(null)}>Cancel</Button>
+                  <Button type="submit">Save Changes</Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
     </div>
   );
-}
+};
+
+const updateProductDetails = async (productId: string, updates: any) => {
+  try {
+    const { error } = await supabase
+      .from('products')
+      .update(updates)
+      .eq('id', productId);
+
+    if (error) throw error;
+
+    toast.success('Product updated successfully');
+    // Refresh products list
+    window.location.reload();
+  } catch (error) {
+    console.error('Update product error:', error);
+    toast.error('Failed to update product');
+  }
+};

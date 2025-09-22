@@ -7,8 +7,9 @@ const FloatingBackButton = () => {
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
   const isInMessages = location.pathname === '/messages';
+  const isInChat = location.pathname.startsWith('/chat/');
 
-  const showBackButton = location.pathname !== '/' && location.pathname !== '/marketplace' && !isInMessages;
+  const showBackButton = location.pathname !== '/' && location.pathname !== '/marketplace' && !isInMessages && !isInChat;
 
   if (!showBackButton) return null;
 

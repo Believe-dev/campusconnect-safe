@@ -4,8 +4,7 @@ export const createNotification = async (
   userId: string,
   title: string,
   message: string,
-  type: string = 'info',
-  actionUrl?: string
+  type: string = 'info'
 ) => {
   try {
     const { error } = await supabase
@@ -15,7 +14,6 @@ export const createNotification = async (
         title,
         message,
         type,
-        action_url: actionUrl,
         is_read: false
       });
 
@@ -32,17 +30,7 @@ export const notifyVerificationRemoved = async (userId: string) => {
     userId,
     'Verification Badge Removed ⚠️',
     'Your seller verification badge has been removed. Please contact support if you believe this is an error.',
-    'warning',
-    '/profile'
+    'warning'
   );
 };
 
-export const notifyNewMessage = async (userId: string, senderName: string) => {
-  return createNotification(
-    userId,
-    'New Message 💬',
-    `You have a new message from ${senderName}`,
-    'info',
-    '/messages'
-  );
-};

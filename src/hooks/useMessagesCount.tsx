@@ -59,10 +59,11 @@ export const useMessagesCount = () => {
             table: 'messages'
           },
           (payload) => {
-            // Only update if is_read changed and message is not from user
+            // Update when is_read changes for messages not from current user
             if (payload.new.sender_id !== user.id && payload.old?.is_read !== payload.new?.is_read) {
+              console.log('Message read status changed, refreshing count');
               clearTimeout(updateTimeout);
-              updateTimeout = setTimeout(fetchMessagesCount, 1000);
+              updateTimeout = setTimeout(fetchMessagesCount, 500);
             }
           }
         )
@@ -89,10 +90,7 @@ export const useMessagesCount = () => {
     }
 
     try {
-      // Simple approach: count messages from last 24 hours from others
-      const yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
-      
+      // Get conversations where user is involved
       const { data: conversations } = await supabase
         .from('conversations')
         .select('id')
@@ -103,26 +101,27 @@ export const useMessagesCount = () => {
         return;
       }
 
-      const conversationIds = conversations.map(c => c.id);
+      // Count unread messages in user's conversations
+      const { count, error } = await supabase
+        .from('messages')
+        .select('*', { count: 'exact', head: true })
+        .in('conversation_id', conversations.map(c => c.id))
+        .neq('sender_id', user.id)
+        .eq('is_read', false);
 
-      // Count messages from others, excluding viewed conversations
-      let totalUnread = 0;
-      
-      for (const convId of conversationIds) {
-        const viewedKey = `viewed_${convId}_${user.id}`;
-        const lastViewed = localStorage.getItem(viewedKey);
-        
-        const { count } = await supabase
-          .from('messages')
-          .select('*', { count: 'exact', head: true })
-          .eq('conversation_id', convId)
-          .neq('sender_id', user.id)
-          .gte('created_at', lastViewed || yesterday.toISOString());
-          
-        totalUnread += count || 0;
+      if (error) {
+        console.error('Error counting messages:', error);
       }
+      
+      console.log('Unread count for user', user.id, ':', count);
+      console.log('Setting messages count to:', Math.min(count || 0, 99));
 
-      setMessagesCount(Math.min(totalUnread, 99));
+      setMessagesCount(Math.min(count || 0, 99));
+      
+      // Also log the actual state update
+      setTimeout(() => {
+        console.log('Messages count state updated');
+      }, 100);
     } catch (error) {
       console.error('Error in fetchMessagesCount:', error);
       setMessagesCount(0);

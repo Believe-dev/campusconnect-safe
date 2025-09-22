@@ -39,7 +39,7 @@ export default function Notifications() {
             event: '*',
             schema: 'public',
             table: 'notifications',
-            filter: `user_id=eq.${user.id}`
+            filter: `user_id=eq.${user.id},type=neq.message`
           },
           (payload) => {
             console.log('Real-time notification update:', payload);
@@ -68,6 +68,7 @@ export default function Notifications() {
         .from('notifications')
         .select('*')
         .eq('user_id', user.id)
+        .neq('type', 'message')
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -188,15 +189,13 @@ export default function Notifications() {
     
     if (notification.type === 'order_shipped' || notification.type === 'order_delivered') {
       navigate('/orders');
-    } else if (notification.type === 'new_message') {
-      navigate('/messages');
+
     } else if (notification.type === 'seller_approved') {
       navigate('/dashboard');
     } else {
       if (notification.message.toLowerCase().includes('order')) {
         navigate('/orders');
-      } else if (notification.message.toLowerCase().includes('message')) {
-        navigate('/messages');
+
       }
     }
   };

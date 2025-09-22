@@ -13,7 +13,8 @@ import { ROUTES } from "@/lib/constants";
 import BottomNav from "@/components/layout/BottomNav";
 import ProtectedSellerRoute from "./components/auth/ProtectedSellerRoute";
 import { ProfileProvider } from "@/contexts/ProfileContext";
-import { PopupNotification } from "@/components/notifications/PopupNotification";
+
+import { MessagePopup } from "@/components/notifications/MessagePopup";
 import { OfflineNotification } from "@/components/common/OfflineNotification";
 import { OnboardingModal } from "@/components/onboarding/OnboardingModal";
 import { AIChatbot } from "@/components/chatbot/AIChatbot";
@@ -50,6 +51,7 @@ const LearnMore = React.lazy(() => import('./pages/LearnMore').catch(() => ({ de
 const Notifications = React.lazy(() => import('./pages/Notifications').catch(() => ({ default: () => <div>Error loading page</div> })));
 const VerificationRequest = React.lazy(() => import('./pages/VerificationRequest').catch(() => ({ default: () => <div>Error loading page</div> })));
 const Wallet = React.lazy(() => import('./pages/Wallet').catch(() => ({ default: () => <div>Error loading page</div> })));
+const Chat = React.lazy(() => import('./pages/Chat').catch(() => ({ default: () => <div>Error loading page</div> })));
 
 // Clear all caches on app start
 const clearAllCaches = async () => {
@@ -156,6 +158,7 @@ const AppContent = () => {
             <Route path={ROUTES.profile} element={<Profile />} />
             <Route path="/seller/:sellerId" element={<SellerProfile />} />
             <Route path="/messages" element={<Messages />} />
+            <Route path="/chat/:conversationId" element={<Chat />} />
             <Route path={ROUTES.orders} element={<Orders />} />
             <Route path="/search" element={<Search />} />
             <Route path="/sellers" element={<SellerSearch />} />
@@ -183,7 +186,7 @@ const AppContent = () => {
         </AuthGuard>
       </div>
       <BottomNav />
-      <PopupNotification />
+      <MessagePopup />
       <OfflineNotification />
       <AIChatbot />
       <FloatingBackButton />

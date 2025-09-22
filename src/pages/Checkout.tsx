@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useQueryClient } from '@tanstack/react-query';
 import { Button } from "@/components/ui/enhanced-button";
 import { SAFE_PROFILE_SELECT } from "@/lib/profileSecurity";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -61,6 +62,7 @@ const Checkout = () => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
+  const queryClient = useQueryClient();
   const [formData, setFormData] = useState<CheckoutForm>({
     fullName: "",
     email: "",
@@ -301,7 +303,7 @@ const Checkout = () => {
               status: "paid",
               auto_confirm_at: new Date(
                 Date.now() + 2 * 24 * 60 * 60 * 1000
-              ).toISOString(),
+              ).toISOString()
             })
             .select()
             .single();
@@ -419,6 +421,12 @@ const Checkout = () => {
 
       // Clear cart
       await supabase.from("cart").delete().eq("user_id", user!.id);
+      
+      // Invalidate cart queries to refresh UI
+      await queryClient.invalidateQueries({ queryKey: ['cart', user!.id] });
+      
+      // Trigger cart update event to refresh cart count and UI
+      window.dispatchEvent(new CustomEvent('cartUpdated'));
 
       // Update analytics
       for (const item of cartItems.filter(item => item.products?.id)) {
@@ -625,9 +633,9 @@ const Checkout = () => {
                           }
                         >
                           <SelectTrigger>
-                            <SelectValue placeholder="Select state" />
+                            <SelectValue placeholder="Select or search state" />
                           </SelectTrigger>
-                          <SelectContent>
+                          <SelectContent className="max-h-60">
                             <SelectItem value="Abia">Abia</SelectItem>
                             <SelectItem value="Adamawa">Adamawa</SelectItem>
                             <SelectItem value="Akwa Ibom">Akwa Ibom</SelectItem>

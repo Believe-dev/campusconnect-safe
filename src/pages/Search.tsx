@@ -4,10 +4,11 @@ import { supabase } from '@/integrations/supabase/client';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/enhanced-button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Card, CardContent } from '@/components/ui/card';
-import { Search as SearchIcon, Filter, SlidersHorizontal, ShoppingCart, MessageCircle } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Search as SearchIcon, Filter, SlidersHorizontal, ShoppingCart, MessageCircle, MapPin, Star } from 'lucide-react';
 import Header from '@/components/layout/Header';
-import ProductCard from '@/components/marketplace/ProductCard';
+
 import { expandSearchTerms } from '@/utils/searchUtils';
 
 interface SearchProduct {
@@ -103,15 +104,22 @@ const Search = () => {
           )
         `)
         .eq('is_active', true);
+      
+      const searchTerm = searchParams.get('q') || searchQuery;
 
       // Apply enhanced search query with synonyms
-      const searchTerm = searchParams.get('q') || searchQuery;
-      if (searchTerm) {
-        const expandedTerms = expandSearchTerms(searchTerm);
-        const searchConditions = expandedTerms.map(term => 
-          `title.ilike.%${term}%,description.ilike.%${term}%,category.ilike.%${term}%,campus.ilike.%${term}%`
-        ).join(',');
-        query = query.or(searchConditions);
+      if (searchTerm && searchTerm.trim()) {
+        const expandedTerms = expandSearchTerms(searchTerm.trim());
+        const conditions = [];
+        expandedTerms.forEach(term => {
+          const escapedTerm = term.replace(/[%_]/g, '\\$&');
+          conditions.push(`title.ilike.%${escapedTerm}%`);
+          conditions.push(`description.ilike.%${escapedTerm}%`);
+          conditions.push(`category.ilike.%${escapedTerm}%`);
+        });
+        if (conditions.length > 0) {
+          query = query.or(conditions.join(','));
+        }
       }
 
       // Apply category filter
@@ -132,19 +140,19 @@ const Search = () => {
         query = query.lte('price', parseFloat(priceRange.max));
       }
 
-      // Apply sorting with verified sellers first
+      // Apply sorting
       switch (sortBy) {
         case 'price-low':
-          query = query.order('profiles.is_verified', { ascending: false }).order('price', { ascending: true });
+          query = query.order('price', { ascending: true });
           break;
         case 'price-high':
-          query = query.order('profiles.is_verified', { ascending: false }).order('price', { ascending: false });
+          query = query.order('price', { ascending: false });
           break;
         case 'oldest':
-          query = query.order('profiles.is_verified', { ascending: false }).order('created_at', { ascending: true });
+          query = query.order('created_at', { ascending: true });
           break;
         default:
-          query = query.order('profiles.is_verified', { ascending: false }).order('created_at', { ascending: false });
+          query = query.order('created_at', { ascending: false });
       }
 
       const { data, error } = await query;
@@ -248,7 +256,10 @@ const Search = () => {
         if (error) throw error;
       }
 
-      // Success - no logging needed for security
+      // Trigger cart count refresh
+      if (window.refreshCartCount) {
+        window.refreshCartCount();
+      }
     } catch (error) {
       // Secure error logging
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -273,7 +284,7 @@ const Search = () => {
                   onKeyPress={(e) => {
                     if (e.key === 'Enter') {
                       e.preventDefault();
-                      e.currentTarget.blur();
+                      handleSearch(e);
                     }
                   }}
                   className="pl-10"
@@ -413,16 +424,67 @@ const Search = () => {
                   </CardContent>
                 </Card>
               ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-3 sm:gap-4">
-                   {products.map(product => (
-                     <ProductCard
-                       key={product.id}
-                       product={product}
-                       onViewProduct={handleViewProduct}
-                       onAddToCart={addToCart}
-                       isAuthenticated={!!user}
-                       showHoverActions={true}
-                    />
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {products.map((product) => (
+                    <Card 
+                      key={product.id} 
+                      className="group hover:shadow-lg transition-all cursor-pointer overflow-hidden"
+                      onClick={() => handleViewProduct(product.id)}
+                    >
+                      <div className="relative">
+                        {product.images && product.images[0] && (
+                          <img
+                            src={product.images[0]}
+                            alt={product.title}
+                            className="w-full h-40 object-cover group-hover:scale-105 transition-transform duration-300"
+                          />
+                        )}
+                        <Badge 
+                          className="absolute top-2 left-2 text-xs"
+                          variant={product.condition === 'new' ? 'default' : 'secondary'}
+                        >
+                          {product.condition?.charAt(0).toUpperCase() + product.condition?.slice(1) || 'Good'}
+                        </Badge>
+                      </div>
+
+                      <CardContent className="p-3">
+                        <h3 className="font-semibold text-sm line-clamp-2 mb-2">{product.title}</h3>
+                        
+                        <div className="flex items-center gap-2 mb-2">
+                          <Badge variant="outline" className="text-xs">
+                            {product.category}
+                          </Badge>
+                        </div>
+
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2">
+                          <span className="truncate">by {product.seller?.full_name || 'Unknown'}</span>
+                          {product.seller?.is_verified && (
+                            <div className="bg-blue-500 rounded-full p-0.5">
+                              <svg className="h-2 w-2 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                              </svg>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="text-lg font-bold text-primary mb-2">
+                          ₦{product.price.toLocaleString()}
+                        </div>
+                        
+                        <Button
+                          variant="brand"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            addToCart(product.id);
+                          }}
+                          className="w-full text-xs"
+                        >
+                          <ShoppingCart className="h-3 w-3 mr-1" />
+                          Add to Cart
+                        </Button>
+                      </CardContent>
+                    </Card>
                   ))}
                 </div>
               )}

@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useOptimizedQuery } from '@/hooks/useOptimizedQuery';
 import { useOfflineStorage } from '@/hooks/useOfflineStorage';
 import { useAuth } from '@/hooks/useAuth';
+import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/enhanced-button';
 import { SAFE_PROFILE_SELECT } from '@/lib/profileSecurity';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -70,6 +71,7 @@ const Cart = () => {
   const [loadingRecommended, setLoadingRecommended] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [offlineCartItems, setOfflineCartItems] = useOfflineStorage<CartItem[]>({
     key: `cart_${user?.id}`,
     defaultValue: [],
@@ -213,13 +215,11 @@ const Cart = () => {
 
       if (error) throw error;
 
-      setCartItems(items => 
-        items.map(item => 
-          item.id === cartItemId 
-            ? { ...item, quantity: newQuantity }
-            : item
-        )
-      );
+      // Invalidate and refetch cart data
+      await queryClient.invalidateQueries({ queryKey: ['cart', user?.id] });
+      
+      // Trigger cart count update
+      window.dispatchEvent(new CustomEvent('cartUpdated'));
     } catch (error) {
       console.error('Error updating quantity:', error);
       toast({
@@ -239,8 +239,11 @@ const Cart = () => {
 
       if (error) throw error;
 
-      // Force refetch to ensure UI is in sync
-      await fetchCartItems();
+      // Invalidate and refetch cart data
+      await queryClient.invalidateQueries({ queryKey: ['cart', user?.id] });
+      
+      // Trigger cart count update
+      window.dispatchEvent(new CustomEvent('cartUpdated'));
       
       toast({
         title: "Item removed",

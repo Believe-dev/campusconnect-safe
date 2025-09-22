@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/enhanced-button';
@@ -66,6 +67,7 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [userProfile, setUserProfile] = useState<any>(null);
   const [analyticsFilter, setAnalyticsFilter] = useState('best_selling');
+  const [selectedProductAnalytics, setSelectedProductAnalytics] = useState<{product: Product, analytics: Analytics} | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -300,13 +302,13 @@ const Dashboard = () => {
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      <main className="container mx-auto px-4 py-8">
-        <div className="flex items-center justify-between mb-8">
+      <main className="container mx-auto px-4 py-4 sm:py-8">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-primary">Seller Dashboard</h1>
-            <p className="text-muted-foreground">Manage your products and view analytics</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-primary">Seller Dashboard</h1>
+            <p className="text-sm sm:text-base text-muted-foreground">Manage your products and view analytics</p>
           </div>
-          <Button variant="brand" asChild>
+          <Button variant="brand" asChild className="w-full sm:w-auto">
             <a href="/sell">
               <Plus className="h-4 w-4" />
               Add Product
@@ -315,139 +317,137 @@ const Dashboard = () => {
         </div>
 
         {/* Overview Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
           <Card>
-            <CardContent className="p-6">
+            <CardContent className="p-3 sm:p-6">
               <div className="flex items-center gap-2">
                 <Package className="h-4 w-4 text-university-green" />
-                <span className="text-sm font-medium">Total Products</span>
+                <span className="text-xs sm:text-sm font-medium">Products</span>
               </div>
-              <div className="text-2xl font-bold mt-2">{products.length}</div>
+              <div className="text-lg sm:text-2xl font-bold mt-1 sm:mt-2">{products.length}</div>
             </CardContent>
           </Card>
 
           <Card>
-            <CardContent className="p-6">
+            <CardContent className="p-3 sm:p-6">
               <div className="flex items-center gap-2">
                 <DollarSign className="h-4 w-4 text-university-green" />
-                <span className="text-sm font-medium">Total Revenue</span>
+                <span className="text-xs sm:text-sm font-medium">Revenue</span>
               </div>
-              <div className="text-2xl font-bold mt-2">₦{totalRevenue.toLocaleString()}</div>
+              <div className="text-lg sm:text-2xl font-bold mt-1 sm:mt-2">₦{totalRevenue.toLocaleString()}</div>
             </CardContent>
           </Card>
 
           <Card>
-            <CardContent className="p-6">
+            <CardContent className="p-3 sm:p-6">
               <div className="flex items-center gap-2">
                 <ShoppingCart className="h-4 w-4 text-university-green" />
-                <span className="text-sm font-medium">Total Orders</span>
+                <span className="text-xs sm:text-sm font-medium">Orders</span>
               </div>
-              <div className="text-2xl font-bold mt-2">{totalOrders}</div>
+              <div className="text-lg sm:text-2xl font-bold mt-1 sm:mt-2">{totalOrders}</div>
             </CardContent>
           </Card>
 
           <Card>
-            <CardContent className="p-6">
+            <CardContent className="p-3 sm:p-6">
               <div className="flex items-center gap-2">
                 <Eye className="h-4 w-4 text-university-green" />
-                <span className="text-sm font-medium">Total Views</span>
+                <span className="text-xs sm:text-sm font-medium">Views</span>
               </div>
-              <div className="text-2xl font-bold mt-2">{totalViews}</div>
+              <div className="text-lg sm:text-2xl font-bold mt-1 sm:mt-2">{totalViews}</div>
             </CardContent>
           </Card>
         </div>
 
-        <Tabs defaultValue="products" className="space-y-6">
-          <TabsList>
-            <TabsTrigger value="products">My Products</TabsTrigger>
-            <TabsTrigger value="wallet">Wallet</TabsTrigger>
-            <TabsTrigger value="analytics">Analytics</TabsTrigger>
+        <Tabs defaultValue="products" className="space-y-4 sm:space-y-6">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="products" className="text-xs sm:text-sm">Products</TabsTrigger>
+            <TabsTrigger value="wallet" className="text-xs sm:text-sm">Wallet</TabsTrigger>
+            <TabsTrigger value="analytics" className="text-xs sm:text-sm">Analytics</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="products" className="space-y-4">
+          <TabsContent value="products" className="space-y-3 sm:space-y-4">
             {products.length === 0 ? (
               <Card>
-                <CardContent className="p-8 text-center">
-                  <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">No products yet</h3>
-                  <p className="text-muted-foreground mb-4">Start selling by adding your first product</p>
-                  <Button variant="brand" asChild>
+                <CardContent className="p-6 sm:p-8 text-center">
+                  <Package className="h-10 w-10 sm:h-12 sm:w-12 text-muted-foreground mx-auto mb-3 sm:mb-4" />
+                  <h3 className="text-base sm:text-lg font-semibold mb-2">No products yet</h3>
+                  <p className="text-sm sm:text-base text-muted-foreground mb-4">Start selling by adding your first product</p>
+                  <Button variant="brand" asChild className="w-full sm:w-auto">
                     <a href="/sell">Add Your First Product</a>
                   </Button>
                 </CardContent>
               </Card>
             ) : (
-              <div className="grid gap-4">
+              <div className="space-y-3 sm:space-y-4">
                 {products.map((product) => {
                   const productAnalytics = getProductAnalytics(product.id);
                   return (
                     <Card key={product.id}>
-                      <CardContent className="p-4 lg:p-6">
-                        <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-4">
-                          <div className="flex flex-col sm:flex-row gap-4 flex-1">
+                      <CardContent className="p-3 sm:p-4">
+                        <div className="flex flex-col gap-3">
+                          <div className="flex gap-3">
                             {product.images && product.images[0] && (
                               <img
                                 src={product.images[0]}
                                 alt={product.title}
-                                className="w-full sm:w-20 h-48 sm:h-20 object-cover rounded"
+                                className="w-16 h-16 sm:w-20 sm:h-20 object-cover rounded flex-shrink-0"
                               />
                             )}
                             <div className="flex-1 min-w-0">
-                              <div className="flex flex-wrap items-center gap-2 mb-2">
-                                <h3 className="text-lg font-semibold truncate">{product.title}</h3>
-                                <Badge variant={product.is_active ? "default" : "secondary"}>
+                              <div className="flex flex-wrap items-center gap-1 sm:gap-2 mb-1 sm:mb-2">
+                                <h3 className="text-sm sm:text-lg font-semibold truncate">{product.title}</h3>
+                                <Badge variant={product.is_active ? "default" : "secondary"} className="text-xs">
                                   {product.is_active ? 'Active' : 'Inactive'}
                                 </Badge>
-                                <Badge variant="outline">{product.condition}</Badge>
+                                <Badge variant="outline" className="text-xs">{product.condition}</Badge>
                               </div>
-                              <p className="text-muted-foreground mb-2 line-clamp-2">{product.description}</p>
-                              <div className="flex flex-wrap items-center gap-2 lg:gap-4 text-sm text-muted-foreground mb-3">
-                                <span>₦{product.price.toLocaleString()}</span>
+                              <p className="text-xs sm:text-sm text-muted-foreground mb-2 line-clamp-2">{product.description}</p>
+                              <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm text-muted-foreground mb-2">
+                                <span className="font-medium">₦{product.price.toLocaleString()}</span>
                                 <span>{product.stock_quantity} in stock</span>
                                 <span className="hidden sm:inline">{product.category}</span>
                               </div>
                               
                               {/* Analytics Summary */}
-                              <div className="grid grid-cols-2 lg:flex lg:items-center gap-2 lg:gap-4 text-sm">
+                              <div className="flex items-center gap-3 sm:gap-4 text-xs">
                                 <div className="flex items-center gap-1">
                                   <Eye className="h-3 w-3" />
-                                  <span className="text-xs lg:text-sm">{productAnalytics.views}</span>
+                                  <span>{productAnalytics.views}</span>
                                 </div>
                                 <div className="flex items-center gap-1">
                                   <Heart className="h-3 w-3" />
-                                  <span className="text-xs lg:text-sm">{productAnalytics.favorites_count}</span>
+                                  <span>{productAnalytics.favorites_count}</span>
                                 </div>
                                 <div className="flex items-center gap-1">
                                   <ShoppingCart className="h-3 w-3" />
-                                  <span className="text-xs lg:text-sm">{productAnalytics.cart_additions}</span>
+                                  <span>{productAnalytics.cart_additions}</span>
                                 </div>
                                 <div className="flex items-center gap-1">
                                   <TrendingUp className="h-3 w-3" />
-                                  <span className="text-xs lg:text-sm">{productAnalytics.orders_count}</span>
+                                  <span>{productAnalytics.orders_count}</span>
                                 </div>
                               </div>
                             </div>
                           </div>
                           
-                          <div className="flex flex-row lg:flex-col gap-2 lg:shrink-0">
+                          <div className="flex gap-2">
                             <Button
                               variant="outline"
                               size="sm"
                               onClick={() => setEditingProduct(product)}
-                              className="flex-1 lg:flex-none"
+                              className="flex-1 text-xs lg:text-sm px-2 lg:px-3"
                             >
-                              <Edit3 className="h-4 w-4 lg:mr-2" />
-                              <span className="hidden lg:inline">Edit</span>
+                              <Edit3 className="h-3 w-3 lg:h-4 lg:w-4 mr-1 lg:mr-2" />
+                              Edit
                             </Button>
                             <Button
                               variant={product.is_active ? "destructive" : "default"}
                               size="sm"
                               onClick={() => toggleProductStatus(product.id, product.is_active)}
-                              className="flex-1 lg:flex-none"
+                              className="flex-1 text-xs lg:text-sm px-2 lg:px-3"
                             >
-                              <span className="text-xs lg:text-sm">
-                                {product.is_active ? 'Deactivate' : 'Activate'}
-                              </span>
+                              {product.is_active ? 'Deactivate' : 'Activate'}
                             </Button>
                           </div>
                         </div>
@@ -463,13 +463,13 @@ const Dashboard = () => {
             <WalletDashboard />
           </TabsContent>
 
-          <TabsContent value="analytics" className="space-y-4">
+          <TabsContent value="analytics" className="space-y-3 sm:space-y-4">
             <Card>
-              <CardHeader>
-                <div className="flex justify-between items-center">
-                  <CardTitle>Product Analytics</CardTitle>
+              <CardHeader className="p-3 sm:p-6">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+                  <CardTitle className="text-base sm:text-lg">Product Analytics</CardTitle>
                   <Select value={analyticsFilter} onValueChange={setAnalyticsFilter}>
-                    <SelectTrigger className="w-48">
+                    <SelectTrigger className="w-full sm:w-48">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -483,48 +483,94 @@ const Dashboard = () => {
                   </Select>
                 </div>
               </CardHeader>
-              <CardContent>
+              <CardContent className="p-3 sm:p-6">
                 {analytics.length === 0 ? (
-                  <div className="text-center py-8">
-                    <BarChart3 className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                    <p className="text-lg font-medium">No analytics data</p>
-                    <p className="text-muted-foreground">Analytics will appear once you have products with activity</p>
+                  <div className="text-center py-6 sm:py-8">
+                    <BarChart3 className="h-10 w-10 sm:h-12 sm:w-12 mx-auto mb-3 sm:mb-4 text-muted-foreground" />
+                    <p className="text-base sm:text-lg font-medium">No analytics data</p>
+                    <p className="text-sm sm:text-base text-muted-foreground">Analytics will appear once you have products with activity</p>
                   </div>
                 ) : (
-                  <div className="space-y-4">
-                    {getFilteredAnalytics().slice(0, analyticsFilter === 'view_all' ? analytics.length : 10).map((productAnalytics, index) => {
-                      const product = products.find(p => p.id === productAnalytics.product_id);
-                      return (
-                        <div key={productAnalytics.product_id} className="flex items-center justify-between p-4 border rounded-lg">
-                          <div className="flex items-center space-x-3">
-                            <div className="flex items-center justify-center w-8 h-8 bg-primary/10 rounded-full text-sm font-bold">
-                              {index + 1}
-                            </div>
-                            <div>
-                              <p className="font-medium">{product?.title}</p>
-                              <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
-                                <div className="flex items-center gap-1">
-                                  <Eye className="h-3 w-3" />
-                                  <span>{productAnalytics.views}</span>
-                                </div>
-                                <div className="flex items-center gap-1">
-                                  <Heart className="h-3 w-3" />
-                                  <span>{productAnalytics.favorites_count}</span>
-                                </div>
-                                <div className="flex items-center gap-1">
-                                  <ShoppingCart className="h-3 w-3" />
-                                  <span>{productAnalytics.cart_additions}</span>
+                  <div className="space-y-3 sm:space-y-4">
+                    {analyticsFilter === 'view_all' ? (
+                      // Show all products when "View All Products" is selected
+                      products.map((product, index) => {
+                        const productAnalytics = getProductAnalytics(product.id);
+                        return (
+                          <div 
+                            key={product.id} 
+                            className="flex items-center justify-between p-3 sm:p-4 border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors"
+                            onClick={() => setSelectedProductAnalytics({product, analytics: productAnalytics})}
+                          >
+                            <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+                              <div className="flex items-center justify-center w-6 h-6 sm:w-8 sm:h-8 bg-primary/10 rounded-full text-xs sm:text-sm font-bold flex-shrink-0">
+                                {index + 1}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="font-medium text-sm sm:text-base truncate">{product.title}</p>
+                                <div className="flex items-center gap-2 sm:gap-4 text-xs sm:text-sm text-muted-foreground mt-1">
+                                  <div className="flex items-center gap-1">
+                                    <Eye className="h-3 w-3" />
+                                    <span>{productAnalytics.views}</span>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <Heart className="h-3 w-3" />
+                                    <span>{productAnalytics.favorites_count}</span>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <ShoppingCart className="h-3 w-3" />
+                                    <span>{productAnalytics.cart_additions}</span>
+                                  </div>
                                 </div>
                               </div>
                             </div>
+                            <div className="text-right flex-shrink-0">
+                              <p className="font-bold text-sm sm:text-lg">{productAnalytics.orders_count} orders</p>
+                              <p className="text-xs sm:text-sm text-muted-foreground">₦{productAnalytics.revenue.toLocaleString()}</p>
+                            </div>
                           </div>
-                          <div className="text-right">
-                            <p className="font-bold text-lg">{productAnalytics.orders_count} orders</p>
-                            <p className="text-sm text-muted-foreground">₦{productAnalytics.revenue.toLocaleString()} revenue</p>
+                        );
+                      })
+                    ) : (
+                      // Show filtered analytics for other options
+                      getFilteredAnalytics().slice(0, 10).map((productAnalytics, index) => {
+                        const product = products.find(p => p.id === productAnalytics.product_id);
+                        return (
+                          <div 
+                            key={productAnalytics.product_id} 
+                            className="flex items-center justify-between p-3 sm:p-4 border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors"
+                            onClick={() => product && setSelectedProductAnalytics({product, analytics: productAnalytics})}
+                          >
+                            <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+                              <div className="flex items-center justify-center w-6 h-6 sm:w-8 sm:h-8 bg-primary/10 rounded-full text-xs sm:text-sm font-bold flex-shrink-0">
+                                {index + 1}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="font-medium text-sm sm:text-base truncate">{product?.title}</p>
+                                <div className="flex items-center gap-2 sm:gap-4 text-xs sm:text-sm text-muted-foreground mt-1">
+                                  <div className="flex items-center gap-1">
+                                    <Eye className="h-3 w-3" />
+                                    <span>{productAnalytics.views}</span>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <Heart className="h-3 w-3" />
+                                    <span>{productAnalytics.favorites_count}</span>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <ShoppingCart className="h-3 w-3" />
+                                    <span>{productAnalytics.cart_additions}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="text-right flex-shrink-0">
+                              <p className="font-bold text-sm sm:text-lg">{productAnalytics.orders_count} orders</p>
+                              <p className="text-xs sm:text-sm text-muted-foreground">₦{productAnalytics.revenue.toLocaleString()}</p>
+                            </div>
                           </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })
+                    )}
                   </div>
                 )}
               </CardContent>
@@ -532,129 +578,286 @@ const Dashboard = () => {
           </TabsContent>
         </Tabs>
 
-        {/* Edit Product Modal */}
-        {editingProduct && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-              <CardHeader>
-                <CardTitle>Edit Product</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <Label htmlFor="edit-title">Title</Label>
-                  <Input
-                    id="edit-title"
-                    value={editingProduct.title}
-                    onChange={(e) => setEditingProduct({
-                      ...editingProduct,
-                      title: e.target.value
-                    })}
-                  />
-                </div>
 
-                <div>
-                  <Label htmlFor="edit-description">Description</Label>
-                  <Textarea
-                    id="edit-description"
-                    value={editingProduct.description || ''}
-                    onChange={(e) => setEditingProduct({
-                      ...editingProduct,
-                      description: e.target.value
-                    })}
-                    rows={3}
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="edit-category">Category</Label>
-                    <Select
-                      value={editingProduct.category}
-                      onValueChange={(value) => setEditingProduct({
-                        ...editingProduct,
-                        category: value
-                      })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {categories.map(cat => (
-                          <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div>
-                    <Label htmlFor="edit-condition">Condition</Label>
-                    <Select
-                      value={editingProduct.condition}
-                      onValueChange={(value) => setEditingProduct({
-                        ...editingProduct,
-                        condition: value
-                      })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="new">New</SelectItem>
-                        <SelectItem value="excellent">Excellent</SelectItem>
-                        <SelectItem value="good">Good</SelectItem>
-                        <SelectItem value="fair">Fair</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="edit-price">Price (₦)</Label>
-                    <Input
-                      id="edit-price"
-                      type="number"
-                      value={editingProduct.price}
-                      onChange={(e) => setEditingProduct({
-                        ...editingProduct,
-                        price: parseFloat(e.target.value) || 0
-                      })}
-                    />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="edit-stock">Stock Quantity</Label>
-                    <Input
-                      id="edit-stock"
-                      type="number"
-                      value={editingProduct.stock_quantity}
-                      onChange={(e) => setEditingProduct({
-                        ...editingProduct,
-                        stock_quantity: parseInt(e.target.value) || 0
-                      })}
-                    />
-                  </div>
-                </div>
-
-                <div className="flex gap-2 justify-end">
-                  <Button
-                    variant="outline"
-                    onClick={() => setEditingProduct(null)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    variant="brand"
-                    onClick={() => handleUpdateProduct(editingProduct)}
-                  >
-                    Save Changes
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
       </main>
+
+      {/* Detailed Analytics Modal */}
+      {selectedProductAnalytics && createPortal(
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="w-full max-w-4xl max-h-[90vh] overflow-y-auto bg-white rounded-lg shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="sticky top-0 bg-white border-b p-4 flex items-center justify-between">
+              <h2 className="text-lg sm:text-xl font-semibold truncate pr-4">{selectedProductAnalytics.product.title} - Analytics</h2>
+              <Button variant="ghost" size="lg" onClick={() => setSelectedProductAnalytics(null)} className="text-2xl font-bold shrink-0">
+                ×
+              </Button>
+            </div>
+            <div className="p-4 space-y-4">
+              {/* Overview Cards */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Eye className="h-4 w-4 text-blue-500" />
+                    <span className="text-xs font-medium">Views</span>
+                  </div>
+                  <div className="text-xl font-bold">{selectedProductAnalytics.analytics.views}</div>
+                </div>
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Heart className="h-4 w-4 text-red-500" />
+                    <span className="text-xs font-medium">Favorites</span>
+                  </div>
+                  <div className="text-xl font-bold">{selectedProductAnalytics.analytics.favorites_count}</div>
+                </div>
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <div className="flex items-center gap-2 mb-2">
+                    <ShoppingCart className="h-4 w-4 text-green-500" />
+                    <span className="text-xs font-medium">Cart Adds</span>
+                  </div>
+                  <div className="text-xl font-bold">{selectedProductAnalytics.analytics.cart_additions}</div>
+                </div>
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <div className="flex items-center gap-2 mb-2">
+                    <TrendingUp className="h-4 w-4 text-purple-500" />
+                    <span className="text-xs font-medium">Orders</span>
+                  </div>
+                  <div className="text-xl font-bold">{selectedProductAnalytics.analytics.orders_count}</div>
+                </div>
+              </div>
+
+              {/* Charts */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Engagement Chart */}
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <h3 className="font-semibold mb-4 text-sm">Engagement Metrics</h3>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs">Views</span>
+                      <div className="flex items-center gap-2 flex-1 max-w-24 sm:max-w-32">
+                        <div className="flex-1 h-2 bg-gray-200 rounded">
+                          <div 
+                            className="h-full bg-blue-500 rounded" 
+                            style={{width: `${Math.min(100, (selectedProductAnalytics.analytics.views / Math.max(selectedProductAnalytics.analytics.views, selectedProductAnalytics.analytics.favorites_count, selectedProductAnalytics.analytics.cart_additions)) * 100)}%`}}
+                          />
+                        </div>
+                        <span className="text-xs font-medium">{selectedProductAnalytics.analytics.views}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs">Favorites</span>
+                      <div className="flex items-center gap-2 flex-1 max-w-24 sm:max-w-32">
+                        <div className="flex-1 h-2 bg-gray-200 rounded">
+                          <div 
+                            className="h-full bg-red-500 rounded" 
+                            style={{width: `${Math.min(100, (selectedProductAnalytics.analytics.favorites_count / Math.max(selectedProductAnalytics.analytics.views, selectedProductAnalytics.analytics.favorites_count, selectedProductAnalytics.analytics.cart_additions)) * 100)}%`}}
+                          />
+                        </div>
+                        <span className="text-xs font-medium">{selectedProductAnalytics.analytics.favorites_count}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs">Cart Adds</span>
+                      <div className="flex items-center gap-2 flex-1 max-w-24 sm:max-w-32">
+                        <div className="flex-1 h-2 bg-gray-200 rounded">
+                          <div 
+                            className="h-full bg-green-500 rounded" 
+                            style={{width: `${Math.min(100, (selectedProductAnalytics.analytics.cart_additions / Math.max(selectedProductAnalytics.analytics.views, selectedProductAnalytics.analytics.favorites_count, selectedProductAnalytics.analytics.cart_additions)) * 100)}%`}}
+                          />
+                        </div>
+                        <span className="text-xs font-medium">{selectedProductAnalytics.analytics.cart_additions}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Revenue Chart */}
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <h3 className="font-semibold mb-4 text-sm">Revenue & Orders</h3>
+                  <div className="space-y-4">
+                    <div className="text-center">
+                      <div className="text-xl sm:text-2xl font-bold text-green-600">₦{selectedProductAnalytics.analytics.revenue.toLocaleString()}</div>
+                      <div className="text-xs text-gray-600">Total Revenue</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-lg sm:text-xl font-bold text-blue-600">{selectedProductAnalytics.analytics.orders_count}</div>
+                      <div className="text-xs text-gray-600">Total Orders</div>
+                    </div>
+                    {selectedProductAnalytics.analytics.orders_count > 0 && (
+                      <div className="text-center">
+                        <div className="text-base sm:text-lg font-semibold">₦{Math.round(selectedProductAnalytics.analytics.revenue / selectedProductAnalytics.analytics.orders_count).toLocaleString()}</div>
+                        <div className="text-xs text-gray-600">Average Order Value</div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Product Details */}
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <h3 className="font-semibold mb-4 text-sm">Product Details</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <span className="font-medium">Price:</span>
+                    <span className="ml-2">₦{selectedProductAnalytics.product.price.toLocaleString()}</span>
+                  </div>
+                  <div>
+                    <span className="font-medium">Category:</span>
+                    <span className="ml-2">{selectedProductAnalytics.product.category}</span>
+                  </div>
+                  <div>
+                    <span className="font-medium">Condition:</span>
+                    <span className="ml-2 capitalize">{selectedProductAnalytics.product.condition}</span>
+                  </div>
+                  <div>
+                    <span className="font-medium">Stock:</span>
+                    <span className="ml-2">{selectedProductAnalytics.product.stock_quantity}</span>
+                  </div>
+                  <div>
+                    <span className="font-medium">Status:</span>
+                    <Badge variant={selectedProductAnalytics.product.is_active ? "default" : "secondary"} className="ml-2">
+                      {selectedProductAnalytics.product.is_active ? 'Active' : 'Inactive'}
+                    </Badge>
+                  </div>
+                  <div>
+                    <span className="font-medium">Created:</span>
+                    <span className="ml-2">{new Date(selectedProductAnalytics.product.created_at).toLocaleDateString()}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Edit Product Modal */}
+      {editingProduct && createPortal(
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-white rounded-lg shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="sticky top-0 bg-white border-b p-4">
+              <h2 className="text-lg font-semibold">Edit Product</h2>
+            </div>
+            <div className="p-4 space-y-4">
+              <div>
+                <Label htmlFor="edit-title" className="text-sm font-medium">Title</Label>
+                <Input
+                  id="edit-title"
+                  value={editingProduct.title}
+                  onChange={(e) => setEditingProduct({
+                    ...editingProduct,
+                    title: e.target.value
+                  })}
+                  className="mt-1"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="edit-description" className="text-sm font-medium">Description</Label>
+                <Textarea
+                  id="edit-description"
+                  value={editingProduct.description || ''}
+                  onChange={(e) => setEditingProduct({
+                    ...editingProduct,
+                    description: e.target.value
+                  })}
+                  rows={3}
+                  className="mt-1"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="edit-category" className="text-sm font-medium">Category</Label>
+                  <Select
+                    value={editingProduct.category}
+                    onValueChange={(value) => setEditingProduct({
+                      ...editingProduct,
+                      category: value
+                    })}
+                  >
+                    <SelectTrigger className="mt-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categories.map(cat => (
+                        <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label htmlFor="edit-condition" className="text-sm font-medium">Condition</Label>
+                  <Select
+                    value={editingProduct.condition}
+                    onValueChange={(value) => setEditingProduct({
+                      ...editingProduct,
+                      condition: value
+                    })}
+                  >
+                    <SelectTrigger className="mt-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="new">New</SelectItem>
+                      <SelectItem value="excellent">Excellent</SelectItem>
+                      <SelectItem value="good">Good</SelectItem>
+                      <SelectItem value="fair">Fair</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="edit-price" className="text-sm font-medium">Price (₦)</Label>
+                  <Input
+                    id="edit-price"
+                    type="number"
+                    value={editingProduct.price}
+                    onChange={(e) => setEditingProduct({
+                      ...editingProduct,
+                      price: parseFloat(e.target.value) || 0
+                    })}
+                    className="mt-1"
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="edit-stock" className="text-sm font-medium">Stock Quantity</Label>
+                  <Input
+                    id="edit-stock"
+                    type="number"
+                    value={editingProduct.stock_quantity}
+                    onChange={(e) => setEditingProduct({
+                      ...editingProduct,
+                      stock_quantity: parseInt(e.target.value) || 0
+                    })}
+                    className="mt-1"
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-2 sm:justify-end pt-4">
+                <Button
+                  variant="outline"
+                  onClick={() => setEditingProduct(null)}
+                  className="w-full sm:w-auto"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="brand"
+                  onClick={() => handleUpdateProduct(editingProduct)}
+                  className="w-full sm:w-auto"
+                >
+                  Save Changes
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 };

@@ -39,10 +39,11 @@ const Sell = () => {
     title: '',
     description: '',
     category: '',
+    customCategory: '',
     price: '',
     stock_quantity: '1',
     condition: 'good',
-    campus: ''
+    university_name: ''
   });
   const [images, setImages] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -60,16 +61,16 @@ const Sell = () => {
 
       const { data: profile, error } = await supabase
         .from('profiles')
-        .select('full_name, university_name, campus')
+        .select('full_name, university_name')
         .eq('user_id', user.id)
         .single();
 
       if (error) throw error;
 
       setUserProfile(profile);
-      // Auto-populate campus from user's profile - this cannot be changed
-      if (profile.campus) {
-        setFormData(prev => ({ ...prev, campus: profile.campus }));
+      // Auto-populate university from user's profile - this cannot be changed
+      if (profile.university_name) {
+        setFormData(prev => ({ ...prev, university_name: profile.university_name }));
       }
     } catch (error) {
       console.error('Error loading user profile:', error);
@@ -104,6 +105,53 @@ const Sell = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate required fields
+    if (!formData.title.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Product title is required",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (!formData.category) {
+      toast({
+        title: "Validation Error",
+        description: "Please select a category",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (formData.category === 'Other' && !formData.customCategory.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Please specify the custom category",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (!formData.price || parseFloat(formData.price) <= 0) {
+      toast({
+        title: "Validation Error",
+        description: "Please enter a valid price",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (!formData.stock_quantity || parseInt(formData.stock_quantity) <= 0) {
+      toast({
+        title: "Validation Error",
+        description: "Please enter a valid stock quantity",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setSubmitting(true);
 
     try {
@@ -115,17 +163,20 @@ const Sell = () => {
 
       // Upload images first
       const imageUrls = images.length > 0 ? await uploadImages() : [];
+      
+      // Use custom category if "Other" is selected
+      const finalCategory = formData.category === 'Other' ? formData.customCategory : formData.category;
 
       const { error } = await supabase
         .from('products')
         .insert({
-          title: formData.title,
-          description: formData.description,
-          category: formData.category,
+          title: formData.title.trim(),
+          description: formData.description.trim(),
+          category: finalCategory,
           price: parseFloat(formData.price),
           stock_quantity: parseInt(formData.stock_quantity),
           condition: formData.condition,
-          campus: formData.campus,
+          university_name: formData.university_name,
           seller_id: user.id,
           images: imageUrls
         });
@@ -216,7 +267,7 @@ const Sell = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="category">Category *</Label>
-                  <Select onValueChange={(value) => setFormData({ ...formData, category: value })}>
+                  <Select onValueChange={(value) => setFormData({ ...formData, category: value, customCategory: '' })} required>
                     <SelectTrigger>
                       <SelectValue placeholder="Select category" />
                     </SelectTrigger>
@@ -226,13 +277,23 @@ const Sell = () => {
                       ))}
                     </SelectContent>
                   </Select>
+                  {formData.category === 'Other' && (
+                    <div className="mt-2">
+                      <Input
+                        placeholder="Enter custom category"
+                        value={formData.customCategory}
+                        onChange={(e) => setFormData({ ...formData, customCategory: e.target.value })}
+                        required
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <div>
-                  <Label htmlFor="campus">University/Campus</Label>
+                  <Label htmlFor="university">University</Label>
                   <Input
-                    id="campus"
-                    value={formData.campus || userProfile?.campus || 'Not set'}
+                    id="university"
+                    value={formData.university_name || userProfile?.university_name || 'Not set'}
                     disabled
                     className="bg-muted text-muted-foreground cursor-not-allowed"
                     placeholder="Your university will appear here"

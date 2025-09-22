@@ -6,7 +6,7 @@ import { handleSupabaseError, logError } from '@/lib/errors';
 
 interface UseProductsOptions {
   category?: string;
-  campus?: string;
+  university?: string;
   limit?: number;
   sellerId?: string;
   isActive?: boolean;
@@ -21,8 +21,8 @@ export function useProducts(options: UseProductsOptions = {}): UseProductsReturn
 
   const {
     category,
-    campus,
-    limit = BUSINESS_RULES.pagination.defaultLimit,
+    university,
+    limit = 200,
     sellerId,
     isActive = true,
   } = options;
@@ -45,23 +45,29 @@ export function useProducts(options: UseProductsOptions = {}): UseProductsReturn
             is_verified
           )
         `)
-        .eq('is_active', isActive)
-        .order('profiles.is_verified', { ascending: false })
-        .order('created_at', { ascending: false })
-        .range(offset, offset + limit - 1);
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
+        
+      // Apply range only if limit is specified
+      if (limit && limit > 0) {
+        query = query.range(offset, offset + limit - 1);
+      }
 
       // Apply filters
       if (category && category !== 'all') {
         query = query.eq('category', category);
       }
-      if (campus && campus !== 'all') {
-        query = query.eq('campus', campus);
-      }
+      // Remove university filtering to show all products
+      // if (university && university !== 'all') {
+      //   query = query.eq('university_name', university);
+      // }
       if (sellerId) {
         query = query.eq('seller_id', sellerId);
       }
 
       const { data, error: queryError } = await query;
+
+      console.log('useProducts query result:', { data: data?.length || 0, error: queryError });
 
       if (queryError) {
         throw handleSupabaseError(queryError);
@@ -69,8 +75,10 @@ export function useProducts(options: UseProductsOptions = {}): UseProductsReturn
 
       const transformedProducts: Product[] = (data || []).map(product => ({
         ...product,
-        seller: product.profiles,
+        seller: product.profiles || { full_name: 'Unknown Seller', rating: 0, is_verified: false },
       }));
+      
+      console.log('useProducts transformed:', transformedProducts.length, 'products');
 
       if (reset) {
         setProducts(transformedProducts);
@@ -88,7 +96,7 @@ export function useProducts(options: UseProductsOptions = {}): UseProductsReturn
     } finally {
       setLoading(false);
     }
-  }, [category, campus, limit, sellerId, isActive, page]);
+  }, [category, university, limit, sellerId, isActive, page]);
 
   const refetch = useCallback(() => {
     setPage(0);
@@ -104,7 +112,7 @@ export function useProducts(options: UseProductsOptions = {}): UseProductsReturn
 
   useEffect(() => {
     refetch();
-  }, [category, campus, sellerId, isActive]);
+  }, [category, university, sellerId, isActive]);
 
   return {
     products,

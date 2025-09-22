@@ -76,7 +76,7 @@ const Marketplace = () => {
       setUser(user);
       if (user) {
         fetchUserData(user.id);
-        fetchUserUniversity(user.id);
+        // Removed university fetching
       }
     });
 
@@ -113,7 +113,7 @@ const Marketplace = () => {
         `)
         .eq('is_active', true)
         .order('created_at', { ascending: false })
-        .limit(50);
+        .limit(200);
 
       if (error) throw error;
       setProducts(data || []);
@@ -159,21 +159,7 @@ const Marketplace = () => {
     }
   };
 
-  const fetchUserUniversity = async (userId: string) => {
-    try {
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('university_name')
-        .eq('user_id', userId)
-        .single();
-
-      if (profileData?.university_name) {
-        setUserUniversity(profileData.university_name);
-      }
-    } catch (error) {
-      console.error('Error fetching user university:', error);
-    }
-  };
+  // Removed university fetching to show all products
 
   const filterProducts = () => {
     let filtered = [...products];
@@ -193,31 +179,18 @@ const Marketplace = () => {
       filtered = filtered.filter(product => product.condition === selectedCondition);
     }
 
-    // Prioritize products from user's university
-    if (userUniversity) {
-      filtered.sort((a, b) => {
-        const aFromUserUni = (a.profiles?.campus || a.campus) === userUniversity;
-        const bFromUserUni = (b.profiles?.campus || b.campus) === userUniversity;
-        
-        if (aFromUserUni && !bFromUserUni) return -1;
-        if (!aFromUserUni && bFromUserUni) return 1;
-        return 0;
-      });
-    }
+    // Show all products without university prioritization
+    // Removed university-specific filtering to show all products
 
-    // Sort with verified sellers first, then university groups
+    // Sort with verified sellers first
     switch (sortBy) {
       case 'price_low':
         filtered.sort((a, b) => {
           const aVerified = a.profiles?.is_verified;
           const bVerified = b.profiles?.is_verified;
-          const aFromUserUni = userUniversity && (a.profiles?.campus || a.campus) === userUniversity;
-          const bFromUserUni = userUniversity && (b.profiles?.campus || b.campus) === userUniversity;
           
           if (aVerified && !bVerified) return -1;
           if (!aVerified && bVerified) return 1;
-          if (aFromUserUni && !bFromUserUni) return -1;
-          if (!aFromUserUni && bFromUserUni) return 1;
           return a.price - b.price;
         });
         break;
@@ -225,13 +198,9 @@ const Marketplace = () => {
         filtered.sort((a, b) => {
           const aVerified = a.profiles?.is_verified;
           const bVerified = b.profiles?.is_verified;
-          const aFromUserUni = userUniversity && (a.profiles?.campus || a.campus) === userUniversity;
-          const bFromUserUni = userUniversity && (b.profiles?.campus || b.campus) === userUniversity;
           
           if (aVerified && !bVerified) return -1;
           if (!aVerified && bVerified) return 1;
-          if (aFromUserUni && !bFromUserUni) return -1;
-          if (!aFromUserUni && bFromUserUni) return 1;
           return b.price - a.price;
         });
         break;
@@ -239,13 +208,9 @@ const Marketplace = () => {
         filtered.sort((a, b) => {
           const aVerified = a.profiles?.is_verified;
           const bVerified = b.profiles?.is_verified;
-          const aFromUserUni = userUniversity && (a.profiles?.campus || a.campus) === userUniversity;
-          const bFromUserUni = userUniversity && (b.profiles?.campus || b.campus) === userUniversity;
           
           if (aVerified && !bVerified) return -1;
           if (!aVerified && bVerified) return 1;
-          if (aFromUserUni && !bFromUserUni) return -1;
-          if (!aFromUserUni && bFromUserUni) return 1;
           return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
         });
         break;
@@ -253,13 +218,9 @@ const Marketplace = () => {
         filtered.sort((a, b) => {
           const aVerified = a.profiles?.is_verified;
           const bVerified = b.profiles?.is_verified;
-          const aFromUserUni = userUniversity && (a.profiles?.campus || a.campus) === userUniversity;
-          const bFromUserUni = userUniversity && (b.profiles?.campus || b.campus) === userUniversity;
           
           if (aVerified && !bVerified) return -1;
           if (!aVerified && bVerified) return 1;
-          if (aFromUserUni && !bFromUserUni) return -1;
-          if (!aFromUserUni && bFromUserUni) return 1;
           return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
         });
         break;
@@ -434,12 +395,7 @@ const Marketplace = () => {
         <div className="mb-6 sm:mb-8">
           <h1 className="text-2xl sm:text-3xl font-bold text-primary mb-2">Marketplace</h1>
           <p className="text-sm sm:text-base text-muted-foreground">
-            Discover products from fellow students
-            {userUniversity && (
-              <span className="block text-xs text-blue-600 mt-1">
-                Showing products from {userUniversity} first
-              </span>
-            )}
+            Discover products from students across all universities
           </p>
         </div>
 
@@ -539,7 +495,7 @@ const Marketplace = () => {
             {filteredProducts.map((product) => (
               <Card 
                 key={product.id} 
-                className="group hover:shadow-lg transition-smooth cursor-pointer"
+                className="group hover:shadow-lg transition-smooth cursor-pointer overflow-hidden"
                 onClick={() => navigate(`/product/${product.id}`)}
               >
                 <div className="relative">
@@ -547,7 +503,7 @@ const Marketplace = () => {
                     <img
                       src={product.images[0]}
                       alt={product.title}
-                      className="w-full h-32 sm:h-40 lg:h-48 object-cover rounded-t-lg group-hover:scale-105 transition-smooth"
+                      className="w-full h-32 sm:h-40 lg:h-48 object-cover rounded-t-lg group-hover:scale-105 transition-transform duration-300 ease-out"
                     />
                   )}
                   

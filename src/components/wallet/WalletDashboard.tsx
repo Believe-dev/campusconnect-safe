@@ -371,13 +371,13 @@ const WalletDashboard = () => {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold">Wallet Dashboard</h2>
-        <div className="flex gap-2">
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+        <h2 className="text-xl sm:text-2xl font-bold">Wallet Dashboard</h2>
+        <div className="flex flex-col sm:flex-row gap-2">
           <Dialog open={showBankDetailsDialog} onOpenChange={setShowBankDetailsDialog}>
             <DialogTrigger asChild>
-              <Button variant="outline">
+              <Button variant="outline" className="w-full sm:w-auto">
                 <Wallet className="h-4 w-4 mr-2" />
                 Bank Details
               </Button>
@@ -442,7 +442,7 @@ const WalletDashboard = () => {
           </Dialog>
           <Dialog open={showPayoutDialog} onOpenChange={setShowPayoutDialog}>
             <DialogTrigger asChild>
-              <Button disabled={!wallet || wallet.available_balance <= 0}>
+              <Button disabled={!wallet || wallet.available_balance <= 0} className="w-full sm:w-auto">
                 <CreditCard className="h-4 w-4 mr-2" />
                 Request Payout
               </Button>
@@ -514,76 +514,76 @@ const WalletDashboard = () => {
       </div>
 
       {/* Balance Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-6">
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Available Balance</CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-3 sm:p-6">
+            <CardTitle className="text-xs sm:text-sm font-medium">Available Balance</CardTitle>
             <Wallet className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">₦{wallet?.available_balance.toLocaleString() || 0}</div>
+          <CardContent className="p-3 sm:p-6 pt-0">
+            <div className="text-lg sm:text-2xl font-bold">₦{wallet?.available_balance.toLocaleString() || 0}</div>
             <p className="text-xs text-muted-foreground">Ready for withdrawal</p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Earnings</CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-3 sm:p-6">
+            <CardTitle className="text-xs sm:text-sm font-medium">Total Earnings</CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">₦{wallet?.total_earnings.toLocaleString() || 0}</div>
+          <CardContent className="p-3 sm:p-6 pt-0">
+            <div className="text-lg sm:text-2xl font-bold">₦{wallet?.total_earnings.toLocaleString() || 0}</div>
             <p className="text-xs text-muted-foreground">Lifetime earnings</p>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending Balance</CardTitle>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-3 sm:p-6">
+            <CardTitle className="text-xs sm:text-sm font-medium">Pending Balance</CardTitle>
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">₦{wallet?.pending_balance.toLocaleString() || 0}</div>
+          <CardContent className="p-3 sm:p-6 pt-0">
+            <div className="text-lg sm:text-2xl font-bold">₦{wallet?.pending_balance.toLocaleString() || 0}</div>
             <p className="text-xs text-muted-foreground">In escrow</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Tabs for Transactions and Payouts */}
-      <Tabs defaultValue="transactions" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="transactions">Recent Transactions</TabsTrigger>
-          <TabsTrigger value="payouts">Payout Requests</TabsTrigger>
-          <TabsTrigger value="analytics">Product Analytics</TabsTrigger>
+      <Tabs defaultValue="transactions" className="space-y-3 sm:space-y-4">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="transactions" className="text-xs sm:text-sm">Transactions</TabsTrigger>
+          <TabsTrigger value="payouts" className="text-xs sm:text-sm">Payouts</TabsTrigger>
+          <TabsTrigger value="analytics" className="text-xs sm:text-sm">Analytics</TabsTrigger>
         </TabsList>
 
         <TabsContent value="transactions">
           <Card>
-            <CardHeader>
-              <CardTitle>Transaction History</CardTitle>
+            <CardHeader className="p-3 sm:p-6">
+              <CardTitle className="text-base sm:text-lg">Transaction History</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-3 sm:p-6">
               {transactions.length === 0 ? (
-                <div className="text-center py-8">
-                  <Wallet className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                  <p className="text-lg font-medium">No transactions yet</p>
-                  <p className="text-muted-foreground">Your transaction history will appear here</p>
+                <div className="text-center py-6 sm:py-8">
+                  <Wallet className="h-10 w-10 sm:h-12 sm:w-12 mx-auto mb-3 sm:mb-4 text-muted-foreground" />
+                  <p className="text-base sm:text-lg font-medium">No transactions yet</p>
+                  <p className="text-sm sm:text-base text-muted-foreground">Your transaction history will appear here</p>
                 </div>
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-3 sm:space-y-4">
                   {transactions.map((transaction) => (
-                    <div key={transaction.id} className="flex items-center justify-between p-4 border rounded-lg">
-                      <div className="flex items-center space-x-3">
+                    <div key={transaction.id} className="flex items-center justify-between p-3 sm:p-4 border rounded-lg">
+                      <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
                         {getTransactionIcon(transaction.type)}
-                        <div>
-                          <p className="font-medium">{transaction.description}</p>
-                          <p className="text-sm text-muted-foreground">
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium text-sm sm:text-base truncate">{transaction.description}</p>
+                          <p className="text-xs sm:text-sm text-muted-foreground">
                             {new Date(transaction.created_at).toLocaleDateString()}
                           </p>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <p className={`font-bold ${
+                      <div className="text-right flex-shrink-0">
+                        <p className={`font-bold text-sm sm:text-base ${
                           transaction.type === 'credit' || transaction.type === 'refund' 
                             ? 'text-green-600' 
                             : 'text-red-600'
@@ -603,34 +603,36 @@ const WalletDashboard = () => {
 
         <TabsContent value="payouts">
           <Card>
-            <CardHeader>
-              <CardTitle>Payout Requests</CardTitle>
+            <CardHeader className="p-3 sm:p-6">
+              <CardTitle className="text-base sm:text-lg">Payout Requests</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-3 sm:p-6">
               {payoutRequests.length === 0 ? (
-                <div className="text-center py-8">
-                  <CreditCard className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                  <p className="text-lg font-medium">No payout requests</p>
-                  <p className="text-muted-foreground">Your payout requests will appear here</p>
+                <div className="text-center py-6 sm:py-8">
+                  <CreditCard className="h-10 w-10 sm:h-12 sm:w-12 mx-auto mb-3 sm:mb-4 text-muted-foreground" />
+                  <p className="text-base sm:text-lg font-medium">No payout requests</p>
+                  <p className="text-sm sm:text-base text-muted-foreground">Your payout requests will appear here</p>
                 </div>
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-3 sm:space-y-4">
                   {payoutRequests.map((payout) => (
-                    <div key={payout.id} className="p-4 border rounded-lg">
-                      <div className="flex justify-between items-start mb-2">
-                        <div>
-                          <p className="font-bold text-lg">₦{payout.amount.toLocaleString()}</p>
-                          <p className="text-sm text-muted-foreground">
+                    <div key={payout.id} className="p-3 sm:p-4 border rounded-lg">
+                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2 mb-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-bold text-base sm:text-lg">₦{payout.amount.toLocaleString()}</p>
+                          <p className="text-xs sm:text-sm text-muted-foreground truncate">
                             {payout.bank_account_name} • {payout.bank_name}
                           </p>
                         </div>
-                        {getStatusBadge(payout.status)}
+                        <div className="flex-shrink-0">
+                          {getStatusBadge(payout.status)}
+                        </div>
                       </div>
                       <p className="text-xs text-muted-foreground">
                         Requested on {new Date(payout.created_at).toLocaleDateString()}
                       </p>
                       {payout.admin_notes && (
-                        <p className="text-sm mt-2 p-2 bg-muted rounded">
+                        <p className="text-xs sm:text-sm mt-2 p-2 bg-muted rounded">
                           <strong>Admin Notes:</strong> {payout.admin_notes}
                         </p>
                       )}
@@ -644,11 +646,11 @@ const WalletDashboard = () => {
 
         <TabsContent value="analytics">
           <Card>
-            <CardHeader>
-              <div className="flex justify-between items-center">
-                <CardTitle>Product Analytics</CardTitle>
+            <CardHeader className="p-3 sm:p-6">
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+                <CardTitle className="text-base sm:text-lg">Product Analytics</CardTitle>
                 <Select value={analyticsFilter} onValueChange={setAnalyticsFilter}>
-                  <SelectTrigger className="w-48">
+                  <SelectTrigger className="w-full sm:w-48">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -662,24 +664,24 @@ const WalletDashboard = () => {
                 </Select>
               </div>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-3 sm:p-6">
               {productAnalytics.length === 0 ? (
-                <div className="text-center py-8">
-                  <Package className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                  <p className="text-lg font-medium">No analytics data</p>
-                  <p className="text-muted-foreground">Analytics will appear once you have products with activity</p>
+                <div className="text-center py-6 sm:py-8">
+                  <Package className="h-10 w-10 sm:h-12 sm:w-12 mx-auto mb-3 sm:mb-4 text-muted-foreground" />
+                  <p className="text-base sm:text-lg font-medium">No analytics data</p>
+                  <p className="text-sm sm:text-base text-muted-foreground">Analytics will appear once you have products with activity</p>
                 </div>
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-3 sm:space-y-4">
                   {getFilteredAnalytics().slice(0, analyticsFilter === 'view_all' ? productAnalytics.length : 10).map((analytics, index) => (
-                    <div key={analytics.product_id} className="flex items-center justify-between p-4 border rounded-lg">
-                      <div className="flex items-center space-x-3">
-                        <div className="flex items-center justify-center w-8 h-8 bg-primary/10 rounded-full text-sm font-bold">
+                    <div key={analytics.product_id} className="flex items-center justify-between p-3 sm:p-4 border rounded-lg">
+                      <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+                        <div className="flex items-center justify-center w-6 h-6 sm:w-8 sm:h-8 bg-primary/10 rounded-full text-xs sm:text-sm font-bold flex-shrink-0">
                           {index + 1}
                         </div>
-                        <div>
-                          <p className="font-medium">{analytics.product_title}</p>
-                          <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium text-sm sm:text-base truncate">{analytics.product_title}</p>
+                          <div className="flex items-center gap-2 sm:gap-4 text-xs sm:text-sm text-muted-foreground mt-1">
                             <div className="flex items-center gap-1">
                               <Eye className="h-3 w-3" />
                               <span>{analytics.views}</span>
@@ -695,9 +697,9 @@ const WalletDashboard = () => {
                           </div>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <p className="font-bold text-lg">{analytics.orders_count} orders</p>
-                        <p className="text-sm text-muted-foreground">₦{analytics.revenue.toLocaleString()} revenue</p>
+                      <div className="text-right flex-shrink-0">
+                        <p className="font-bold text-sm sm:text-lg">{analytics.orders_count} orders</p>
+                        <p className="text-xs sm:text-sm text-muted-foreground">₦{analytics.revenue.toLocaleString()}</p>
                       </div>
                     </div>
                   ))}

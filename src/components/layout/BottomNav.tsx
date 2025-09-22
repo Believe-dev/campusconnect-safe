@@ -6,7 +6,8 @@ import {
   Heart, 
   MessageCircle,
   Store,
-  User
+  User,
+  ShoppingCart
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { useCartCount } from '@/hooks/useCartCount';
@@ -17,23 +18,21 @@ const BottomNav = () => {
   const { user } = useAuth();
   const { cartCount } = useCartCount();
   
-  // Hide bottom nav when in messages page (both list and chat)
-  const isInMessages = location.pathname === '/messages';
+  // Hide bottom nav only on chat pages
+  const isInChat = location.pathname.startsWith('/chat/');
 
-
-
-  if (!user || isInMessages) return null;
+  if (!user || isInChat) return null;
 
   const navItems = [
     { to: '/', icon: Home, label: 'Home' },
     { to: '/marketplace', icon: Store, label: 'Shop' },
     { to: '/orders', icon: Package, label: 'Orders' },
-    { to: '/favorites', icon: Heart, label: 'Favorites' },
+    { to: '/cart', icon: ShoppingCart, label: 'Cart', badge: cartCount },
     { to: '/profile', icon: User, label: 'Profile' },
   ];
 
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-background border-t border-primary/10 shadow-lg" style={{ position: 'fixed', bottom: 0 }}>
+    <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-background border-t border-primary/10 shadow-lg" style={{ position: 'fixed', bottom: 0 }}>
       <div className="flex justify-around items-center py-2 px-1 safe-area-pb">
         {navItems.map(({ to, icon: Icon, label, badge }) => {
           const isActive = location.pathname === to || (to === '/marketplace' && location.pathname.startsWith('/marketplace'));
@@ -54,10 +53,10 @@ const BottomNav = () => {
                   "h-5 w-5 transition-all duration-200",
                   isActive ? "drop-shadow-sm" : ""
                 )} />
-                {badge && badge > 0 && (
+                {badge !== undefined && (
                   <Badge 
                     variant="destructive" 
-                    className="absolute -top-2 -right-2 h-4 w-4 flex items-center justify-center p-0 text-xs font-bold rounded-full bg-gradient-to-r from-red-500 to-red-600 text-white border-2 border-background shadow-sm animate-pulse"
+                    className="absolute -top-2 -right-2 h-4 w-4 flex items-center justify-center p-0 text-xs font-bold rounded-full bg-gradient-to-r from-red-500 to-red-600 text-white border-2 border-background shadow-sm"
                   >
                     {badge > 99 ? '99+' : badge}
                   </Badge>

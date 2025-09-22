@@ -2,6 +2,13 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 
+// Extend Window interface
+declare global {
+  interface Window {
+    refreshCartCount?: () => void;
+  }
+}
+
 export const useCartCount = () => {
   const { user } = useAuth();
   const [cartCount, setCartCount] = useState(0);
@@ -10,6 +17,9 @@ export const useCartCount = () => {
   useEffect(() => {
     if (user) {
       fetchCartCount();
+      
+      // Expose refresh function globally
+      window.refreshCartCount = fetchCartCount;
       
       // Subscribe to cart changes
       const channel = supabase
@@ -35,6 +45,7 @@ export const useCartCount = () => {
       return () => {
         supabase.removeChannel(channel);
         window.removeEventListener('cartUpdated', handleCartUpdate);
+        delete window.refreshCartCount;
       };
     } else {
       setCartCount(0);

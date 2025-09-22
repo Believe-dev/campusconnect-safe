@@ -6,7 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Search, Star, MapPin, ShieldCheck, User } from 'lucide-react';
+import { Search, Star, MapPin, ShieldCheck, User, Phone } from 'lucide-react';
 import Header from '@/components/layout/Header';
 
 interface Seller {
@@ -19,6 +19,7 @@ interface Seller {
   rating: number;
   total_reviews: number;
   is_verified: boolean;
+  phone_number?: string;
   product_count?: number;
 }
 
@@ -67,7 +68,7 @@ const SellerSearch = () => {
       const { data, error } = await supabase
         .from('profiles')
         .select(`
-          user_id, full_name, university_name, campus, bio, avatar_url, rating, total_reviews, is_verified, account_type,
+          user_id, full_name, university_name, campus, bio, avatar_url, rating, total_reviews, is_verified, account_type, phone_number,
           products!products_seller_id_fkey(id)
         `)
         .in('account_type', ['seller', 'both'])
@@ -235,6 +236,15 @@ const SellerSearch = () => {
                           {seller.university_name || seller.campus}
                         </span>
                       </div>
+                      
+                      {seller.phone_number && (
+                        <div className="flex items-center gap-1 mb-2">
+                          <Phone className="h-3 w-3 text-muted-foreground" />
+                          <span className="text-sm text-muted-foreground">
+                            {seller.phone_number}
+                          </span>
+                        </div>
+                      )}
                       
                       <div className="flex items-center gap-1 mb-2">
                         <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />

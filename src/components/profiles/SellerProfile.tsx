@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/enhanced-button';
 import { Separator } from '@/components/ui/separator';
-import { Star, MessageCircle, MapPin, GraduationCap, ShieldCheck, User, Package, Heart, ShoppingCart } from 'lucide-react';
+import { Star, MessageCircle, MapPin, GraduationCap, ShieldCheck, User, Package, Heart, ShoppingCart, Phone } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { Textarea } from '@/components/ui/textarea';
@@ -25,6 +25,7 @@ interface SellerProfile {
   total_reviews: number;
   is_verified: boolean;
   seller_status: string;
+  phone_number?: string;
   created_at: string;
 }
 
@@ -90,6 +91,7 @@ const SellerProfile = () => {
           is_verified,
           seller_status,
           account_type,
+          phone_number,
           created_at
         `)
         .eq('user_id', sellerId)
@@ -161,9 +163,9 @@ const SellerProfile = () => {
     }
 
     try {
-      // Use the same function as ProductCard to find or create consolidated conversation
+      // Use the consolidated conversation function
       const { data: conversationId, error } = await supabase.rpc(
-        'find_or_create_conversation',
+        'find_or_create_consolidated_conversation',
         {
           p_buyer_id: user.id,
           p_seller_id: seller.user_id,
@@ -348,6 +350,12 @@ const SellerProfile = () => {
                     <div className="flex items-center gap-1 justify-center sm:justify-start">
                       <MapPin className="h-4 w-4 flex-shrink-0" />
                       <span className="text-sm sm:text-base truncate">{seller.university_name || seller.campus}</span>
+                    </div>
+                  )}
+                  {seller.phone_number && (
+                    <div className="flex items-center gap-1 justify-center sm:justify-start">
+                      <Phone className="h-4 w-4 flex-shrink-0" />
+                      <span className="text-sm sm:text-base">{seller.phone_number}</span>
                     </div>
                   )}
                 </div>

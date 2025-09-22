@@ -4,9 +4,9 @@ import { Button } from '@/components/ui/enhanced-button';
 import { OptimizedImage } from '@/components/ui/optimized-image';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { sanitizeInput, secureLog } from '@/utils/security';
+import { supabase } from '@/integrations/supabase/client';
 
 interface Product {
   id: string;
@@ -65,9 +65,9 @@ const ProductCard = ({
     }
 
     try {
-      // Use the new function to find or create a consolidated conversation between buyer and seller
+      // Use the database function to find or create a consolidated conversation
       const { data: conversationId, error: functionError } = await supabase.rpc(
-        'find_or_create_conversation',
+        'find_or_create_consolidated_conversation',
         {
           p_buyer_id: user.id,
           p_seller_id: product.seller_id,
@@ -75,7 +75,7 @@ const ProductCard = ({
         }
       );
 
-      if (functionError) {
+      if (functionError || !conversationId) {
         secureLog.error('Error finding/creating conversation', functionError);
         toast({
           title: "Error",
@@ -131,7 +131,7 @@ const ProductCard = ({
           <OptimizedImage
             src={product.images[0]}
             alt={product.title}
-            className="w-full h-full group-hover:scale-110 transition-all duration-300 ease-out"
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 ease-out"
             quality={60}
           />
         ) : (
