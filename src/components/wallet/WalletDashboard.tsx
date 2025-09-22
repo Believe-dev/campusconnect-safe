@@ -371,14 +371,7 @@ const WalletDashboard = () => {
   }
 
   return (
-    <div 
-      className="space-y-4 sm:space-y-6"
-      style={{
-        transform: 'translateZ(0)',
-        backfaceVisibility: 'hidden',
-        WebkitBackfaceVisibility: 'hidden'
-      }}
-    >
+    <div className="space-y-4 sm:space-y-6">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <h2 className="text-xl sm:text-2xl font-bold">Wallet Dashboard</h2>
         <div className="flex flex-col sm:flex-row gap-2">
@@ -521,13 +514,7 @@ const WalletDashboard = () => {
       </div>
 
       {/* Balance Cards */}
-      <div 
-        className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-6"
-        style={{
-          transform: 'translateZ(0)',
-          backfaceVisibility: 'hidden'
-        }}
-      >
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-3 sm:p-6">
             <CardTitle className="text-xs sm:text-sm font-medium">Available Balance</CardTitle>
@@ -563,14 +550,7 @@ const WalletDashboard = () => {
       </div>
 
       {/* Tabs for Transactions and Payouts */}
-      <Tabs 
-        defaultValue="transactions" 
-        className="space-y-3 sm:space-y-4"
-        style={{
-          transform: 'translateZ(0)',
-          backfaceVisibility: 'hidden'
-        }}
-      >
+      <Tabs defaultValue="transactions" className="space-y-3 sm:space-y-4">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="transactions" className="text-xs sm:text-sm">Transactions</TabsTrigger>
           <TabsTrigger value="payouts" className="text-xs sm:text-sm">Payouts</TabsTrigger>

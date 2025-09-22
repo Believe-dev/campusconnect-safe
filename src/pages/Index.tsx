@@ -60,14 +60,7 @@ const Index = () => {
       <FeaturesSection />
 
       {/* Marketplace Section */}
-      <section 
-        id="marketplace" 
-        className="py-12 sm:py-16 pb-20 md:pb-16"
-        style={{
-          transform: 'translateZ(0)',
-          backfaceVisibility: 'hidden'
-        }}
-      >
+      <section id="marketplace" className="py-12 sm:py-16 pb-20 md:pb-16">
         <div className="container mx-auto px-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 sm:mb-8 gap-4">
             <h2 className="text-2xl sm:text-3xl font-bold">Latest Products</h2>

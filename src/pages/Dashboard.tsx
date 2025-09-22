@@ -392,12 +392,6 @@ const Dashboard = () => {
                                 src={product.images[0]}
                                 alt={product.title}
                                 className="w-16 h-16 sm:w-20 sm:h-20 object-cover rounded flex-shrink-0"
-                                loading="lazy"
-                                decoding="async"
-                                style={{
-                                  transform: 'translateZ(0)',
-                                  backfaceVisibility: 'hidden'
-                                }}
                               />
                             )}
                             <div className="flex-1 min-w-0">
@@ -465,13 +459,7 @@ const Dashboard = () => {
             )}
           </TabsContent>
 
-          <TabsContent 
-            value="wallet"
-            style={{
-              transform: 'translateZ(0)',
-              backfaceVisibility: 'hidden'
-            }}
-          >
+          <TabsContent value="wallet">
             <WalletDashboard />
           </TabsContent>
 
