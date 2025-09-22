@@ -22,10 +22,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
       <div className="container mx-auto px-4 text-center relative z-10">
         <div className="fade-in">
           <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-white mb-4 sm:mb-6 animate-in slide-in-from-bottom-4 duration-500">
-            {APP_CONFIG.description.split(" ").slice(0, 2).join(" ")}
-            <span className="block gradient-accent bg-clip-text text-transparent animate-in slide-in-from-bottom-4 duration-700 delay-200">
-              {APP_CONFIG.description.split(" ").slice(2).join(" ")}
-            </span>
+            {APP_CONFIG.description}
           </h1>
           <p className="text-base sm:text-lg lg:text-xl text-white/90 mb-6 sm:mb-8 max-w-2xl mx-auto px-4 animate-in slide-in-from-bottom-4 duration-500 delay-300">
             Buy and sell safely within your university community.

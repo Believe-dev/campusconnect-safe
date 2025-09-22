@@ -231,7 +231,7 @@ export const AIChatbot = () => {
         onClick={() => !isDragging && setIsOpen(true)}
         onMouseDown={handleMouseDown}
         onTouchStart={handleTouchStart}
-        className={`fixed z-50 h-14 w-14 rounded-full bg-university-green hover:bg-green-700 shadow-lg transition-all ${
+        className={`fixed z-[60] h-14 w-14 rounded-full bg-university-green hover:bg-green-700 shadow-lg transition-all ${
           isDragging ? 'cursor-grabbing scale-110' : 'cursor-grab hover:scale-105'
         }`}
         style={{
@@ -248,8 +248,8 @@ export const AIChatbot = () => {
   }
 
   return (
-    <Card className={`fixed bottom-4 left-4 right-4 sm:right-4 sm:left-auto z-50 w-auto sm:w-96 max-w-none sm:max-w-sm shadow-xl transition-all ${
-      isMinimized ? 'h-14' : 'h-[70vh] sm:h-[500px]'
+    <Card className={`fixed bottom-20 sm:bottom-4 left-4 right-4 sm:right-4 sm:left-auto z-[60] w-auto sm:w-96 max-w-none sm:max-w-sm shadow-xl transition-all ${
+      isMinimized ? 'h-14' : 'h-[60vh] sm:h-[500px]'
     }`}>
       <CardHeader className="p-3 bg-university-green text-white rounded-t-lg">
         <div className="flex items-center justify-between">

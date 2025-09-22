@@ -50,9 +50,11 @@ export function VirtualizedList<T>({
     >
       <div style={{ height: totalHeight, position: 'relative' }}>
         <div style={{ transform: `translateY(${offsetY}px)` }}>
-          {visibleItems.map((item, index) =>
-            renderItem(item, startIndex + index)
-          )}
+          {visibleItems.map((item, index) => (
+            <div key={`${startIndex + index}`}>
+              {renderItem(item, startIndex + index)}
+            </div>
+          ))}
         </div>
       </div>
     </div>

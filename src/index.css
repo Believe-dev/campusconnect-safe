@@ -490,4 +490,52 @@
       background-position: 200% 0;
     }
   }
+
+  /* Mobile Performance Optimizations */
+  img {
+    max-width: 100%;
+    height: auto;
+  }
+
+  /* Remove heavy CSS effects on mobile breakpoints */
+  @media (max-width: 600px) {
+    * {
+      box-shadow: none !important;
+      filter: none !important;
+      backdrop-filter: none !important;
+      transform: none !important;
+    }
+
+    /* Keep essential transforms for layout */
+    .verification-tick,
+    .verification-badge-inline {
+      transform: translateZ(0) !important;
+    }
+
+    /* Disable heavy animations on mobile */
+    .hover-lift:hover,
+    .micro-bounce:active {
+      transform: none !important;
+    }
+
+    /* Simplify gradients on mobile */
+    .gradient-brand,
+    .gradient-accent,
+    .gradient-hero {
+      background: hsl(var(--primary)) !important;
+    }
+  }
+
+  /* Low-end device optimizations */
+  @media (max-width: 480px) {
+    .student-card {
+      background: white !important;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1) !important;
+    }
+
+    .loading-shimmer {
+      animation: none !important;
+      background: rgba(0, 0, 0, 0.05) !important;
+    }
+  }
 }

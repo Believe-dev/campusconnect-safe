@@ -85,6 +85,7 @@ export const OptimizedImage: React.FC<OptimizedImageProps> = ({
           isLoaded ? 'opacity-100' : 'opacity-0'
         }`}
         loading={lazy ? 'lazy' : 'eager'}
+        style={{ maxWidth: '100%', height: 'auto' }}
         {...props}
       />
     </div>

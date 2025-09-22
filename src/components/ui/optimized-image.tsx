@@ -88,6 +88,7 @@ export const OptimizedImage = ({
           loading={loading}
           onLoad={handleLoad}
           onError={handleError}
+          style={{ maxWidth: '100%', height: 'auto' }}
           className={cn(
             'w-full h-full object-cover transition-opacity duration-300',
             isLoaded ? 'opacity-100' : 'opacity-0'
