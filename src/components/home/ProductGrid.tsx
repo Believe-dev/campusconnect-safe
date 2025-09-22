@@ -57,7 +57,7 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
   return (
     <>
       <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
-        {displayProducts.map((product, index) => {
+        {displayProducts.map((product, index) => (
           <Card 
             key={product.id} 
             className="group hover:shadow-lg transition-smooth cursor-pointer overflow-hidden"
@@ -134,7 +134,7 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
               </div>
             </CardContent>
           </Card>
-        )})
+        ))
       </div>
       {isAuthenticated && products.length > 0 && (
         <div className="text-center mt-8">
