@@ -446,12 +446,53 @@
     }
   }
 
-  /* GPU acceleration for smooth animations */
-  .hover-lift,
-  .micro-bounce,
-  .student-card {
-    will-change: transform;
-    transform: translateZ(0);
+  /* Android-specific fixes */
+  @media screen and (-webkit-min-device-pixel-ratio: 1) {
+    .android-fix {
+      -webkit-transform: translateZ(0);
+      -webkit-backface-visibility: hidden;
+      -webkit-perspective: 1000;
+    }
+
+    /* Prevent image blinking on scroll */
+    img {
+      -webkit-transform: translateZ(0);
+      transform: translateZ(0);
+      will-change: auto;
+      contain: layout style paint;
+    }
+
+    /* Smooth scrolling for Android */
+    body {
+      -webkit-overflow-scrolling: touch;
+      overflow-scrolling: touch;
+    }
+  }
+
+  /* GPU acceleration for smooth animations - Disabled for mobile */
+  @media (min-width: 768px) {
+    .hover-lift,
+    .micro-bounce,
+    .student-card {
+      will-change: transform;
+      transform: translateZ(0);
+    }
+  }
+
+  /* Mobile-optimized rendering */
+  @media (max-width: 767px) {
+    .hover-lift,
+    .micro-bounce,
+    .student-card {
+      will-change: auto;
+      transform: none;
+    }
+
+    /* Prevent visual glitches on mobile */
+    * {
+      -webkit-transform: translateZ(0);
+      -webkit-backface-visibility: hidden;
+    }
   }
 
   /* Optimize for touch devices */
@@ -462,6 +503,27 @@
 
     .hover-lift:active {
       transform: translateY(-1px) scale(0.98);
+    }
+
+    /* Fix Android rendering issues */
+    * {
+      -webkit-transform: translateZ(0);
+      -webkit-backface-visibility: hidden;
+      -webkit-perspective: 1000;
+    }
+
+    img {
+      -webkit-transform: translateZ(0);
+      transform: translateZ(0);
+      image-rendering: -webkit-optimize-contrast;
+      image-rendering: crisp-edges;
+    }
+
+    /* Prevent flashing on scroll */
+    .grid {
+      -webkit-transform: translateZ(0);
+      transform: translateZ(0);
+      will-change: auto;
     }
   }
 

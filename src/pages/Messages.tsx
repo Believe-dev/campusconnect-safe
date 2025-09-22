@@ -26,6 +26,7 @@ interface Conversation {
   other_user?: {
     full_name: string;
     avatar_url?: string;
+    is_verified?: boolean;
   };
   last_message?: {
     content: string;

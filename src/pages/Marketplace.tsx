@@ -491,19 +491,36 @@ const Marketplace = () => {
             </CardContent>
           </Card>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
+            <div 
+              className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-6"
+              style={{
+                transform: 'translateZ(0)',
+                willChange: 'auto'
+              }}
+            >
             {filteredProducts.map((product) => (
               <Card 
                 key={product.id} 
-                className="group hover:shadow-lg transition-smooth cursor-pointer overflow-hidden"
+                className="cursor-pointer overflow-hidden border border-gray-200 bg-white"
                 onClick={() => navigate(`/product/${product.id}`)}
+                style={{
+                  transform: 'translateZ(0)',
+                  backfaceVisibility: 'hidden',
+                  perspective: '1000px'
+                }}
               >
                 <div className="relative">
                   {product.images && product.images[0] && (
                     <img
                       src={product.images[0]}
                       alt={product.title}
-                      className="w-full h-32 sm:h-40 lg:h-48 object-cover rounded-t-lg group-hover:scale-105 transition-transform duration-300 ease-out"
+                      className="w-full h-32 sm:h-40 lg:h-48 object-cover rounded-t-lg"
+                      loading="lazy"
+                      decoding="async"
+                      style={{
+                        contentVisibility: 'auto',
+                        containIntrinsicSize: '1px 128px'
+                      }}
                     />
                   )}
                   

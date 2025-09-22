@@ -27,34 +27,34 @@ export class SecureAPI {
     }
 
     try {
-      let query = supabase.from(table);
+      let query = supabase.from(table as any);
 
       switch (operation) {
         case 'select':
           if (filters) {
             Object.entries(filters).forEach(([key, value]) => {
-              query = query.eq(key, value);
+              query = (query as any).eq(key, value);
             });
           }
-          return await query.select();
+          return await (query as any).select();
 
         case 'insert':
           if (!data) throw new Error('Data required for insert');
-          return await query.insert(data);
+          return await (query as any).insert(data);
 
         case 'update':
           if (!data || !filters) throw new Error('Data and filters required for update');
           Object.entries(filters).forEach(([key, value]) => {
-            query = query.eq(key, value);
+            query = (query as any).eq(key, value);
           });
-          return await query.update(data);
+          return await (query as any).update(data);
 
         case 'delete':
           if (!filters) throw new Error('Filters required for delete');
           Object.entries(filters).forEach(([key, value]) => {
-            query = query.eq(key, value);
+            query = (query as any).eq(key, value);
           });
-          return await query.delete();
+          return await (query as any).delete();
 
         default:
           throw new Error('Invalid operation');

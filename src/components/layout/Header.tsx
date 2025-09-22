@@ -443,7 +443,7 @@ const Header = () => {
                 asChild
                 className="justify-start"
               >
-                <Link to="/wallet">
+                <Link to="/dashboard?tab=wallet">
                   <svg
                     className="mr-3 h-5 w-5"
                     fill="none"

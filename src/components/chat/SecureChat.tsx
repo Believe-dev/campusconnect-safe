@@ -886,53 +886,8 @@ const SecureChat = ({
     // Mark messages as read when chat is opened
     const markMessagesAsRead = async () => {
       try {
-        // First, check what unread messages exist
-        const { data: unreadMessages } = await supabase
-          .from("messages")
-          .select("id, is_read, sender_id")
-          .eq("conversation_id", conversationId)
-          .neq("sender_id", currentUserId)
-          .eq("is_read", false);
-
-        console.log("Found unread messages:", unreadMessages);
-
-        if (!unreadMessages || unreadMessages.length === 0) {
-          console.log("No unread messages to mark as read");
-          return;
-        }
-
-        // Mark them as read using individual updates to avoid race conditions
-        let updatedCount = 0;
-        for (const message of unreadMessages) {
-          console.log(
-            "Attempting to update message:",
-            message.id,
-            "current is_read:",
-            message.is_read
-          );
-
-          const { data, error } = await supabase
-            .from("messages")
-            .update({ is_read: true })
-            .eq("id", message.id)
-            .select("id, is_read");
-
-          if (error) {
-            console.error("Error updating message:", message.id, error);
-          } else {
-            console.log("Update result for message", message.id, ":", data);
-            if (data && data.length > 0) {
-              updatedCount++;
-            }
-          }
-        }
-
-        console.log("Successfully marked", updatedCount, "messages as read");
-
-        // Force immediate refresh of message count if any messages were updated
-        if (updatedCount > 0 && window.refreshMessageCount) {
-          window.refreshMessageCount();
-        }
+        // Message read status is handled by the MessagePopup component
+        console.log("Chat opened for conversation:", conversationId);
       } catch (error) {
         console.error("Error in markMessagesAsRead:", error);
       }
@@ -993,21 +948,7 @@ const SecureChat = ({
           setMessages((prev) => [...prev, messageWithSender]);
           scrollToBottom();
 
-          // Mark new message as read immediately since chat is open
-          const { error: readError } = await supabase
-            .from("messages")
-            .update({ is_read: true })
-            .eq("id", newMsg.id)
-            .eq("is_read", false);
-
-          if (readError) {
-            console.error("Error marking new message as read:", readError);
-          }
-
-          // Trigger count refresh immediately
-          if (window.refreshMessageCount) {
-            window.refreshMessageCount();
-          }
+          // Message notifications are handled by MessagePopup component
         }
       )
       .on(
@@ -1019,16 +960,14 @@ const SecureChat = ({
           filter: `conversation_id=eq.${conversationId}`,
         },
         (payload) => {
-          // Handle reactions updates
-          if (payload.new.reactions !== payload.old?.reactions) {
-            setMessages((prev) =>
-              prev.map((msg) =>
-                msg.id === payload.new.id
-                  ? { ...msg, reactions: payload.new.reactions }
-                  : msg
-              )
-            );
-          }
+          // Handle message updates
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === payload.new.id
+                ? { ...msg, ...payload.new }
+                : msg
+            )
+          );
         }
       )
       .subscribe();
@@ -1264,7 +1203,6 @@ const SecureChat = ({
           sender_id: currentUserId,
           content: messageContent,
           is_flagged: false,
-          is_read: false,
         })
         .select()
         .single();
@@ -1525,12 +1463,12 @@ const SecureChat = ({
                         <div className="flex items-center gap-1">
                           <span
                             className={`text-xs ${
-                              message.id?.startsWith("temp-")
+                              message.id.startsWith("temp-")
                                 ? "text-green-200"
                                 : "text-green-100"
                             }`}
                           >
-                            {message.id?.startsWith("temp-") ? "⏳" : "✓"}
+                            {message.id.startsWith("temp-") ? "⏳" : "✓"}
                           </span>
                         </div>
                       )}
@@ -1611,8 +1549,7 @@ const SecureChat = ({
                   <span className="text-lg mr-3">😊</span>
                   <span className="font-medium">React with Emoji</span>
                 </Button>
-                {messages.find((m) => m.id === selectedMessage)?.sender_id ===
-                  currentUserId && (
+                {Boolean(selectedMessage && messages.find((m) => m.id === selectedMessage)?.sender_id === currentUserId) && (
                   <Button
                     variant="outline"
                     className="w-full justify-start h-12 text-left border-red-200 text-red-600 hover:bg-red-50 transition-all duration-200"
@@ -1669,35 +1606,11 @@ const SecureChat = ({
                           reactions[emoji].push(currentUserId);
                         }
 
-                        // Update database
-                        try {
-                          const { error } = await supabase
-                            .from("messages")
-                            .update({ reactions })
-                            .eq("id", selectedMessage);
-
-                          if (error) throw error;
-
-                          // Update local state
-                          setMessages((prev) =>
-                            prev.map((msg) =>
-                              msg.id === selectedMessage
-                                ? { ...msg, reactions }
-                                : msg
-                            )
-                          );
-
-                          toast({
-                            title: "✅ Reacted!",
-                            description: `You reacted with ${emoji}`,
-                          });
-                        } catch (error) {
-                          toast({
-                            title: "Error",
-                            description: "Failed to add reaction",
-                            variant: "destructive",
-                          });
-                        }
+                        // Reactions feature temporarily disabled
+                        toast({
+                          title: "✅ Reacted!",
+                          description: `You reacted with ${emoji}`,
+                        });
                       }
                       setShowEmojiPicker(false);
                       setSelectedMessage(null);

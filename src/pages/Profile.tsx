@@ -374,17 +374,25 @@ const Profile = () => {
                       </div>
                     )}
                     <div className="absolute inset-0 bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                      <label htmlFor="photo-upload" className="cursor-pointer text-white text-xs font-medium">
+                      <button 
+                        onClick={() => document.getElementById('photo-upload')?.click()}
+                        className="cursor-pointer text-white text-xs font-medium p-2 rounded-full hover:bg-black/20 transition-colors"
+                        disabled={uploadingPhoto}
+                      >
                         {uploadingPhoto ? 'Uploading...' : 'Change Photo'}
-                      </label>
+                      </button>
                       <input
                         id="photo-upload"
                         type="file"
-                        accept="image/*"
+                        accept="image/*,image/jpeg,image/jpg,image/png,image/webp"
+                        capture="environment"
                         className="hidden"
                         onChange={(e) => {
                           const file = e.target.files?.[0];
-                          if (file) handlePhotoUpload(file);
+                          if (file) {
+                            handlePhotoUpload(file);
+                            e.target.value = ''; // Reset for reuse
+                          }
                         }}
                         disabled={uploadingPhoto}
                       />
@@ -393,21 +401,27 @@ const Profile = () => {
                   
                   {/* Upload Profile Picture Button */}
                   <div className="w-full">
-                    <label htmlFor="profile-upload-btn" className="cursor-pointer">
-                      <Button variant="outline" size="sm" className="w-full" asChild>
-                        <span>
-                          {uploadingPhoto ? 'Uploading...' : 'Upload Profile Picture'}
-                        </span>
-                      </Button>
-                    </label>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="w-full min-h-[44px] touch-manipulation" 
+                      onClick={() => document.getElementById('profile-upload-btn')?.click()}
+                      disabled={uploadingPhoto}
+                    >
+                      {uploadingPhoto ? 'Uploading...' : 'Upload Profile Picture'}
+                    </Button>
                     <input
                       id="profile-upload-btn"
                       type="file"
-                      accept="image/*"
+                      accept="image/*,image/jpeg,image/jpg,image/png,image/webp"
+                      capture="environment"
                       className="hidden"
                       onChange={(e) => {
                         const file = e.target.files?.[0];
-                        if (file) handlePhotoUpload(file);
+                        if (file) {
+                          handlePhotoUpload(file);
+                          e.target.value = ''; // Reset input
+                        }
                       }}
                       disabled={uploadingPhoto}
                     />
@@ -696,17 +710,20 @@ const Profile = () => {
                           <p className="text-sm text-muted-foreground mb-3">
                             No student ID card uploaded yet
                           </p>
-                          <label htmlFor="id-upload" className="cursor-pointer">
-                            <Button variant="outline" size="sm" asChild>
-                              <span>
-                                {uploadingPhoto ? 'Uploading...' : 'Upload Student ID'}
-                              </span>
-                            </Button>
-                          </label>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="min-h-[44px] touch-manipulation"
+                            onClick={() => document.getElementById('id-upload')?.click()}
+                            disabled={uploadingPhoto}
+                          >
+                            {uploadingPhoto ? 'Uploading...' : 'Upload Student ID'}
+                          </Button>
                           <input
                             id="id-upload"
                             type="file"
-                            accept="image/*"
+                            accept="image/*,image/jpeg,image/jpg,image/png,image/webp"
+                            capture="environment"
                             className="hidden"
                             onChange={async (e) => {
                               const file = e.target.files?.[0];
@@ -744,6 +761,7 @@ const Profile = () => {
                                   });
                                 } finally {
                                   setUploadingPhoto(false);
+                                  e.target.value = ''; // Reset for reuse
                                 }
                               }
                             }}

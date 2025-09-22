@@ -202,12 +202,22 @@ const SellerSearch = () => {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div 
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+            style={{
+              transform: 'translateZ(0)',
+              backfaceVisibility: 'hidden'
+            }}
+          >
             {filteredSellers.map((seller) => (
               <Card 
                 key={seller.user_id} 
-                className="cursor-pointer hover:shadow-lg transition-shadow"
+                className="cursor-pointer overflow-hidden border border-gray-200 bg-white"
                 onClick={() => navigate(`/seller/${seller.user_id}`)}
+                style={{
+                  transform: 'translateZ(0)',
+                  backfaceVisibility: 'hidden'
+                }}
               >
                 <CardContent className="p-6">
                   <div className="flex items-start gap-4">

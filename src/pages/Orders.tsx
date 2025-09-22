@@ -120,6 +120,9 @@ const Orders = () => {
       product: order.products,
       seller: order.seller_profile,
       buyer: order.buyer_profile,
+      escrow_transactions: Array.isArray(order.escrow_transactions) 
+        ? order.escrow_transactions 
+        : order.escrow_transactions ? [order.escrow_transactions] : [],
     }));
 
     // Store offline for next time
@@ -154,11 +157,13 @@ const Orders = () => {
         },
         (payload) => {
           // Check if this order involves the current user
+          const newOrder = payload.new as any;
+          const oldOrder = payload.old as any;
           if (
-            payload.new?.buyer_id === user.id ||
-            payload.new?.seller_id === user.id ||
-            payload.old?.buyer_id === user.id ||
-            payload.old?.seller_id === user.id
+            newOrder?.buyer_id === user.id ||
+            newOrder?.seller_id === user.id ||
+            oldOrder?.buyer_id === user.id ||
+            oldOrder?.seller_id === user.id
           ) {
             refetch();
           }
@@ -200,17 +205,23 @@ const Orders = () => {
       // Handle escrow release for confirmed orders
       if (status === "confirmed") {
         try {
-          const { error: escrowError } = await supabase.rpc(
-            "release_escrow_to_wallet",
-            {
-              order_id_param: orderId,
+          // Get escrow transaction ID from the order
+          const order = orders.find((o) => o.id === orderId);
+          const escrowId = order?.escrow_transactions?.[0]?.id;
+          
+          if (escrowId) {
+            const { error: escrowError } = await supabase.rpc(
+              "release_escrow_funds",
+              {
+                escrow_id: escrowId,
+              }
+            );
+            
+            if (escrowError) {
+              console.error("Error releasing escrow:", escrowError);
             }
-          );
-
-          if (escrowError) {
-            console.error("Error releasing escrow:", escrowError);
-            // Don't show error to user, just log it
           }
+
         } catch (escrowError) {
           console.error("Escrow release failed:", escrowError);
           // Continue with order confirmation even if escrow fails
@@ -589,7 +600,7 @@ const Orders = () => {
                 )}
             </div>
 
-            <div className="flex flex-col sm:flex-row sm:flex-col gap-2 w-full sm:w-auto">
+            <div className="flex flex-col gap-2 w-full sm:w-auto">
               {/* Chat Button - Always visible */}
               <Button
                 size="sm"

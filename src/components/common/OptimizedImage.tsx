@@ -69,9 +69,16 @@ export const OptimizedImage: React.FC<OptimizedImageProps> = ({
   const displaySrc = hasError ? fallback : optimizedSrc;
 
   return (
-    <div className={`relative overflow-hidden ${className}`}>
+    <div 
+      className={`relative overflow-hidden ${className}`}
+      style={{
+        transform: 'translateZ(0)',
+        backfaceVisibility: 'hidden',
+        WebkitBackfaceVisibility: 'hidden'
+      }}
+    >
       {!isLoaded && shouldLoad && (
-        <div className="absolute inset-0 bg-muted animate-pulse" />
+        <div className="absolute inset-0 bg-muted" />
       )}
       <img
         ref={imgRef}
@@ -81,10 +88,19 @@ export const OptimizedImage: React.FC<OptimizedImageProps> = ({
         height={height}
         onLoad={handleLoad}
         onError={handleError}
-        className={`transition-opacity duration-300 ${
+        className={`${
           isLoaded ? 'opacity-100' : 'opacity-0'
         }`}
         loading={lazy ? 'lazy' : 'eager'}
+        decoding="async"
+        style={{
+          transition: 'opacity 0.15s ease-in-out',
+          transform: 'translateZ(0)',
+          backfaceVisibility: 'hidden',
+          WebkitBackfaceVisibility: 'hidden',
+          imageRendering: 'auto',
+          contain: 'layout style paint'
+        }}
         {...props}
       />
     </div>
