@@ -64,24 +64,23 @@ const clearAllCaches = async () => {
 // Clear caches on load
 clearAllCaches();
 
-// Optimized query client for high concurrent users (400+)
+// Memory-optimized query client for low memory devices
+const isLowMemory = (navigator as any).deviceMemory < 2 || navigator.hardwareConcurrency < 4;
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 0, // Always fetch fresh data
-      cacheTime: 0, // Don't cache data
-      retry: (failureCount, error: any) => {
-        if (error?.status >= 400 && error?.status < 500) return false;
-        return failureCount < 1; // Single retry to reduce server load
-      },
-      refetchOnWindowFocus: true,
+      staleTime: 0,
+      cacheTime: isLowMemory ? 0 : 30000, // No cache on low memory
+      retry: 0, // No retries on low memory
+      refetchOnWindowFocus: !isLowMemory,
       refetchOnReconnect: true,
       refetchOnMount: true,
-      networkMode: 'online', // Require network for better performance
-      refetchInterval: false, // Disable polling, use real-time instead
+      networkMode: 'online',
+      refetchInterval: false,
     },
     mutations: {
-      retry: 0, // No retries for mutations to prevent duplicate actions
+      retry: 0,
       networkMode: 'online',
     },
   },
@@ -102,10 +101,10 @@ const queryClient = new QueryClient({
   }),
 });
 
-// Clear query cache every 5 minutes to prevent stale data
+// Clear cache more frequently on low memory devices
 setInterval(() => {
   queryClient.clear();
-}, 5 * 60 * 1000);
+}, isLowMemory ? 60 * 1000 : 5 * 60 * 1000); // 1 min vs 5 min
 
 const AppContent = () => {
   useScrollToTop();

@@ -15,7 +15,7 @@ export function VirtualizedList<T>({
   itemHeight,
   containerHeight,
   renderItem,
-  overscan = 5,
+  overscan = (navigator as any).deviceMemory < 2 ? 2 : 5,
   className = '',
 }: VirtualizedListProps<T>) {
   const [scrollTop, setScrollTop] = useState(0);
@@ -35,7 +35,7 @@ export function VirtualizedList<T>({
 
   const handleScroll = throttle((e: React.UIEvent<HTMLDivElement>) => {
     setScrollTop(e.currentTarget.scrollTop);
-  }, 16); // ~60fps
+  }, (navigator as any).deviceMemory < 2 ? 32 : 16); // 30fps vs 60fps
 
   const visibleItems = useMemo(() => {
     return items.slice(startIndex, endIndex + 1);
@@ -49,12 +49,18 @@ export function VirtualizedList<T>({
       onScroll={handleScroll}
     >
       <div style={{ height: totalHeight, position: 'relative' }}>
-        <div style={{ transform: `translateY(${offsetY}px)` }}>
-          {visibleItems.map((item, index) => (
-            <div key={`${startIndex + index}`}>
-              {renderItem(item, startIndex + index)}
-            </div>
-          ))}
+        <div style={{ transform: `translateY(${offsetY}px)`, backfaceVisibility: 'hidden', willChange: 'transform' }}>
+          {visibleItems.map((item, index) => {
+            const globalIndex = startIndex + index;
+            const itemKey = typeof item === 'object' && item && 'id' in item 
+              ? `item-${item.id}-${globalIndex}` 
+              : `item-${globalIndex}`;
+            return (
+              <div key={itemKey} style={{ backfaceVisibility: 'hidden' }}>
+                {renderItem(item, globalIndex)}
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>

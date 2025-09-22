@@ -497,6 +497,21 @@
     height: auto;
   }
 
+  /* Stable Image Rendering */
+  .stable-image {
+    backface-visibility: hidden;
+    will-change: transform;
+    transform: translateZ(0);
+  }
+
+  .stable-image img {
+    backface-visibility: hidden;
+    will-change: transform;
+    transform: translateZ(0);
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
+  }
+
   /* Remove heavy CSS effects on mobile breakpoints */
   @media (max-width: 600px) {
     * {
@@ -537,5 +552,39 @@
       animation: none !important;
       background: rgba(0, 0, 0, 0.05) !important;
     }
+  }
+
+  /* Ultra low memory optimizations */
+  @media (max-width: 480px) and (max-height: 800px) {
+    * {
+      animation: none !important;
+      transition: none !important;
+    }
+
+    .hover-lift:hover,
+    .micro-bounce:active {
+      transform: none !important;
+    }
+
+    img {
+      image-rendering: pixelated;
+    }
+  }
+
+  /* Memory-efficient utilities */
+  .low-memory {
+    contain: layout style;
+    will-change: auto;
+  }
+
+  .low-memory * {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+  }
+
+  .low-memory img {
+    image-rendering: pixelated;
+    filter: none !important;
   }
 }

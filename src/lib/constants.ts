@@ -28,8 +28,8 @@ export const BUSINESS_RULES = {
     flatRate: 2000, // ₦2,000
   },
   pagination: {
-    defaultLimit: 20,
-    maxLimit: 100,
+    defaultLimit: (navigator as any).deviceMemory < 2 ? 10 : 20,
+    maxLimit: (navigator as any).deviceMemory < 2 ? 50 : 100,
   },
 } as const;
 

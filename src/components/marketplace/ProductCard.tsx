@@ -1,7 +1,8 @@
 import { Star, MapPin, Badge, MessageCircle, ShoppingCart } from 'lucide-react';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/enhanced-button';
-import { OptimizedImage } from '@/components/ui/optimized-image';
+import { LowMemoryImage } from '@/components/ui/LowMemoryImage';
+import { useMemoryOptimization } from '@/hooks/useMemoryOptimization';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
@@ -44,6 +45,7 @@ const ProductCard = ({
   const navigate = useNavigate();
   const { user } = useAuth();
   const { toast } = useToast();
+  const { isLowMemory } = useMemoryOptimization();
 
   const handleMessageSeller = async () => {
     if (!user) {
@@ -125,17 +127,18 @@ const ProductCard = ({
   }
 
   return (
-    <Card className="group student-card hover-lift micro-bounce overflow-hidden cursor-pointer relative transition-all duration-200 hover:scale-[1.02] hover:shadow-lg flex flex-col h-full" onClick={() => onViewProduct(product.id)}>
-      <div className="relative aspect-square overflow-hidden bg-muted">
+    <Card className={`group student-card overflow-hidden cursor-pointer relative flex flex-col h-full ${isLowMemory ? 'low-memory' : 'hover-lift micro-bounce transition-all duration-200 hover:scale-[1.02] hover:shadow-lg'}`} onClick={() => onViewProduct(product.id)}>
+      <div className="relative aspect-square overflow-hidden bg-muted stable-image">
         {product?.images?.[0] ? (
-          <OptimizedImage
+          <LowMemoryImage
             src={product.images[0]}
             alt={product.title}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 ease-out"
-            quality={60}
+            width={300}
+            height={300}
+            className={isLowMemory ? '' : 'group-hover:scale-105 transition-transform duration-300 ease-out'}
           />
         ) : (
-          <div className="flex items-center justify-center h-full bg-gradient-to-br from-muted to-muted/50">
+          <div className="flex items-center justify-center h-full bg-gradient-to-br from-muted to-muted/50" style={{ width: 300, height: 300 }}>
             <span className="text-xs sm:text-sm text-muted-foreground font-medium">No Image</span>
           </div>
         )}

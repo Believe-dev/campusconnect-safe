@@ -17,7 +17,11 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
       <div className="absolute inset-0 bg-black/20" />
       <div
         className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-30 transition-all duration-700 hover:opacity-40"
-        style={{ backgroundImage: `url(${heroImage})` }}
+        style={{ 
+          backgroundImage: `url(${heroImage})`,
+          backfaceVisibility: 'hidden',
+          willChange: 'transform'
+        }}
       />
       <div className="container mx-auto px-4 text-center relative z-10">
         <div className="fade-in">

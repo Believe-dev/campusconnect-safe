@@ -7,6 +7,7 @@ import { ShoppingBag, Star, MapPin } from 'lucide-react';
 import { Product } from '@/lib/types';
 import { ROUTES } from '@/lib/constants';
 import { CardSkeleton, EmptyState } from '@/components/common/LoadingState';
+import { useImagePriority } from '@/hooks/useImagePriority';
 
 interface ProductGridProps {
   products: Product[];
@@ -56,18 +57,26 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
   return (
     <>
       <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
-        {displayProducts.map((product) => (
+        {displayProducts.map((product, index) => {
           <Card 
             key={product.id} 
             className="group hover:shadow-lg transition-smooth cursor-pointer overflow-hidden"
             onClick={() => onViewProduct(product.id)}
           >
-            <div className="relative">
+            <div className="relative stable-image">
               {product.images && product.images[0] && (
                 <img
                   src={product.images[0]}
                   alt={product.title}
+                  width={300}
+                  height={192}
                   className="w-full h-32 sm:h-40 lg:h-48 object-cover rounded-t-lg group-hover:scale-105 transition-transform duration-300 ease-out"
+                  style={{
+                    backfaceVisibility: 'hidden',
+                    willChange: 'transform',
+                    objectFit: 'cover'
+                  }}
+                  loading={index < 4 ? 'eager' : 'lazy'}
                 />
               )}
               
@@ -125,7 +134,7 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
               </div>
             </CardContent>
           </Card>
-        ))}
+        )})
       </div>
       {isAuthenticated && products.length > 0 && (
         <div className="text-center mt-8">
