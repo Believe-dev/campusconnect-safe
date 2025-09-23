@@ -1,3 +1,5 @@
+import React from 'react';
+
 // Performance monitoring utilities
 export class PerformanceMonitor {
   private static instance: PerformanceMonitor;
@@ -64,7 +66,7 @@ export function usePerformanceMonitor() {
 export function withPerformanceMonitoring<P extends object>(
   WrappedComponent: React.ComponentType<P>,
   componentName?: string
-) {
+): React.FC<P> {
   const displayName = componentName || WrappedComponent.displayName || WrappedComponent.name;
   
   const MonitoredComponent: React.FC<P> = (props) => {
@@ -77,7 +79,7 @@ export function withPerformanceMonitoring<P extends object>(
       };
     }, []);
 
-    return <WrappedComponent {...props} />;
+    return React.createElement(WrappedComponent, props);
   };
 
   MonitoredComponent.displayName = `withPerformanceMonitoring(${displayName})`;
@@ -146,6 +148,12 @@ export const createIntersectionObserver = (
 };
 
 // Memory usage monitoring
+interface MemoryInfo {
+  usedJSHeapSize: number;
+  totalJSHeapSize: number;
+  jsHeapSizeLimit: number;
+}
+
 export const getMemoryUsage = (): MemoryInfo | null => {
   if (typeof window !== 'undefined' && 'memory' in performance) {
     return (performance as any).memory;

@@ -73,10 +73,10 @@ export function useProducts(options: UseProductsOptions = {}): UseProductsReturn
         throw handleSupabaseError(queryError);
       }
 
-      const transformedProducts: Product[] = (data || []).map(product => ({
+      const transformedProducts = (data || []).map(product => ({
         ...product,
         seller: product.profiles || { full_name: 'Unknown Seller', rating: 0, is_verified: false },
-      }));
+      })) as unknown as Product[];
       
       console.log('useProducts transformed:', transformedProducts.length, 'products');
 

@@ -77,7 +77,7 @@ export const secureLog = {
   info: (message: string, data?: any) => {
     const sanitizedMessage = sanitizeInput(message);
     const sanitizedData = data ? JSON.stringify(data).replace(/[\r\n]/g, '') : '';
-    console.log(`[INFO] ${sanitizedMessage}`, sanitizedData);
+
   },
   error: (message: string, error?: any) => {
     const sanitizedMessage = sanitizeInput(message);

@@ -95,9 +95,6 @@ const Favorites = () => {
       if (error) throw error;
       setFavorites(data || []);
     } catch (error) {
-      // Secure error logging
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error('[FAVORITES_FETCH_ERROR]', errorMessage.replace(/[\r\n]/g, ''));
       toast({
         title: "Error",
         description: "Failed to load favorites",
@@ -123,9 +120,6 @@ const Favorites = () => {
         description: `${productTitle} has been removed from your favorites`,
       });
     } catch (error) {
-      // Secure error logging
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error('[FAVORITE_REMOVE_ERROR]', errorMessage.replace(/[\r\n]/g, ''));
       toast({
         title: "Error",
         description: "Failed to remove from favorites",
@@ -173,9 +167,6 @@ const Favorites = () => {
         description: `${productTitle} has been added to your cart`,
       });
     } catch (error) {
-      // Secure error logging
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error('[CART_ADD_ERROR]', errorMessage.replace(/[\r\n]/g, ''));
       toast({
         title: "Error",
         description: "Failed to add to cart",

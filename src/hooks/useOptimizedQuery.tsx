@@ -5,7 +5,7 @@ interface OptimizedQueryOptions {
   queryKey: string[];
   queryFn: () => Promise<any>;
   staleTime?: number;
-  cacheTime?: number;
+  gcTime?: number;
   enabled?: boolean;
   placeholderData?: any;
 }
@@ -14,7 +14,7 @@ export const useOptimizedQuery = ({
   queryKey,
   queryFn,
   staleTime = 15 * 60 * 1000, // 15 minutes
-  cacheTime = 60 * 60 * 1000, // 1 hour
+  gcTime = 60 * 60 * 1000, // 1 hour
   enabled = true,
   placeholderData
 }: OptimizedQueryOptions) => {
@@ -29,7 +29,7 @@ export const useOptimizedQuery = ({
     queryFn,
     enabled: enabled && isOnline,
     staleTime: isSlowConnection ? staleTime * 2 : staleTime, // Double stale time for slow connections
-    cacheTime: isSlowConnection ? cacheTime * 2 : cacheTime,
+    gcTime: isSlowConnection ? gcTime * 2 : gcTime,
     placeholderData: placeholderData || cachedData,
     refetchOnMount: !cachedData, // Only refetch if no cached data
     refetchOnWindowFocus: false,

@@ -1,48 +1,24 @@
-# UniMarket - Nigeria's Trusted University Marketplace
-# https://unimarket.ng
-
 User-agent: *
 Allow: /
-Allow: /marketplace
-Allow: /sellers
-Allow: /learn-more
-Allow: /search
-Allow: /product/*
-Allow: /seller/*
 
-# Disallow private/admin areas
+# Sitemap
+Sitemap: https://unimarketng.com/sitemap.xml
+
+# Disallow admin and private areas
 Disallow: /admin
-Disallow: /dashboard
-Disallow: /profile
-Disallow: /settings
-Disallow: /messages
-Disallow: /orders
-Disallow: /cart
-Disallow: /checkout
-Disallow: /wallet
-Disallow: /auth
-Disallow: /notifications
-Disallow: /favorites
-Disallow: /sell
-Disallow: /verification-request
-
-# Disallow API endpoints
 Disallow: /api/
-Disallow: /_next/
-Disallow: /static/
+Disallow: /auth/callback
+Disallow: /profile/edit
+Disallow: /wallet
+Disallow: /messages
 
-# Allow social media crawlers
-User-agent: Twitterbot
+# Allow important pages
 Allow: /
-
-User-agent: facebookexternalhit
-Allow: /
-
-User-agent: LinkedInBot
-Allow: /
-
-User-agent: WhatsApp
-Allow: /
-
-# Sitemap location
-Sitemap: https://unimarket.ng/sitemap.xml
+Allow: /products
+Allow: /categories
+Allow: /search
+Allow: /about
+Allow: /contact
+Allow: /help
+Allow: /terms
+Allow: /privacy

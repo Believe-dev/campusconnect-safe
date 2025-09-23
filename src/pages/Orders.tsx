@@ -220,11 +220,10 @@ const Orders = () => {
             );
 
             if (escrowError) {
-              console.error("Error releasing escrow:", escrowError);
+              // Error handled silently
             }
           }
         } catch (escrowError) {
-          console.error("Escrow release failed:", escrowError);
           // Continue with order confirmation even if escrow fails
         }
       }
@@ -287,7 +286,7 @@ const Orders = () => {
                 },
               });
             } catch (emailError) {
-              console.error("Failed to send email:", emailError);
+              // Error handled silently
             }
           }
         }
@@ -301,8 +300,6 @@ const Orders = () => {
       // Immediately refetch to update UI
       refetch();
     } catch (error) {
-      console.error("Error updating order:", error);
-      console.error("Error details:", JSON.stringify(error, null, 2));
       toast({
         title: "Error",
         description: error?.message || "Failed to update order",
@@ -341,7 +338,6 @@ const Orders = () => {
           "Your issue has been reported and the order is now under review",
       });
     } catch (error) {
-      console.error("Error reporting issue:", error);
       toast({
         title: "Error",
         description: "Failed to report issue. Please try again.",
@@ -360,7 +356,6 @@ const Orders = () => {
           "Your dispute has been withdrawn. Order status restored to delivered.",
       });
     } catch (error) {
-      console.error("Error withdrawing dispute:", error);
       toast({
         title: "Error",
         description: "Failed to withdraw dispute",

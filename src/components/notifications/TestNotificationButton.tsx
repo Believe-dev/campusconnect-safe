@@ -3,19 +3,19 @@ import { Bell } from 'lucide-react';
 
 export const TestNotificationButton = () => {
   const testNotification = async () => {
-    console.log('Testing notification...');
+
     
     // Request permission first
     if ('Notification' in window) {
-      console.log('Current permission:', Notification.permission);
+
       
       if (Notification.permission === 'default') {
         const permission = await Notification.requestPermission();
-        console.log('Permission result:', permission);
+
       }
       
       if (Notification.permission === 'granted') {
-        console.log('Sending notification...');
+
         
         // Try service worker first
         if ('serviceWorker' in navigator && 'showNotification' in ServiceWorkerRegistration.prototype) {
@@ -31,7 +31,7 @@ export const TestNotificationButton = () => {
                 { action: 'open', title: 'Open App' }
               ]
             });
-            console.log('Service worker notification sent');
+
           } catch (error) {
             console.error('Service worker notification failed:', error);
             // Fallback to regular notification
@@ -62,13 +62,13 @@ export const TestNotificationButton = () => {
           };
         }
         
-        console.log('Notification sent');
+
       } else {
-        console.log('Permission denied');
+
         alert('Please allow notifications in your browser settings');
       }
     } else {
-      console.log('Notifications not supported');
+
       alert('Your browser does not support notifications');
     }
   };

@@ -60,7 +60,6 @@ export class SecureAPI {
           throw new Error('Invalid operation');
       }
     } catch (error) {
-      console.error('Secure API error:', error);
       throw error;
     }
   }
@@ -76,7 +75,6 @@ export class SecureAPI {
       // Additional permission checks can be added here
       return true;
     } catch (error) {
-      console.error('Permission validation error:', error);
       return false;
     }
   }
@@ -112,7 +110,6 @@ export class SecureAPI {
       if (error) throw error;
       return data.path;
     } catch (error) {
-      console.error('File upload error:', error);
       throw error;
     }
   }

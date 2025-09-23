@@ -327,7 +327,6 @@ export default function Admin() {
 
       setUsers(usersWithRoles);
     } catch (error) {
-      console.error("Users fetch error:", error);
       toast.error("Failed to fetch users");
       setUsers([]);
     }
@@ -368,7 +367,6 @@ export default function Admin() {
 
       setProducts(transformedData);
     } catch (error) {
-      console.error("Products fetch error:", error);
       toast.error("Failed to fetch products");
     }
   };
@@ -394,18 +392,14 @@ export default function Admin() {
       if (error) throw error;
       setMessages(data || []);
     } catch (error) {
-      console.error("Messages fetch error:", error);
       toast.error("Failed to fetch messages");
     }
   };
 
   const fetchPendingSellers = async () => {
     try {
-      // Note: seller_status field doesn't exist in current schema, using mock data
-      console.log("Seller status field not available in current schema");
       setPendingSellers([]);
     } catch (error) {
-      console.error("Pending sellers fetch error:", error);
       setPendingSellers([]);
     }
   };
@@ -457,7 +451,6 @@ export default function Admin() {
         .order("created_at", { ascending: false });
 
       if (profilesError) {
-        console.error("Profiles fetch error:", profilesError);
         setVerificationRequests([]);
         return;
       }
@@ -487,9 +480,7 @@ export default function Admin() {
       }));
 
       setVerificationRequests(transformedData);
-      console.log("Verification requests loaded:", transformedData.length);
     } catch (error) {
-      console.error("Verification requests fetch error:", error);
       setVerificationRequests([]);
     }
   };
@@ -530,7 +521,7 @@ export default function Admin() {
       );
 
       if (roleError) {
-        console.warn("Failed to add seller role:", roleError);
+        // Failed to add seller role silently
       }
 
       // Create in-app notification
@@ -545,7 +536,7 @@ export default function Admin() {
         });
 
       if (notifError) {
-        console.error("Failed to create approval notification:", notifError);
+        // Notification creation failed silently
       }
 
       // Notify all admins about the approval
@@ -575,8 +566,7 @@ export default function Admin() {
           },
         });
       } catch (emailError) {
-        console.warn("Email notification failed:", emailError);
-        // Don't fail the approval if email fails
+        // Email notification failed silently
       }
 
       toast.success("Seller approved successfully");
@@ -591,7 +581,6 @@ export default function Admin() {
         new CustomEvent("profileUpdated", { detail: { userId } })
       );
     } catch (error) {
-      console.error("Approve seller error:", error);
       toast.error("Failed to approve seller");
     }
   };
@@ -632,7 +621,7 @@ export default function Admin() {
         });
 
       if (notifError) {
-        console.error("Failed to create rejection notification:", notifError);
+        // Notification creation failed silently
       }
 
       // Notify all admins about the rejection
@@ -662,8 +651,7 @@ export default function Admin() {
           },
         });
       } catch (emailError) {
-        console.warn("Email notification failed:", emailError);
-        // Don't fail the rejection if email fails
+        // Email notification failed silently
       }
 
       toast.success("Seller application rejected");
@@ -673,7 +661,6 @@ export default function Admin() {
       // Trigger real-time profile update for the rejected seller
       triggerProfileUpdate();
     } catch (error) {
-      console.error("Reject seller error:", error);
       toast.error("Failed to reject seller");
     }
   };
@@ -693,28 +680,28 @@ export default function Admin() {
         activeUsers: users.filter((u) => !u.is_banned).length,
       });
     } catch (error) {
-      console.error("Stats fetch error:", error);
+      // Stats fetch failed silently
     }
   };
 
   const fetchBanAppeals = async () => {
     try {
-      // Since ban_appeals table doesn't exist in types, we'll create a mock or skip this
-      console.log("Ban appeals table not available in current schema");
-      setBanAppeals([]);
+      const { data, error } = await supabase
+        .from('ban_appeals')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setBanAppeals(data || []);
     } catch (error) {
-      console.error("Ban appeals fetch error:", error);
       setBanAppeals([]);
     }
   };
 
   const fetchEmailLogs = async () => {
     try {
-      // Since email_logs table doesn't exist in types, we'll create a mock or skip this
-      console.log("Email logs table not available in current schema");
       setEmailLogs([]);
     } catch (error) {
-      console.error("Email logs fetch error:", error);
       setEmailLogs([]);
     }
   };
@@ -740,7 +727,6 @@ export default function Admin() {
       ];
       setDisputeTemplates(mockTemplates);
     } catch (error) {
-      console.error("Dispute templates fetch error:", error);
       setDisputeTemplates([]);
     }
   };
@@ -780,7 +766,6 @@ export default function Admin() {
         .order("created_at", { ascending: false });
 
       if (disputeError) {
-        console.warn("Could not fetch disputed orders:", disputeError);
         setDisputes([]);
         return;
       }
@@ -804,11 +789,8 @@ export default function Admin() {
 
       setDisputes(transformedDisputes);
 
-      // Since product_reports table doesn't exist in types, we'll skip this
-      console.log("Product reports table not available in current schema");
       setProductReports([]);
     } catch (error) {
-      console.error("Escrow data fetch error:", error);
       toast.error("Failed to fetch escrow data");
     }
   };
@@ -819,7 +801,7 @@ export default function Admin() {
         escrow_id: escrowId,
       });
 
-      console.log("Release escrow result:", { data, error });
+
 
       if (error) throw error;
 
@@ -831,7 +813,6 @@ export default function Admin() {
       toast.success("Escrow funds released successfully");
       fetchEscrowData();
     } catch (error) {
-      console.error("Release escrow error:", error);
       toast.error("Failed to release escrow funds");
     }
   };
@@ -870,7 +851,6 @@ export default function Admin() {
       toast.success(`Payout request ${approve ? "approved" : "rejected"}`);
       fetchEscrowData();
     } catch (error) {
-      console.error("Process payout error:", error);
       toast.error("Failed to process payout request");
     }
   };
@@ -927,7 +907,7 @@ export default function Admin() {
         recentOrders: thisMonthOrders?.length || 0,
       });
     } catch (error) {
-      console.error("Analytics fetch error:", error);
+      // Analytics fetch failed silently
     }
   };
 
@@ -940,10 +920,19 @@ export default function Admin() {
 
       if (error) throw error;
 
+      // Send notification if user is being unbanned
+      if (isBanned) {
+        await supabase.from("notifications").insert({
+          user_id: userId,
+          title: "Account Restored! 🎉",
+          message: "Your account has been restored by an administrator. Welcome back to UniMarket!",
+          type: "success",
+        });
+      }
+
       toast.success(`User ${!isBanned ? "banned" : "unbanned"} successfully`);
       fetchUsers();
     } catch (error) {
-      console.error("Toggle ban error:", error);
       toast.error("Failed to update user status");
     }
   };
@@ -976,7 +965,6 @@ export default function Admin() {
       fetchUsers();
       setSelectedUser(null);
     } catch (error) {
-      console.error("Update user role error:", error);
       toast.error("Failed to update user role");
     }
   };
@@ -1050,7 +1038,6 @@ export default function Admin() {
       fetchUsers();
       setEditingUser(null);
     } catch (error) {
-      console.error("Update user details error:", error);
       toast.error("Failed to update user details");
     }
   };
@@ -1092,10 +1079,7 @@ export default function Admin() {
         });
 
       if (notifError) {
-        console.error(
-          "Failed to create verification notification:",
-          notifError
-        );
+        // Notification creation failed silently
       }
 
       // Notify all admins about the verification
@@ -1125,14 +1109,13 @@ export default function Admin() {
           },
         });
       } catch (emailError) {
-        console.warn("Email notification failed:", emailError);
+        // Email notification failed silently
       }
 
       toast.success("User verification approved");
       fetchVerificationRequests();
       fetchUsers();
     } catch (error) {
-      console.error("Approve verification error:", error);
       toast.error("Failed to approve verification");
     }
   };
@@ -1172,7 +1155,7 @@ export default function Admin() {
         });
 
       if (notifError) {
-        console.error("Failed to create rejection notification:", notifError);
+        // Notification creation failed silently
       }
 
       // Notify all admins about the rejection
@@ -1196,7 +1179,6 @@ export default function Admin() {
       fetchVerificationRequests();
       fetchUsers();
     } catch (error) {
-      console.error("Reject verification error:", error);
       toast.error("Failed to reject verification");
     }
   };
@@ -1235,7 +1217,7 @@ export default function Admin() {
             },
           });
         } catch (emailError) {
-          console.warn("Email notification failed:", emailError);
+          // Email notification failed silently
         }
       }
 
@@ -1245,7 +1227,6 @@ export default function Admin() {
       fetchUsers();
       setSelectedUser(null);
     } catch (error) {
-      console.error("Toggle verification error:", error);
       toast.error("Failed to update verification status");
     }
   };
@@ -1262,7 +1243,6 @@ export default function Admin() {
       toast.success("Product deleted successfully");
       fetchProducts();
     } catch (error) {
-      console.error("Delete product error:", error);
       toast.error("Failed to delete product");
     }
   };
@@ -1279,7 +1259,6 @@ export default function Admin() {
       toast.success("Message deleted successfully");
       fetchMessages();
     } catch (error) {
-      console.error("Delete message error:", error);
       toast.error("Failed to delete message");
     }
   };
@@ -1298,7 +1277,6 @@ export default function Admin() {
       );
       fetchProducts();
     } catch (error) {
-      console.error("Toggle product status error:", error);
       toast.error("Failed to update product status");
     }
   };
@@ -1326,7 +1304,6 @@ export default function Admin() {
       setSelectedUsers([]);
       fetchUsers();
     } catch (error) {
-      console.error("Bulk action error:", error);
       toast.error("Failed to perform bulk action");
     }
   };
@@ -1365,7 +1342,6 @@ export default function Admin() {
       setSelectedProducts([]);
       fetchProducts();
     } catch (error) {
-      console.error("Bulk product action error:", error);
       toast.error("Failed to perform bulk action");
     }
   };
@@ -1498,7 +1474,6 @@ export default function Admin() {
       setSending(true);
       try {
         // Since send_dispute_investigation_notification function doesn't exist in types, we'll skip this
-        console.log("Dispute investigation notification would be sent");
         const error = null;
 
         if (error) throw error;
@@ -1506,7 +1481,6 @@ export default function Admin() {
         toast.success("Investigation notification sent to seller");
         onSuccess();
       } catch (error) {
-        console.error("Send investigation error:", error);
         toast.error("Failed to send investigation notification");
       } finally {
         setSending(false);
@@ -1725,20 +1699,45 @@ export default function Admin() {
               <TabsTrigger value="users" className="text-xs md:text-sm">
                 Users
               </TabsTrigger>
-              <TabsTrigger value="sellers" className="text-xs md:text-sm">
+              <TabsTrigger value="sellers" className="text-xs md:text-sm relative">
                 Sellers
+                {pendingSellers.length > 0 && (
+                  <Badge variant="destructive" className="absolute -top-2 -right-2 h-5 w-5 p-0 text-xs flex items-center justify-center">
+                    {pendingSellers.length}
+                  </Badge>
+                )}
               </TabsTrigger>
-              <TabsTrigger value="verification" className="text-xs md:text-sm">
+              <TabsTrigger value="verification" className="text-xs md:text-sm relative">
                 Verify
+                {verificationRequests.length > 0 && (
+                  <Badge variant="destructive" className="absolute -top-2 -right-2 h-5 w-5 p-0 text-xs flex items-center justify-center">
+                    {verificationRequests.length}
+                  </Badge>
+                )}
               </TabsTrigger>
-              <TabsTrigger value="appeals" className="text-xs md:text-sm">
+              <TabsTrigger value="appeals" className="text-xs md:text-sm relative">
                 Appeals
+                {banAppeals.filter(a => a.status === 'pending').length > 0 && (
+                  <Badge variant="destructive" className="absolute -top-2 -right-2 h-5 w-5 p-0 text-xs flex items-center justify-center">
+                    {banAppeals.filter(a => a.status === 'pending').length}
+                  </Badge>
+                )}
               </TabsTrigger>
-              <TabsTrigger value="reports" className="text-xs md:text-sm">
+              <TabsTrigger value="reports" className="text-xs md:text-sm relative">
                 Reports
+                {productReports.filter(r => r.status === 'pending').length > 0 && (
+                  <Badge variant="destructive" className="absolute -top-2 -right-2 h-5 w-5 p-0 text-xs flex items-center justify-center">
+                    {productReports.filter(r => r.status === 'pending').length}
+                  </Badge>
+                )}
               </TabsTrigger>
-              <TabsTrigger value="escrow" className="text-xs md:text-sm">
+              <TabsTrigger value="escrow" className="text-xs md:text-sm relative">
                 Escrow
+                {(escrowTransactions.filter(e => e.status === 'held').length + payoutRequests.filter(p => p.status === 'pending').length + disputes.filter(d => d.status === 'open').length) > 0 && (
+                  <Badge variant="destructive" className="absolute -top-2 -right-2 h-5 w-5 p-0 text-xs flex items-center justify-center">
+                    {escrowTransactions.filter(e => e.status === 'held').length + payoutRequests.filter(p => p.status === 'pending').length + disputes.filter(d => d.status === 'open').length}
+                  </Badge>
+                )}
               </TabsTrigger>
               <TabsTrigger value="products" className="text-xs md:text-sm">
                 Products
@@ -1820,7 +1819,6 @@ export default function Admin() {
                                   setSelectedUsers([]);
                                   fetchUsers();
                                 } catch (error) {
-                                  console.error("Bulk ban error:", error);
                                   toast.error("Failed to ban users");
                                 }
                               }}
@@ -2115,10 +2113,6 @@ export default function Admin() {
                                             alt="Student ID"
                                             className="w-full max-w-xs h-auto rounded border"
                                             onError={(e) => {
-                                              console.error(
-                                                "Failed to load student ID photo:",
-                                                selectedUser.student_id_photo_url
-                                              );
                                               const target =
                                                 e.currentTarget as HTMLImageElement;
                                               target.style.display = "none";
@@ -2143,10 +2137,6 @@ export default function Admin() {
                                             alt="Face verification"
                                             className="w-full max-w-xs h-auto rounded border"
                                             onError={(e) => {
-                                              console.error(
-                                                "Failed to load face photo:",
-                                                selectedUser.face_photo_url
-                                              );
                                               const target =
                                                 e.currentTarget as HTMLImageElement;
                                               target.style.display = "none";
@@ -2824,16 +2814,7 @@ export default function Admin() {
                                           )}
                                           alt="Face verification"
                                           className="max-w-full max-h-96 object-contain border rounded"
-                                          onLoad={() =>
-                                            console.log(
-                                              "✅ Seller face photo loaded"
-                                            )
-                                          }
                                           onError={(e) => {
-                                            console.error(
-                                              "❌ Seller face photo failed:",
-                                              seller.face_photo_url
-                                            );
                                             const target =
                                               e.currentTarget as HTMLImageElement;
                                             target.style.display = "none";
@@ -2874,16 +2855,7 @@ export default function Admin() {
                                           )}
                                           alt="Student ID verification"
                                           className="max-w-full max-h-96 object-contain border rounded"
-                                          onLoad={() =>
-                                            console.log(
-                                              "✅ Seller ID photo loaded"
-                                            )
-                                          }
                                           onError={(e) => {
-                                            console.error(
-                                              "❌ Seller ID photo failed:",
-                                              seller.student_id_photo_url
-                                            );
                                             const target =
                                               e.currentTarget as HTMLImageElement;
                                             target.style.display = "none";
@@ -3189,17 +3161,12 @@ export default function Admin() {
                                               );
 
                                               // Update report status - skip since table doesn't exist
-                                              console.log("Would update product_reports table if it existed");
 
                                               toast.success(
                                                 "Email sent successfully"
                                               );
                                               fetchEscrowData();
                                             } catch (error) {
-                                              console.error(
-                                                "Email send error:",
-                                                error
-                                              );
                                               toast.error(
                                                 "Failed to send email"
                                               );
@@ -3219,13 +3186,11 @@ export default function Admin() {
                                     onClick={async () => {
                                       try {
                                         // Skip update since table doesn't exist
-                                        console.log("Would update product_reports table if it existed");
                                         toast.success(
                                           "Report marked as resolved"
                                         );
                                         fetchEscrowData();
                                       } catch (error) {
-                                        console.error("Update error:", error);
                                         toast.error("Failed to update report");
                                       }
                                     }}
@@ -3317,12 +3282,33 @@ export default function Admin() {
                             <TableCell>{appeal.user_email}</TableCell>
                             <TableCell>{appeal.matric_number}</TableCell>
                             <TableCell className="max-w-xs">
-                              <p
-                                className="text-sm truncate"
-                                title={appeal.message}
-                              >
-                                {appeal.message}
-                              </p>
+                              <div className="flex items-center gap-2">
+                                <p
+                                  className="text-sm truncate flex-1"
+                                  title={appeal.message}
+                                >
+                                  {appeal.message}
+                                </p>
+                                {appeal.message.length > 50 && (
+                                  <Dialog>
+                                    <DialogTrigger asChild>
+                                      <Button variant="outline" size="sm">
+                                        <Eye className="h-4 w-4" />
+                                      </Button>
+                                    </DialogTrigger>
+                                    <DialogContent>
+                                      <DialogHeader>
+                                        <DialogTitle>Full Appeal Message</DialogTitle>
+                                      </DialogHeader>
+                                      <div className="max-h-96 overflow-y-auto">
+                                        <p className="text-sm whitespace-pre-wrap">
+                                          {appeal.message}
+                                        </p>
+                                      </div>
+                                    </DialogContent>
+                                  </Dialog>
+                                )}
+                              </div>
                             </TableCell>
                             <TableCell>
                               <Badge
@@ -3372,8 +3358,15 @@ export default function Admin() {
 
                                           try {
                                             // Update appeal status
-                                            // Skip update since ban_appeals table doesn't exist
-                                            console.log("Would update ban_appeals table if it existed");
+                                            const { error: appealError } = await supabase
+                                              .from('ban_appeals')
+                                              .update({
+                                                status: 'approved',
+                                                admin_response: response || 'Your appeal was approved and your account has been restored.'
+                                              })
+                                              .eq('id', appeal.id);
+
+                                            if (appealError) throw appealError;
 
                                             // Find and unban the user
                                             const { data: user } =
@@ -3397,6 +3390,14 @@ export default function Admin() {
                                                 })
                                                 .eq("user_id", user.user_id);
 
+                                              // Send notification to unbanned user
+                                              await supabase.from("notifications").insert({
+                                                user_id: user.user_id,
+                                                title: "Account Restored! 🎉",
+                                                message: response || "Your ban appeal has been approved and your account has been restored. Welcome back to UniMarket!",
+                                                type: "success",
+                                              });
+
                                               // Send secure email notification
                                               try {
                                                 await emailService.sendBanApprovalEmail(
@@ -3406,10 +3407,7 @@ export default function Admin() {
                                                     "Your appeal was approved and your account has been restored."
                                                 );
                                               } catch (emailError) {
-                                                console.warn(
-                                                  "Email notification failed:",
-                                                  emailError
-                                                );
+                                                // Email notification failed silently
                                               }
                                             }
 
@@ -3419,10 +3417,6 @@ export default function Admin() {
                                             fetchBanAppeals();
                                             fetchUsers();
                                           } catch (error) {
-                                            console.error(
-                                              "Approve appeal error:",
-                                              error
-                                            );
                                             toast.error(
                                               "Failed to approve appeal"
                                             );
@@ -3483,8 +3477,16 @@ export default function Admin() {
                                           ) as string;
 
                                           try {
-                                            // Skip update since ban_appeals table doesn't exist
-                                            console.log("Would update ban_appeals table if it existed");
+                                            // Update appeal status
+                                            const { error: appealError } = await supabase
+                                              .from('ban_appeals')
+                                              .update({
+                                                status: 'rejected',
+                                                admin_response: response
+                                              })
+                                              .eq('id', appeal.id);
+
+                                            if (appealError) throw appealError;
 
                                             // Send rejection email
                                             try {
@@ -3494,10 +3496,7 @@ export default function Admin() {
                                                 response
                                               );
                                             } catch (emailError) {
-                                              console.warn(
-                                                "Email notification failed:",
-                                                emailError
-                                              );
+                                              // Email notification failed silently
                                             }
 
                                             toast.success(
@@ -3505,10 +3504,6 @@ export default function Admin() {
                                             );
                                             fetchBanAppeals();
                                           } catch (error) {
-                                            console.error(
-                                              "Reject appeal error:",
-                                              error
-                                            );
                                             toast.error(
                                               "Failed to reject appeal"
                                             );
@@ -3715,17 +3710,7 @@ export default function Admin() {
                                             src={user.face_photo_url}
                                             alt="Face verification"
                                             className="max-w-full max-h-96 object-contain border rounded"
-                                            onLoad={() =>
-                                              console.log(
-                                                "✅ Face photo loaded:",
-                                                user.face_photo_url
-                                              )
-                                            }
                                             onError={(e) => {
-                                              console.error(
-                                                "❌ Face photo failed:",
-                                                user.face_photo_url
-                                              );
                                               const target =
                                                 e.currentTarget as HTMLImageElement;
                                               target.style.display = "none";
@@ -4797,7 +4782,7 @@ export default function Admin() {
 
                                         try {
                                           // Mock update since table doesn't exist
-                                          console.log('Would update template:', updates);
+
                                           
                                           toast.success(
                                             "Template updated successfully"

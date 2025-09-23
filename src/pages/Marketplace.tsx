@@ -118,9 +118,6 @@ const Marketplace = () => {
       if (error) throw error;
       setProducts(data || []);
     } catch (error) {
-      // Secure error logging
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error('[PRODUCTS_FETCH_ERROR]', errorMessage.replace(/[\r\n]/g, ''));
       toast({
         title: "Error",
         description: "Failed to load products",
@@ -153,9 +150,7 @@ const Marketplace = () => {
         setCart(new Set(cartData.map(c => c.product_id)));
       }
     } catch (error) {
-      // Secure error logging
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error('[USER_DATA_FETCH_ERROR]', errorMessage.replace(/[\r\n]/g, ''));
+      // Error handled silently
     }
   };
 
@@ -275,9 +270,6 @@ const Marketplace = () => {
       // Update analytics
       await updateAnalytics(productId, 'favorites_count', isFavorited ? -1 : 1);
     } catch (error) {
-      // Secure error logging
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error('[FAVORITE_TOGGLE_ERROR]', errorMessage.replace(/[\r\n]/g, ''));
       toast({
         title: "Error",
         description: "Failed to update favorites",
@@ -321,9 +313,6 @@ const Marketplace = () => {
       // Update analytics
       await updateAnalytics(productId, 'cart_additions', 1);
     } catch (error) {
-      // Secure error logging
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error('[CART_ADD_ERROR]', errorMessage.replace(/[\r\n]/g, ''));
       toast({
         title: "Error",
         description: "Failed to add to cart",
@@ -360,9 +349,7 @@ const Marketplace = () => {
           });
       }
     } catch (error) {
-      // Secure error logging
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error('[ANALYTICS_UPDATE_ERROR]', errorMessage.replace(/[\r\n]/g, ''));
+      // Error handled silently
     }
   };
 
@@ -543,7 +530,7 @@ const Marketplace = () => {
                     </Badge>
                     <div className="flex items-center gap-1 text-xs text-muted-foreground">
                       <MapPin className="h-3 w-3" />
-                      <span className="truncate">{product.profiles?.campus || product.campus}</span>
+                      <span className="truncate">{(product.profiles as any)?.campus || product.campus}</span>
                     </div>
                   </div>
 

@@ -131,9 +131,6 @@ const ProductDetails = () => {
         .single();
 
       if (error) {
-        // Secure error logging
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        console.error('[PRODUCT_FETCH_ERROR]', errorMessage.replace(/[\r\n]/g, ''));
         throw error;
       }
 
@@ -157,9 +154,6 @@ const ProductDetails = () => {
         await supabase.rpc('track_product_view', { p_product_id: data.id });
       }
     } catch (error) {
-      // Secure error logging
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error('[PRODUCT_DETAILS_ERROR]', errorMessage.replace(/[\r\n]/g, ''));
       toast({
         title: "Error",
         description: "Product not found",
@@ -202,9 +196,7 @@ const ProductDetails = () => {
       
       setSimilarProducts(transformedData);
     } catch (error) {
-      // Secure error logging
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error('[SIMILAR_PRODUCTS_ERROR]', errorMessage.replace(/[\r\n]/g, ''));
+      // Error handled silently
     } finally {
       setSimilarLoading(false);
     }
@@ -257,9 +249,6 @@ const ProductDetails = () => {
         description: `${quantity} item(s) added to your cart`,
       });
     } catch (error) {
-      // Secure error logging
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error('[CART_ADD_ERROR]', errorMessage.replace(/[\r\n]/g, ''));
       toast({
         title: "Error",
         description: "Failed to add item to cart",
@@ -293,9 +282,6 @@ const ProductDetails = () => {
       const draftMessage = `Hi! I'm interested in your ${product.title} listed for ₦${product.price.toLocaleString()}. Is it still available?`;
       navigate(`/messages?conversation=${conversationId}&draft=${encodeURIComponent(draftMessage)}`);
     } catch (error) {
-      // Secure error logging
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error('[CHAT_START_ERROR]', errorMessage.replace(/[\r\n]/g, ''));
       toast({
         title: "Error",
         description: "Failed to start chat",
@@ -432,8 +418,6 @@ const ProductDetails = () => {
         });
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error('[FAVORITE_TOGGLE_ERROR]', errorMessage.replace(/[\r\n]/g, ''));
       toast({
         title: "Error",
         description: "Failed to update favorites",
@@ -485,9 +469,7 @@ const ProductDetails = () => {
         });
 
       if (notificationError) {
-        // Secure error logging
-        const errorMessage = notificationError instanceof Error ? notificationError.message : 'Unknown error';
-        console.error('[NOTIFICATION_ERROR]', errorMessage.replace(/[\r\n]/g, ''));
+        // Error handled silently
       }
 
       // Notify admins
@@ -516,9 +498,6 @@ const ProductDetails = () => {
       setReportReason('');
       setReportDescription('');
     } catch (error) {
-      // Secure error logging
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error('[REPORT_SUBMIT_ERROR]', errorMessage.replace(/[\r\n]/g, ''));
       toast({
         title: "Error",
         description: "Failed to submit report. Please try again.",

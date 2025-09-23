@@ -43,7 +43,7 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
         icon={<ShoppingBag className="h-12 w-12 sm:h-16 sm:w-16 text-muted-foreground mx-auto" />}
         action={
           isAuthenticated && (
-            <Button variant="brand" size="sm" className="sm:size-default" asChild>
+            <Button variant="default" size="sm" className="sm:size-default" asChild>
               <Link to={ROUTES.sell}>Start Selling</Link>
             </Button>
           )
@@ -138,7 +138,7 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
       </div>
       {isAuthenticated && products.length > 0 && (
         <div className="text-center mt-8">
-          <Button variant="brand" size="sm" className="sm:size-default" asChild>
+          <Button variant="default" size="sm" className="sm:size-default" asChild>
             <Link to={ROUTES.sell}>Start Selling</Link>
           </Button>
         </div>

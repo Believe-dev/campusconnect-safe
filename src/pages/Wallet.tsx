@@ -15,7 +15,7 @@ interface WalletTransaction {
 }
 
 interface Wallet {
-  balance: number;
+  available_balance: number;
 }
 
 const Wallet = () => {
@@ -37,7 +37,7 @@ const Wallet = () => {
       // Fetch wallet balance
       const { data: walletData, error: walletError } = await supabase
         .from('wallets')
-        .select('balance')
+        .select('id, available_balance')
         .eq('user_id', user.id)
         .single();
 
@@ -45,23 +45,33 @@ const Wallet = () => {
         throw walletError;
       }
 
-      setWallet(walletData || { balance: 0 });
+      const wallet = walletData ? { available_balance: walletData.available_balance } : { available_balance: 0 };
+      setWallet(wallet);
 
       // Fetch recent transactions
-      const { data: transactionsData, error: transactionsError } = await supabase
-        .from('wallet_transactions')
-        .select('*')
-        .eq('wallet_id', walletData?.id || '')
-        .order('created_at', { ascending: false })
-        .limit(10);
+      if (walletData?.id) {
+        const { data: transactionsData, error: transactionsError } = await supabase
+          .from('wallet_transactions')
+          .select('*')
+          .eq('wallet_id', walletData.id)
+          .order('created_at', { ascending: false })
+          .limit(10);
 
-      if (transactionsError && !transactionsError.message.includes('No rows')) {
-        throw transactionsError;
+        if (transactionsError && !transactionsError.message.includes('No rows')) {
+          throw transactionsError;
+        }
+
+        const mappedTransactions = (transactionsData || []).map(t => ({
+          id: t.id,
+          amount: t.amount,
+          transaction_type: t.type === 'credit' ? 'credit' as const : 'debit' as const,
+          description: t.description,
+          created_at: t.created_at
+        }));
+        setTransactions(mappedTransactions);
       }
-
-      setTransactions(transactionsData || []);
     } catch (error) {
-      console.error('Error fetching wallet data:', error);
+      // Error handled silently
     } finally {
       setLoading(false);
     }
@@ -98,7 +108,7 @@ const Wallet = () => {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-green-600">
-                ₦{wallet?.balance?.toLocaleString() || '0.00'}
+                ₦{wallet?.available_balance?.toLocaleString() || '0.00'}
               </div>
               <p className="text-muted-foreground mt-2">
                 Available for withdrawal

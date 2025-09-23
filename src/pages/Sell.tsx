@@ -73,7 +73,7 @@ const Sell = () => {
         setFormData(prev => ({ ...prev, university_name: profile.university_name }));
       }
     } catch (error) {
-      console.error('Error loading user profile:', error);
+      // Error handled silently
     } finally {
       setLoading(false);
     }
@@ -189,7 +189,6 @@ const Sell = () => {
       });
       navigate('/');
     } catch (error) {
-      console.error('Error listing product:', error);
       toast({
         title: "Error",
         description: "Failed to list product. Please try again.",

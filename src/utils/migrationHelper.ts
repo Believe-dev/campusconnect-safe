@@ -9,11 +9,11 @@ export const checkAndAddIsReadColumn = async () => {
       .limit(1);
 
     if (error && (error.message?.includes('is_read') || error.code === '42703')) {
-      console.log('is_read column does not exist');
+
       return false;
     }
 
-    console.log('is_read column exists');
+
     return true;
   } catch (error) {
     console.error('Error checking is_read column:', error);

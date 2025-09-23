@@ -108,4 +108,3 @@ export function useInfiniteScroll(
 if (typeof React === 'undefined') {
   throw new Error('React is not available');
 }
-}

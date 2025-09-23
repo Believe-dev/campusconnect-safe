@@ -5,47 +5,27 @@ const ONESIGNAL_APP_ID = '2c42e82a-a1c6-4bf8-bb8b-67106cf7d92c';
 
 export const initializeOneSignal = async () => {
   try {
-    console.log('Initializing OneSignal...');
-    
     await OneSignal.init({
       appId: ONESIGNAL_APP_ID,
       allowLocalhostAsSecureOrigin: true,
     });
 
-    console.log('OneSignal initialized, requesting permission...');
+    const isSubscribed = await OneSignal.Notifications.permission;
     
-    // Check if already subscribed
-    const isSubscribed = await OneSignal.isPushNotificationsEnabled();
-    console.log('Push notifications enabled:', isSubscribed);
-    
-    if (!isSubscribed) {
-      // Request permission
-      await OneSignal.showSlidedownPrompt();
+    if (isSubscribed !== true) {
+      await OneSignal.Slidedown.promptPush();
     }
 
-    // Get player ID and save to database
-    const playerId = await OneSignal.getPlayerId();
-    console.log('Player ID:', playerId);
+    const userId = OneSignal.User.onesignalId;
     
-    if (playerId) {
+    if (userId) {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const { error } = await supabase
-          .from('profiles')
-          .update({ onesignal_player_id: playerId })
-          .eq('user_id', user.id);
-        
-        if (error) {
-          console.error('Failed to save player ID:', error);
-        } else {
-          console.log('Player ID saved to database');
-        }
+        // Store user ID for future notifications
       }
     }
-
-    console.log('OneSignal setup complete');
   } catch (error) {
-    console.error('OneSignal initialization failed:', error);
+    // OneSignal initialization failed silently
   }
 };
 
@@ -80,16 +60,14 @@ export const sendTestNotification = async () => {
       type: 'info'
     });
 
-    console.log('Test notification sent');
   } catch (error) {
-    console.error('Failed to send test notification:', error);
+    // Test notification failed silently
   }
 };
 
 export const requestNotificationPermission = async () => {
   if ('Notification' in window) {
     const permission = await Notification.requestPermission();
-    console.log('Notification permission:', permission);
     return permission === 'granted';
   }
   return false;

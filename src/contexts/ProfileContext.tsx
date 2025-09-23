@@ -6,7 +6,7 @@ interface Profile {
   full_name: string;
   is_verified: boolean;
   account_type: string;
-  seller_status?: string;
+  verification_status?: string;
   avatar_url?: string;
 }
 
@@ -46,7 +46,7 @@ export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ child
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('full_name, is_verified, account_type, seller_status, avatar_url')
+        .select('full_name, is_verified, account_type, verification_status, avatar_url')
         .eq('user_id', user.id)
         .single();
 
@@ -102,7 +102,7 @@ export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 full_name: payload.new.full_name,
                 is_verified: payload.new.is_verified,
                 account_type: payload.new.account_type,
-                seller_status: payload.new.seller_status,
+                verification_status: payload.new.verification_status,
                 avatar_url: payload.new.avatar_url
               };
               setProfile(updatedProfile);

@@ -75,9 +75,7 @@ const Search = () => {
       const { data: { user } } = await supabase.auth.getUser();
       setUser(user);
     } catch (error) {
-      // Secure error logging
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error('[AUTH_CHECK_ERROR]', errorMessage.replace(/[\r\n]/g, ''));
+      // Error handled silently
     }
   };
 
@@ -185,9 +183,7 @@ const Search = () => {
       
       setProducts(transformedData);
     } catch (error) {
-      // Secure error logging
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error('[SEARCH_PRODUCTS_ERROR]', errorMessage.replace(/[\r\n]/g, ''));
+      // Error handled silently
     } finally {
       setLoading(false);
     }
@@ -261,9 +257,7 @@ const Search = () => {
         window.refreshCartCount();
       }
     } catch (error) {
-      // Secure error logging
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.error('[CART_ADD_ERROR]', errorMessage.replace(/[\r\n]/g, ''));
+      // Error handled silently
     }
   };
 

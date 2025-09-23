@@ -198,7 +198,7 @@ const Cart = () => {
 
       setRecommendedProducts(transformedData);
     } catch (error) {
-      console.error('Error fetching recommended products:', error);
+      // Error handled silently
     } finally {
       setLoadingRecommended(false);
     }
@@ -221,7 +221,6 @@ const Cart = () => {
       // Trigger cart count update
       window.dispatchEvent(new CustomEvent('cartUpdated'));
     } catch (error) {
-      console.error('Error updating quantity:', error);
       toast({
         title: "Error",
         description: "Failed to update quantity",
@@ -250,7 +249,6 @@ const Cart = () => {
         description: "Item removed from your cart",
       });
     } catch (error) {
-      console.error('Error removing from cart:', error);
       toast({
         title: "Error",
         description: "Failed to remove item",
@@ -339,10 +337,9 @@ const Cart = () => {
 
       // Refresh cart items
       if (user) {
-        fetchCartItems(user.id);
+        queryClient.invalidateQueries({ queryKey: ['cart', user.id] });
       }
     } catch (error) {
-      console.error('Error adding to cart:', error);
       toast({
         title: "Error",
         description: "Failed to add item to cart",

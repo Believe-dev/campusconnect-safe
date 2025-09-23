@@ -833,6 +833,84 @@ export type Database = {
           }
         ]
       }
+      ban_appeals: {
+        Row: {
+          id: string
+          user_email: string
+          full_name: string
+          matric_number: string
+          message: string
+          status: string
+          admin_response: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_email: string
+          full_name: string
+          matric_number: string
+          message: string
+          status?: string
+          admin_response?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_email?: string
+          full_name?: string
+          matric_number?: string
+          message?: string
+          status?: string
+          admin_response?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      email_logs: {
+        Row: {
+          id: string
+          recipient_email: string
+          subject: string
+          html_content: string | null
+          text_content: string | null
+          status: string
+          sent_at: string | null
+          from_email: string
+          from_name: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          recipient_email: string
+          subject: string
+          html_content?: string | null
+          text_content?: string | null
+          status?: string
+          sent_at?: string | null
+          from_email: string
+          from_name: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          recipient_email?: string
+          subject?: string
+          html_content?: string | null
+          text_content?: string | null
+          status?: string
+          sent_at?: string | null
+          from_email?: string
+          from_name?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -840,6 +918,10 @@ export type Database = {
     Functions: {
       find_or_create_conversation: {
         Args: { p_buyer_id: string; p_product_id?: string; p_seller_id: string }
+        Returns: string
+      }
+      find_or_create_consolidated_conversation: {
+        Args: { p_buyer_id: string; p_seller_id: string; p_product_id?: string }
         Returns: string
       }
       has_role: {
@@ -862,6 +944,10 @@ export type Database = {
         Returns: boolean
       }
       auto_release_escrow: {
+        Args: {}
+        Returns: undefined
+      }
+      upgrade_to_seller: {
         Args: {}
         Returns: undefined
       }

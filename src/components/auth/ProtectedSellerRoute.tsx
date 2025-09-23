@@ -37,7 +37,7 @@ const ProtectedSellerRoute = ({ children }: ProtectedSellerRouteProps) => {
           .single();
 
         if (error) throw error;
-        userProfile = fetchedProfile;
+        userProfile = fetchedProfile as any;
       }
 
       if (userProfile.account_type === 'buyer') {
@@ -50,14 +50,24 @@ const ProtectedSellerRoute = ({ children }: ProtectedSellerRouteProps) => {
         return;
       }
 
-      if (userProfile.seller_status !== 'approved') {
+      // Allow sellers with approved status or existing sellers without status set
+      if (userProfile.seller_status === 'rejected') {
         toast({
-          title: "Seller Approval Required",
-          description: "Your seller account must be approved by admin before accessing seller features.",
+          title: "Seller Application Rejected",
+          description: "Your seller application has been rejected. Please contact support.",
           variant: "destructive",
         });
         navigate('/');
         return;
+      }
+      
+      // Show warning for pending sellers but allow access
+      if (userProfile.seller_status === 'pending') {
+        toast({
+          title: "Seller Approval Pending",
+          description: "Your seller account is pending approval. Some features may be limited.",
+          variant: "default",
+        });
       }
 
       setAuthorized(true);

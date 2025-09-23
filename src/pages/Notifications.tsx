@@ -42,7 +42,6 @@ export default function Notifications() {
             filter: `user_id=eq.${user.id},type=neq.message`
           },
           (payload) => {
-            console.log('Real-time notification update:', payload);
             fetchNotifications();
           }
         )
@@ -56,14 +55,11 @@ export default function Notifications() {
 
   const fetchNotifications = async () => {
     if (!user?.id) {
-      console.log('No user ID available for fetching notifications');
       setLoadingNotifications(false);
       return;
     }
 
     try {
-      console.log('Fetching notifications for user:', user.id);
-      
       const { data, error } = await supabase
         .from('notifications')
         .select('*')
@@ -72,8 +68,6 @@ export default function Notifications() {
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('Supabase error fetching notifications:', error);
-        
         // Check if table exists
         if (error.code === '42P01') {
           toast.error('Notifications table not found. Please run the database migration.');
@@ -89,16 +83,13 @@ export default function Notifications() {
         throw error;
       }
       
-      console.log('✅ Fetched notifications:', data?.length || 0, 'notifications');
       setNotifications(data || []);
       
       // If no notifications exist, create a welcome notification
       if (!data || data.length === 0) {
-        console.log('No notifications found, creating welcome notification');
         await createWelcomeNotification();
       }
     } catch (error) {
-      console.error('❌ Error fetching notifications:', error);
       toast.error(`Failed to load notifications: ${error.message}`);
       setNotifications([]);
     } finally {
@@ -118,14 +109,13 @@ export default function Notifications() {
         });
         
       if (error) {
-        console.error('Failed to create welcome notification:', error);
+        // Error handled silently
       } else {
-        console.log('✅ Welcome notification created');
         // Refresh notifications
         setTimeout(fetchNotifications, 1000);
       }
     } catch (error) {
-      console.error('Error creating welcome notification:', error);
+      // Error handled silently
     }
   };
 
@@ -146,7 +136,6 @@ export default function Notifications() {
         )
       );
     } catch (error) {
-      console.error('Error marking notification as read:', error);
       toast.error('Failed to update notification');
     }
   };
@@ -165,7 +154,6 @@ export default function Notifications() {
       );
       toast.success('Notification deleted');
     } catch (error) {
-      console.error('Error deleting notification:', error);
       toast.error('Failed to delete notification');
     }
   };
@@ -215,7 +203,6 @@ export default function Notifications() {
       );
       toast.success('All notifications marked as read');
     } catch (error) {
-      console.error('Error marking all as read:', error);
       toast.error('Failed to update notifications');
     }
   };

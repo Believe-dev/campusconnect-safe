@@ -84,7 +84,6 @@ const VerificationRequest = () => {
         });
 
       if (error) {
-        console.error('Verification request error:', error);
         throw error;
       }
 
@@ -104,7 +103,7 @@ const VerificationRequest = () => {
           });
           
           if (adminNotifError) {
-            console.error('Failed to notify admin:', adminNotifError);
+            // Error handled silently
           }
         }
       }
@@ -118,7 +117,7 @@ const VerificationRequest = () => {
       });
       
       if (userNotifError) {
-        console.error('Failed to create user confirmation notification:', userNotifError);
+        // Error handled silently
       }
 
       toast({
@@ -128,7 +127,6 @@ const VerificationRequest = () => {
 
       navigate('/profile');
     } catch (error) {
-      console.error('Error submitting verification request:', error);
       toast({
         title: "Error",
         description: "Failed to submit verification request.",

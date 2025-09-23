@@ -93,7 +93,6 @@ const Settings = () => {
       window.location.href = '/';
       
     } catch (error) {
-      console.error('Delete account error:', error);
       toast({
         title: "Error",
         description: "Failed to delete account data. Please try again.",

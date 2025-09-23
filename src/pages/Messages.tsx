@@ -187,8 +187,6 @@ export default function Messages() {
         const lastMsg = lastMessages?.find(m => m.conversation_id === conv.id);
         const unreadCount = unreadCounts[conv.id] || 0;
         
-        console.log(`Conversation ${conv.id}: unread count = ${unreadCount}`);
-        
         return {
           ...conv,
           other_user: otherUser,
@@ -207,7 +205,7 @@ export default function Messages() {
 
       setConversations(processedConversations);
     } catch (error) {
-      console.error('Error fetching conversations:', error);
+      // Error handled silently
     } finally {
       setLoadingConversations(false);
     }
@@ -241,7 +239,6 @@ export default function Messages() {
         description: "The conversation has been deleted successfully.",
       });
     } catch (error) {
-      console.error('Error deleting conversation:', error);
       toast({
         title: "Error",
         description: "Failed to delete conversation. Please try again.",

@@ -22,7 +22,6 @@ export const useAuth = () => {
         setSession(parsedSession);
         checkAdminRole(parsedUser.id);
       } catch (error) {
-        console.error('Error parsing cached auth:', error);
         localStorage.removeItem('cc_user');
         localStorage.removeItem('cc_session');
       }
@@ -31,7 +30,6 @@ export const useAuth = () => {
     // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
-        console.log('Auth state change:', event, session?.user?.id);
         
         setSession(session);
         setUser(session?.user ?? null);
@@ -97,7 +95,6 @@ export const useAuth = () => {
       
       setIsAdmin(!!roles);
     } catch (error) {
-      console.error('Error checking admin role:', error);
       setIsAdmin(false);
     }
   };

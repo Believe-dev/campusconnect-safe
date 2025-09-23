@@ -15,6 +15,8 @@ interface Profile {
   account_type: string;
   created_at: string;
   is_banned: boolean;
+  email?: string;
+  full_name?: string;
 }
 
 export const SellerDocumentReminder = () => {
@@ -151,8 +153,8 @@ export const SellerDocumentReminder = () => {
                       
                       // Email notification
                       emailService.sendNotificationEmail(
-                        profile.email,
-                        profile.full_name,
+                        (profile as any).email,
+                        (profile as any).full_name,
                         notificationTitle,
                         notificationMessage
                       );

@@ -57,7 +57,7 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
                   {item.products.title}
                 </h4>
                 <p className="text-xs text-muted-foreground">
-                  by {item.products.profiles?.full_name}
+                  by {(item.products as any).profiles?.full_name}
                 </p>
                 <div className="flex items-center gap-2 mt-1">
                   <Badge variant="outline" className="text-xs">
@@ -100,7 +100,7 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
 
         <Button
           onClick={onSubmit}
-          variant="brand"
+          variant="default"
           className="w-full"
           disabled={processing}
         >

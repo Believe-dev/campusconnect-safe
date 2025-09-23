@@ -110,7 +110,6 @@ const Checkout = () => {
 
       fetchCartItems(user.id);
     } catch (error) {
-      console.error("Error checking auth:", error);
       navigate("/auth");
     }
   };
@@ -153,7 +152,6 @@ const Checkout = () => {
 
       setCartItems(validItems);
     } catch (error) {
-      console.error("Error fetching cart items:", error);
       navigate("/cart");
     } finally {
       setLoading(false);
@@ -200,14 +198,9 @@ const Checkout = () => {
   };
 
   const handlePayment = () => {
-    console.log('Payment button clicked');
-    
     if (!validateForm() || !user) {
-      console.log('Form validation failed or no user');
       return;
     }
-
-    console.log('PaystackPop available:', !!(window as any).PaystackPop);
     
     if (!(window as any).PaystackPop) {
       toast({
@@ -220,8 +213,6 @@ const Checkout = () => {
 
     const totalAmount = getFinalTotal() * 100;
     const paymentRef = `CC_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
-    console.log('Initializing payment:', { totalAmount, paymentRef, email: formData.email });
 
     try {
       const handler = (window as any).PaystackPop.setup({
@@ -231,7 +222,6 @@ const Checkout = () => {
         currency: "NGN",
         ref: paymentRef,
         callback: (response: any) => {
-          console.log('Payment callback:', response);
           if (response.status === "success") {
             processOrder(response.reference);
           } else {
@@ -243,14 +233,12 @@ const Checkout = () => {
           }
         },
         onClose: () => {
-          console.log("Payment popup closed");
+          // Payment popup closed
         },
       });
 
-      console.log('Opening payment popup');
       handler.openIframe();
     } catch (error) {
-      console.error('Payment initialization error:', error);
       toast({
         title: "Payment Error",
         description: "Failed to initialize payment. Please try again.",
@@ -330,7 +318,6 @@ const Checkout = () => {
 
           if (sellerProfile) {
             // Create in-app notification for seller
-            console.log('Creating seller notification for user:', sellerId);
             const { data: sellerNotification, error: sellerNotifError } = await supabase.from('notifications').insert({
               user_id: sellerId,
               title: 'New Order Received! 🎉',
@@ -339,9 +326,7 @@ const Checkout = () => {
             });
             
             if (sellerNotifError) {
-              console.error('Error creating seller notification:', sellerNotifError);
-            } else {
-              console.log('Seller notification created successfully:', sellerNotification);
+              // Error handled silently
             }
 
             // Send email notification to seller
@@ -367,12 +352,11 @@ const Checkout = () => {
                 }
               });
             } catch (emailError) {
-              console.error('Failed to send email to seller:', emailError);
+              // Error handled silently
             }
           }
 
           // Create in-app notification for buyer
-          console.log('Creating buyer notification for user:', user!.id);
           const { data: buyerNotification, error: buyerNotifError } = await supabase.from('notifications').insert({
             user_id: user!.id,
             title: 'Order Placed Successfully! ✅',
@@ -381,9 +365,7 @@ const Checkout = () => {
           });
           
           if (buyerNotifError) {
-            console.error('Error creating buyer notification:', buyerNotifError);
-          } else {
-            console.log('Buyer notification created successfully:', buyerNotification);
+            // Error handled silently
           }
 
           // Send email confirmation to buyer
@@ -409,7 +391,7 @@ const Checkout = () => {
                 }
               });
             } catch (emailError) {
-              console.error('Failed to send email to buyer:', emailError);
+              // Error handled silently
             }
           }
 
@@ -445,7 +427,6 @@ const Checkout = () => {
 
       navigate("/orders");
     } catch (error) {
-      console.error("Error processing order:", error);
       toast({
         title: "Order failed",
         description:
@@ -487,7 +468,6 @@ const Checkout = () => {
       }
     } catch (error) {
       // Silently fail analytics to not block order processing
-      console.error("Error updating analytics:", error);
     }
   };
 

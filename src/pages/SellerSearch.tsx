@@ -59,7 +59,7 @@ const SellerSearch = () => {
         .single();
       setUserUniversity(data?.university_name || null);
     } catch (error) {
-      console.error('Error fetching user university:', error);
+      // Error handled silently
     }
   };
 
@@ -107,7 +107,7 @@ const SellerSearch = () => {
       
       setSellers(sortedSellers);
     } catch (error) {
-      console.error('Error fetching sellers:', error);
+      // Error handled silently
     } finally {
       setLoading(false);
     }

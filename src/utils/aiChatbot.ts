@@ -43,7 +43,7 @@ const QUICK_SOLUTIONS = {
   'account suspended': 'Check your email for suspension reason. Contact support to appeal or resolve the issue.',
 };
 
-const analyzeComplexQuestion = (input: string): string => {
+const analyzeComplexQuestion = (input: string): {text: string, actionButtons?: Array<{label: string, path: string, variant?: 'default' | 'outline'}>} | null => {
   // Multi-step processes
   if (input.includes('step') || input.includes('process') || input.includes('how do i')) {
     if (input.includes('sell') && input.includes('first time')) {
@@ -57,7 +57,9 @@ const analyzeComplexQuestion = (input: string): string => {
       };
     }
     if (input.includes('buy') && (input.includes('safe') || input.includes('secure'))) {
-      return "Safe buying process: 1) Browse verified seller profiles (look for verification badge) 2) Read item description carefully 3) Check seller ratings/reviews 4) Ask questions through secure chat 5) Request additional photos if needed 6) Agree on price and meeting location 7) Meet in public campus area (library, cafeteria) 8) Inspect item thoroughly before paying 9) Use in-app payment when possible 10) Rate seller after transaction. Red flags: Pressure to pay outside app, meet off-campus, or share personal info.";
+      return {
+        text: "Safe buying process: 1) Browse verified seller profiles (look for verification badge) 2) Read item description carefully 3) Check seller ratings/reviews 4) Ask questions through secure chat 5) Request additional photos if needed 6) Agree on price and meeting location 7) Meet in public campus area (library, cafeteria) 8) Inspect item thoroughly before paying 9) Use in-app payment when possible 10) Rate seller after transaction. Red flags: Pressure to pay outside app, meet off-campus, or share personal info."
+      };
     }
   }
   

@@ -34,7 +34,7 @@ export const PopupNotification = () => {
         filter: `user_id=eq.${user.id}`
       }, (payload) => {
         const newNotification = payload.new as Notification;
-        console.log('New notification received:', newNotification);
+
         
         // Clear any existing timeout
         if (timeoutId) clearTimeout(timeoutId);
@@ -47,18 +47,13 @@ export const PopupNotification = () => {
         }, 8000);
       })
       .subscribe((status) => {
-        console.log('Notification subscription status:', status);
-        if (status === 'SUBSCRIBED') {
-          console.log('✅ Popup notifications ready');
-        } else if (status === 'CHANNEL_ERROR') {
-          console.error('❌ Popup notification subscription failed');
-        }
+
       });
 
     // Also listen for custom notification events
     const handleCustomNotification = (event: CustomEvent) => {
       const newNotification = event.detail as Notification;
-      console.log('Custom notification received:', newNotification);
+
       
       if (timeoutId) clearTimeout(timeoutId);
       

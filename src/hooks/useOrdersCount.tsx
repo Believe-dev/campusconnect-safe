@@ -22,8 +22,8 @@ export const useOrdersCount = () => {
           },
           (payload) => {
             // Check if this order involves the current user
-            if (payload.new?.buyer_id === user.id || payload.new?.seller_id === user.id ||
-                payload.old?.buyer_id === user.id || payload.old?.seller_id === user.id) {
+            if ((payload.new as any)?.buyer_id === user.id || (payload.new as any)?.seller_id === user.id ||
+                (payload.old as any)?.buyer_id === user.id || (payload.old as any)?.seller_id === user.id) {
               fetchOrdersCount();
             }
           }

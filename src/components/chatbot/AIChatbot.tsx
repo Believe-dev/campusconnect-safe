@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Bot, Send, User, X, Minimize2 } from "lucide-react";
 import { getAIResponse } from "@/utils/aiChatbot";
 import { sanitizeInput } from "@/utils/security";
+import { useLocation } from "react-router-dom";
 
 interface Message {
   id: string;
@@ -20,6 +21,7 @@ interface Message {
 }
 
 export const AIChatbot = () => {
+  const location = useLocation();
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -32,15 +34,32 @@ export const AIChatbot = () => {
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const buttonRef = useRef<HTMLButtonElement>(null);
 
-  // Initialize position on mount
+  // Hide chatbot on chat pages
+  const shouldHide = location.pathname.startsWith('/chat/') || location.pathname === '/messages';
+  
+  if (shouldHide) {
+    return null;
+  }
+
+  // Initialize position on mount and handle window resize
   useEffect(() => {
-    const savedPosition = localStorage.getItem("chatbot-position");
-    if (savedPosition) {
-      setPosition(JSON.parse(savedPosition));
-    } else {
-      // Default position (bottom right with safe margins)
-      setPosition({ x: window.innerWidth - 80, y: window.innerHeight - 110 });
-    }
+    const updatePosition = () => {
+      const savedPosition = localStorage.getItem("chatbot-position");
+      if (savedPosition) {
+        const parsed = JSON.parse(savedPosition);
+        // Ensure position stays within bounds
+        const newX = Math.max(10, Math.min(window.innerWidth - 66, parsed.x));
+        const newY = Math.max(10, Math.min(window.innerHeight - 66, parsed.y));
+        setPosition({ x: newX, y: newY });
+      } else {
+        // Default position (bottom right with safe margins)
+        setPosition({ x: window.innerWidth - 76, y: window.innerHeight - 76 });
+      }
+    };
+    
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    return () => window.removeEventListener('resize', updatePosition);
   }, []);
 
   // Save position when it changes
@@ -66,7 +85,7 @@ export const AIChatbot = () => {
     );
     const newY = Math.max(
       10,
-      Math.min(window.innerHeight - 150, clientY - dragStart.y)
+      Math.min(window.innerHeight - 66, clientY - dragStart.y)
     );
 
     setPosition({ x: newX, y: newY });
@@ -248,7 +267,7 @@ export const AIChatbot = () => {
           isDragging
             ? "cursor-grabbing scale-110"
             : "cursor-grab hover:scale-105"
-        }`}
+        } block`}
         style={{
           left: `${position.x}px`,
           top: `${position.y}px`,
@@ -264,7 +283,7 @@ export const AIChatbot = () => {
 
   return (
     <Card
-      className={`fixed bottom-20 sm:bottom-4 left-4 right-4 sm:right-4 sm:left-auto z-[60] w-auto sm:w-96 max-w-none sm:max-w-sm shadow-xl transition-all ${
+      className={`fixed bottom-4 left-4 right-4 sm:right-4 sm:left-auto z-[60] w-auto sm:w-96 max-w-none sm:max-w-sm shadow-xl transition-all ${
         isMinimized ? "h-14" : "h-[60vh] sm:h-[500px]"
       }`}
     >

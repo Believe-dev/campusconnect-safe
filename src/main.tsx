@@ -77,7 +77,7 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 0,
-      cacheTime: isLowMemory ? 0 : 30000, // No cache on low memory
+      gcTime: isLowMemory ? 0 : 30000, // No cache on low memory
       retry: 0, // No retries on low memory
       refetchOnWindowFocus: !isLowMemory,
       refetchOnReconnect: true,
@@ -126,9 +126,8 @@ const AppContent = () => {
       if ('serviceWorker' in navigator) {
         try {
           await navigator.serviceWorker.register('/sw.js');
-          console.log('Service worker registered');
         } catch (error) {
-          console.error('Service worker registration failed:', error);
+          // Service worker registration failed silently
         }
       }
       

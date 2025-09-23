@@ -21,7 +21,7 @@ export const clearAllCaches = async (): Promise<void> => {
       );
     }
     
-    console.log('All caches cleared');
+
   } catch (error) {
     console.error('Error clearing caches:', error);
   }
@@ -38,7 +38,7 @@ export const checkForUpdates = (): void => {
   const storedVersion = localStorage.getItem('app_version');
   
   if (storedVersion && storedVersion !== currentVersion) {
-    console.log('New version detected, clearing caches...');
+
     clearAllCaches().then(() => {
       localStorage.setItem('app_version', currentVersion);
       forceReload();

@@ -28,8 +28,7 @@ export const showPopupNotification = (notification: Omit<PopupNotification, 'id'
     (window as any).showPopupNotification(fullNotification);
   }
 
-  // Method 3: Fallback to console for debugging
-  console.log('Popup notification triggered:', fullNotification);
+
 };
 
 // Predefined notification types

@@ -887,9 +887,8 @@ const SecureChat = ({
     const markMessagesAsRead = async () => {
       try {
         // Message read status is handled by the MessagePopup component
-        console.log("Chat opened for conversation:", conversationId);
       } catch (error) {
-        console.error("Error in markMessagesAsRead:", error);
+        // Error handled silently
       }
     };
 
@@ -1008,7 +1007,6 @@ const SecureChat = ({
         .single();
 
       if (error) {
-        console.error("Error fetching conversation:", error);
         return;
       }
 
@@ -1017,7 +1015,7 @@ const SecureChat = ({
         data.buyer_id === currentUserId ? data.seller : data.buyer;
       setConversation({ ...data, other_user: otherUser });
     } catch (error) {
-      console.error("Error in fetchConversation:", error);
+      // Error handled silently
     }
   };
 
@@ -1038,7 +1036,6 @@ const SecureChat = ({
         .order("created_at", { ascending: true });
 
       if (error) {
-        console.error("Error fetching messages:", error);
         return;
       }
 
@@ -1049,7 +1046,7 @@ const SecureChat = ({
         })) || []
       );
     } catch (error) {
-      console.error("Error in fetchMessages:", error);
+      // Error handled silently
     }
   };
 
@@ -1163,7 +1160,7 @@ const SecureChat = ({
         }
       }
     } catch (error) {
-      console.error("Error notifying admins:", error);
+      // Error handled silently
     }
   };
 
@@ -1222,7 +1219,6 @@ const SecureChat = ({
 
       // Message notifications are handled by MessagePopup component
     } catch (error) {
-      console.error("Error in sendMessage:", error);
       toast({
         title: "Error",
         description: "Failed to send message. Please try again.",
@@ -1264,7 +1260,6 @@ const SecureChat = ({
         description: "The message has been deleted successfully.",
       });
     } catch (error) {
-      console.error("Error deleting message:", error);
       toast({
         title: "Error",
         description: "Failed to delete message. Please try again.",

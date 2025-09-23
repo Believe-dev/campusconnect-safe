@@ -141,7 +141,6 @@ const Header = () => {
     try {
       const { error } = await supabase.auth.signOut({ scope: "global" });
       if (error) {
-        console.error("Sign out error:", error);
         toast({
           title: "Error",
           description: "Failed to sign out. Please try again.",
@@ -155,7 +154,6 @@ const Header = () => {
         window.location.href = "/";
       }
     } catch (error) {
-      console.error("Sign out error:", error);
       toast({
         title: "Error",
         description: "Failed to sign out. Please try again.",

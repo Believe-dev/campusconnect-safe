@@ -107,19 +107,15 @@ export class SecureEmailService {
   // Hardcoded email service - stores emails in database instead of sending
   private async sendEmail(recipientEmail: string, template: EmailTemplate): Promise<boolean> {
     try {
-      // Validate email format
       if (!this.isValidEmail(recipientEmail)) {
-        console.error('Invalid email format:', recipientEmail);
         return false;
       }
 
-      // Security: Rate limiting check
       if (!this.checkRateLimit(recipientEmail)) {
-        console.error('Rate limit exceeded for:', recipientEmail);
         return false;
       }
 
-      // Store email in database instead of sending
+      // Store email in database
       const { supabase } = await import('@/integrations/supabase/client');
       const { error } = await supabase.from('email_logs').insert({
         recipient_email: recipientEmail,
@@ -133,19 +129,12 @@ export class SecureEmailService {
       });
 
       if (!error) {
-        console.log('📧 HARDCODED EMAIL SERVICE - Email Stored Successfully');
-        console.log('📧 To:', recipientEmail);
-        console.log('📋 Subject:', template.subject);
-        console.log('📝 Content Preview:', template.text.substring(0, 100) + '...');
-        console.log('✅ Email logged to database - Check email_logs table');
-        
         this.logEmailActivity(recipientEmail, template.subject, 'sent');
         return true;
       } else {
         throw new Error(`Database error: ${error.message}`);
       }
     } catch (error) {
-      console.error('❌ Email logging failed:', error);
       this.logEmailActivity(recipientEmail, template.subject, 'failed');
       return false;
     }
@@ -332,12 +321,9 @@ export class SecureEmailService {
       service: 'SecureEmailService'
     };
     
-    console.log('📊 EMAIL AUDIT LOG:', logEntry);
-    
-    // In production, this would be sent to a secure logging service
     const logs = JSON.parse(localStorage.getItem('email_audit_logs') || '[]');
     logs.push(logEntry);
-    localStorage.setItem('email_audit_logs', JSON.stringify(logs.slice(-100))); // Keep last 100 logs
+    localStorage.setItem('email_audit_logs', JSON.stringify(logs.slice(-100)));
   }
 }
 

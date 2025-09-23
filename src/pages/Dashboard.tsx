@@ -136,7 +136,6 @@ const Dashboard = () => {
         .single();
 
       if (error) {
-        console.error("Error loading user profile:", error);
         // Create profile with signup data if it doesn't exist
         if (error.code === "PGRST116") {
           await supabase.from("profiles").insert({
@@ -155,7 +154,7 @@ const Dashboard = () => {
       }
       setUserProfile(profile);
     } catch (error) {
-      console.error("Error loading user profile:", error);
+      // Error handled silently
     }
   };
 
@@ -175,7 +174,7 @@ const Dashboard = () => {
       if (error) throw error;
       setProducts(data || []);
     } catch (error) {
-      console.error("Error fetching products:", error);
+      // Error handled silently
     } finally {
       setLoading(false);
     }
@@ -201,7 +200,7 @@ const Dashboard = () => {
       if (error) throw error;
       setAnalytics(data || []);
     } catch (error) {
-      console.error("Error fetching analytics:", error);
+      // Error handled silently
     }
   };
 
@@ -231,7 +230,6 @@ const Dashboard = () => {
       setEditingProduct(null);
       fetchProducts();
     } catch (error) {
-      console.error("Error updating product:", error);
       toast({
         title: "Error",
         description: "Failed to update product.",
@@ -258,7 +256,6 @@ const Dashboard = () => {
 
       fetchProducts();
     } catch (error) {
-      console.error("Error updating product status:", error);
       toast({
         title: "Error",
         description: "Failed to update product status.",

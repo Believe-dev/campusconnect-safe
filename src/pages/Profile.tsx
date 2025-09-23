@@ -72,7 +72,6 @@ const Profile = () => {
         .single();
 
       if (error) {
-        console.error('Profile fetch error:', error);
         // If profile doesn't exist, create it with signup data
         if (error.code === 'PGRST116') {
           const { data: newProfile, error: createError } = await supabase
@@ -127,7 +126,6 @@ const Profile = () => {
         }
       }
     } catch (error) {
-      console.error('Error fetching profile:', error);
       toast({
         title: "Error",
         description: "Failed to load profile",
@@ -160,7 +158,6 @@ const Profile = () => {
       });
       setEditing(false);
     } catch (error) {
-      console.error('Error updating profile:', error);
       toast({
         title: "Error",
         description: "Failed to update profile",
@@ -213,7 +210,6 @@ const Profile = () => {
       // Force redirect
       window.location.href = '/';
     } catch (error) {
-      console.error('Error deleting account:', error);
       toast({
         title: "Error",
         description: "Failed to delete account. Please contact support.",
@@ -250,7 +246,6 @@ const Profile = () => {
 
       setReviews(data || []);
     } catch (error) {
-      console.error('Error fetching reviews:', error);
       toast({
         title: "Error",
         description: "Could not load reviews",
@@ -296,7 +291,6 @@ const Profile = () => {
         description: "Your profile photo has been successfully updated.",
       });
     } catch (error) {
-      console.error('Error uploading photo:', error);
       toast({
         title: "Error",
         description: "Failed to update profile photo",
@@ -695,7 +689,6 @@ const Profile = () => {
                           className="max-w-full h-auto rounded border"
                           style={{ maxHeight: '200px' }}
                           onError={(e) => {
-                            console.error('Failed to load student ID photo');
                             e.currentTarget.style.display = 'none';
                           }}
                         />
@@ -752,7 +745,6 @@ const Profile = () => {
                                     description: "Your student ID card has been uploaded successfully.",
                                   });
                                 } catch (error) {
-                                  console.error('Error uploading student ID:', error);
                                   toast({
                                     title: "Error",
                                     description: "Failed to upload student ID card",

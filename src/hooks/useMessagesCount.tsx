@@ -61,7 +61,7 @@ export const useMessagesCount = () => {
           (payload) => {
             // Update when is_read changes for messages not from current user
             if (payload.new.sender_id !== user.id && payload.old?.is_read !== payload.new?.is_read) {
-              console.log('Message read status changed, refreshing count');
+
               clearTimeout(updateTimeout);
               updateTimeout = setTimeout(fetchMessagesCount, 500);
             }
@@ -101,27 +101,37 @@ export const useMessagesCount = () => {
         return;
       }
 
-      // Count unread messages in user's conversations
-      const { count, error } = await supabase
-        .from('messages')
-        .select('*', { count: 'exact', head: true })
-        .in('conversation_id', conversations.map(c => c.id))
-        .neq('sender_id', user.id)
-        .eq('is_read', false);
+      // Count unread messages by iterating through conversations
+      let count = 0;
+      let error = null;
+      
+      for (const conv of conversations) {
+        try {
+          const response = await (supabase as any)
+            .from('messages')
+            .select('id')
+            .eq('conversation_id', conv.id)
+            .neq('sender_id', user.id)
+            .eq('is_read', false);
+          
+          if (response.data) {
+            count += response.data.length;
+          }
+        } catch (e) {
+          error = e;
+          break;
+        }
+      }
 
       if (error) {
         console.error('Error counting messages:', error);
       }
       
-      console.log('Unread count for user', user.id, ':', count);
-      console.log('Setting messages count to:', Math.min(count || 0, 99));
 
-      setMessagesCount(Math.min(count || 0, 99));
+
+      setMessagesCount(Math.min(count, 99));
       
-      // Also log the actual state update
-      setTimeout(() => {
-        console.log('Messages count state updated');
-      }, 100);
+
     } catch (error) {
       console.error('Error in fetchMessagesCount:', error);
       setMessagesCount(0);
