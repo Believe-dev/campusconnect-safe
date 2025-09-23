@@ -27,39 +27,11 @@ export default defineConfig(({ mode }) => ({
       compress: {
         drop_console: true,
         drop_debugger: true,
-        pure_funcs: ['console.log', 'console.info', 'console.debug', 'console.warn'],
-        passes: 3,
-        unsafe: true,
-        unsafe_comps: true,
-        unsafe_Function: true,
-        unsafe_math: true,
-        unsafe_symbols: true,
-        unsafe_methods: true,
-        unsafe_proto: true,
-        unsafe_regexp: true,
-        unsafe_undefined: true,
-        dead_code: true,
-        global_defs: {
-          '@console.log': 'void',
-          '@console.info': 'void',
-          '@console.debug': 'void',
-          '@console.warn': 'void',
-        },
       },
-      mangle: {
-        toplevel: true,
-        eval: true,
-        keep_fnames: false,
-        properties: {
-          regex: /^_/,
-        },
-      },
+      mangle: true,
       format: {
         comments: false,
-        beautify: false,
-        semicolons: false,
       },
-      nameCache: {},
     },
     rollupOptions: {
       output: {
