@@ -309,7 +309,7 @@ const ProductDetails = () => {
     const title = product?.title || 'Check out this product';
     const text = `${title} - ₦${product?.price.toLocaleString()}`;
 
-    // Try Web Share API first
+    // Always try Web Share API first on mobile
     if (navigator.share) {
       try {
         await navigator.share({
@@ -319,13 +319,31 @@ const ProductDetails = () => {
         });
         return;
       } catch (error) {
-        // Fallback to copy link if share is cancelled or fails
+        // User cancelled or error occurred, don't fallback
+        if (error.name === 'AbortError') {
+          return; // User cancelled, don't show error
+        }
       }
     }
 
-    // Fallback: Copy to clipboard
+    // Fallback: Copy to clipboard only if Web Share API is not available
     try {
-      await navigator.clipboard.writeText(url);
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(url);
+      } else {
+        // Fallback for older browsers or non-secure contexts
+        const textArea = document.createElement('textarea');
+        textArea.value = url;
+        textArea.style.position = 'fixed';
+        textArea.style.left = '-999999px';
+        textArea.style.top = '-999999px';
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        document.execCommand('copy');
+        textArea.remove();
+      }
+      
       setCopied(true);
       toast({
         title: "Link Copied",
@@ -334,9 +352,8 @@ const ProductDetails = () => {
       setTimeout(() => setCopied(false), 2000);
     } catch (error) {
       toast({
-        title: "Error",
-        description: "Failed to copy link",
-        variant: "destructive",
+        title: "Share Link",
+        description: url,
       });
     }
   };
@@ -554,6 +571,9 @@ const ProductDetails = () => {
                   src={images[currentImageIndex]}
                   alt={product.title}
                   className="h-full w-full object-cover transition-all duration-500 ease-in-out"
+                  onError={(e) => {
+                    e.currentTarget.src = '/placeholder.svg';
+                  }}
                 />
                 {images.length > 1 && (
                   <>
@@ -687,13 +707,26 @@ const ProductDetails = () => {
                               rows={4}
                             />
                           </div>
-                          <div className="flex justify-end gap-2">
-                            <Button variant="outline" onClick={() => setReportDialogOpen(false)}>
-                              Cancel
-                            </Button>
-                            <Button onClick={handleReportIssue}>
-                              Submit Report
-                            </Button>
+                          <div className="flex flex-col gap-3">
+                            <div className="flex justify-end gap-2">
+                              <Button variant="outline" onClick={() => setReportDialogOpen(false)}>
+                                Cancel
+                              </Button>
+                              <Button onClick={handleReportIssue}>
+                                Submit Report
+                              </Button>
+                            </div>
+                            <div className="text-center">
+                              <p className="text-xs text-muted-foreground mb-2">Need immediate help?</p>
+                              <Button 
+                                variant="outline" 
+                                size="sm" 
+                                onClick={() => window.open('https://wa.me/2349133054018', '_blank')}
+                                className="text-green-600 border-green-600 hover:bg-green-50"
+                              >
+                                Chat on WhatsApp
+                              </Button>
+                            </div>
                           </div>
                         </div>
                       </DialogContent>

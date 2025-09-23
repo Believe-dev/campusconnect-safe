@@ -266,31 +266,7 @@ const Settings = () => {
             </CardContent>
           </Card>
 
-          {/* Payment Settings */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <CreditCard className="h-5 w-5" />
-                Payment Settings
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Button variant="outline" disabled>
-                  Payment Methods
-                </Button>
-                <Button variant="outline" disabled>
-                  Bank Account
-                </Button>
-                <Button variant="outline" disabled>
-                  Billing History
-                </Button>
-                <Button variant="outline" disabled>
-                  Tax Information
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+
 
           {/* Support */}
           <Card>
@@ -305,14 +281,14 @@ const Settings = () => {
                 <Button variant="outline" disabled>
                   Help Center
                 </Button>
-                <Button variant="outline" disabled>
+                <Button variant="outline" onClick={() => window.open('https://wa.me/2349133054018?text=Hello%2C%20I%20need%20help%20with%20UniMarket', '_blank')}>
                   Contact Support
                 </Button>
-                <Button variant="outline" disabled>
-                  Terms of Service
+                <Button variant="outline" asChild>
+                  <a href="/terms-of-service">Terms of Service</a>
                 </Button>
-                <Button variant="outline" disabled>
-                  Privacy Policy
+                <Button variant="outline" asChild>
+                  <a href="/privacy-policy">Privacy Policy</a>
                 </Button>
               </div>
             </CardContent>

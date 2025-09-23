@@ -25,7 +25,7 @@ const MobileSearchDialog = () => {
           <Search className="h-4 w-4 sm:h-5 sm:w-5" />
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-lg top-[20%] translate-y-0">
+      <DialogContent className="sm:max-w-lg w-[95vw] max-w-[95vw] sm:w-full">
         <div className="space-y-4">
           <h2 className="text-lg font-semibold">Search UniMarket</h2>
           <SmartSearchInput

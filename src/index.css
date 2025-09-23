@@ -1,4 +1,6 @@
 @import "./styles/scrollbar.css";
+@import "./styles/lite-mode.css";
+@import "./styles/browser-fixes.css";
 
 @tailwind base;
 @tailwind components;

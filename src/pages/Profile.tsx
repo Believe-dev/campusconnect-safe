@@ -413,8 +413,7 @@ const Profile = () => {
                     <input
                       id="profile-upload-btn"
                       type="file"
-                      accept="image/*,image/jpeg,image/jpg,image/png,image/webp"
-                      capture="environment"
+                      accept="image/*"
                       className="hidden"
                       onChange={(e) => {
                         const file = e.target.files?.[0];

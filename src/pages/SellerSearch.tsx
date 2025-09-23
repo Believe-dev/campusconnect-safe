@@ -157,7 +157,7 @@ const SellerSearch = () => {
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      <main className="container mx-auto px-4 py-8 pb-20 md:pb-8">
+      <main className="container mx-auto px-4 py-8 pb-24 md:pb-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-primary mb-2">Find Sellers</h1>
           <p className="text-muted-foreground mb-3">Discover trusted sellers in your university</p>

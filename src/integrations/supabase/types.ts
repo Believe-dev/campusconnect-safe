@@ -687,6 +687,36 @@ export type Database = {
           }
         ]
       }
+      bank_details: {
+        Row: {
+          id: string
+          user_id: string
+          bank_account_name: string
+          bank_account_number: string
+          bank_name: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          bank_account_name: string
+          bank_account_number: string
+          bank_name: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          bank_account_name?: string
+          bank_account_number?: string
+          bank_name?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       payout_requests: {
         Row: {
           id: string

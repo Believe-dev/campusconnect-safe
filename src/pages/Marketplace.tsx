@@ -390,7 +390,7 @@ const Marketplace = () => {
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      <main className="container mx-auto px-4 py-6 sm:py-8 pb-20 md:pb-8">
+      <main className="container mx-auto px-4 py-6 sm:py-8 pb-24 md:pb-8">
         <OfflineNotice />
         <div className="mb-6 sm:mb-8">
           <h1 className="text-2xl sm:text-3xl font-bold text-primary mb-2">Marketplace</h1>
@@ -404,69 +404,60 @@ const Marketplace = () => {
               <CardContent className="p-3 sm:p-4 lg:p-6">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 lg:gap-4">
               <div className="sm:col-span-2 lg:col-span-2">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-                  <Input
-                    placeholder="Search products..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    onKeyPress={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        e.currentTarget.blur();
-                      }
-                    }}
-                    className="pl-10 pr-12 text-sm sm:text-base"
-                  />
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={() => {
-                      document.activeElement?.blur();
-                      filterProducts();
-                    }}
-                    className="absolute right-1 top-1/2 -translate-y-1/2 h-8 px-3 z-10 hover:scale-100 hover:translate-y-[-50%]"
-                  >
+                <form onSubmit={(e) => { e.preventDefault(); navigate(`/search?q=${encodeURIComponent(searchQuery)}`); }} className="flex gap-2">
+                  <div className="flex-1 relative">
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none z-10" />
+                    <Input
+                      placeholder="Search products..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-10 h-10"
+                    />
+                  </div>
+                  <Button type="submit" variant="brand" size="sm" className="h-10 px-4 ml-2">
                     <Search className="h-4 w-4" />
                   </Button>
-                </div>
+                </form>
               </div>
               
-              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                <SelectTrigger className="text-sm sm:text-base">
-                  <SelectValue placeholder="Category" />
-                </SelectTrigger>
-                <SelectContent>
+              <div className="relative">
+                <select 
+                  value={selectedCategory} 
+                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  className="w-full h-10 px-3 text-sm sm:text-base border border-input bg-background rounded-md"
+                >
                   {categories.map(category => (
-                    <SelectItem key={category} value={category} className="text-sm sm:text-base">{category}</SelectItem>
+                    <option key={category} value={category}>{category}</option>
                   ))}
-                </SelectContent>
-              </Select>
+                </select>
+              </div>
 
-              <Select value={selectedCondition} onValueChange={setSelectedCondition}>
-                <SelectTrigger className="text-sm sm:text-base">
-                  <SelectValue placeholder="Condition" />
-                </SelectTrigger>
-                <SelectContent>
+              <div className="relative">
+                <select 
+                  value={selectedCondition} 
+                  onChange={(e) => setSelectedCondition(e.target.value)}
+                  className="w-full h-10 px-3 text-sm sm:text-base border border-input bg-background rounded-md"
+                >
                   {conditions.map(condition => (
-                    <SelectItem key={condition} value={condition} className="text-sm sm:text-base">
+                    <option key={condition} value={condition}>
                       {condition === 'All Conditions' ? condition : condition.charAt(0).toUpperCase() + condition.slice(1)}
-                    </SelectItem>
+                    </option>
                   ))}
-                </SelectContent>
-              </Select>
+                </select>
+              </div>
 
-              <Select value={sortBy} onValueChange={setSortBy}>
-                <SelectTrigger className="text-sm sm:text-base">
-                  <SelectValue placeholder="Sort by" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="newest" className="text-sm sm:text-base">Newest First</SelectItem>
-                  <SelectItem value="oldest" className="text-sm sm:text-base">Oldest First</SelectItem>
-                  <SelectItem value="price_low" className="text-sm sm:text-base">Price: Low to High</SelectItem>
-                  <SelectItem value="price_high" className="text-sm sm:text-base">Price: High to Low</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="relative">
+                <select 
+                  value={sortBy} 
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="w-full h-10 px-3 text-sm sm:text-base border border-input bg-background rounded-md"
+                >
+                  <option value="newest">Newest First</option>
+                  <option value="oldest">Oldest First</option>
+                  <option value="price_low">Price: Low to High</option>
+                  <option value="price_high">Price: High to Low</option>
+                </select>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -504,6 +495,9 @@ const Marketplace = () => {
                       src={product.images[0]}
                       alt={product.title}
                       className="w-full h-32 sm:h-40 lg:h-48 object-cover rounded-t-lg group-hover:scale-105 transition-transform duration-300 ease-out"
+                      onError={(e) => {
+                        e.currentTarget.src = '/placeholder.svg';
+                      }}
                     />
                   )}
                   

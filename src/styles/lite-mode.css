@@ -1,0 +1,75 @@
+/* Lite Mode Optimizations for Low-Memory Devices */
+
+.lite-mode {
+  /* Disable heavy animations and transitions */
+  * {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+    filter: none !important;
+    backdrop-filter: none !important;
+    box-shadow: none !important;
+  }
+
+  /* Reduce image quality */
+  img {
+    image-rendering: pixelated;
+    will-change: auto !important;
+    backface-visibility: visible !important;
+  }
+
+  /* Simplify gradients */
+  .gradient-brand,
+  .gradient-accent,
+  .gradient-hero {
+    background: hsl(var(--primary)) !important;
+  }
+
+  /* Remove GPU transforms */
+  .hover-lift:hover,
+  .micro-bounce:active,
+  .verification-tick,
+  .verification-badge-inline {
+    transform: none !important;
+  }
+
+  /* Disable loading animations */
+  .loading-shimmer {
+    animation: none !important;
+    background: rgba(0, 0, 0, 0.05) !important;
+  }
+
+  /* Simplify cards */
+  .student-card {
+    background: white !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1) !important;
+  }
+
+  /* Remove 3D effects */
+  .verified-badge,
+  .trust-badge {
+    box-shadow: none !important;
+    background: rgba(59, 130, 246, 0.1) !important;
+  }
+}
+
+/* React Window Lite Mode Optimizations */
+.lite-mode .react-window-list {
+  /* Minimize overscan for better performance */
+  --overscan-count: 1;
+}
+
+.lite-mode .product-card {
+  /* Simplified product cards */
+  transition: none !important;
+  transform: none !important;
+}
+
+.lite-mode .product-card:hover {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Lazy loading optimizations */
+.lite-mode .lazy-component {
+  contain: layout style;
+}

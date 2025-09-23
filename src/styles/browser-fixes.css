@@ -1,0 +1,91 @@
+/* Override browser default mode */
+* {
+  color-scheme: none !important;
+}
+
+html {
+  color-scheme: none !important;
+  background-color: white !important;
+}
+
+html.light {
+  color-scheme: none !important;
+  background-color: white !important;
+}
+
+html.dark {
+  color-scheme: none !important;
+  background-color: hsl(140 25% 8%) !important;
+}
+
+body {
+  background-color: inherit !important;
+  color-scheme: none !important;
+}
+
+@media (prefers-color-scheme: dark) {
+  html:not(.dark) {
+    background-color: white !important;
+    color-scheme: none !important;
+  }
+}
+
+/* Force modal centering */
+[data-radix-dialog-content] {
+  position: fixed !important;
+  top: 50vh !important;
+  left: 50vw !important;
+  transform: translate(-50%, -50%) !important;
+  max-width: calc(100vw - 32px) !important;
+  max-height: calc(100vh - 64px) !important;
+  overflow-y: auto !important;
+  z-index: 9999 !important;
+}
+
+/* Tailwind class override */
+.fixed.left-\[50\%\].top-\[50\%\] {
+  position: fixed !important;
+  top: 50vh !important;
+  left: 50vw !important;
+  transform: translate(-50%, -50%) !important;
+}
+
+/* Mobile fixes */
+@media (max-width: 768px) {
+  [data-radix-dialog-content] {
+    width: calc(100vw - 32px) !important;
+  }
+}
+
+/* Dropdown fixes */
+[data-radix-dropdown-menu-content],
+[data-radix-popover-content],
+[data-radix-select-content] {
+  position: fixed !important;
+  z-index: 9999 !important;
+  max-width: calc(100vw - 16px) !important;
+  max-height: calc(100vh - 16px) !important;
+}
+
+/* Select dropdown positioning */
+[data-radix-select-content] {
+  transform-origin: var(--radix-select-content-transform-origin) !important;
+}
+
+/* Force mobile select dropdown positioning */
+@media (max-width: 768px) {
+  [data-radix-select-content][data-state="open"] {
+    position: fixed !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    width: calc(100vw - 32px) !important;
+    max-width: calc(100vw - 32px) !important;
+    max-height: 60vh !important;
+    z-index: 999999 !important;
+    background: white !important;
+    border: 1px solid #e5e7eb !important;
+    border-radius: 8px !important;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.3) !important;
+  }
+}

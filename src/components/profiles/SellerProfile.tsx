@@ -317,7 +317,7 @@ const SellerProfile = () => {
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      <div className="py-8 pb-20 md:pb-8">
+      <div className="py-8 pb-24 md:pb-8">
       <div className="max-w-4xl mx-auto px-4 space-y-6">
         {/* Seller Info Card */}
         <Card className="shadow-brand">

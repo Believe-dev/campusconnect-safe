@@ -1,17 +1,28 @@
 {
-  "name": "UniMarket",
+  "name": "UniMarket - Campus Marketplace",
   "short_name": "UniMarket",
-  "description": "Campus marketplace for students",
+  "description": "Nigeria's trusted university marketplace for students",
   "start_url": "/",
   "display": "standalone",
+  "orientation": "portrait-primary",
   "background_color": "#ffffff",
-  "theme_color": "#0ea5e9",
+  "theme_color": "#16a34a",
   "icons": [
     {
       "src": "/logo.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ],
+  "categories": ["shopping", "education", "social"],
+  "lang": "en",
+  "dir": "ltr",
   "gcm_sender_id": "482941778795"
 }

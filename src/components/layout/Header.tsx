@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/enhanced-button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useTheme } from "../theme/ThemeProvider";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -50,6 +51,7 @@ import { useOrdersCount } from "@/hooks/useOrdersCount";
 import { useMessagesCount } from "@/hooks/useMessagesCount";
 import { useProfile } from "@/contexts/ProfileContext";
 import { useRealTimeUpdates } from "@/hooks/useRealTimeUpdates";
+import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import SmartSearchInput from "@/components/search/SmartSearchInput";
 import MobileSearchDialog from "@/components/search/MobileSearchDialog";
 
@@ -72,6 +74,8 @@ const Header = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  const { theme, setTheme } = useTheme();
 
   // Enable real-time updates
   useRealTimeUpdates();
@@ -191,7 +195,7 @@ const Header = () => {
       </SheetTrigger>
       <SheetContent
         side="left"
-        className="w-full sm:w-80 h-full flex flex-col overflow-hidden bg-background"
+        className="w-full sm:w-96 md:w-[28rem] lg:w-80 h-full flex flex-col overflow-hidden bg-background"
       >
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
@@ -475,6 +479,14 @@ const Header = () => {
                 </Link>
               </Button>
 
+              <Button
+                onClick={() => setTheme(theme === "light" ? "dark" : "light")}
+                className="flex items-center justify-between px-3 py-2"
+              >
+                <span className="text-sm font-medium">Theme</span>
+                <ThemeToggle />
+              </Button>
+
               <div className="border-t my-2" />
 
               <Button
@@ -542,6 +554,11 @@ const Header = () => {
           <div className="flex items-center gap-1 sm:gap-2">
             {/* Network Status */}
             <NetworkIndicator />
+
+            {/* Theme Toggle - Desktop only */}
+            <div className="hidden lg:block">
+              <ThemeToggle />
+            </div>
 
             {/* Mobile Search Dialog */}
             <div className="lg:hidden">

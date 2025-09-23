@@ -55,6 +55,23 @@ const AuthPage = () => {
     return () => subscription.unsubscribe();
   }, []);
 
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element;
+      if (!target.closest('#signup-university') && !target.closest('.university-dropdown')) {
+        setUniversityOpen(false);
+      }
+    };
+
+    if (universityOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [universityOpen]);
+
   // Redirect if already authenticated
   if (user) {
     return <Navigate to="/" replace />;
@@ -74,10 +91,10 @@ const AuthPage = () => {
       options: {
         emailRedirectTo: redirectUrl,
         data: {
-          full_name: fullName,
+          full_name: fullName.trim(),
           university_name: university,
-          student_id: studentId,
-          phone_number: phoneNumber,
+          student_id: studentId.trim(),
+          phone_number: phoneNumber.trim(),
           account_type: finalAccountType,
         }
       }
@@ -122,7 +139,13 @@ const AuthPage = () => {
   };
 
   const handleAuth = async (isSignUp: boolean) => {
-    if (!email || !password) {
+    // Input sanitization and validation
+    const sanitizedEmail = email.trim().toLowerCase();
+    const sanitizedFullName = fullName.trim();
+    const sanitizedStudentId = studentId.trim();
+    const sanitizedPhoneNumber = phoneNumber.trim();
+    
+    if (!sanitizedEmail || !password) {
       toast({
         title: "Missing Information",
         description: "Please fill in all required fields.",
@@ -131,10 +154,31 @@ const AuthPage = () => {
       return;
     }
 
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(sanitizedEmail)) {
+      toast({
+        title: "Invalid Email",
+        description: "Please enter a valid email address.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Password strength validation
+    if (isSignUp && password.length < 8) {
+      toast({
+        title: "Weak Password",
+        description: "Password must be at least 8 characters long.",
+        variant: "destructive",
+      });
+      return;
+    }
+
       // Different validation for buyers vs sellers
       if (isSignUp && accountType === 'buyer') {
         // Buyers need minimal information
-        if (!fullName || !university) {
+        if (!sanitizedFullName || !university) {
           toast({
             title: "Missing Information", 
             description: "Please fill in your name and university.",
@@ -142,9 +186,19 @@ const AuthPage = () => {
           });
           return;
         }
+        
+        // Name validation
+        if (sanitizedFullName.length < 2 || sanitizedFullName.length > 50) {
+          toast({
+            title: "Invalid Name",
+            description: "Name must be between 2 and 50 characters.",
+            variant: "destructive",
+          });
+          return;
+        }
       } else if (isSignUp && accountType === 'seller') {
         // Sellers need complete information
-        if (!fullName || !university || !studentId || !phoneNumber) {
+        if (!sanitizedFullName || !university || !sanitizedStudentId || !sanitizedPhoneNumber) {
           toast({
             title: "Missing Information", 
             description: "Please fill in all required fields: name, university, student ID, and phone number.",
@@ -153,8 +207,39 @@ const AuthPage = () => {
           return;
         }
 
+        // Name validation
+        if (sanitizedFullName.length < 2 || sanitizedFullName.length > 50) {
+          toast({
+            title: "Invalid Name",
+            description: "Name must be between 2 and 50 characters.",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        // Student ID validation
+        if (sanitizedStudentId.length < 5 || sanitizedStudentId.length > 20) {
+          toast({
+            title: "Invalid Student ID",
+            description: "Student ID must be between 5 and 20 characters.",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        // Phone number validation
+        const phoneRegex = /^\+?[1-9]\d{1,14}$/;
+        if (!phoneRegex.test(sanitizedPhoneNumber.replace(/\s/g, ''))) {
+          toast({
+            title: "Invalid Phone Number",
+            description: "Please enter a valid phone number.",
+            variant: "destructive",
+          });
+          return;
+        }
+
         // Validate school email for sellers
-        if (!email.includes('.edu') && !email.includes('student') && !email.includes('school') && !email.includes('university')) {
+        if (!sanitizedEmail.includes('.edu') && !sanitizedEmail.includes('student') && !sanitizedEmail.includes('school') && !sanitizedEmail.includes('university')) {
           toast({
             title: "School Email Required",
             description: "Sellers must use a school/university email address.",
@@ -162,15 +247,13 @@ const AuthPage = () => {
           });
           return;
         }
-
-
       }
 
     setLoading(true);
 
     const { error } = isSignUp 
-      ? await signUp(email, password)
-      : await signIn(email, password);
+      ? await signUp(sanitizedEmail, password)
+      : await signIn(sanitizedEmail, password);
 
     if (error) {
       toast({
@@ -232,314 +315,438 @@ const AuthPage = () => {
             </TabsList>
 
             <TabsContent value="signin" className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="signin-email">Email</Label>
-                <Input
-                  id="signin-email"
-                  type="email"
-                  placeholder="Enter your university email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="signin-password">Password</Label>
-                <div className="relative">
+              <form onSubmit={(e) => { e.preventDefault(); handleAuth(false); }} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="signin-email">Email</Label>
                   <Input
-                    id="signin-password"
-                    type={showPassword ? "text" : "password"}
-                    placeholder="Enter your password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="pr-10"
+                    id="signin-email"
+                    type="email"
+                    placeholder="Enter your university email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    maxLength={100}
+                    autoComplete="email"
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
-                  >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
                 </div>
-              </div>
-              <Button 
-                variant="brand" 
-                className="w-full" 
-                onClick={() => handleAuth(false)}
-                disabled={loading}
-              >
-                <Mail className="h-4 w-4" />
-                {loading ? 'Signing In...' : 'Sign In'}
-              </Button>
+                <div className="space-y-2">
+                  <Label htmlFor="signin-password">Password</Label>
+                  <div className="relative">
+                    <Input
+                      id="signin-password"
+                      type={showPassword ? "text" : "password"}
+                      placeholder="Enter your password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+                <Button 
+                  type="submit"
+                  variant="brand" 
+                  className="w-full" 
+                  disabled={loading}
+                >
+                  <Mail className="h-4 w-4" />
+                  {loading ? 'Signing In...' : 'Sign In'}
+                </Button>
+              </form>
             </TabsContent>
 
             <TabsContent value="signup" className="space-y-4">
-              <div className="space-y-2">
-                <Label>Account Type</Label>
-                <Select value={accountType} onValueChange={(value: 'buyer' | 'seller') => setAccountType(value)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="buyer">Buyer</SelectItem>
-                    <SelectItem value="seller">Seller</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="signup-email">{accountType === 'seller' ? 'University Email' : 'Email'}</Label>
-                <Input
-                  id="signup-email"
-                  type="email"
-                  placeholder={accountType === 'seller' ? 'student@university.edu.ng' : 'your@email.com'}
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="signup-password">Password</Label>
-                <div className="relative">
-                  <Input
-                    id="signup-password"
-                    type={showPassword ? "text" : "password"}
-                    placeholder="Create a strong password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="pr-10"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
-                  >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="signup-name">Full Name *</Label>
-                <Input
-                  id="signup-name"
-                  placeholder="Enter your full name"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="signup-university">University *</Label>
-                <Popover open={universityOpen} onOpenChange={setUniversityOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      role="combobox"
-                      aria-expanded={universityOpen}
-                      className="w-full justify-between"
+              <form onSubmit={(e) => { e.preventDefault(); handleAuth(true); }} className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Account Type</Label>
+                  <div className="relative">
+                    <select 
+                      value={accountType} 
+                      onChange={(e) => setAccountType(e.target.value as 'buyer' | 'seller')}
+                      className="w-full h-10 px-3 text-sm border border-input bg-background rounded-md"
                     >
-                      {university || "Select your university..."}
-                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-full p-0">
-                    <Command>
-                      <CommandInput placeholder="Search universities..." />
-                      <CommandList>
-                        <CommandEmpty>No university found.</CommandEmpty>
-                        <CommandGroup>
-                          {[
-                            "Abia State University",
-                            "Abubakar Tafawa Balewa University",
-                            "Achievers University",
-                            "Adamawa State University",
-                            "Adeleke University",
-                            "Afe Babalola University",
-                            "African University of Science and Technology",
-                            "Ahmadu Bello University",
-                            "Ajayi Crowther University",
-                            "Akwa Ibom State University",
-                            "Alex Ekwueme Federal University",
-                            "American University of Nigeria",
-                            "Anchor University",
-                            "Augustine University",
-                            "Babcock University",
-                            "Baze University",
-                            "Bayero University Kano",
-                            "Bells University of Technology",
-                            "Benson Idahosa University",
-                            "Bingham University",
-                            "Bowen University",
-                            "Caleb University",
-                            "Caritas University",
-                            "Chrisland University",
-                            "Christopher University",
-                            "Clifford University",
-                            "Coal City University",
-                            "Covenant University",
-                            "Crawford University",
-                            "Cross River University of Technology",
-                            "Delta State University",
-                            "Eastern Palm University",
-                            "Ebonyi State University",
-                            "Edo University",
-                            "Ekiti State University",
-                            "Elizade University",
-                            "Enugu State University of Science and Technology",
-                            "Federal University Birnin Kebbi",
-                            "Federal University Dutse",
-                            "Federal University Dutsin-Ma",
-                            "Federal University Gashua",
-                            "Federal University Gusau",
-                            "Federal University Kashere",
-                            "Federal University Lafia",
-                            "Federal University Lokoja",
-                            "Federal University Ndufu-Alike",
-                            "Federal University of Agriculture, Abeokuta",
-                            "Federal University of Agriculture, Makurdi",
-                            "Federal University of Petroleum Resources",
-                            "Federal University of Technology, Akure",
-                            "Federal University of Technology, Minna",
-                            "Federal University of Technology, Owerri",
-                            "Federal University Otuoke",
-                            "Federal University Oye-Ekiti",
-                            "Federal University Wukari",
-                            "Fountain University",
-                            "Godfrey Okoye University",
-                            "Gombe State University",
-                            "Gregory University",
-                            "Hallmark University",
-                            "Hezekiah University",
-                            "Igbinedion University",
-                            "Imo State University",
-                            "Joseph Ayo Babalola University",
-                            "Kaduna State University",
-                            "Kano University of Science and Technology",
-                            "Kebbi State University of Science and Technology",
-                            "Kogi State University",
-                            "Kwara State University",
-                            "Ladoke Akintola University of Technology",
-                            "Lagos State University",
-                            "Landmark University",
-                            "Lead City University",
-                            "Madonna University",
-                            "Michael Okpara University of Agriculture",
-                            "Modibbo Adama University of Technology",
-                            "Mountain Top University",
-                            "Nasarawa State University",
-                            "Niger Delta University",
-                            "Nile University of Nigeria",
-                            "Nnamdi Azikiwe University",
-                            "Northwest University",
-                            "Novena University",
-                            "Obafemi Awolowo University",
-                            "Obong University",
-                            "Oduduwa University",
-                            "Olabisi Onabanjo University",
-                            "Osun State University",
-                            "Pan-Atlantic University",
-                            "Paul University",
-                            "Plateau State University",
-                            "Redeemer's University",
-                            "Renaissance University",
-                            "Rhema University",
-                            "Rivers State University",
-                            "Salem University",
-                            "Samuel Adegboyega University",
-                            "Sokoto State University",
-                            "Summit University",
-                            "Taraba State University",
-                            "Tansian University",
-                            "University of Abuja",
-                            "University of Agriculture and Environmental Sciences",
-                            "University of Benin",
-                            "University of Calabar",
-                            "University of Ibadan",
-                            "University of Ilorin",
-                            "University of Jos",
-                            "University of Lagos",
-                            "University of Maiduguri",
-                            "University of Nigeria, Nsukka",
-                            "University of Port Harcourt",
-                            "University of Uyo",
-                            "Veritas University",
-                            "Wesley University",
-                            "Western Delta University",
-                            "Yobe State University",
-                            "Yusuf Maitama Sule University"
-                          ].sort().map((uni) => (
-                            <CommandItem
+                      <option value="buyer">Buyer</option>
+                      <option value="seller">Seller</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="signup-email">{accountType === 'seller' ? 'University Email' : 'Email'}</Label>
+                  <Input
+                    id="signup-email"
+                    type="email"
+                    placeholder={accountType === 'seller' ? 'student@university.edu.ng' : 'your@email.com'}
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="signup-password">Password</Label>
+                  <div className="relative">
+                    <Input
+                      id="signup-password"
+                      type={showPassword ? "text" : "password"}
+                      placeholder="Create a strong password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="signup-name">Full Name *</Label>
+                  <Input
+                    id="signup-name"
+                    placeholder="Enter your full name"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="signup-university">University *</Label>
+                  <div className="relative">
+                    <Input
+                      id="signup-university"
+                      placeholder="Search and select your university..."
+                      value={university}
+                      onChange={(e) => {
+                        setUniversity(e.target.value);
+                        setUniversityOpen(true);
+                      }}
+                      onFocus={() => setUniversityOpen(true)}
+                    />
+                    {universityOpen && (
+                      <div className="university-dropdown absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-auto">
+                        {[
+                          "Abia State University",
+                          "Abubakar Tafawa Balewa University",
+                          "Achievers University",
+                          "Adamawa State University",
+                          "Adeleke University",
+                          "Afe Babalola University",
+                          "African University of Science and Technology",
+                          "Ahmadu Bello University",
+                          "Ajayi Crowther University",
+                          "Akwa Ibom State University",
+                          "Alex Ekwueme Federal University",
+                          "American University of Nigeria",
+                          "Anchor University",
+                          "Augustine University",
+                          "Babcock University",
+                          "Baze University",
+                          "Bayero University Kano",
+                          "Bells University of Technology",
+                          "Benson Idahosa University",
+                          "Bingham University",
+                          "Bowen University",
+                          "Caleb University",
+                          "Caritas University",
+                          "Chrisland University",
+                          "Christopher University",
+                          "Clifford University",
+                          "Coal City University",
+                          "Covenant University",
+                          "Crawford University",
+                          "Cross River University of Technology",
+                          "Delta State University",
+                          "Eastern Palm University",
+                          "Ebonyi State University",
+                          "Edo University",
+                          "Ekiti State University",
+                          "Elizade University",
+                          "Enugu State University of Science and Technology",
+                          "Federal University Birnin Kebbi",
+                          "Federal University Dutse",
+                          "Federal University Dutsin-Ma",
+                          "Federal University Gashua",
+                          "Federal University Gusau",
+                          "Federal University Kashere",
+                          "Federal University Lafia",
+                          "Federal University Lokoja",
+                          "Federal University Ndufu-Alike",
+                          "Federal University of Agriculture, Abeokuta",
+                          "Federal University of Agriculture, Makurdi",
+                          "Federal University of Petroleum Resources",
+                          "Federal University of Technology, Akure",
+                          "Federal University of Technology, Minna",
+                          "Federal University of Technology, Owerri",
+                          "Federal University Otuoke",
+                          "Federal University Oye-Ekiti",
+                          "Federal University Wukari",
+                          "Fountain University",
+                          "Godfrey Okoye University",
+                          "Gombe State University",
+                          "Gregory University",
+                          "Hallmark University",
+                          "Hezekiah University",
+                          "Igbinedion University",
+                          "Imo State University",
+                          "Joseph Ayo Babalola University",
+                          "Kaduna State University",
+                          "Kano University of Science and Technology",
+                          "Kebbi State University of Science and Technology",
+                          "Kogi State University",
+                          "Kwara State University",
+                          "Ladoke Akintola University of Technology",
+                          "Lagos State University",
+                          "Landmark University",
+                          "Lead City University",
+                          "Madonna University",
+                          "Michael Okpara University of Agriculture",
+                          "Modibbo Adama University of Technology",
+                          "Mountain Top University",
+                          "Nasarawa State University",
+                          "Niger Delta University",
+                          "Nile University of Nigeria",
+                          "Nnamdi Azikiwe University",
+                          "Northwest University",
+                          "Novena University",
+                          "Obafemi Awolowo University",
+                          "Obong University",
+                          "Oduduwa University",
+                          "Olabisi Onabanjo University",
+                          "Osun State University",
+                          "Pan-Atlantic University",
+                          "Paul University",
+                          "Plateau State University",
+                          "Redeemer's University",
+                          "Renaissance University",
+                          "Rhema University",
+                          "Rivers State University",
+                          "Salem University",
+                          "Samuel Adegboyega University",
+                          "Sokoto State University",
+                          "Summit University",
+                          "Taraba State University",
+                          "Tansian University",
+                          "University of Abuja",
+                          "University of Agriculture and Environmental Sciences",
+                          "University of Benin",
+                          "University of Calabar",
+                          "University of Ibadan",
+                          "University of Ilorin",
+                          "University of Jos",
+                          "University of Lagos",
+                          "University of Maiduguri",
+                          "University of Nigeria, Nsukka",
+                          "University of Port Harcourt",
+                          "University of Uyo",
+                          "Veritas University",
+                          "Wesley University",
+                          "Western Delta University",
+                          "Yobe State University",
+                          "Yusuf Maitama Sule University"
+                        ]
+                          .filter(uni => uni.toLowerCase().includes(university.toLowerCase()))
+                          .sort()
+                          .map((uni) => (
+                            <div
                               key={uni}
-                              value={uni}
-                              onSelect={(currentValue) => {
-                                setUniversity(currentValue === university ? "" : currentValue);
+                              className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm"
+                              onClick={() => {
+                                setUniversity(uni);
                                 setUniversityOpen(false);
                               }}
                             >
-                              <Check
-                                className={cn(
-                                  "mr-2 h-4 w-4",
-                                  university === uni ? "opacity-100" : "opacity-0"
-                                )}
-                              />
                               {uni}
-                            </CommandItem>
+                            </div>
                           ))}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
-              </div>
-
-
-
-              {accountType === 'seller' && (
-                <>
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-student-id">Student ID *</Label>
-                    <Input
-                      id="signup-student-id"
-                      placeholder="e.g., 19/55EC/00123"
-                      value={studentId}
-                      onChange={(e) => setStudentId(e.target.value)}
-                    />
+                        {[
+                          "Abia State University",
+                          "Abubakar Tafawa Balewa University",
+                          "Achievers University",
+                          "Adamawa State University",
+                          "Adeleke University",
+                          "Afe Babalola University",
+                          "African University of Science and Technology",
+                          "Ahmadu Bello University",
+                          "Ajayi Crowther University",
+                          "Akwa Ibom State University",
+                          "Alex Ekwueme Federal University",
+                          "American University of Nigeria",
+                          "Anchor University",
+                          "Augustine University",
+                          "Babcock University",
+                          "Baze University",
+                          "Bayero University Kano",
+                          "Bells University of Technology",
+                          "Benson Idahosa University",
+                          "Bingham University",
+                          "Bowen University",
+                          "Caleb University",
+                          "Caritas University",
+                          "Chrisland University",
+                          "Christopher University",
+                          "Clifford University",
+                          "Coal City University",
+                          "Covenant University",
+                          "Crawford University",
+                          "Cross River University of Technology",
+                          "Delta State University",
+                          "Eastern Palm University",
+                          "Ebonyi State University",
+                          "Edo University",
+                          "Ekiti State University",
+                          "Elizade University",
+                          "Enugu State University of Science and Technology",
+                          "Federal University Birnin Kebbi",
+                          "Federal University Dutse",
+                          "Federal University Dutsin-Ma",
+                          "Federal University Gashua",
+                          "Federal University Gusau",
+                          "Federal University Kashere",
+                          "Federal University Lafia",
+                          "Federal University Lokoja",
+                          "Federal University Ndufu-Alike",
+                          "Federal University of Agriculture, Abeokuta",
+                          "Federal University of Agriculture, Makurdi",
+                          "Federal University of Petroleum Resources",
+                          "Federal University of Technology, Akure",
+                          "Federal University of Technology, Minna",
+                          "Federal University of Technology, Owerri",
+                          "Federal University Otuoke",
+                          "Federal University Oye-Ekiti",
+                          "Federal University Wukari",
+                          "Fountain University",
+                          "Godfrey Okoye University",
+                          "Gombe State University",
+                          "Gregory University",
+                          "Hallmark University",
+                          "Hezekiah University",
+                          "Igbinedion University",
+                          "Imo State University",
+                          "Joseph Ayo Babalola University",
+                          "Kaduna State University",
+                          "Kano University of Science and Technology",
+                          "Kebbi State University of Science and Technology",
+                          "Kogi State University",
+                          "Kwara State University",
+                          "Ladoke Akintola University of Technology",
+                          "Lagos State University",
+                          "Landmark University",
+                          "Lead City University",
+                          "Madonna University",
+                          "Michael Okpara University of Agriculture",
+                          "Modibbo Adama University of Technology",
+                          "Mountain Top University",
+                          "Nasarawa State University",
+                          "Niger Delta University",
+                          "Nile University of Nigeria",
+                          "Nnamdi Azikiwe University",
+                          "Northwest University",
+                          "Novena University",
+                          "Obafemi Awolowo University",
+                          "Obong University",
+                          "Oduduwa University",
+                          "Olabisi Onabanjo University",
+                          "Osun State University",
+                          "Pan-Atlantic University",
+                          "Paul University",
+                          "Plateau State University",
+                          "Redeemer's University",
+                          "Renaissance University",
+                          "Rhema University",
+                          "Rivers State University",
+                          "Salem University",
+                          "Samuel Adegboyega University",
+                          "Sokoto State University",
+                          "Summit University",
+                          "Taraba State University",
+                          "Tansian University",
+                          "University of Abuja",
+                          "University of Agriculture and Environmental Sciences",
+                          "University of Benin",
+                          "University of Calabar",
+                          "University of Ibadan",
+                          "University of Ilorin",
+                          "University of Jos",
+                          "University of Lagos",
+                          "University of Maiduguri",
+                          "University of Nigeria, Nsukka",
+                          "University of Port Harcourt",
+                          "University of Uyo",
+                          "Veritas University",
+                          "Wesley University",
+                          "Western Delta University",
+                          "Yobe State University",
+                          "Yusuf Maitama Sule University"
+                        ].filter(uni => uni.toLowerCase().includes(university.toLowerCase())).length === 0 && university && (
+                          <div className="px-3 py-2 text-sm text-gray-500">
+                            No universities found
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-phone">Phone Number *</Label>
-                    <Input
-                      id="signup-phone"
-                      placeholder="e.g., +234 801 234 5678"
-                      value={phoneNumber}
-                      onChange={(e) => setPhoneNumber(e.target.value)}
-                    />
-                  </div>
+                </div>
 
 
 
-                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-                    <p className="text-sm text-amber-800">
-                      <Shield className="h-4 w-4 inline mr-1" />
-                      After signup, you'll be guided to upload your profile picture and student ID for seller approval.
-                    </p>
-                  </div>
-                </>
-              )}
-              <Button 
-                variant="brand" 
-                className="w-full" 
-                onClick={() => handleAuth(true)}
-                disabled={loading}
-              >
-                <UserCheck className="h-4 w-4" />
-                {loading ? 'Creating Account...' : 'Create Account'}
-              </Button>
-              <div className="text-xs text-muted-foreground text-center">
-                <Shield className="h-3 w-3 inline mr-1" />
-                By signing up, you agree to keep all transactions on UniMarket
-              </div>
+                {accountType === 'seller' && (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="signup-student-id">Student ID *</Label>
+                      <Input
+                        id="signup-student-id"
+                        placeholder="e.g., 19/55EC/00123"
+                        value={studentId}
+                        onChange={(e) => setStudentId(e.target.value)}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="signup-phone">WhatsApp Phone Number *</Label>
+                      <Input
+                        id="signup-phone"
+                        placeholder="e.g., +234 801 234 5678"
+                        value={phoneNumber}
+                        onChange={(e) => setPhoneNumber(e.target.value)}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Use your WhatsApp number for easy communication with buyers
+                      </p>
+                    </div>
+
+
+
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                      <p className="text-sm text-amber-800">
+                        <Shield className="h-4 w-4 inline mr-1" />
+                        After signup, you'll be guided to upload your profile picture and student ID for seller approval.
+                      </p>
+                    </div>
+                  </>
+                )}
+                <Button 
+                  type="submit"
+                  variant="brand" 
+                  className="w-full" 
+                  disabled={loading}
+                >
+                  <UserCheck className="h-4 w-4" />
+                  {loading ? 'Creating Account...' : 'Create Account'}
+                </Button>
+                <div className="text-xs text-muted-foreground text-center">
+                  <Shield className="h-3 w-3 inline mr-1" />
+                  By signing up, you agree to keep all transactions on UniMarket
+                </div>
+              </form>
             </TabsContent>
           </Tabs>
         </CardContent>

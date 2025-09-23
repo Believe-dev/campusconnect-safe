@@ -176,7 +176,7 @@ const Sell = () => {
           price: parseFloat(formData.price),
           stock_quantity: parseInt(formData.stock_quantity),
           condition: formData.condition,
-          university_name: formData.university_name,
+          campus: formData.university_name,
           seller_id: user.id,
           images: imageUrls
         });
@@ -267,16 +267,19 @@ const Sell = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="category">Category *</Label>
-                  <Select onValueChange={(value) => setFormData({ ...formData, category: value, customCategory: '' })} required>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select category" />
-                    </SelectTrigger>
-                    <SelectContent>
+                  <div className="relative">
+                    <select 
+                      value={formData.category} 
+                      onChange={(e) => setFormData({ ...formData, category: e.target.value, customCategory: '' })}
+                      className="w-full h-10 px-3 text-sm border border-input bg-background rounded-md"
+                      required
+                    >
+                      <option value="">Select category</option>
                       {categories.map(cat => (
-                        <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                        <option key={cat} value={cat}>{cat}</option>
                       ))}
-                    </SelectContent>
-                  </Select>
+                    </select>
+                  </div>
                   {formData.category === 'Other' && (
                     <div className="mt-2">
                       <Input
@@ -332,17 +335,18 @@ const Sell = () => {
 
                 <div>
                   <Label htmlFor="condition">Condition</Label>
-                  <Select onValueChange={(value) => setFormData({ ...formData, condition: value })}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="good" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="new">New</SelectItem>
-                      <SelectItem value="excellent">Excellent</SelectItem>
-                      <SelectItem value="good">Good</SelectItem>
-                      <SelectItem value="fair">Fair</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <div className="relative">
+                    <select 
+                      value={formData.condition} 
+                      onChange={(e) => setFormData({ ...formData, condition: e.target.value })}
+                      className="w-full h-10 px-3 text-sm border border-input bg-background rounded-md"
+                    >
+                      <option value="new">New</option>
+                      <option value="excellent">Excellent</option>
+                      <option value="good">Good</option>
+                      <option value="fair">Fair</option>
+                    </select>
+                  </div>
                 </div>
               </div>
 
@@ -386,6 +390,7 @@ const Sell = () => {
                           src={URL.createObjectURL(file)}
                           alt={`Preview ${index + 1}`}
                           className="w-full h-24 object-cover rounded"
+                          onLoad={() => URL.revokeObjectURL(URL.createObjectURL(file))}
                         />
                         <button
                           type="button"

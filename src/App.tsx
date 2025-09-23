@@ -26,6 +26,10 @@ import { AuthGuard } from "@/components/auth/AuthGuard";
 import { BannedUserModal } from "@/components/auth/BannedUserModal";
 import { useBanCheck } from "@/hooks/useBanCheck";
 import { initializeOneSignal, requestNotificationPermission } from "@/utils/oneSignal";
+import { PWAInstallPrompt } from "@/components/common/PWAInstallPrompt";
+import { ThemeProvider } from "@/components/theme/ThemeProvider";
+import { ThemeDetectionModal } from "@/components/theme/ThemeDetectionModal";
+import { useLiteMode } from "@/hooks/useLiteMode";
 import { useEffect } from 'react';
 
 // Lazy load pages for better performance with error boundaries
@@ -52,6 +56,8 @@ const Notifications = React.lazy(() => import('./pages/Notifications').catch(() 
 const VerificationRequest = React.lazy(() => import('./pages/VerificationRequest').catch(() => ({ default: () => <div>Error loading page</div> })));
 const Wallet = React.lazy(() => import('./pages/Wallet').catch(() => ({ default: () => <div>Error loading page</div> })));
 const Chat = React.lazy(() => import('./pages/Chat').catch(() => ({ default: () => <div>Error loading page</div> })));
+const TermsOfService = React.lazy(() => import('./pages/TermsOfService').catch(() => ({ default: () => <div>Error loading page</div> })));
+const PrivacyPolicy = React.lazy(() => import('./pages/PrivacyPolicy').catch(() => ({ default: () => <div>Error loading page</div> })));
 
 // Clear all caches on app start
 const clearAllCaches = async () => {
@@ -71,7 +77,7 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 0,
-      cacheTime: isLowMemory ? 0 : 30000, // No cache on low memory
+      gcTime: isLowMemory ? 0 : 30000, // No cache on low memory
       retry: 0, // No retries on low memory
       refetchOnWindowFocus: !isLowMemory,
       refetchOnReconnect: true,
@@ -110,6 +116,7 @@ const AppContent = () => {
   useScrollToTop();
   useBackgroundSync();
   useRealTimeUpdates();
+  useLiteMode();
   const { showModal, missingFields, dismissModal, completeProfile } = useProfileCompletion();
   const { isBanned, banReason, userEmail } = useBanCheck();
   
@@ -143,7 +150,7 @@ const AppContent = () => {
   
   return (
     <>
-      <div className="pb-16 md:pb-0 layout-stable">
+      <div className="pb-24 lg:pb-0 layout-stable">
         <AuthGuard>
           <Suspense fallback={<LoadingSkeleton />}>
             <div className="page-transition student-focus">
@@ -178,6 +185,8 @@ const AppContent = () => {
             <Route path={ROUTES.admin} element={<Admin />} />
             <Route path="/verification-request" element={<VerificationRequest />} />
             <Route path="/wallet" element={<Wallet />} />
+            <Route path="/terms-of-service" element={<TermsOfService />} />
+            <Route path="/privacy-policy" element={<PrivacyPolicy />} />
             <Route path="*" element={<NotFound />} />
               </Routes>
             </div>
@@ -189,6 +198,8 @@ const AppContent = () => {
       <OfflineNotification />
       <AIChatbot />
       <FloatingBackButton />
+      <PWAInstallPrompt />
+      <ThemeDetectionModal />
 
       <ProfileCompletionModal 
         open={showModal && !isBanned}
@@ -203,19 +214,22 @@ const AppContent = () => {
 const App = () => (
   <ErrorBoundary>
     <BrowserRouter>
-      <SecurityProvider>
-        <QueryClientProvider client={queryClient}>
-          <TooltipProvider>
-            <Toaster />
-            <Sonner />
-            <ProfileProvider>
-              <AppContent />
-            </ProfileProvider>
-          </TooltipProvider>
-        </QueryClientProvider>
-      </SecurityProvider>
+      <ThemeProvider defaultTheme="light">
+        <SecurityProvider>
+          <QueryClientProvider client={queryClient}>
+            <TooltipProvider>
+              <Toaster />
+              <Sonner />
+              <ProfileProvider>
+                <AppContent />
+              </ProfileProvider>
+            </TooltipProvider>
+          </QueryClientProvider>
+        </SecurityProvider>
+      </ThemeProvider>
     </BrowserRouter>
   </ErrorBoundary>
 );
 
 export default App;
+

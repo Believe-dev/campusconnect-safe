@@ -508,7 +508,7 @@ const Checkout = () => {
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      <main className="container mx-auto px-4 py-6 sm:py-8 pb-20 md:pb-8">
+      <main className="container mx-auto px-4 py-6 sm:py-8 pb-24 md:pb-8">
         <div className="max-w-6xl mx-auto">
           <div className="flex items-center gap-2 mb-6 sm:mb-8">
             <Button
@@ -626,55 +626,53 @@ const Checkout = () => {
                       </div>
                       <div>
                         <Label htmlFor="state">State *</Label>
-                        <Select
-                          value={formData.state}
-                          onValueChange={(value) =>
-                            handleInputChange("state", value)
-                          }
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select or search state" />
-                          </SelectTrigger>
-                          <SelectContent className="max-h-60">
-                            <SelectItem value="Abia">Abia</SelectItem>
-                            <SelectItem value="Adamawa">Adamawa</SelectItem>
-                            <SelectItem value="Akwa Ibom">Akwa Ibom</SelectItem>
-                            <SelectItem value="Anambra">Anambra</SelectItem>
-                            <SelectItem value="Bauchi">Bauchi</SelectItem>
-                            <SelectItem value="Bayelsa">Bayelsa</SelectItem>
-                            <SelectItem value="Benue">Benue</SelectItem>
-                            <SelectItem value="Borno">Borno</SelectItem>
-                            <SelectItem value="Cross River">Cross River</SelectItem>
-                            <SelectItem value="Delta">Delta</SelectItem>
-                            <SelectItem value="Ebonyi">Ebonyi</SelectItem>
-                            <SelectItem value="Edo">Edo</SelectItem>
-                            <SelectItem value="Ekiti">Ekiti</SelectItem>
-                            <SelectItem value="Enugu">Enugu</SelectItem>
-                            <SelectItem value="FCT">FCT (Abuja)</SelectItem>
-                            <SelectItem value="Gombe">Gombe</SelectItem>
-                            <SelectItem value="Imo">Imo</SelectItem>
-                            <SelectItem value="Jigawa">Jigawa</SelectItem>
-                            <SelectItem value="Kaduna">Kaduna</SelectItem>
-                            <SelectItem value="Kano">Kano</SelectItem>
-                            <SelectItem value="Katsina">Katsina</SelectItem>
-                            <SelectItem value="Kebbi">Kebbi</SelectItem>
-                            <SelectItem value="Kogi">Kogi</SelectItem>
-                            <SelectItem value="Kwara">Kwara</SelectItem>
-                            <SelectItem value="Lagos">Lagos</SelectItem>
-                            <SelectItem value="Nasarawa">Nasarawa</SelectItem>
-                            <SelectItem value="Niger">Niger</SelectItem>
-                            <SelectItem value="Ogun">Ogun</SelectItem>
-                            <SelectItem value="Ondo">Ondo</SelectItem>
-                            <SelectItem value="Osun">Osun</SelectItem>
-                            <SelectItem value="Oyo">Oyo</SelectItem>
-                            <SelectItem value="Plateau">Plateau</SelectItem>
-                            <SelectItem value="Rivers">Rivers</SelectItem>
-                            <SelectItem value="Sokoto">Sokoto</SelectItem>
-                            <SelectItem value="Taraba">Taraba</SelectItem>
-                            <SelectItem value="Yobe">Yobe</SelectItem>
-                            <SelectItem value="Zamfara">Zamfara</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <div className="relative">
+                          <select 
+                            value={formData.state} 
+                            onChange={(e) => handleInputChange("state", e.target.value)}
+                            className="w-full h-10 px-3 text-sm border border-input bg-background rounded-md"
+                            required
+                          >
+                            <option value="">Select or search state</option>
+                            <option value="Abia">Abia</option>
+                            <option value="Adamawa">Adamawa</option>
+                            <option value="Akwa Ibom">Akwa Ibom</option>
+                            <option value="Anambra">Anambra</option>
+                            <option value="Bauchi">Bauchi</option>
+                            <option value="Bayelsa">Bayelsa</option>
+                            <option value="Benue">Benue</option>
+                            <option value="Borno">Borno</option>
+                            <option value="Cross River">Cross River</option>
+                            <option value="Delta">Delta</option>
+                            <option value="Ebonyi">Ebonyi</option>
+                            <option value="Edo">Edo</option>
+                            <option value="Ekiti">Ekiti</option>
+                            <option value="Enugu">Enugu</option>
+                            <option value="FCT">FCT (Abuja)</option>
+                            <option value="Gombe">Gombe</option>
+                            <option value="Imo">Imo</option>
+                            <option value="Jigawa">Jigawa</option>
+                            <option value="Kaduna">Kaduna</option>
+                            <option value="Kano">Kano</option>
+                            <option value="Katsina">Katsina</option>
+                            <option value="Kebbi">Kebbi</option>
+                            <option value="Kogi">Kogi</option>
+                            <option value="Kwara">Kwara</option>
+                            <option value="Lagos">Lagos</option>
+                            <option value="Nasarawa">Nasarawa</option>
+                            <option value="Niger">Niger</option>
+                            <option value="Ogun">Ogun</option>
+                            <option value="Ondo">Ondo</option>
+                            <option value="Osun">Osun</option>
+                            <option value="Oyo">Oyo</option>
+                            <option value="Plateau">Plateau</option>
+                            <option value="Rivers">Rivers</option>
+                            <option value="Sokoto">Sokoto</option>
+                            <option value="Taraba">Taraba</option>
+                            <option value="Yobe">Yobe</option>
+                            <option value="Zamfara">Zamfara</option>
+                          </select>
+                        </div>
                       </div>
                     </div>
                   </CardContent>
@@ -689,21 +687,15 @@ const Checkout = () => {
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <Select
-                      value={formData.paymentMethod}
-                      onValueChange={(value) =>
-                        handleInputChange("paymentMethod", value)
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="paystack">
-                          Paystack (Card/Bank/Transfer)
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <div className="relative">
+                      <select 
+                        value={formData.paymentMethod} 
+                        onChange={(e) => handleInputChange("paymentMethod", e.target.value)}
+                        className="w-full h-10 px-3 text-sm border border-input bg-background rounded-md"
+                      >
+                        <option value="paystack">Paystack (Card/Bank/Transfer)</option>
+                      </select>
+                    </div>
                     <p className="text-xs text-muted-foreground mt-2">
                       Secure payment via Paystack - supports cards, bank
                       transfers, and USSD

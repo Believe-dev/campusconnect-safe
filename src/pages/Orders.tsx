@@ -120,9 +120,11 @@ const Orders = () => {
       product: order.products,
       seller: order.seller_profile,
       buyer: order.buyer_profile,
-      escrow_transactions: Array.isArray(order.escrow_transactions) 
-        ? order.escrow_transactions 
-        : order.escrow_transactions ? [order.escrow_transactions] : [],
+      escrow_transactions: Array.isArray(order.escrow_transactions)
+        ? order.escrow_transactions
+        : order.escrow_transactions
+        ? [order.escrow_transactions]
+        : [],
     }));
 
     // Store offline for next time
@@ -208,7 +210,7 @@ const Orders = () => {
           // Get escrow transaction ID from the order
           const order = orders.find((o) => o.id === orderId);
           const escrowId = order?.escrow_transactions?.[0]?.id;
-          
+
           if (escrowId) {
             const { error: escrowError } = await supabase.rpc(
               "release_escrow_funds",
@@ -216,12 +218,11 @@ const Orders = () => {
                 escrow_id: escrowId,
               }
             );
-            
+
             if (escrowError) {
               console.error("Error releasing escrow:", escrowError);
             }
           }
-
         } catch (escrowError) {
           console.error("Escrow release failed:", escrowError);
           // Continue with order confirmation even if escrow fails
@@ -619,7 +620,7 @@ const Orders = () => {
                   size="sm"
                   variant="outline"
                   onClick={() => handleWhatsApp(order, isSeller)}
-                  className="w-full sm:w-auto text-xs sm:text-sm bg-green-50 hover:bg-green-100 text-green-700 border-green-200"
+                  className="w-full sm:w-auto text-xs sm:text-sm bg-green-50 hover:bg-green-100 hover:text-green-600 text-green-700 border-green-200"
                 >
                   <MessageCircle className="h-3 w-3 mr-1" />
                   WhatsApp
@@ -739,22 +740,59 @@ const Orders = () => {
                                 className="text-sm sm:text-base"
                               />
                             </div>
-                            <Button
-                              onClick={() => {
-                                reportIssue(
-                                  order.id,
-                                  reportReason,
-                                  reportDescription
-                                );
-                                setShowReportDialog(false);
-                                setReportReason("");
-                                setReportDescription("");
-                              }}
-                              className="w-full"
-                              disabled={!reportReason || !reportDescription}
-                            >
-                              Submit Report
-                            </Button>
+                            <div className="flex flex-col gap-3">
+                              <Button
+                                onClick={() => {
+                                  reportIssue(
+                                    order.id,
+                                    reportReason,
+                                    reportDescription
+                                  );
+                                  setShowReportDialog(false);
+                                  setReportReason("");
+                                  setReportDescription("");
+                                }}
+                                className="w-full"
+                                disabled={!reportReason || !reportDescription}
+                              >
+                                Submit Report
+                              </Button>
+                              <div className="text-center">
+                                <p className="text-xs text-muted-foreground mb-2">
+                                  Need immediate help?
+                                </p>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    const message = `Hi! I need help with my order:\n\nOrder ID: #${order.id.slice(
+                                      -8
+                                    )}\nProduct: ${
+                                      order.product?.title
+                                    }\nSeller: ${
+                                      order.seller?.full_name
+                                    }\nQuantity: ${
+                                      order.quantity
+                                    }\nTotal Amount: ₦${order.total_amount.toLocaleString()}\nOrder Status: ${
+                                      order.status
+                                    }\nOrder Date: ${new Date(
+                                      order.created_at
+                                    ).toLocaleDateString()}\nShipping Address: ${
+                                      order.shipping_address
+                                    }\n\nIssue: ${reportReason} - ${reportDescription}\n\nPlease help me resolve this issue.`;
+                                    window.open(
+                                      `https://wa.me/2349133054018?text=${encodeURIComponent(
+                                        message
+                                      )}`,
+                                      "_blank"
+                                    );
+                                  }}
+                                  className="text-green-600 hover:text-green-600 border-green-600 hover:bg-green-50"
+                                >
+                                  Chat on WhatsApp
+                                </Button>
+                              </div>
+                            </div>
                           </div>
                         </DialogContent>
                       </Dialog>
@@ -798,7 +836,7 @@ const Orders = () => {
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      <main className="container mx-auto px-4 py-6 sm:py-8 pb-20 md:pb-8">
+      <main className="container mx-auto px-4 py-6 sm:py-8 pb-24 md:pb-8">
         <div className="max-w-4xl mx-auto">
           <h1 className="text-2xl sm:text-3xl font-bold text-primary mb-4 sm:mb-6">
             My Orders
