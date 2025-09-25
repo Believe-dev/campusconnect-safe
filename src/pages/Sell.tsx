@@ -35,6 +35,7 @@ const campuses = [
 const Sell = () => {
   const [userProfile, setUserProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [accessDenied, setAccessDenied] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -61,11 +62,18 @@ const Sell = () => {
 
       const { data: profile, error } = await supabase
         .from('profiles')
-        .select('full_name, university_name')
+        .select('full_name, university_name, account_type, seller_status')
         .eq('user_id', user.id)
         .single();
 
       if (error) throw error;
+
+      // Check if user is approved seller
+      if (profile.account_type === 'buyer' || profile.seller_status !== 'approved') {
+        setAccessDenied(true);
+        setLoading(false);
+        return;
+      }
 
       setUserProfile(profile);
       // Auto-populate university from user's profile - this cannot be changed
@@ -161,6 +169,32 @@ const Sell = () => {
         return;
       }
 
+      // Re-verify seller status before submission (prevent race conditions)
+      const { data: currentProfile, error: profileError } = await supabase
+        .from('profiles')
+        .select('account_type, seller_status')
+        .eq('user_id', user.id)
+        .single();
+
+      if (profileError || !currentProfile) {
+        toast({
+          title: "Error",
+          description: "Unable to verify your account status",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (currentProfile.account_type === 'buyer' || currentProfile.seller_status !== 'approved') {
+        toast({
+          title: "Access Denied",
+          description: "You must be an approved seller to list products",
+          variant: "destructive",
+        });
+        navigate('/profile');
+        return;
+      }
+
       // Upload images first
       const imageUrls = images.length > 0 ? await uploadImages() : [];
       
@@ -181,7 +215,18 @@ const Sell = () => {
           images: imageUrls
         });
 
-      if (error) throw error;
+      if (error) {
+        if (error.message.includes('approved sellers')) {
+          toast({
+            title: "Access Denied",
+            description: "Only approved sellers can list products",
+            variant: "destructive",
+          });
+          navigate('/profile');
+          return;
+        }
+        throw error;
+      }
 
       toast({
         title: "Product Listed",
@@ -225,6 +270,30 @@ const Sell = () => {
               <div className="h-64 bg-muted rounded"></div>
             </div>
           </div>
+        </main>
+      </div>
+    );
+  }
+
+  if (accessDenied) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <main className="container mx-auto px-4 py-8">
+          <Card className="max-w-2xl mx-auto">
+            <CardContent className="pt-6 text-center">
+              <div className="text-center">
+                <div className="mx-auto h-12 w-12 text-muted-foreground mb-4">🚫</div>
+                <h2 className="text-2xl font-bold mb-2">Access Denied</h2>
+                <p className="text-muted-foreground mb-4">
+                  You need to be an approved seller to list products.
+                </p>
+                <Button onClick={() => navigate('/profile')} variant="outline">
+                  Go to Profile
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </main>
       </div>
     );

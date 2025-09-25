@@ -1,51 +1,84 @@
-import { useState, useEffect } from 'react';
-import { Link, Navigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
-import { Button } from '@/components/ui/enhanced-button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Check, ChevronsUpDown } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { Shield, UserCheck, Mail, Upload, Camera, IdCard, Eye, EyeOff } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
-import { User, Session } from '@supabase/supabase-js';
-import { OnboardingModal } from '@/components/onboarding/OnboardingModal';
-import { SellerSetupModal } from '@/components/seller/SellerSetupModal';
-import { BannedUserModal } from '@/components/auth/BannedUserModal';
+import { useState, useEffect } from "react";
+import { Link, Navigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/enhanced-button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Check, ChevronsUpDown } from "lucide-react";
+import { cn } from "@/lib/utils";
+import {
+  Shield,
+  UserCheck,
+  Mail,
+  Upload,
+  Camera,
+  IdCard,
+  Eye,
+  EyeOff,
+} from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { User, Session } from "@supabase/supabase-js";
+import { OnboardingModal } from "@/components/onboarding/OnboardingModal";
+import { SellerSetupModal } from "@/components/seller/SellerSetupModal";
+import { BannedUserModal } from "@/components/auth/BannedUserModal";
 
 const AuthPage = () => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [fullName, setFullName] = useState('');
-  const [university, setUniversity] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [university, setUniversity] = useState("");
   const [universityOpen, setUniversityOpen] = useState(false);
-  const [studentId, setStudentId] = useState('');
-  const [phoneNumber, setPhoneNumber] = useState('');
+  const [studentId, setStudentId] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
 
-  const [accountType, setAccountType] = useState<'buyer' | 'seller'>('buyer');
+  const [accountType, setAccountType] = useState<"buyer" | "seller">("buyer");
 
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showSellerSetup, setShowSellerSetup] = useState(false);
   const [isBanned, setIsBanned] = useState(false);
-  const [banReason, setBanReason] = useState('');
+  const [banReason, setBanReason] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-      }
-    );
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+    });
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
@@ -58,17 +91,20 @@ const AuthPage = () => {
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Element;
-      if (!target.closest('#signup-university') && !target.closest('.university-dropdown')) {
+      if (
+        !target.closest("#signup-university") &&
+        !target.closest(".university-dropdown")
+      ) {
         setUniversityOpen(false);
       }
     };
 
     if (universityOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener("mousedown", handleClickOutside);
     }
 
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [universityOpen]);
 
@@ -77,14 +113,12 @@ const AuthPage = () => {
     return <Navigate to="/" replace />;
   }
 
-
-
   const signUp = async (email: string, password: string) => {
     const redirectUrl = `${window.location.origin}/`;
-    
+
     // Keep the selected account type
     const finalAccountType = accountType;
-    
+
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -96,20 +130,21 @@ const AuthPage = () => {
           student_id: studentId.trim(),
           phone_number: phoneNumber.trim(),
           account_type: finalAccountType,
-        }
-      }
+        },
+      },
     });
 
     // Create notification for sellers to upload documents
-    if (!error && data.user && accountType === 'seller') {
-      await supabase.from('notifications').insert({
+    if (!error && data.user && accountType === "seller") {
+      await supabase.from("notifications").insert({
         user_id: data.user.id,
-        title: 'Complete Your Seller Profile',
-        message: 'Upload your profile picture and student ID card to get approved as a seller.',
-        type: 'seller_setup'
+        title: "Complete Your Seller Profile",
+        message:
+          "Upload your profile picture and student ID card to get approved as a seller.",
+        type: "seller_setup",
       });
     }
-    
+
     return { error };
   };
 
@@ -118,23 +153,23 @@ const AuthPage = () => {
       email,
       password,
     });
-    
+
     if (!error && data.user) {
       // Check if user is banned after successful login
       const { data: profile } = await supabase
-        .from('profiles')
-        .select('is_banned, admin_notes')
-        .eq('user_id', data.user.id)
+        .from("profiles")
+        .select("is_banned, admin_notes")
+        .eq("user_id", data.user.id)
         .single();
-      
+
       if (profile?.is_banned) {
         setIsBanned(true);
-        setBanReason(profile.admin_notes || 'No reason provided');
+        setBanReason(profile.admin_notes || "No reason provided");
         await supabase.auth.signOut();
-        return { error: new Error('Account is banned') };
+        return { error: new Error("Account is banned") };
       }
     }
-    
+
     return { error };
   };
 
@@ -144,7 +179,7 @@ const AuthPage = () => {
     const sanitizedFullName = fullName.trim();
     const sanitizedStudentId = studentId.trim();
     const sanitizedPhoneNumber = phoneNumber.trim();
-    
+
     if (!sanitizedEmail || !password) {
       toast({
         title: "Missing Information",
@@ -175,83 +210,95 @@ const AuthPage = () => {
       return;
     }
 
-      // Different validation for buyers vs sellers
-      if (isSignUp && accountType === 'buyer') {
-        // Buyers need minimal information
-        if (!sanitizedFullName || !university) {
-          toast({
-            title: "Missing Information", 
-            description: "Please fill in your name and university.",
-            variant: "destructive",
-          });
-          return;
-        }
-        
-        // Name validation
-        if (sanitizedFullName.length < 2 || sanitizedFullName.length > 50) {
-          toast({
-            title: "Invalid Name",
-            description: "Name must be between 2 and 50 characters.",
-            variant: "destructive",
-          });
-          return;
-        }
-      } else if (isSignUp && accountType === 'seller') {
-        // Sellers need complete information
-        if (!sanitizedFullName || !university || !sanitizedStudentId || !sanitizedPhoneNumber) {
-          toast({
-            title: "Missing Information", 
-            description: "Please fill in all required fields: name, university, student ID, and phone number.",
-            variant: "destructive",
-          });
-          return;
-        }
-
-        // Name validation
-        if (sanitizedFullName.length < 2 || sanitizedFullName.length > 50) {
-          toast({
-            title: "Invalid Name",
-            description: "Name must be between 2 and 50 characters.",
-            variant: "destructive",
-          });
-          return;
-        }
-
-        // Student ID validation
-        if (sanitizedStudentId.length < 5 || sanitizedStudentId.length > 20) {
-          toast({
-            title: "Invalid Student ID",
-            description: "Student ID must be between 5 and 20 characters.",
-            variant: "destructive",
-          });
-          return;
-        }
-
-        // Phone number validation
-        const phoneRegex = /^\+?[1-9]\d{1,14}$/;
-        if (!phoneRegex.test(sanitizedPhoneNumber.replace(/\s/g, ''))) {
-          toast({
-            title: "Invalid Phone Number",
-            description: "Please enter a valid phone number.",
-            variant: "destructive",
-          });
-          return;
-        }
-
-        // Validate school email for sellers
-        if (!sanitizedEmail.includes('.edu') && !sanitizedEmail.includes('student') && !sanitizedEmail.includes('school') && !sanitizedEmail.includes('university')) {
-          toast({
-            title: "School Email Required",
-            description: "Sellers must use a school/university email address.",
-            variant: "destructive",
-          });
-          return;
-        }
+    // Different validation for buyers vs sellers
+    if (isSignUp && accountType === "buyer") {
+      // Buyers need minimal information
+      if (!sanitizedFullName || !university) {
+        toast({
+          title: "Missing Information",
+          description: "Please fill in your name and university.",
+          variant: "destructive",
+        });
+        return;
       }
+
+      // Name validation
+      if (sanitizedFullName.length < 2 || sanitizedFullName.length > 50) {
+        toast({
+          title: "Invalid Name",
+          description: "Name must be between 2 and 50 characters.",
+          variant: "destructive",
+        });
+        return;
+      }
+    } else if (isSignUp && accountType === "seller") {
+      // Sellers need complete information
+      if (
+        !sanitizedFullName ||
+        !university ||
+        !sanitizedStudentId ||
+        !sanitizedPhoneNumber
+      ) {
+        toast({
+          title: "Missing Information",
+          description:
+            "Please fill in all required fields: name, university, student ID card photo, and phone number.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Name validation
+      if (sanitizedFullName.length < 2 || sanitizedFullName.length > 50) {
+        toast({
+          title: "Invalid Name",
+          description: "Name must be between 2 and 50 characters.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Student ID validation
+      if (sanitizedStudentId.length < 5 || sanitizedStudentId.length > 20) {
+        toast({
+          title: "Invalid Matric Number",
+          description: "Matric Number must be between 5 and 20 characters.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Phone number validation
+      const phoneRegex = /^\+?[1-9]\d{1,14}$/;
+      if (!phoneRegex.test(sanitizedPhoneNumber.replace(/\s/g, ""))) {
+        toast({
+          title: "Invalid Phone Number",
+          description:
+            "Please enter a valid phone number with your country code.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Validate school email for sellers
+      if (
+        !sanitizedEmail.includes(".edu") &&
+        !sanitizedEmail.includes("student") &&
+        !sanitizedEmail.includes("school") &&
+        !sanitizedEmail.includes("university")
+      ) {
+        toast({
+          title: "School Email Required",
+          description: "Sellers must use a school/university email address.",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
 
     setLoading(true);
 
-    const { error } = isSignUp 
+    const { error } = isSignUp
       ? await signUp(sanitizedEmail, password)
       : await signIn(sanitizedEmail, password);
 
@@ -262,16 +309,17 @@ const AuthPage = () => {
         variant: "destructive",
       });
     } else if (isSignUp) {
-      const message = accountType === 'seller' 
-        ? "Account created! Please check your email to verify. Your seller account will be reviewed by admin for approval."
-        : "Account created! Please check your email to verify your account.";
+      const message =
+        accountType === "seller"
+          ? "Account created! Please check your email to verify. Your seller account will be reviewed by admin for approval."
+          : "Account created! Please check your email to verify your account.";
       toast({
         title: "Account Created!",
         description: message,
       });
-      
+
       // Show setup modal for sellers, onboarding for buyers
-      if (accountType === 'seller') {
+      if (accountType === "seller") {
         setTimeout(() => {
           setShowSellerSetup(true);
         }, 1000);
@@ -295,12 +343,14 @@ const AuthPage = () => {
       <Card className="w-full max-w-md shadow-brand">
         <CardHeader className="text-center space-y-2">
           <div className="flex items-center justify-center gap-2 mb-2">
-            <img 
-              src="/logo.png" 
-              alt="UniMarket Logo" 
+            <img
+              src="/logo.png"
+              alt="UniMarket Logo"
               className="h-8 w-8 object-contain"
             />
-            <h1 className="text-2xl font-bold text-university-green">UniMarket</h1>
+            <h1 className="text-2xl font-bold text-university-green">
+              UniMarket
+            </h1>
           </div>
           <CardDescription className="text-base">
             Nigeria's trusted university marketplace
@@ -315,7 +365,13 @@ const AuthPage = () => {
             </TabsList>
 
             <TabsContent value="signin" className="space-y-4">
-              <form onSubmit={(e) => { e.preventDefault(); handleAuth(false); }} className="space-y-4">
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleAuth(false);
+                }}
+                className="space-y-4"
+              >
                 <div className="space-y-2">
                   <Label htmlFor="signin-email">Email</Label>
                   <Input
@@ -344,30 +400,42 @@ const AuthPage = () => {
                       onClick={() => setShowPassword(!showPassword)}
                       className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
                     >
-                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      {showPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
                     </button>
                   </div>
                 </div>
-                <Button 
+                <Button
                   type="submit"
-                  variant="brand" 
-                  className="w-full" 
+                  variant="brand"
+                  className="w-full"
                   disabled={loading}
                 >
                   <Mail className="h-4 w-4" />
-                  {loading ? 'Signing In...' : 'Sign In'}
+                  {loading ? "Signing In..." : "Sign In"}
                 </Button>
               </form>
             </TabsContent>
 
             <TabsContent value="signup" className="space-y-4">
-              <form onSubmit={(e) => { e.preventDefault(); handleAuth(true); }} className="space-y-4">
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleAuth(true);
+                }}
+                className="space-y-4"
+              >
                 <div className="space-y-2">
                   <Label>Account Type</Label>
                   <div className="relative">
-                    <select 
-                      value={accountType} 
-                      onChange={(e) => setAccountType(e.target.value as 'buyer' | 'seller')}
+                    <select
+                      value={accountType}
+                      onChange={(e) =>
+                        setAccountType(e.target.value as "buyer" | "seller")
+                      }
                       className="w-full h-10 px-3 text-sm border border-input bg-background rounded-md"
                     >
                       <option value="buyer">Buyer</option>
@@ -377,11 +445,17 @@ const AuthPage = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="signup-email">{accountType === 'seller' ? 'University Email' : 'Email'}</Label>
+                  <Label htmlFor="signup-email">
+                    {accountType === "seller" ? "University Email" : "Email"}
+                  </Label>
                   <Input
                     id="signup-email"
                     type="email"
-                    placeholder={accountType === 'seller' ? 'student@university.edu.ng' : 'your@email.com'}
+                    placeholder={
+                      accountType === "seller"
+                        ? "student@university.edu.ng"
+                        : "your@email.com"
+                    }
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                   />
@@ -403,7 +477,11 @@ const AuthPage = () => {
                       onClick={() => setShowPassword(!showPassword)}
                       className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
                     >
-                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      {showPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
                     </button>
                   </div>
                 </div>
@@ -551,9 +629,11 @@ const AuthPage = () => {
                           "Wesley University",
                           "Western Delta University",
                           "Yobe State University",
-                          "Yusuf Maitama Sule University"
+                          "Yusuf Maitama Sule University",
                         ]
-                          .filter(uni => uni.toLowerCase().includes(university.toLowerCase()))
+                          .filter((uni) =>
+                            uni.toLowerCase().includes(university.toLowerCase())
+                          )
                           .sort()
                           .map((uni) => (
                             <div
@@ -685,23 +765,24 @@ const AuthPage = () => {
                           "Wesley University",
                           "Western Delta University",
                           "Yobe State University",
-                          "Yusuf Maitama Sule University"
-                        ].filter(uni => uni.toLowerCase().includes(university.toLowerCase())).length === 0 && university && (
-                          <div className="px-3 py-2 text-sm text-gray-500">
-                            No universities found
-                          </div>
-                        )}
+                          "Yusuf Maitama Sule University",
+                        ].filter((uni) =>
+                          uni.toLowerCase().includes(university.toLowerCase())
+                        ).length === 0 &&
+                          university && (
+                            <div className="px-3 py-2 text-sm text-gray-500">
+                              No universities found
+                            </div>
+                          )}
                       </div>
                     )}
                   </div>
                 </div>
 
-
-
-                {accountType === 'seller' && (
+                {accountType === "seller" && (
                   <>
                     <div className="space-y-2">
-                      <Label htmlFor="signup-student-id">Student ID *</Label>
+                      <Label htmlFor="signup-student-id">Matric Number*</Label>
                       <Input
                         id="signup-student-id"
                         placeholder="e.g., 19/55EC/00123"
@@ -711,7 +792,9 @@ const AuthPage = () => {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="signup-phone">WhatsApp Phone Number *</Label>
+                      <Label htmlFor="signup-phone">
+                        WhatsApp Phone Number *
+                      </Label>
                       <Input
                         id="signup-phone"
                         placeholder="e.g., +234 801 234 5678"
@@ -719,28 +802,28 @@ const AuthPage = () => {
                         onChange={(e) => setPhoneNumber(e.target.value)}
                       />
                       <p className="text-xs text-muted-foreground">
-                        Use your WhatsApp number for easy communication with buyers
+                        Use your WhatsApp number for easy communication with
+                        buyers
                       </p>
                     </div>
-
-
 
                     <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
                       <p className="text-sm text-amber-800">
                         <Shield className="h-4 w-4 inline mr-1" />
-                        After signup, you'll be guided to upload your profile picture and student ID for seller approval.
+                        After signup, you'll be guided to upload your profile
+                        picture and student ID Card for seller approval.
                       </p>
                     </div>
                   </>
                 )}
-                <Button 
+                <Button
                   type="submit"
-                  variant="brand" 
-                  className="w-full" 
+                  variant="brand"
+                  className="w-full"
                   disabled={loading}
                 >
                   <UserCheck className="h-4 w-4" />
-                  {loading ? 'Creating Account...' : 'Create Account'}
+                  {loading ? "Creating Account..." : "Create Account"}
                 </Button>
                 <div className="text-xs text-muted-foreground text-center">
                   <Shield className="h-3 w-3 inline mr-1" />
@@ -757,27 +840,25 @@ const AuthPage = () => {
           </p>
         </CardFooter>
       </Card>
-      
-      <OnboardingModal 
-        open={showOnboarding} 
-        onClose={() => setShowOnboarding(false)} 
+
+      <OnboardingModal
+        open={showOnboarding}
+        onClose={() => setShowOnboarding(false)}
       />
-      
-      <SellerSetupModal 
-        open={showSellerSetup} 
+
+      <SellerSetupModal
+        open={showSellerSetup}
         onClose={() => {
           setShowSellerSetup(false);
-          window.location.href = '/profile';
-        }} 
+          window.location.href = "/profile";
+        }}
       />
-      
-      <BannedUserModal 
+
+      <BannedUserModal
         open={isBanned}
         userEmail={email}
         banReason={banReason}
       />
-      
-
     </div>
   );
 };

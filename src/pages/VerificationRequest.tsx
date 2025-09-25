@@ -21,6 +21,7 @@ const VerificationRequest = () => {
   const [reason, setReason] = useState('');
   const [profile, setProfile] = useState<any>(null);
   const [canRequest, setCanRequest] = useState(false);
+  const [existingRequest, setExistingRequest] = useState<any>(null);
 
   useEffect(() => {
     if (user) {
@@ -33,9 +34,20 @@ const VerificationRequest = () => {
 
     const { data: profileData } = await supabase
       .from('profiles')
-      .select('full_name, university_name, student_id, phone_number, account_type, student_id_photo_url, avatar_url')
+      .select('full_name, university_name, student_id, phone_number, account_type, student_id_photo_url, avatar_url, seller_status')
       .eq('user_id', user.id)
       .single();
+
+    // Check for existing verification requests
+    const { data: existingRequestData } = await supabase
+      .from('verification_requests')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    setExistingRequest(existingRequestData);
 
     if (profileData) {
       setProfile(profileData);
@@ -47,7 +59,14 @@ const VerificationRequest = () => {
       
       const hasPhotos = profileData.avatar_url && profileData.student_id_photo_url;
       
-      setCanRequest(hasRequiredFields && hasPhotos);
+      // Only approved sellers can request verification
+      const isApprovedSeller = profileData.seller_status === 'approved';
+      
+      // Can request if is approved seller, has required fields and photos, and either no existing request or last request was rejected
+      const canMakeRequest = isApprovedSeller && hasRequiredFields && hasPhotos && 
+                            (!existingRequestData || existingRequestData.status === 'rejected');
+      
+      setCanRequest(canMakeRequest);
     }
   };
 
@@ -84,6 +103,15 @@ const VerificationRequest = () => {
         });
 
       if (error) {
+        if (error.message.includes('approved sellers')) {
+          toast({
+            title: "Access Denied",
+            description: "Only approved sellers can request verification",
+            variant: "destructive",
+          });
+          navigate('/profile');
+          return;
+        }
         throw error;
       }
 
@@ -151,12 +179,33 @@ const VerificationRequest = () => {
           <CardContent>
             {!canRequest ? (
               <div className="space-y-4">
-                <Alert>
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>
-                    You need to complete your profile before requesting verification.
-                  </AlertDescription>
-                </Alert>
+                {existingRequest && existingRequest.status !== 'rejected' ? (
+                  <Alert>
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      {existingRequest.status === 'pending' && 'You already have a pending verification request. Please wait for admin review.'}
+                      {existingRequest.status === 'approved' && 'Your verification request has already been approved.'}
+                    </AlertDescription>
+                  </Alert>
+                ) : (
+                  <Alert>
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      {existingRequest?.status === 'rejected' 
+                        ? 'Your previous verification request was rejected. You can submit a new request after completing the requirements below.'
+                        : 'You need to complete your profile before requesting verification.'}
+                    </AlertDescription>
+                  </Alert>
+                )}
+                
+                {existingRequest?.status === 'rejected' && existingRequest.admin_notes && (
+                  <Alert>
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      <strong>Admin feedback:</strong> {existingRequest.admin_notes}
+                    </AlertDescription>
+                  </Alert>
+                )}
                 
                 <div className="space-y-2">
                   <h3 className="font-medium">Required for Verification:</h3>
@@ -173,15 +222,29 @@ const VerificationRequest = () => {
                     <p className={(profile?.account_type === 'seller' || profile?.account_type === 'both') ? 'text-green-600' : 'text-red-600'}>
                       {(profile?.account_type === 'seller' || profile?.account_type === 'both') ? '✓' : '✗'} Seller account
                     </p>
+                    <p className={profile?.seller_status === 'approved' ? 'text-green-600' : 'text-red-600'}>
+                      {profile?.seller_status === 'approved' ? '✓' : '✗'} Approved seller status
+                    </p>
                   </div>
                 </div>
                 
-                <Button onClick={() => navigate('/profile')} className="w-full">
-                  Complete Profile
-                </Button>
+                {(!existingRequest || existingRequest.status === 'rejected') && (
+                  <Button onClick={() => navigate('/profile')} className="w-full">
+                    Complete Profile
+                  </Button>
+                )}
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="space-y-4">
+                {existingRequest?.status === 'rejected' && (
+                  <Alert>
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>
+                      <strong>Previous request was rejected.</strong> {existingRequest.admin_notes && `Reason: ${existingRequest.admin_notes}`}
+                    </AlertDescription>
+                  </Alert>
+                )}
+                
                 <div className="bg-muted/50 p-4 rounded-lg">
                   <h3 className="font-medium mb-2">Verification Process</h3>
                   <div className="space-y-2 text-sm text-muted-foreground">

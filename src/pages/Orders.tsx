@@ -314,10 +314,14 @@ const Orders = () => {
     description: string
   ) => {
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) {
+        toast({
+          title: "Error",
+          description: "User not authenticated",
+          variant: "destructive",
+        });
+        return;
+      }
 
       const order = orders.find((o) => o.id === orderId);
       if (!order) {
@@ -329,7 +333,51 @@ const Orders = () => {
         return;
       }
 
-      // Just update order status to disputed
+      // Verify user exists in profiles table
+      const { data: profileData, error: profileError } = await supabase
+        .from("profiles")
+        .select("user_id")
+        .eq("user_id", user.id)
+        .single();
+
+      if (profileError || !profileData) {
+        toast({
+          title: "Error",
+          description: "User profile not found. Please refresh and try again.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Get escrow transaction ID for the order
+      const escrowTransaction = order.escrow_transactions?.[0];
+      if (!escrowTransaction) {
+        toast({
+          title: "Error",
+          description: "No escrow transaction found for this order",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Create dispute record in the disputes table
+      const { error: disputeError } = await supabase
+        .from("disputes")
+        .insert({
+          order_id: orderId,
+          escrow_transaction_id: escrowTransaction.id,
+          reported_by: user.id,
+          reason: reason,
+          description: description,
+          status: "open"
+        });
+
+      if (disputeError) {
+        console.error("Dispute creation error:", disputeError);
+        throw disputeError;
+      }
+
+      // Update order status to disputed
       await updateOrderStatus(orderId, "disputed");
 
       toast({
@@ -338,9 +386,10 @@ const Orders = () => {
           "Your issue has been reported and the order is now under review",
       });
     } catch (error) {
+      console.error("Report issue error:", error);
       toast({
         title: "Error",
-        description: "Failed to report issue. Please try again.",
+        description: error?.message || "Failed to report issue. Please try again.",
         variant: "destructive",
       });
     }
@@ -348,12 +397,25 @@ const Orders = () => {
 
   const withdrawDispute = async (orderId: string) => {
     try {
+      // Close the dispute in the disputes table
+      const { error: disputeError } = await supabase
+        .from("disputes")
+        .update({ status: "closed" })
+        .eq("order_id", orderId)
+        .eq("status", "open");
+
+      if (disputeError) {
+        console.error("Error closing dispute:", disputeError);
+        throw disputeError;
+      }
+
+      // Update order status back to delivered
       await updateOrderStatus(orderId, "delivered");
 
       toast({
         title: "Dispute Withdrawn",
         description:
-          "Your dispute has been withdrawn. Order status restored to delivered.",
+          "Your dispute has been withdrawn and closed. Order status restored to delivered.",
       });
     } catch (error) {
       toast({

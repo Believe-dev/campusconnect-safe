@@ -3,7 +3,12 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Wallet as WalletIcon, TrendingUp, TrendingDown } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Wallet as WalletIcon, TrendingUp, TrendingDown, CreditCard } from 'lucide-react';
+import { toast } from 'sonner';
 import Header from '@/components/layout/Header';
 
 interface WalletTransaction {
@@ -18,11 +23,26 @@ interface Wallet {
   available_balance: number;
 }
 
+interface BankDetails {
+  bank_account_name: string | null;
+  bank_account_number: string | null;
+  bank_name: string | null;
+}
+
 const Wallet = () => {
   const { user } = useAuth();
   const [wallet, setWallet] = useState<Wallet | null>(null);
   const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
+  const [bankDetails, setBankDetails] = useState<BankDetails | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showBankDialog, setShowBankDialog] = useState(false);
+  const [bankForm, setBankForm] = useState({
+    email: '',
+    password: '',
+    accountName: '',
+    accountNumber: '',
+    bankName: ''
+  });
 
   useEffect(() => {
     if (user) {
@@ -47,6 +67,15 @@ const Wallet = () => {
 
       const wallet = walletData ? { available_balance: walletData.available_balance } : { available_balance: 0 };
       setWallet(wallet);
+
+      // Fetch bank details
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('bank_account_name, bank_account_number, bank_name')
+        .eq('user_id', user.id)
+        .single();
+
+      setBankDetails(profileData || { bank_account_name: null, bank_account_number: null, bank_name: null });
 
       // Fetch recent transactions
       if (walletData?.id) {
@@ -74,6 +103,30 @@ const Wallet = () => {
       // Error handled silently
     } finally {
       setLoading(false);
+    }
+  };
+
+  const updateBankDetails = async () => {
+    try {
+      const { data, error } = await supabase.rpc('update_bank_details', {
+        user_email: bankForm.email,
+        user_password: bankForm.password,
+        account_name: bankForm.accountName,
+        account_number: bankForm.accountNumber,
+        bank_name: bankForm.bankName
+      });
+
+      if (error || !data) {
+        toast.error('Failed to update bank details. Please check your credentials.');
+        return;
+      }
+
+      toast.success('Bank details updated successfully!');
+      setShowBankDialog(false);
+      setBankForm({ email: '', password: '', accountName: '', accountNumber: '', bankName: '' });
+      fetchWalletData();
+    } catch (error) {
+      toast.error('Failed to update bank details');
     }
   };
 
@@ -113,6 +166,101 @@ const Wallet = () => {
               <p className="text-muted-foreground mt-2">
                 Available for withdrawal
               </p>
+            </CardContent>
+          </Card>
+
+          {/* Bank Details */}
+          <Card className="mb-6">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <CreditCard className="h-5 w-5" />
+                Bank Details
+              </CardTitle>
+              <Dialog open={showBankDialog} onOpenChange={setShowBankDialog}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    {bankDetails?.bank_account_name ? 'Update' : 'Add'} Bank Details
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Update Bank Details</DialogTitle>
+                    <p className="text-sm text-muted-foreground">
+                      Security Verification Required
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Please enter your UniMarket account email and password to verify your identity before updating bank details.
+                    </p>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div>
+                      <Label htmlFor="email">Your UniMarket Account Email</Label>
+                      <Input
+                        id="email"
+                        type="email"
+                        placeholder="Enter your UniMarket account email"
+                        value={bankForm.email}
+                        onChange={(e) => setBankForm({...bankForm, email: e.target.value})}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="password">Your UniMarket Account Password</Label>
+                      <Input
+                        id="password"
+                        type="password"
+                        placeholder="Enter your UniMarket account password"
+                        value={bankForm.password}
+                        onChange={(e) => setBankForm({...bankForm, password: e.target.value})}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="accountName">Account Name</Label>
+                      <Input
+                        id="accountName"
+                        placeholder="Account Name"
+                        value={bankForm.accountName}
+                        onChange={(e) => setBankForm({...bankForm, accountName: e.target.value})}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="accountNumber">Account Number</Label>
+                      <Input
+                        id="accountNumber"
+                        placeholder="Account Number"
+                        value={bankForm.accountNumber}
+                        onChange={(e) => setBankForm({...bankForm, accountNumber: e.target.value})}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="bankName">Bank Name</Label>
+                      <Input
+                        id="bankName"
+                        placeholder="Bank Name"
+                        value={bankForm.bankName}
+                        onChange={(e) => setBankForm({...bankForm, bankName: e.target.value})}
+                      />
+                    </div>
+                    <Button 
+                      onClick={updateBankDetails}
+                      className="w-full"
+                      disabled={!bankForm.email || !bankForm.password || !bankForm.accountName || !bankForm.accountNumber || !bankForm.bankName}
+                    >
+                      Update Bank Details
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </CardHeader>
+            <CardContent>
+              {bankDetails?.bank_account_name ? (
+                <div className="space-y-2">
+                  <p><strong>Account Name:</strong> {bankDetails.bank_account_name}</p>
+                  <p><strong>Account Number:</strong> {bankDetails.bank_account_number}</p>
+                  <p><strong>Bank:</strong> {bankDetails.bank_name}</p>
+                </div>
+              ) : (
+                <p className="text-muted-foreground">No bank details added yet</p>
+              )}
             </CardContent>
           </Card>
 

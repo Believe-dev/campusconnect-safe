@@ -413,6 +413,9 @@ export type Database = {
           is_verified: boolean | null
           phone_number: string | null
           rating: number | null
+          seller_status: string | null
+          seller_approved_at: string | null
+          seller_approved_by: string | null
           student_id: string | null
           student_id_photo_url: string | null
           total_reviews: number | null
@@ -439,6 +442,9 @@ export type Database = {
           is_verified?: boolean | null
           phone_number?: string | null
           rating?: number | null
+          seller_status?: string | null
+          seller_approved_at?: string | null
+          seller_approved_by?: string | null
           student_id?: string | null
           student_id_photo_url?: string | null
           total_reviews?: number | null
@@ -465,6 +471,9 @@ export type Database = {
           is_verified?: boolean | null
           phone_number?: string | null
           rating?: number | null
+          seller_status?: string | null
+          seller_approved_at?: string | null
+          seller_approved_by?: string | null
           student_id?: string | null
           student_id_photo_url?: string | null
           total_reviews?: number | null
@@ -910,6 +919,130 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      verification_requests: {
+        Row: {
+          id: string
+          user_id: string
+          reason: string
+          documents: string[] | null
+          status: string
+          admin_notes: string | null
+          reviewed_by: string | null
+          reviewed_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          reason: string
+          documents?: string[] | null
+          status?: string
+          admin_notes?: string | null
+          reviewed_by?: string | null
+          reviewed_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          reason?: string
+          documents?: string[] | null
+          status?: string
+          admin_notes?: string | null
+          reviewed_by?: string | null
+          reviewed_at?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "verification_requests_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          }
+        ]
+      }
+      dispute_notification_templates: {
+        Row: {
+          id: string
+          dispute_type: string
+          template_name: string
+          subject: string
+          message: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          dispute_type: string
+          template_name: string
+          subject: string
+          message: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          dispute_type?: string
+          template_name?: string
+          subject?: string
+          message?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      product_reports: {
+        Row: {
+          id: string
+          product_id: string
+          reported_by: string
+          reason: string
+          description: string
+          status: string
+          admin_notes: string | null
+          resolved_by: string | null
+          resolved_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          product_id: string
+          reported_by: string
+          reason: string
+          description: string
+          status?: string
+          admin_notes?: string | null
+          resolved_by?: string | null
+          resolved_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          product_id?: string
+          reported_by?: string
+          reason?: string
+          description?: string
+          status?: string
+          admin_notes?: string | null
+          resolved_by?: string | null
+          resolved_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_reports_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          }
+        ]
       }
     }
     Views: {

@@ -1,0 +1,93 @@
+/* Mobile Upload Optimizations for Low-End Phones */
+
+/* Reduce memory usage on low-end devices */
+@media (max-width: 480px) and (max-device-memory: 2) {
+  /* Disable heavy animations during upload */
+  .uploading * {
+    animation: none !important;
+    transition: none !important;
+  }
+  
+  /* Optimize image rendering */
+  img[src*="verification-photos"] {
+    image-rendering: optimizeSpeed;
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: optimize-contrast;
+  }
+  
+  /* Reduce visual complexity during upload */
+  .upload-area {
+    box-shadow: none !important;
+    border-radius: 4px !important;
+  }
+}
+
+/* Touch-friendly upload areas */
+@media (max-width: 768px) {
+  .upload-area {
+    min-height: 60px;
+    padding: 16px;
+    touch-action: manipulation;
+  }
+  
+  /* Larger touch targets */
+  .upload-button {
+    min-height: 48px;
+    padding: 12px 16px;
+  }
+  
+  /* Prevent zoom on file inputs */
+  input[type="file"] {
+    font-size: 16px;
+  }
+}
+
+/* Camera capture optimizations */
+@media (max-width: 480px) {
+  /* Optimize camera interface */
+  input[capture="environment"] {
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  
+  /* Reduce memory pressure during capture */
+  .camera-active * {
+    will-change: auto;
+    transform: none !important;
+  }
+}
+
+/* Low memory device specific styles */
+.low-memory .upload-area {
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+}
+
+.low-memory .upload-area:hover {
+  background: #e9ecef;
+  border-color: #adb5bd;
+}
+
+/* Prevent memory leaks from hover states */
+@media (hover: none) {
+  .upload-area:hover {
+    background: inherit;
+    border-color: inherit;
+  }
+}
+
+/* Optimize for slow connections */
+@media (connection: slow-2g), (connection: 2g) {
+  .upload-progress {
+    animation: none;
+  }
+  
+  .upload-spinner {
+    animation: spin 2s linear infinite;
+  }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}

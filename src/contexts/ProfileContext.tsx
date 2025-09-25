@@ -8,6 +8,7 @@ interface Profile {
   account_type: string;
   verification_status?: string;
   avatar_url?: string;
+  seller_status?: string;
 }
 
 interface ProfileContextType {
@@ -46,7 +47,7 @@ export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ child
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('full_name, is_verified, account_type, verification_status, avatar_url')
+        .select('full_name, is_verified, account_type, verification_status, avatar_url, seller_status')
         .eq('user_id', user.id)
         .single();
 
@@ -103,7 +104,8 @@ export const ProfileProvider: React.FC<{ children: React.ReactNode }> = ({ child
                 is_verified: payload.new.is_verified,
                 account_type: payload.new.account_type,
                 verification_status: payload.new.verification_status,
-                avatar_url: payload.new.avatar_url
+                avatar_url: payload.new.avatar_url,
+                seller_status: payload.new.seller_status
               };
               setProfile(updatedProfile);
               localStorage.setItem(`cc_profile_${user.id}`, JSON.stringify(updatedProfile));

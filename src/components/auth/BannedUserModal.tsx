@@ -1,12 +1,17 @@
-import { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/enhanced-button';
-import { Textarea } from '@/components/ui/textarea';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
-import { AlertTriangle } from 'lucide-react';
+import { useState } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/enhanced-button";
+import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { AlertTriangle } from "lucide-react";
 
 interface BannedUserModalProps {
   open: boolean;
@@ -14,19 +19,29 @@ interface BannedUserModalProps {
   banReason?: string;
 }
 
-export const BannedUserModal = ({ open, userEmail, banReason }: BannedUserModalProps) => {
-  const [message, setMessage] = useState('');
-  const [fullName, setFullName] = useState('');
-  const [matricNumber, setMatricNumber] = useState('');
-  const [email, setEmail] = useState('');
+export const BannedUserModal = ({
+  open,
+  userEmail,
+  banReason,
+}: BannedUserModalProps) => {
+  const [message, setMessage] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [matricNumber, setMatricNumber] = useState("");
+  const [email, setEmail] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const { toast } = useToast();
 
   const handleSubmitAppeal = async () => {
-    if (!message.trim() || !fullName.trim() || !matricNumber.trim() || !email.trim()) {
+    if (
+      !message.trim() ||
+      !fullName.trim() ||
+      !matricNumber.trim() ||
+      !email.trim()
+    ) {
       toast({
         title: "Missing Information",
-        description: "Please fill in all required fields with your banned account details",
+        description:
+          "Please fill in all required fields with your banned account details",
         variant: "destructive",
       });
       return;
@@ -34,12 +49,12 @@ export const BannedUserModal = ({ open, userEmail, banReason }: BannedUserModalP
 
     setSubmitting(true);
     try {
-      const { error } = await supabase.from('ban_appeals').insert({
+      const { error } = await supabase.from("ban_appeals").insert({
         user_email: email,
         full_name: fullName,
         matric_number: matricNumber,
         message: message,
-        status: 'pending'
+        status: "pending",
       });
 
       if (error) throw error;
@@ -48,11 +63,11 @@ export const BannedUserModal = ({ open, userEmail, banReason }: BannedUserModalP
         title: "Appeal Submitted",
         description: "Your appeal has been sent to the admin team for review.",
       });
-      
-      setMessage('');
-      setFullName('');
-      setMatricNumber('');
-      setEmail('');
+
+      setMessage("");
+      setFullName("");
+      setMatricNumber("");
+      setEmail("");
     } catch (error) {
       toast({
         title: "Error",
@@ -73,7 +88,7 @@ export const BannedUserModal = ({ open, userEmail, banReason }: BannedUserModalP
             Account Banned
           </DialogTitle>
         </DialogHeader>
-        
+
         <div className="space-y-4">
           <div className="bg-red-50 border border-red-200 rounded-lg p-4">
             <p className="text-sm text-red-800 text-center">
@@ -90,12 +105,15 @@ export const BannedUserModal = ({ open, userEmail, banReason }: BannedUserModalP
           <div className="space-y-3">
             <h3 className="font-semibold text-sm">Submit an Appeal</h3>
             <p className="text-xs text-muted-foreground">
-              Please provide your account details exactly as they appear in your banned account.
+              Please provide your account details exactly as they appear in your
+              banned account.
             </p>
-            
+
             <div>
               <Label htmlFor="fullName">Full Name *</Label>
-              <p className="text-xs text-muted-foreground mb-1">Enter the full name associated with your banned account</p>
+              <p className="text-xs text-muted-foreground mb-1">
+                Enter the full name associated with your banned account
+              </p>
               <Input
                 id="fullName"
                 value={fullName}
@@ -107,7 +125,9 @@ export const BannedUserModal = ({ open, userEmail, banReason }: BannedUserModalP
 
             <div>
               <Label htmlFor="userEmail">Email Address *</Label>
-              <p className="text-xs text-muted-foreground mb-1">Enter the email address of your banned account</p>
+              <p className="text-xs text-muted-foreground mb-1">
+                Enter the email address of your banned account
+              </p>
               <Input
                 id="userEmail"
                 type="email"
@@ -119,8 +139,10 @@ export const BannedUserModal = ({ open, userEmail, banReason }: BannedUserModalP
             </div>
 
             <div>
-              <Label htmlFor="matricNumber">Student ID/Matric Number *</Label>
-              <p className="text-xs text-muted-foreground mb-1">Enter the student ID/matric number from your banned account</p>
+              <Label htmlFor="matricNumber">Matric Number *</Label>
+              <p className="text-xs text-muted-foreground mb-1">
+                Enter the matric number from your banned account
+              </p>
               <Input
                 id="matricNumber"
                 value={matricNumber}
@@ -132,7 +154,9 @@ export const BannedUserModal = ({ open, userEmail, banReason }: BannedUserModalP
 
             <div>
               <Label htmlFor="message">Appeal Message *</Label>
-              <p className="text-xs text-muted-foreground mb-1">Explain why you believe this ban should be lifted</p>
+              <p className="text-xs text-muted-foreground mb-1">
+                Explain why you believe this ban should be lifted
+              </p>
               <Textarea
                 id="message"
                 value={message}
@@ -143,12 +167,12 @@ export const BannedUserModal = ({ open, userEmail, banReason }: BannedUserModalP
               />
             </div>
 
-            <Button 
+            <Button
               onClick={handleSubmitAppeal}
               disabled={submitting}
               className="w-full"
             >
-              {submitting ? 'Submitting...' : 'Submit Appeal'}
+              {submitting ? "Submitting..." : "Submit Appeal"}
             </Button>
           </div>
         </div>

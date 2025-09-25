@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/enhanced-button';
 import { Separator } from '@/components/ui/separator';
 import { Star, MessageCircle, MapPin, GraduationCap, ShieldCheck, User, Package, Heart, ShoppingCart, Phone } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { Textarea } from '@/components/ui/textarea';
@@ -65,6 +66,7 @@ const SellerProfile = () => {
   const [ratingInput, setRatingInput] = useState<number>(0);
   const [commentInput, setCommentInput] = useState<string>('');
   const [visibleProducts, setVisibleProducts] = useState(5);
+  const [showAvatarModal, setShowAvatarModal] = useState(false);
 
   useEffect(() => {
     if (sellerId) {
@@ -323,8 +325,11 @@ const SellerProfile = () => {
         <Card className="shadow-brand">
           <CardHeader className="p-4 sm:p-6">
             <div className="flex flex-col sm:flex-row items-start gap-4 sm:gap-6">
-              <Avatar className="h-20 w-20 sm:h-24 sm:w-24 mx-auto sm:mx-0">
-                <AvatarImage src={seller.avatar_url} alt={seller.full_name} />
+              <Avatar 
+                className="h-20 w-20 sm:h-24 sm:w-24 mx-auto sm:mx-0 cursor-pointer hover:opacity-80 transition-opacity" 
+                onClick={() => setShowAvatarModal(true)}
+              >
+                <AvatarImage src={seller.avatar_url} alt={seller.full_name} className="object-cover" />
                 <AvatarFallback className="text-base sm:text-lg">
                   {getInitials(seller.full_name)}
                 </AvatarFallback>
@@ -535,6 +540,30 @@ const SellerProfile = () => {
       </div>
       </div>
       <BottomNav />
+      
+      {/* Avatar Modal */}
+      <Dialog open={showAvatarModal} onOpenChange={setShowAvatarModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Profile Picture</DialogTitle>
+          </DialogHeader>
+          <div className="flex justify-center">
+            {seller.avatar_url ? (
+              <img 
+                src={seller.avatar_url} 
+                alt={seller.full_name}
+                className="max-w-full max-h-96 object-contain rounded-lg"
+              />
+            ) : (
+              <div className="w-64 h-64 bg-muted rounded-lg flex items-center justify-center">
+                <span className="text-4xl text-muted-foreground">
+                  {getInitials(seller.full_name)}
+                </span>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

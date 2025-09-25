@@ -23,14 +23,6 @@ export const PWAInstallPrompt: React.FC = () => {
 
     if (isInstalled) return;
 
-    // 80% chance to show on reload
-    const shouldShow = Math.random() < 0.8;
-    if (!shouldShow) return;
-
-    // Check if user has dismissed the prompt before
-    const dismissed = localStorage.getItem('pwa-install-dismissed');
-    if (dismissed) return;
-
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
@@ -69,7 +61,6 @@ export const PWAInstallPrompt: React.FC = () => {
 
   const handleDismiss = () => {
     setShowPrompt(false);
-    localStorage.setItem('pwa-install-dismissed', 'true');
   };
 
   if (!showPrompt) return null;

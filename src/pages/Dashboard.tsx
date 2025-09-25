@@ -77,6 +77,7 @@ const Dashboard = () => {
     product: Product;
     analytics: Analytics;
   } | null>(null);
+  const [accessDenied, setAccessDenied] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -131,7 +132,7 @@ const Dashboard = () => {
 
       const { data: profile, error } = await supabase
         .from("profiles")
-        .select("full_name")
+        .select("full_name, account_type, seller_status")
         .eq("user_id", user.id)
         .single();
 
@@ -152,6 +153,13 @@ const Dashboard = () => {
         }
         return;
       }
+
+      // Check if user is approved seller
+      if (profile.account_type === 'buyer' || profile.seller_status !== 'approved') {
+        setAccessDenied(true);
+        return;
+      }
+
       setUserProfile(profile);
     } catch (error) {
       // Error handled silently
@@ -206,6 +214,38 @@ const Dashboard = () => {
 
   const handleUpdateProduct = async (product: Product) => {
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        navigate('/auth');
+        return;
+      }
+
+      // Re-verify seller status before update (prevent race conditions)
+      const { data: currentProfile, error: profileError } = await supabase
+        .from('profiles')
+        .select('account_type, seller_status')
+        .eq('user_id', user.id)
+        .single();
+
+      if (profileError || !currentProfile) {
+        toast({
+          title: "Error",
+          description: "Unable to verify your account status",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (currentProfile.account_type === 'buyer' || currentProfile.seller_status !== 'approved') {
+        toast({
+          title: "Access Denied",
+          description: "You must be an approved seller to update products",
+          variant: "destructive",
+        });
+        navigate('/profile');
+        return;
+      }
+
       const { error } = await supabase
         .from("products")
         .update({
@@ -220,7 +260,18 @@ const Dashboard = () => {
         })
         .eq("id", product.id);
 
-      if (error) throw error;
+      if (error) {
+        if (error.message.includes('approved sellers')) {
+          toast({
+            title: "Access Denied",
+            description: "Only approved sellers can update products",
+            variant: "destructive",
+          });
+          navigate('/profile');
+          return;
+        }
+        throw error;
+      }
 
       toast({
         title: "Product Updated",
@@ -240,12 +291,55 @@ const Dashboard = () => {
 
   const toggleProductStatus = async (productId: string, isActive: boolean) => {
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        navigate('/auth');
+        return;
+      }
+
+      // Re-verify seller status before status toggle
+      const { data: currentProfile, error: profileError } = await supabase
+        .from('profiles')
+        .select('account_type, seller_status')
+        .eq('user_id', user.id)
+        .single();
+
+      if (profileError || !currentProfile) {
+        toast({
+          title: "Error",
+          description: "Unable to verify your account status",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (currentProfile.account_type === 'buyer' || currentProfile.seller_status !== 'approved') {
+        toast({
+          title: "Access Denied",
+          description: "You must be an approved seller to manage products",
+          variant: "destructive",
+        });
+        navigate('/profile');
+        return;
+      }
+
       const { error } = await supabase
         .from("products")
         .update({ is_active: !isActive })
         .eq("id", productId);
 
-      if (error) throw error;
+      if (error) {
+        if (error.message.includes('approved sellers')) {
+          toast({
+            title: "Access Denied",
+            description: "Only approved sellers can manage products",
+            variant: "destructive",
+          });
+          navigate('/profile');
+          return;
+        }
+        throw error;
+      }
 
       toast({
         title: "Status Updated",
@@ -314,6 +408,30 @@ const Dashboard = () => {
               <div className="h-32 bg-muted rounded"></div>
             </div>
           </div>
+        </main>
+      </div>
+    );
+  }
+
+  if (accessDenied) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <main className="container mx-auto px-4 py-8">
+          <Card className="max-w-2xl mx-auto">
+            <CardContent className="pt-6 text-center">
+              <div className="text-center">
+                <div className="mx-auto h-12 w-12 text-muted-foreground mb-4">🚫</div>
+                <h2 className="text-2xl font-bold mb-2">Access Denied</h2>
+                <p className="text-muted-foreground mb-4">
+                  You need to be an approved seller to access the dashboard.
+                </p>
+                <Button onClick={() => navigate('/profile')} variant="outline">
+                  Go to Profile
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </main>
       </div>
     );

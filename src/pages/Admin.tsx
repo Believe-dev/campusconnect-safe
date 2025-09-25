@@ -113,6 +113,10 @@ interface User {
   rating?: number | null;
   total_reviews?: number | null;
   is_verified?: boolean | null;
+  // Verification request specific fields
+  verification_request_id?: string;
+  verification_reason?: string;
+  verification_documents?: string[];
 }
 
 interface Product {
@@ -265,6 +269,7 @@ export default function Admin() {
 
   useEffect(() => {
     if (isAdmin) {
+      console.log("Admin dashboard loading...");
       fetchUsers();
       fetchProducts();
       fetchMessages();
@@ -273,6 +278,7 @@ export default function Admin() {
       fetchPendingSellers();
       fetchVerificationRequests();
       fetchEscrowData();
+      fetchProductReports();
       fetchBanAppeals();
       fetchEmailLogs();
       fetchDisputeTemplates();
@@ -284,7 +290,8 @@ export default function Admin() {
       // Fetch profiles with specific fields to avoid deep type instantiation
       const { data: profiles, error: profilesError } = await supabase
         .from("profiles")
-        .select(`
+        .select(
+          `
           id,
           user_id,
           email,
@@ -304,7 +311,8 @@ export default function Admin() {
           rating,
           total_reviews,
           is_verified
-        `)
+        `
+        )
         .order("created_at", { ascending: false });
 
       if (profilesError) throw profilesError;
@@ -318,7 +326,7 @@ export default function Admin() {
       const usersWithRoles = (profiles || []).map((profile) => ({
         ...profile,
         is_banned: profile.is_banned || false,
-        verification_status: profile.verification_status || 'pending',
+        verification_status: profile.verification_status || "pending",
         user_roles:
           roles
             ?.filter((role) => role.user_id === profile.user_id)
@@ -398,8 +406,71 @@ export default function Admin() {
 
   const fetchPendingSellers = async () => {
     try {
-      setPendingSellers([]);
+      // Get profiles that want to be sellers but haven't been approved yet
+      const { data: profiles, error: profilesError } = await supabase
+        .from("profiles")
+        .select(
+          `
+          id,
+          user_id,
+          full_name,
+          email,
+          university_name,
+          campus,
+          student_id,
+          phone_number,
+          bio,
+          account_type,
+          rating,
+          total_reviews,
+          face_photo_url,
+          student_id_photo_url,
+          created_at,
+          is_banned,
+          verification_status,
+          is_verified,
+          seller_status
+        `
+        )
+        .eq("account_type", "seller")
+        .or("seller_status.is.null,seller_status.eq.pending")
+        .eq("is_banned", false)
+        .order("created_at", { ascending: false });
+
+      if (profilesError) {
+        console.error("Error fetching pending sellers:", profilesError);
+        setPendingSellers([]);
+        return;
+      }
+
+      // Transform data for pending sellers
+      const transformedData = (profiles || []).map((profile) => ({
+        id: profile.id,
+        user_id: profile.user_id,
+        full_name: profile.full_name || "Unknown",
+        email: profile.email || "Unknown",
+        university_name: profile.university_name || "N/A",
+        campus: profile.campus || "N/A",
+        student_id: profile.student_id || "N/A",
+        phone_number: profile.phone_number || "N/A",
+        bio: profile.bio || "No bio provided",
+        account_type: profile.account_type || "buyer",
+        rating: profile.rating || 0,
+        total_reviews: profile.total_reviews || 0,
+        avatar_url: getImageUrl(profile.face_photo_url),
+        face_photo_url: getImageUrl(profile.face_photo_url),
+        student_id_photo_url: getImageUrl(profile.student_id_photo_url),
+        created_at: profile.created_at,
+        is_banned: profile.is_banned || false,
+        verification_status: profile.verification_status || "pending",
+        is_verified: profile.is_verified || false,
+        user_roles: [],
+      }));
+
+      console.log("Pending sellers found:", transformedData.length);
+      setPendingSellers(transformedData);
     } catch (error) {
+      console.error("Error in fetchPendingSellers:", error);
       setPendingSellers([]);
     }
   };
@@ -422,62 +493,53 @@ export default function Admin() {
 
   const fetchVerificationRequests = async () => {
     try {
-      // Get all profiles with verification documents
-      const { data: profiles, error: profilesError } = await supabase
-        .from("profiles")
-        .select(`
-          id,
-          user_id,
-          full_name,
-          email,
-          university_name,
-          campus,
-          student_id,
-          phone_number,
-          bio,
-          account_type,
-          rating,
-          total_reviews,
-          face_photo_url,
-          student_id_photo_url,
-          created_at,
-          is_banned,
-          verification_status,
-          is_verified
-        `)
-        .not("face_photo_url", "is", null)
-        .not("student_id_photo_url", "is", null)
-        .eq("is_verified", false)
+      const { data: requests, error } = await supabase
+        .from("verification_requests")
+        .select("*")
+        .eq("status", "pending")
         .order("created_at", { ascending: false });
 
-      if (profilesError) {
+      if (error) throw error;
+
+      if (!requests || requests.length === 0) {
         setVerificationRequests([]);
         return;
       }
 
-      // Transform data for verification requests
-      const transformedData = (profiles || []).map((profile) => ({
-        id: profile.id,
-        user_id: profile.user_id,
-        full_name: profile.full_name || "Unknown",
-        email: profile.email || "Unknown",
-        university_name: profile.university_name || "N/A",
-        campus: profile.campus || "N/A",
-        student_id: profile.student_id || "N/A",
-        phone_number: profile.phone_number || "N/A",
-        bio: profile.bio || "No bio provided",
-        account_type: profile.account_type || "buyer",
-        rating: profile.rating || 0,
-        total_reviews: profile.total_reviews || 0,
-        avatar_url: getImageUrl(profile.face_photo_url), // Use face photo as profile picture
-        face_photo_url: getImageUrl(profile.face_photo_url),
-        student_id_photo_url: getImageUrl(profile.student_id_photo_url),
-        created_at: profile.created_at,
-        is_banned: profile.is_banned || false,
-        verification_status: profile.verification_status || 'pending',
-        is_verified: profile.is_verified || false,
-        user_roles: [],
-      }));
+      const userIds = requests.map((r) => r.user_id);
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("*")
+        .in("user_id", userIds);
+
+      const transformedData = requests.map((request) => {
+        const profile = profiles?.find((p) => p.user_id === request.user_id);
+        return {
+          id: profile?.id || request.id,
+          user_id: request.user_id,
+          full_name: profile?.full_name || "Unknown",
+          email: profile?.email || "Unknown",
+          university_name: profile?.university_name || "N/A",
+          campus: profile?.campus || "N/A",
+          student_id: profile?.student_id || "N/A",
+          phone_number: profile?.phone_number || "N/A",
+          bio: profile?.bio || "No bio provided",
+          account_type: profile?.account_type || "buyer",
+          rating: profile?.rating || 0,
+          total_reviews: profile?.total_reviews || 0,
+          avatar_url: profile?.avatar_url,
+          face_photo_url: profile?.avatar_url,
+          student_id_photo_url: getImageUrl(profile?.student_id_photo_url),
+          created_at: request.created_at,
+          is_banned: profile?.is_banned || false,
+          verification_status: profile?.verification_status || "pending",
+          is_verified: profile?.is_verified || false,
+          user_roles: [],
+          verification_request_id: request.id,
+          verification_reason: request.reason,
+          verification_documents: request.documents || [],
+        };
+      });
 
       setVerificationRequests(transformedData);
     } catch (error) {
@@ -687,9 +749,9 @@ export default function Admin() {
   const fetchBanAppeals = async () => {
     try {
       const { data, error } = await supabase
-        .from('ban_appeals')
-        .select('*')
-        .order('created_at', { ascending: false });
+        .from("ban_appeals")
+        .select("*")
+        .order("created_at", { ascending: false });
 
       if (error) throw error;
       setBanAppeals(data || []);
@@ -708,26 +770,98 @@ export default function Admin() {
 
   const fetchDisputeTemplates = async () => {
     try {
-      // Mock dispute templates since table doesn't exist
-      const mockTemplates = [
-        {
-          id: '1',
-          template_name: 'Product Quality Issue',
-          dispute_type: 'quality_issue',
-          subject: 'Product Quality Investigation - Order #{order_id}',
-          message: 'Dear {seller_name},\n\nWe have received a quality concern regarding your product "{product_title}" from order #{order_id} placed by {buyer_name} on {order_date}.\n\nPlease review this matter and provide your response within 48 hours.\n\nBest regards,\nCampusConnect Admin Team'
-        },
-        {
-          id: '2', 
-          template_name: 'Delivery Issue',
-          dispute_type: 'delivery_issue',
-          subject: 'Delivery Investigation - Order #{order_id}',
-          message: 'Dear {seller_name},\n\nA delivery issue has been reported for your product "{product_title}" from order #{order_id} placed by {buyer_name} on {order_date}.\n\nPlease provide tracking information or delivery confirmation within 48 hours.\n\nBest regards,\nCampusConnect Admin Team'
-        }
-      ];
-      setDisputeTemplates(mockTemplates);
+      const { data: templates, error } = await supabase
+        .from("dispute_notification_templates")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+      setDisputeTemplates(templates || []);
     } catch (error) {
       setDisputeTemplates([]);
+    }
+  };
+
+  const fetchProductReports = async () => {
+    try {
+      // Fetch product reports with products data
+      const { data: reportsData, error: reportsError } = await supabase
+        .from("product_reports")
+        .select(
+          `
+          id,
+          product_id,
+          reported_by,
+          reason,
+          description,
+          status,
+          created_at,
+          products(title, seller_id)
+        `
+        )
+        .order("created_at", { ascending: false });
+
+      if (reportsError) {
+        console.error("Error fetching product reports:", reportsError);
+        setProductReports([]);
+        return;
+      }
+
+      if (!reportsData || reportsData.length === 0) {
+        setProductReports([]);
+        return;
+      }
+
+      // Get all unique user IDs (reporters and sellers)
+      const reporterIds = reportsData
+        .map((report) => report.reported_by)
+        .filter(Boolean);
+      const sellerIds = reportsData
+        .map((report) => report.products?.seller_id)
+        .filter(Boolean);
+      const allUserIds = [...new Set([...reporterIds, ...sellerIds])];
+
+      // Fetch all user profiles at once
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("user_id, full_name, email")
+        .in("user_id", allUserIds);
+
+      const transformedReports = reportsData.map((report) => {
+        const reporter = profiles?.find(
+          (p) => p.user_id === report.reported_by
+        );
+        const seller = profiles?.find(
+          (p) => p.user_id === report.products?.seller_id
+        );
+
+        return {
+          id: report.id,
+          product_id: report.product_id,
+          reported_by: report.reported_by,
+          reason: report.reason,
+          description: report.description,
+          status: report.status,
+          created_at: report.created_at,
+          product: report.products || {
+            title: "Unknown Product",
+            seller_id: null,
+          },
+          reporter: reporter || {
+            full_name: "Unknown Reporter",
+            email: "unknown@example.com",
+          },
+          seller: seller || {
+            full_name: "Unknown Seller",
+            email: "unknown@example.com",
+          },
+        };
+      });
+
+      setProductReports(transformedReports);
+    } catch (error) {
+      console.error("Error in fetchProductReports:", error);
+      setProductReports([]);
     }
   };
 
@@ -749,59 +883,123 @@ export default function Admin() {
         .order("created_at", { ascending: false });
 
       if (payoutError) throw payoutError;
-      setPayoutRequests(payoutData || []);
 
-      // Fetch disputed orders instead of disputes table
-      const { data: disputedOrders, error: disputeError } = await supabase
-        .from("orders")
-        .select(
-          `
-          *,
-          products!inner (title),
-          seller_profile:profiles!orders_seller_id_fkey (full_name),
-          buyer_profile:profiles!orders_buyer_id_fkey (full_name)
-        `
-        )
-        .eq("status", "disputed")
+      // Fetch user profiles and wallets for payout requests
+      if (payoutData && payoutData.length > 0) {
+        const userIds = [...new Set(payoutData.map(p => p.user_id))];
+        const walletIds = [...new Set(payoutData.map(p => p.wallet_id))];
+
+        const [{ data: profiles }, { data: wallets }] = await Promise.all([
+          supabase.from("profiles").select("user_id, full_name, email").in("user_id", userIds),
+          supabase.from("wallets").select("id, available_balance").in("id", walletIds)
+        ]);
+
+        const enrichedPayouts = payoutData.map(payout => ({
+          ...payout,
+          profiles: profiles?.find(p => p.user_id === payout.user_id),
+          wallets: wallets?.find(w => w.id === payout.wallet_id)
+        }));
+
+        setPayoutRequests(enrichedPayouts);
+      } else {
+        setPayoutRequests([]);
+      }
+
+      // Fetch disputes with left joins to handle missing data gracefully
+      const { data: disputesData, error: disputeError } = await supabase
+        .from("disputes")
+        .select(`
+          id,
+          order_id,
+          reported_by,
+          reason,
+          description,
+          status,
+          created_at,
+          orders(
+            id,
+            seller_id,
+            buyer_id,
+            product_id,
+            products(
+              id,
+              title
+            )
+          )
+        `)
         .order("created_at", { ascending: false });
 
       if (disputeError) {
+        console.error("Error fetching disputes:", disputeError);
         setDisputes([]);
         return;
       }
 
-      // Transform to match dispute interface
-      const transformedDisputes = (disputedOrders || []).map((order) => ({
-        id: order.id,
-        order_id: order.id,
-        reason: "Order Issue",
-        description: "User reported an issue with this order",
-        status: "open",
-        created_at: order.created_at,
-        reported_by: order.buyer_id,
-        orders: {
-          products: order.products,
-          seller_profile: order.seller_profile,
-          buyer_profile: order.buyer_profile,
-        },
-        reporter: order.buyer_profile,
-      }));
+      if (!disputesData || disputesData.length === 0) {
+        setDisputes([]);
+        return;
+      }
 
+      // Get all unique user IDs (sellers, buyers, reporters)
+      const sellerIds = disputesData.map(d => d.orders?.seller_id).filter(Boolean);
+      const buyerIds = disputesData.map(d => d.orders?.buyer_id).filter(Boolean);
+      const reporterIds = disputesData.map(d => d.reported_by).filter(Boolean);
+      const allUserIds = [...new Set([...sellerIds, ...buyerIds, ...reporterIds])];
+
+      // Fetch all user profiles at once
+      const { data: userProfiles } = allUserIds.length > 0 ? await supabase
+        .from('profiles')
+        .select('user_id, full_name, student_id')
+        .in('user_id', allUserIds) : { data: [] };
+
+      const transformedDisputes = disputesData.map((dispute) => {
+        const order = dispute.orders;
+        const product = order?.products;
+        const seller = userProfiles?.find(p => p.user_id === order?.seller_id);
+        const buyer = userProfiles?.find(p => p.user_id === order?.buyer_id);
+        const reporter = userProfiles?.find(p => p.user_id === dispute.reported_by);
+
+        return {
+          id: dispute.id,
+          order_id: dispute.order_id,
+          reason: dispute.reason,
+          description: dispute.description,
+          status: dispute.status,
+          created_at: dispute.created_at,
+          reported_by: dispute.reported_by,
+          orders: {
+            products: { 
+              title: product?.title || "Product Not Found" 
+            },
+            seller_profile: {
+              full_name: seller?.full_name || "Seller Not Found",
+              student_id: seller?.student_id || "N/A",
+            },
+            buyer_profile: {
+              full_name: buyer?.full_name || "Buyer Not Found",
+              student_id: buyer?.student_id || "N/A",
+            },
+          },
+          reporter: { 
+            full_name: reporter?.full_name || `Reporter: ${dispute.reported_by?.slice(0, 8) || "Unknown"}` 
+          },
+        };
+      });
+      
       setDisputes(transformedDisputes);
-
-      setProductReports([]);
     } catch (error) {
+      console.error("Error in fetchEscrowData:", error);
       toast.error("Failed to fetch escrow data");
     }
   };
+
+
 
   const releaseEscrowFunds = async (escrowId: string) => {
     try {
       const { data, error } = await supabase.rpc("release_escrow_funds", {
         escrow_id: escrowId,
       });
-
-
 
       if (error) throw error;
 
@@ -828,30 +1026,80 @@ export default function Admin() {
       } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Since process_payout_request function doesn't exist in types, we'll handle this manually
-      const { error } = await supabase
-        .from("payout_requests")
-        .update({
-          status: approve ? "approved" : "rejected",
-          admin_notes: notes || null,
-          processed_by: user.id,
-          processed_at: new Date().toISOString(),
-        })
-        .eq("id", payoutId);
-      
-      const data = !error;
+      if (approve) {
+        // First check payout eligibility for debugging
+        const { data: eligibilityData, error: eligibilityError } = await supabase.rpc(
+          "check_payout_eligibility",
+          { payout_id: payoutId }
+        );
 
-      if (error) throw error;
+        if (eligibilityError) {
+          console.error("Eligibility check error:", eligibilityError);
+        } else if (eligibilityData && eligibilityData.length > 0) {
+          const check = eligibilityData[0];
+          console.log("Payout eligibility check:", check);
+          
+          if (!check.payout_exists) {
+            toast.error("Payout request not found");
+            return;
+          }
+          
+          if (check.payout_status !== 'pending') {
+            toast.error(`Payout request status is '${check.payout_status}', not 'pending'`);
+            return;
+          }
+          
+          if (!check.wallet_exists) {
+            toast.error("User wallet not found");
+            return;
+          }
+          
+          if (!check.sufficient_balance) {
+            toast.error(`Insufficient balance. Available: ₦${check.available_balance}, Requested: ₦${check.requested_amount}`);
+            return;
+          }
+        }
 
-      if (data === false) {
-        toast.error("Payout request not found or insufficient balance");
-        return;
+        // Call the payout processing function
+        const { data, error: payoutError } = await supabase.rpc(
+          "process_payout_request",
+          {
+            payout_id: payoutId,
+            admin_id: user.id,
+            admin_notes: notes || null,
+          }
+        );
+
+        if (payoutError) {
+          console.error("Payout processing error:", payoutError);
+          toast.error(`Payout processing failed: ${payoutError.message}`);
+          return;
+        }
+
+        if (!data) {
+          toast.error("Payout processing returned false - check server logs for details");
+          return;
+        }
+      } else {
+        // Just reject the payout request
+        const { error } = await supabase
+          .from("payout_requests")
+          .update({
+            status: "rejected",
+            admin_notes: notes || null,
+            processed_by: user.id,
+            processed_at: new Date().toISOString(),
+          })
+          .eq("id", payoutId);
+
+        if (error) throw error;
       }
 
-      toast.success(`Payout request ${approve ? "approved" : "rejected"}`);
+      toast.success(`Payout request ${approve ? "approved and processed" : "rejected"}`);
       fetchEscrowData();
     } catch (error) {
-      toast.error("Failed to process payout request");
+      console.error("Process payout error:", error);
+      toast.error(error?.message || "Failed to process payout request");
     }
   };
 
@@ -925,7 +1173,8 @@ export default function Admin() {
         await supabase.from("notifications").insert({
           user_id: userId,
           title: "Account Restored! 🎉",
-          message: "Your account has been restored by an administrator. Welcome back to UniMarket!",
+          message:
+            "Your account has been restored by an administrator. Welcome back to UniMarket!",
           type: "success",
         });
       }
@@ -973,7 +1222,7 @@ export default function Admin() {
     try {
       // Sanitize and validate inputs
       const sanitizedUpdates: Partial<User> = {};
-      
+
       if (updates.full_name) {
         const sanitizedName = sanitizeInput(updates.full_name);
         if (!validateName(sanitizedName)) {
@@ -982,7 +1231,7 @@ export default function Admin() {
         }
         sanitizedUpdates.full_name = sanitizedName;
       }
-      
+
       if (updates.email) {
         const sanitizedEmail = sanitizeInput(updates.email).toLowerCase();
         if (!validateEmail(sanitizedEmail)) {
@@ -991,23 +1240,25 @@ export default function Admin() {
         }
         sanitizedUpdates.email = sanitizedEmail;
       }
-      
+
       if (updates.bio) {
         sanitizedUpdates.bio = sanitizeInput(updates.bio).slice(0, 500); // Limit bio length
       }
-      
+
       if (updates.phone_number) {
         sanitizedUpdates.phone_number = sanitizeInput(updates.phone_number);
       }
-      
+
       if (updates.student_id) {
         sanitizedUpdates.student_id = sanitizeInput(updates.student_id);
       }
-      
+
       if (updates.university_name) {
-        sanitizedUpdates.university_name = sanitizeInput(updates.university_name);
+        sanitizedUpdates.university_name = sanitizeInput(
+          updates.university_name
+        );
       }
-      
+
       // Validate numeric fields
       if (updates.rating !== undefined) {
         const rating = Number(updates.rating);
@@ -1017,7 +1268,7 @@ export default function Admin() {
         }
         sanitizedUpdates.rating = rating;
       }
-      
+
       if (updates.total_reviews !== undefined) {
         const reviews = Number(updates.total_reviews);
         if (isNaN(reviews) || reviews < 0) {
@@ -1049,68 +1300,23 @@ export default function Admin() {
     fullName: string
   ) => {
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
+      await supabase
+        .from("verification_requests")
+        .update({ status: "approved" })
+        .eq("id", requestId);
 
-      // Since verification_requests table doesn't exist, we'll skip this step
-      const requestError = null;
-
-      if (requestError) throw requestError;
-
-      // Update profile to verified
-      const { error: profileError } = await supabase
+      await supabase
         .from("profiles")
         .update({ is_verified: true })
         .eq("user_id", userId);
 
-      if (profileError) throw profileError;
-
-      // Send notification
-      const { error: notifError } = await supabase
-        .from("notifications")
-        .insert({
-          user_id: userId,
-          title: "Account Verified! ✅",
-          message:
-            "Congratulations! Your account has been verified. You now have a verified badge on your profile.",
-          type: "success",
-        });
-
-      if (notifError) {
-        // Notification creation failed silently
-      }
-
-      // Notify all admins about the verification
-      const { data: admins } = await supabase
-        .from("user_roles")
-        .select("user_id")
-        .eq("role", "admin");
-
-      if (admins) {
-        for (const admin of admins) {
-          await supabase.from("notifications").insert({
-            user_id: admin.user_id,
-            title: "User Verified",
-            message: `${fullName} has been granted verification badge`,
-            type: "success",
-          });
-        }
-      }
-
-      // Send email notification
-      try {
-        await supabase.functions.invoke("send-notification-email", {
-          body: {
-            email: userEmail,
-            name: fullName,
-            type: "verified",
-          },
-        });
-      } catch (emailError) {
-        // Email notification failed silently
-      }
+      await supabase.from("notifications").insert({
+        user_id: userId,
+        title: "Account Verified! ✅",
+        message:
+          "Congratulations! Your account has been verified. You now have a verified badge on your profile.",
+        type: "success",
+      });
 
       toast.success("User verification approved");
       fetchVerificationRequests();
@@ -1128,52 +1334,20 @@ export default function Admin() {
     rejectionReason: string
   ) => {
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
-
-      // Clear verification photos from profile to remove from pending list
-      const { error: profileError } = await supabase
-        .from("profiles")
+      await supabase
+        .from("verification_requests")
         .update({
-          face_photo_url: null,
-          student_id_photo_url: null,
+          status: "rejected",
+          admin_notes: rejectionReason,
         })
-        .eq("user_id", userId);
+        .eq("id", requestId);
 
-      if (profileError) throw profileError;
-
-      // Send notification with rejection reason
-      const { error: notifError } = await supabase
-        .from("notifications")
-        .insert({
-          user_id: userId,
-          title: "Verification Request Rejected",
-          message: `Your verification request was rejected. Reason: ${rejectionReason}. Please upload new verification documents to reapply.`,
-          type: "warning",
-        });
-
-      if (notifError) {
-        // Notification creation failed silently
-      }
-
-      // Notify all admins about the rejection
-      const { data: admins } = await supabase
-        .from("user_roles")
-        .select("user_id")
-        .eq("role", "admin");
-
-      if (admins) {
-        for (const admin of admins) {
-          await supabase.from("notifications").insert({
-            user_id: admin.user_id,
-            title: "Verification Rejected",
-            message: `${fullName}'s verification request has been rejected: ${rejectionReason}`,
-            type: "warning",
-          });
-        }
-      }
+      await supabase.from("notifications").insert({
+        user_id: userId,
+        title: "Verification Request Rejected",
+        message: `Your verification request was rejected. Reason: ${rejectionReason}. You can submit a new request.`,
+        type: "warning",
+      });
 
       toast.success("Verification request rejected");
       fetchVerificationRequests();
@@ -1448,175 +1622,214 @@ export default function Admin() {
   }
 
   // Dispute Investigation Form Component
-  const DisputeInvestigationForm = React.memo(({
-    dispute,
-    onSuccess,
-  }: {
-    dispute: Dispute;
-    onSuccess: () => void;
-  }) => {
-    const [selectedTemplate, setSelectedTemplate] = useState("");
-    const [customMessage, setCustomMessage] = useState("");
-    const [useCustomMessage, setUseCustomMessage] = useState(false);
-    const [sending, setSending] = useState(false);
+  const DisputeInvestigationForm = React.memo(
+    ({ dispute, onSuccess }: { dispute: Dispute; onSuccess: () => void }) => {
+      const [selectedTemplate, setSelectedTemplate] = useState("");
+      const [customMessage, setCustomMessage] = useState("");
+      const [useCustomMessage, setUseCustomMessage] = useState(false);
+      const [sending, setSending] = useState(false);
 
-    const handleSendInvestigation = async () => {
-      if (!selectedTemplate && !useCustomMessage) {
-        toast.error("Please select a template or write a custom message");
-        return;
-      }
+      const handleSendInvestigation = async () => {
+        if (!selectedTemplate && !useCustomMessage) {
+          toast.error("Please select a template or write a custom message");
+          return;
+        }
 
-      if (useCustomMessage && !customMessage.trim()) {
-        toast.error("Please enter a custom message");
-        return;
-      }
+        if (useCustomMessage && !customMessage.trim()) {
+          toast.error("Please enter a custom message");
+          return;
+        }
 
-      setSending(true);
-      try {
-        // Since send_dispute_investigation_notification function doesn't exist in types, we'll skip this
-        const error = null;
+        setSending(true);
+        try {
+          // Since send_dispute_investigation_notification function doesn't exist in types, we'll skip this
+          const error = null;
 
-        if (error) throw error;
+          if (error) throw error;
 
-        toast.success("Investigation notification sent to seller");
-        onSuccess();
-      } catch (error) {
-        toast.error("Failed to send investigation notification");
-      } finally {
-        setSending(false);
-      }
-    };
+          toast.success("Investigation notification sent to seller");
+          onSuccess();
+        } catch (error) {
+          toast.error("Failed to send investigation notification");
+        } finally {
+          setSending(false);
+        }
+      };
 
-    const getTemplatePreview = () => {
-      const template = disputeTemplates.find(
-        (t) => t.dispute_type === selectedTemplate
-      );
-      if (!template) return "";
-
-      return template.message
-        .replace(
-          "{seller_name}",
-          dispute.orders?.seller_profile?.full_name || "Seller"
-        )
-        .replace(
-          "{product_title}",
-          dispute.orders?.products?.title || "Product"
-        )
-        .replace("{order_id}", dispute.order_id.slice(0, 8) + "...")
-        .replace(
-          "{buyer_name}",
-          dispute.orders?.buyer_profile?.full_name || "Buyer"
-        )
-        .replace(
-          "{order_date}",
-          new Date(dispute.created_at).toLocaleDateString()
+      const getTemplatePreview = () => {
+        const template = disputeTemplates.find(
+          (t) => t.dispute_type === selectedTemplate
         );
-    };
+        if (!template) return "";
 
-    return (
-      <div className="space-y-4">
-        <div className="p-4 bg-muted/50 rounded">
-          <h4 className="font-medium mb-2">Dispute Details</h4>
-          <p>
-            <strong>Product:</strong> {dispute.orders?.products?.title}
-          </p>
-          <p>
-            <strong>Seller:</strong> {dispute.orders?.seller_profile?.full_name}
-          </p>
-          <p>
-            <strong>Buyer:</strong> {dispute.orders?.buyer_profile?.full_name}
-          </p>
-          <p>
-            <strong>Reason:</strong> {dispute.reason.replace("_", " ")}
-          </p>
-          {dispute.description && (
-            <p>
-              <strong>Description:</strong> {dispute.description}
-            </p>
-          )}
-        </div>
+        return template.message
+          .replace(
+            "{seller_name}",
+            dispute.orders?.seller_profile?.full_name || "Seller"
+          )
+          .replace(
+            "{product_title}",
+            dispute.orders?.products?.title || "Product"
+          )
+          .replace("{order_id}", dispute.order_id.slice(0, 8) + "...")
+          .replace(
+            "{buyer_name}",
+            dispute.orders?.buyer_profile?.full_name || "Buyer"
+          )
+          .replace(
+            "{order_date}",
+            new Date(dispute.created_at).toLocaleDateString()
+          );
+      };
 
-        <div className="space-y-3">
-          <div className="flex items-center space-x-2">
-            <input
-              type="radio"
-              id="use-template"
-              checked={!useCustomMessage}
-              onChange={() => setUseCustomMessage(false)}
-            />
-            <Label htmlFor="use-template">Use Template Message</Label>
-          </div>
-
-          {!useCustomMessage && (
-            <div>
-              <Label>Select Template</Label>
-              <select
-                className="w-full p-2 border rounded"
-                value={selectedTemplate}
-                onChange={(e) => setSelectedTemplate(e.target.value)}
-              >
-                <option value="">Select a template...</option>
-                {disputeTemplates.map((template) => (
-                  <option key={template.id} value={template.dispute_type}>
-                    {template.template_name}
-                  </option>
-                ))}
-              </select>
-
-              {selectedTemplate && (
-                <div className="mt-3 p-3 bg-muted/30 rounded text-sm">
-                  <Label className="font-medium">Preview:</Label>
-                  <pre className="whitespace-pre-wrap mt-2 text-xs">
-                    {getTemplatePreview()}
-                  </pre>
-                </div>
+      return (
+        <div className="space-y-4">
+          <div className="p-4 bg-muted/50 rounded">
+            <h4 className="font-medium mb-2">Dispute Details</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <p>
+                  <strong>Product:</strong> {dispute.orders?.products?.title || "Unknown Product"}
+                </p>
+                <p>
+                  <strong>Order ID:</strong> #{dispute.order_id.slice(0, 8)}...
+                </p>
+                <p>
+                  <strong>Status:</strong>{" "}
+                  <Badge variant={dispute.status === "open" ? "destructive" : "default"}>
+                    {dispute.status}
+                  </Badge>
+                </p>
+              </div>
+              <div>
+                <p>
+                  <strong>Reported By:</strong> {dispute.reporter?.full_name || "Unknown Reporter"}
+                </p>
+                <p>
+                  <strong>Date:</strong> {new Date(dispute.created_at).toLocaleDateString()}
+                </p>
+              </div>
+            </div>
+            
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="p-3 bg-blue-50 rounded">
+                <h5 className="font-medium text-blue-900 mb-2">Seller Information</h5>
+                <p className="text-sm">
+                  <strong>Name:</strong> {dispute.orders?.seller_profile?.full_name || "Unknown Seller"}
+                </p>
+                <p className="text-sm">
+                  <strong>Student ID:</strong> {dispute.orders?.seller_profile?.student_id || "N/A"}
+                </p>
+              </div>
+              <div className="p-3 bg-green-50 rounded">
+                <h5 className="font-medium text-green-900 mb-2">Buyer Information</h5>
+                <p className="text-sm">
+                  <strong>Name:</strong> {dispute.orders?.buyer_profile?.full_name || "Unknown Buyer"}
+                </p>
+                <p className="text-sm">
+                  <strong>Student ID:</strong> {dispute.orders?.buyer_profile?.student_id || "N/A"}
+                </p>
+              </div>
+            </div>
+            
+            <div className="mt-4 p-3 bg-red-50 rounded">
+              <h5 className="font-medium text-red-900 mb-2">Dispute Information</h5>
+              <p className="text-sm">
+                <strong>Reason:</strong>{" "}
+                <Badge variant="outline" className="ml-1">
+                  {dispute.reason.replace("_", " ").toUpperCase()}
+                </Badge>
+              </p>
+              {dispute.description && (
+                <p className="text-sm mt-2">
+                  <strong>Description:</strong> <span className="italic">{dispute.description}</span>
+                </p>
               )}
             </div>
-          )}
-
-          <div className="flex items-center space-x-2">
-            <input
-              type="radio"
-              id="use-custom"
-              checked={useCustomMessage}
-              onChange={() => setUseCustomMessage(true)}
-            />
-            <Label htmlFor="use-custom">Write Custom Message</Label>
           </div>
 
-          {useCustomMessage && (
-            <div>
-              <Label>Custom Investigation Message</Label>
-              <Textarea
-                value={customMessage}
-                onChange={(e) => setCustomMessage(e.target.value)}
-                placeholder="Write your custom investigation message to the seller..."
-                rows={8}
+          <div className="space-y-3">
+            <div className="flex items-center space-x-2">
+              <input
+                type="radio"
+                id="use-template"
+                checked={!useCustomMessage}
+                onChange={() => setUseCustomMessage(false)}
               />
+              <Label htmlFor="use-template">Use Template Message</Label>
             </div>
-          )}
-        </div>
 
-        <div className="flex justify-end gap-2">
-          <DialogTrigger asChild>
-            <Button variant="outline" disabled={sending}>
-              Cancel
+            {!useCustomMessage && (
+              <div>
+                <Label>Select Template</Label>
+                <select
+                  className="w-full p-2 border rounded"
+                  value={selectedTemplate}
+                  onChange={(e) => setSelectedTemplate(e.target.value)}
+                >
+                  <option value="">Select a template...</option>
+                  {disputeTemplates.map((template) => (
+                    <option key={template.id} value={template.dispute_type}>
+                      {template.template_name}
+                    </option>
+                  ))}
+                </select>
+
+                {selectedTemplate && (
+                  <div className="mt-3 p-3 bg-muted/30 rounded text-sm">
+                    <Label className="font-medium">Preview:</Label>
+                    <pre className="whitespace-pre-wrap mt-2 text-xs">
+                      {getTemplatePreview()}
+                    </pre>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="flex items-center space-x-2">
+              <input
+                type="radio"
+                id="use-custom"
+                checked={useCustomMessage}
+                onChange={() => setUseCustomMessage(true)}
+              />
+              <Label htmlFor="use-custom">Write Custom Message</Label>
+            </div>
+
+            {useCustomMessage && (
+              <div>
+                <Label>Custom Investigation Message</Label>
+                <Textarea
+                  value={customMessage}
+                  onChange={(e) => setCustomMessage(e.target.value)}
+                  placeholder="Write your custom investigation message to the seller..."
+                  rows={8}
+                />
+              </div>
+            )}
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <DialogTrigger asChild>
+              <Button variant="outline" disabled={sending}>
+                Cancel
+              </Button>
+            </DialogTrigger>
+            <Button
+              onClick={handleSendInvestigation}
+              disabled={
+                sending ||
+                (!selectedTemplate && !useCustomMessage) ||
+                (useCustomMessage && !customMessage.trim())
+              }
+            >
+              {sending ? "Sending..." : "Send Investigation Notice"}
             </Button>
-          </DialogTrigger>
-          <Button
-            onClick={handleSendInvestigation}
-            disabled={
-              sending ||
-              (!selectedTemplate && !useCustomMessage) ||
-              (useCustomMessage && !customMessage.trim())
-            }
-          >
-            {sending ? "Sending..." : "Send Investigation Notice"}
-          </Button>
+          </div>
         </div>
-      </div>
-    );
-  });
+      );
+    }
+  );
 
   return (
     <div className="min-h-screen bg-background">
@@ -1699,43 +1912,85 @@ export default function Admin() {
               <TabsTrigger value="users" className="text-xs md:text-sm">
                 Users
               </TabsTrigger>
-              <TabsTrigger value="sellers" className="text-xs md:text-sm relative">
+              <TabsTrigger
+                value="sellers"
+                className="text-xs md:text-sm relative"
+              >
                 Sellers
                 {pendingSellers.length > 0 && (
-                  <Badge variant="destructive" className="absolute -top-2 -right-2 h-5 w-5 p-0 text-xs flex items-center justify-center">
+                  <Badge
+                    variant="destructive"
+                    className="absolute -top-2 -right-2 h-5 w-5 p-0 text-xs flex items-center justify-center"
+                  >
                     {pendingSellers.length}
                   </Badge>
                 )}
               </TabsTrigger>
-              <TabsTrigger value="verification" className="text-xs md:text-sm relative">
+              <TabsTrigger
+                value="verification"
+                className="text-xs md:text-sm relative"
+              >
                 Verify
                 {verificationRequests.length > 0 && (
-                  <Badge variant="destructive" className="absolute -top-2 -right-2 h-5 w-5 p-0 text-xs flex items-center justify-center">
+                  <Badge
+                    variant="destructive"
+                    className="absolute -top-2 -right-2 h-5 w-5 p-0 text-xs flex items-center justify-center"
+                  >
                     {verificationRequests.length}
                   </Badge>
                 )}
               </TabsTrigger>
-              <TabsTrigger value="appeals" className="text-xs md:text-sm relative">
+              <TabsTrigger
+                value="appeals"
+                className="text-xs md:text-sm relative"
+              >
                 Appeals
-                {banAppeals.filter(a => a.status === 'pending').length > 0 && (
-                  <Badge variant="destructive" className="absolute -top-2 -right-2 h-5 w-5 p-0 text-xs flex items-center justify-center">
-                    {banAppeals.filter(a => a.status === 'pending').length}
+                {banAppeals.filter((a) => a.status === "pending").length >
+                  0 && (
+                  <Badge
+                    variant="destructive"
+                    className="absolute -top-2 -right-2 h-5 w-5 p-0 text-xs flex items-center justify-center"
+                  >
+                    {banAppeals.filter((a) => a.status === "pending").length}
                   </Badge>
                 )}
               </TabsTrigger>
-              <TabsTrigger value="reports" className="text-xs md:text-sm relative">
+              <TabsTrigger
+                value="reports"
+                className="text-xs md:text-sm relative"
+              >
                 Reports
-                {productReports.filter(r => r.status === 'pending').length > 0 && (
-                  <Badge variant="destructive" className="absolute -top-2 -right-2 h-5 w-5 p-0 text-xs flex items-center justify-center">
-                    {productReports.filter(r => r.status === 'pending').length}
+                {productReports.filter((r) => r.status === "pending").length >
+                  0 && (
+                  <Badge
+                    variant="destructive"
+                    className="absolute -top-2 -right-2 h-5 w-5 p-0 text-xs flex items-center justify-center"
+                  >
+                    {
+                      productReports.filter((r) => r.status === "pending")
+                        .length
+                    }
                   </Badge>
                 )}
               </TabsTrigger>
-              <TabsTrigger value="escrow" className="text-xs md:text-sm relative">
+              <TabsTrigger
+                value="escrow"
+                className="text-xs md:text-sm relative"
+              >
                 Escrow
-                {(escrowTransactions.filter(e => e.status === 'held').length + payoutRequests.filter(p => p.status === 'pending').length + disputes.filter(d => d.status === 'open').length) > 0 && (
-                  <Badge variant="destructive" className="absolute -top-2 -right-2 h-5 w-5 p-0 text-xs flex items-center justify-center">
-                    {escrowTransactions.filter(e => e.status === 'held').length + payoutRequests.filter(p => p.status === 'pending').length + disputes.filter(d => d.status === 'open').length}
+                {escrowTransactions.filter((e) => e.status === "held").length +
+                  payoutRequests.filter((p) => p.status === "pending").length +
+                  disputes.filter((d) => d.status === "open").length >
+                  0 && (
+                  <Badge
+                    variant="destructive"
+                    className="absolute -top-2 -right-2 h-5 w-5 p-0 text-xs flex items-center justify-center"
+                  >
+                    {escrowTransactions.filter((e) => e.status === "held")
+                      .length +
+                      payoutRequests.filter((p) => p.status === "pending")
+                        .length +
+                      disputes.filter((d) => d.status === "open").length}
                   </Badge>
                 )}
               </TabsTrigger>
@@ -1982,7 +2237,10 @@ export default function Admin() {
                                       <div className="flex items-center gap-4">
                                         <Avatar className="h-16 w-16">
                                           <AvatarImage
-                                            src={selectedUser?.avatar_url || undefined}
+                                            src={
+                                              selectedUser?.avatar_url ||
+                                              undefined
+                                            }
                                           />
                                           <AvatarFallback className="bg-university-green text-white">
                                             {selectedUser?.full_name
@@ -2005,12 +2263,14 @@ export default function Admin() {
                                             <Badge variant="outline">
                                               {selectedUser?.account_type}
                                             </Badge>
-                                            {(selectedUser?.is_verified || false) && (
+                                            {(selectedUser?.is_verified ||
+                                              false) && (
                                               <Badge variant="secondary">
                                                 Verified
                                               </Badge>
                                             )}
-                                            {(selectedUser?.is_banned || false) && (
+                                            {(selectedUser?.is_banned ||
+                                              false) && (
                                               <Badge variant="destructive">
                                                 Banned
                                               </Badge>
@@ -2185,12 +2445,12 @@ export default function Admin() {
                                       }
                                     >
                                       <Shield className="h-4 w-4 mr-2" />
-                                      {(user.is_verified || false)
+                                      {user.is_verified || false
                                         ? "Remove Verification"
                                         : "Verify User"}
                                     </Button>
 
-                                    {(user.is_banned || false) ? (
+                                    {user.is_banned || false ? (
                                       <Button
                                         variant="outline"
                                         size="sm"
@@ -2218,7 +2478,8 @@ export default function Admin() {
                                         <DialogContent>
                                           <DialogHeader>
                                             <DialogTitle>
-                                              Ban User - {user.full_name || "User"}
+                                              Ban User -{" "}
+                                              {user.full_name || "User"}
                                             </DialogTitle>
                                             <DialogDescription>
                                               Provide a reason for banning this
@@ -2407,7 +2668,9 @@ export default function Admin() {
                                           </Label>
                                           <Input
                                             name="full_name"
-                                            defaultValue={editingUser.full_name || ""}
+                                            defaultValue={
+                                              editingUser.full_name || ""
+                                            }
                                             required
                                           />
                                         </div>
@@ -2416,7 +2679,9 @@ export default function Admin() {
                                           <Input
                                             name="email"
                                             type="email"
-                                            defaultValue={editingUser.email || ""}
+                                            defaultValue={
+                                              editingUser.email || ""
+                                            }
                                             required
                                           />
                                         </div>
@@ -2642,7 +2907,9 @@ export default function Admin() {
                                             step="0.1"
                                             min="0"
                                             max="5"
-                                            defaultValue={editingUser.rating || 0}
+                                            defaultValue={
+                                              editingUser.rating || 0
+                                            }
                                           />
                                         </div>
                                         <div>
@@ -2893,10 +3160,10 @@ export default function Admin() {
                                       </AlertDialogTitle>
                                       <AlertDialogDescription>
                                         Are you sure you want to approve{" "}
-                                        {seller.full_name || "this user"}'s seller application?
-                                        This will allow them to list items on
-                                        the marketplace and they will receive an
-                                        email notification.
+                                        {seller.full_name || "this user"}'s
+                                        seller application? This will allow them
+                                        to list items on the marketplace and
+                                        they will receive an email notification.
                                       </AlertDialogDescription>
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>
@@ -2932,10 +3199,10 @@ export default function Admin() {
                                       </AlertDialogTitle>
                                       <AlertDialogDescription>
                                         Are you sure you want to reject{" "}
-                                        {seller.full_name || "this user"}'s seller application?
-                                        Their account will be converted to
-                                        buyer-only and they will receive an
-                                        email notification.
+                                        {seller.full_name || "this user"}'s
+                                        seller application? Their account will
+                                        be converted to buyer-only and they will
+                                        receive an email notification.
                                       </AlertDialogDescription>
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>
@@ -2986,7 +3253,7 @@ export default function Admin() {
                       </Badge>
                     )}
                     <Button
-                      onClick={fetchEscrowData}
+                      onClick={fetchProductReports}
                       variant="outline"
                       size="sm"
                     >
@@ -3165,7 +3432,7 @@ export default function Admin() {
                                               toast.success(
                                                 "Email sent successfully"
                                               );
-                                              fetchEscrowData();
+                                              fetchProductReports();
                                             } catch (error) {
                                               toast.error(
                                                 "Failed to send email"
@@ -3185,11 +3452,17 @@ export default function Admin() {
                                     variant="default"
                                     onClick={async () => {
                                       try {
-                                        // Skip update since table doesn't exist
+                                        const { error } = await supabase
+                                          .from("product_reports")
+                                          .update({ status: "resolved" })
+                                          .eq("id", report.id);
+
+                                        if (error) throw error;
+
                                         toast.success(
                                           "Report marked as resolved"
                                         );
-                                        fetchEscrowData();
+                                        fetchProductReports();
                                       } catch (error) {
                                         toast.error("Failed to update report");
                                       }
@@ -3298,7 +3571,9 @@ export default function Admin() {
                                     </DialogTrigger>
                                     <DialogContent>
                                       <DialogHeader>
-                                        <DialogTitle>Full Appeal Message</DialogTitle>
+                                        <DialogTitle>
+                                          Full Appeal Message
+                                        </DialogTitle>
                                       </DialogHeader>
                                       <div className="max-h-96 overflow-y-auto">
                                         <p className="text-sm whitespace-pre-wrap">
@@ -3358,13 +3633,16 @@ export default function Admin() {
 
                                           try {
                                             // Update appeal status
-                                            const { error: appealError } = await supabase
-                                              .from('ban_appeals')
-                                              .update({
-                                                status: 'approved',
-                                                admin_response: response || 'Your appeal was approved and your account has been restored.'
-                                              })
-                                              .eq('id', appeal.id);
+                                            const { error: appealError } =
+                                              await supabase
+                                                .from("ban_appeals")
+                                                .update({
+                                                  status: "approved",
+                                                  admin_response:
+                                                    response ||
+                                                    "Your appeal was approved and your account has been restored.",
+                                                })
+                                                .eq("id", appeal.id);
 
                                             if (appealError) throw appealError;
 
@@ -3391,12 +3669,16 @@ export default function Admin() {
                                                 .eq("user_id", user.user_id);
 
                                               // Send notification to unbanned user
-                                              await supabase.from("notifications").insert({
-                                                user_id: user.user_id,
-                                                title: "Account Restored! 🎉",
-                                                message: response || "Your ban appeal has been approved and your account has been restored. Welcome back to UniMarket!",
-                                                type: "success",
-                                              });
+                                              await supabase
+                                                .from("notifications")
+                                                .insert({
+                                                  user_id: user.user_id,
+                                                  title: "Account Restored! 🎉",
+                                                  message:
+                                                    response ||
+                                                    "Your ban appeal has been approved and your account has been restored. Welcome back to UniMarket!",
+                                                  type: "success",
+                                                });
 
                                               // Send secure email notification
                                               try {
@@ -3478,13 +3760,14 @@ export default function Admin() {
 
                                           try {
                                             // Update appeal status
-                                            const { error: appealError } = await supabase
-                                              .from('ban_appeals')
-                                              .update({
-                                                status: 'rejected',
-                                                admin_response: response
-                                              })
-                                              .eq('id', appeal.id);
+                                            const { error: appealError } =
+                                              await supabase
+                                                .from("ban_appeals")
+                                                .update({
+                                                  status: "rejected",
+                                                  admin_response: response,
+                                                })
+                                                .eq("id", appeal.id);
 
                                             if (appealError) throw appealError;
 
@@ -3628,7 +3911,9 @@ export default function Admin() {
                       </TableHeader>
                       <TableBody>
                         {verificationRequests.map((user) => (
-                          <TableRow key={user.id}>
+                          <TableRow
+                            key={user.verification_request_id || user.id}
+                          >
                             <TableCell>
                               <div className="flex items-center gap-3">
                                 <Avatar className="h-10 w-10">
@@ -3851,15 +4136,15 @@ export default function Admin() {
                                           <Label className="font-medium mb-2 block">
                                             Face Verification Photo
                                           </Label>
-                                          {user.face_photo_url ? (
+                                          {user.avatar_url ? (
                                             <img
-                                              src={user.face_photo_url}
+                                              src={user.avatar_url}
                                               alt="Face verification"
                                               className="w-full max-w-xs h-auto rounded border"
                                             />
                                           ) : (
                                             <p className="text-muted-foreground text-sm">
-                                              No face photo
+                                              No profile photo
                                             </p>
                                           )}
                                         </div>
@@ -3872,7 +4157,7 @@ export default function Admin() {
                                             <img
                                               src={user.student_id_photo_url}
                                               alt="Student ID verification"
-                                              className="w-full h-auto rounded border cursor-pointer hover:opacity-80 transition-opacity"
+                                              className="w-full h-auto rounded border"
                                               onClick={() =>
                                                 window.open(
                                                   user.student_id_photo_url,
@@ -3909,10 +4194,10 @@ export default function Admin() {
                                       </AlertDialogTitle>
                                       <AlertDialogDescription>
                                         Are you sure you want to grant{" "}
-                                        {user.full_name || "this user"} a verification badge?
-                                        This will show a green checkmark on
-                                        their profile indicating they are a
-                                        trusted user.
+                                        {user.full_name || "this user"} a
+                                        verification badge? This will show a
+                                        green checkmark on their profile
+                                        indicating they are a trusted user.
                                       </AlertDialogDescription>
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>
@@ -3922,7 +4207,8 @@ export default function Admin() {
                                       <AlertDialogAction
                                         onClick={() =>
                                           approveVerification(
-                                            user.id,
+                                            user.verification_request_id ||
+                                              user.id,
                                             user.user_id,
                                             user.email,
                                             user.full_name || "User"
@@ -3949,7 +4235,8 @@ export default function Admin() {
                                       </DialogTitle>
                                       <DialogDescription>
                                         Provide a reason for rejecting{" "}
-                                        {user.full_name || "this user"}'s verification request.
+                                        {user.full_name || "this user"}'s
+                                        verification request.
                                       </DialogDescription>
                                     </DialogHeader>
                                     <form
@@ -3963,7 +4250,8 @@ export default function Admin() {
                                         ) as string;
                                         if (reason.trim()) {
                                           rejectVerification(
-                                            user.id,
+                                            user.verification_request_id ||
+                                              user.id,
                                             user.user_id,
                                             user.email,
                                             user.full_name || "User",
@@ -4783,7 +5071,6 @@ export default function Admin() {
                                         try {
                                           // Mock update since table doesn't exist
 
-                                          
                                           toast.success(
                                             "Template updated successfully"
                                           );
@@ -5087,11 +5374,16 @@ export default function Admin() {
                             <TableCell>
                               <div>
                                 <p className="font-medium">
-                                  User #{payout.user_id.slice(0, 8)}
+                                  {payout.profiles?.full_name || `User #${payout.user_id.slice(0, 8)}`}
                                 </p>
                                 <p className="text-sm text-muted-foreground">
-                                  Payout Request
+                                  {payout.profiles?.email || "No email"}
                                 </p>
+                                {payout.wallets && (
+                                  <p className="text-xs text-blue-600">
+                                    Wallet: ₦{payout.wallets.available_balance?.toLocaleString() || '0'}
+                                  </p>
+                                )}
                               </div>
                             </TableCell>
                             <TableCell>
@@ -5121,18 +5413,45 @@ export default function Admin() {
                             <TableCell>
                               {payout.status === "pending" && (
                                 <div className="flex gap-2">
-                                  <Button
-                                    size="sm"
-                                    onClick={() =>
-                                      processPayoutRequest(
-                                        payout.id,
-                                        true,
-                                        "Payout approved by admin"
-                                      )
-                                    }
-                                  >
-                                    Approve
-                                  </Button>
+                                  <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                      <Button size="sm">
+                                        Approve
+                                      </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle>
+                                          Approve Payout Request
+                                        </AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                          Are you sure you want to approve this payout of ₦{payout.amount.toLocaleString()} to {payout.bank_account_name} ({payout.bank_name})?
+                                          {payout.wallets && payout.wallets.available_balance < payout.amount && (
+                                            <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-red-700">
+                                              ⚠️ Warning: Insufficient wallet balance (₦{payout.wallets.available_balance?.toLocaleString() || '0'}) for this payout.
+                                            </div>
+                                          )}
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel>
+                                          Cancel
+                                        </AlertDialogCancel>
+                                        <AlertDialogAction
+                                          onClick={() =>
+                                            processPayoutRequest(
+                                              payout.id,
+                                              true,
+                                              "Payout approved by admin"
+                                            )
+                                          }
+                                          disabled={payout.wallets && payout.wallets.available_balance < payout.amount}
+                                        >
+                                          Approve Payout
+                                        </AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
                                   <Button
                                     size="sm"
                                     variant="outline"
@@ -5146,6 +5465,16 @@ export default function Admin() {
                                   >
                                     Reject
                                   </Button>
+                                </div>
+                              )}
+                              {payout.status === "approved" && (
+                                <Badge variant="default" className="text-green-700 bg-green-100">
+                                  ✓ Processed
+                                </Badge>
+                              )}
+                              {payout.status === "rejected" && payout.admin_notes && (
+                                <div className="text-xs text-red-600">
+                                  Rejected: {payout.admin_notes}
                                 </div>
                               )}
                             </TableCell>
@@ -5248,52 +5577,81 @@ export default function Admin() {
                                         <h4 className="font-medium mb-2">
                                           Dispute Details
                                         </h4>
-                                        <p>
-                                          <strong>Product:</strong>{" "}
-                                          {dispute.orders?.products?.title}
-                                        </p>
-                                        <p>
-                                          <strong>Seller:</strong>{" "}
-                                          {
-                                            dispute.orders?.seller_profile
-                                              ?.full_name
-                                          }
-                                        </p>
-                                        <p>
-                                          <strong>Buyer:</strong>{" "}
-                                          {
-                                            dispute.orders?.buyer_profile
-                                              ?.full_name
-                                          }
-                                        </p>
-                                        <p>
-                                          <strong>Reason:</strong>{" "}
-                                          {dispute.reason.replace("_", " ")}
-                                        </p>
-                                        {dispute.description && (
-                                          <p>
-                                            <strong>Description:</strong>{" "}
-                                            {dispute.description}
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                          <div>
+                                            <p>
+                                              <strong>Product:</strong>{" "}
+                                              {dispute.orders?.products?.title || "Unknown Product"}
+                                            </p>
+                                            <p>
+                                              <strong>Order ID:</strong>{" "}
+                                              #{dispute.order_id.slice(0, 8)}...
+                                            </p>
+                                            <p>
+                                              <strong>Status:</strong>{" "}
+                                              <Badge variant={dispute.status === "open" ? "destructive" : "default"}>
+                                                {dispute.status}
+                                              </Badge>
+                                            </p>
+                                          </div>
+                                          <div>
+                                            <p>
+                                              <strong>Reported By:</strong>{" "}
+                                              {dispute.reporter?.full_name || "Unknown Reporter"}
+                                            </p>
+                                            <p>
+                                              <strong>Date Reported:</strong>{" "}
+                                              {new Date(dispute.created_at).toLocaleDateString()}
+                                            </p>
+                                          </div>
+                                        </div>
+                                        
+                                        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                          <div className="p-3 bg-blue-50 rounded">
+                                            <h5 className="font-medium text-blue-900 mb-2">Seller Information</h5>
+                                            <p className="text-sm">
+                                              <strong>Name:</strong>{" "}
+                                              {dispute.orders?.seller_profile?.full_name || "Unknown Seller"}
+                                            </p>
+                                            <p className="text-sm">
+                                              <strong>Student ID:</strong>{" "}
+                                              {dispute.orders?.seller_profile?.student_id || "N/A"}
+                                            </p>
+                                          </div>
+                                          <div className="p-3 bg-green-50 rounded">
+                                            <h5 className="font-medium text-green-900 mb-2">Buyer Information</h5>
+                                            <p className="text-sm">
+                                              <strong>Name:</strong>{" "}
+                                              {dispute.orders?.buyer_profile?.full_name || "Unknown Buyer"}
+                                            </p>
+                                            <p className="text-sm">
+                                              <strong>Student ID:</strong>{" "}
+                                              {dispute.orders?.buyer_profile?.student_id || "N/A"}
+                                            </p>
+                                          </div>
+                                        </div>
+                                        
+                                        <div className="mt-4 p-3 bg-red-50 rounded">
+                                          <h5 className="font-medium text-red-900 mb-2">Dispute Information</h5>
+                                          <p className="text-sm">
+                                            <strong>Reason:</strong>{" "}
+                                            <Badge variant="outline" className="ml-1">
+                                              {dispute.reason.replace("_", " ").toUpperCase()}
+                                            </Badge>
                                           </p>
-                                        )}
+                                          {dispute.description && (
+                                            <p className="text-sm mt-2">
+                                              <strong>Description:</strong>{" "}
+                                              <span className="italic">{dispute.description}</span>
+                                            </p>
+                                          )}
+                                        </div>
                                       </div>
 
                                       <div className="flex gap-2">
                                         <Button
                                           onClick={() => {
-                                            const message = `Hi! I need to discuss a dispute regarding:\n\nOrder ID: #${dispute.order_id.slice(
-                                              -8
-                                            )}\nProduct: ${
-                                              dispute.orders?.products?.title
-                                            }\nBuyer: ${
-                                              dispute.orders?.buyer_profile
-                                                ?.full_name
-                                            }\nReason: ${dispute.reason.replace(
-                                              "_",
-                                              " "
-                                            )}\n\nDescription: ${
-                                              dispute.description
-                                            }\n\nPlease respond to help resolve this issue.`;
+                                            const message = `🚨 DISPUTE ALERT - CampusConnect Admin\n\n📋 Order Details:\n• Order ID: #${dispute.order_id.slice(0, 8)}...\n• Product: ${dispute.orders?.products?.title || "Unknown Product"}\n\n👤 Seller Info:\n• Name: ${dispute.orders?.seller_profile?.full_name || "Unknown"}\n• Student ID: ${dispute.orders?.seller_profile?.student_id || "N/A"}\n\n👤 Buyer Info:\n• Name: ${dispute.orders?.buyer_profile?.full_name || "Unknown"}\n• Student ID: ${dispute.orders?.buyer_profile?.student_id || "N/A"}\n\n⚠️ Dispute Details:\n• Reason: ${dispute.reason.replace("_", " ").toUpperCase()}\n• Description: ${dispute.description || "No description provided"}\n• Reported: ${new Date(dispute.created_at).toLocaleDateString()}\n\n📞 Please respond ASAP to help resolve this issue. Contact the buyer directly or provide clarification about the product/service.`;
                                             window.open(
                                               `https://wa.me/2349133054018?text=${encodeURIComponent(
                                                 message
@@ -5304,7 +5662,7 @@ export default function Admin() {
                                           className="text-green-600 border-green-600 hover:bg-green-50"
                                           variant="outline"
                                         >
-                                          Chat Seller on WhatsApp
+                                          📱 Contact Seller via WhatsApp
                                         </Button>
                                         <Button
                                           onClick={async () => {
