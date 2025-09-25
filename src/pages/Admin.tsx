@@ -1060,13 +1060,14 @@ export default function Admin() {
           }
         }
 
-        // Call the payout processing function
-        const { data, error: payoutError } = await supabase.rpc(
-          "process_payout_request",
+        // Call the real money transfer function
+        const { data, error: payoutError } = await supabase.functions.invoke(
+          "process-payout",
           {
-            payout_id: payoutId,
-            admin_id: user.id,
-            admin_notes: notes || null,
+            body: {
+              payout_id: payoutId,
+              admin_id: user.id,
+            }
           }
         );
 
@@ -1076,9 +1077,13 @@ export default function Admin() {
           return;
         }
 
-        if (!data) {
-          toast.error("Payout processing returned false - check server logs for details");
+        if (data?.error) {
+          toast.error(`Transfer failed: ${data.error}`);
           return;
+        }
+
+        if (data?.success) {
+          toast.success(`Real money transfer initiated! Transfer code: ${data.transfer_code}`);
         }
       } else {
         // Just reject the payout request

@@ -397,16 +397,40 @@ const Orders = () => {
 
   const withdrawDispute = async (orderId: string) => {
     try {
-      // Close the dispute in the disputes table
-      const { error: disputeError } = await supabase
+      // Get the dispute ID for this order
+      const { data: dispute } = await supabase
         .from("disputes")
-        .update({ status: "closed" })
+        .select("id")
         .eq("order_id", orderId)
-        .eq("status", "open");
+        .eq("status", "open")
+        .single();
 
-      if (disputeError) {
-        console.error("Error closing dispute:", disputeError);
-        throw disputeError;
+      if (!dispute) {
+        toast({
+          title: "Error",
+          description: "No open dispute found for this order",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Use the withdraw_dispute function
+      const { data, error } = await supabase.rpc("withdraw_dispute", {
+        dispute_id: dispute.id,
+      });
+
+      if (error) {
+        console.error("Error withdrawing dispute:", error);
+        throw error;
+      }
+
+      if (!data) {
+        toast({
+          title: "Error",
+          description: "Failed to withdraw dispute - you may not have permission",
+          variant: "destructive",
+        });
+        return;
       }
 
       // Update order status back to delivered
