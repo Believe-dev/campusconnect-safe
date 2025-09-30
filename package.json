@@ -8,8 +8,14 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "build:secure": "node scripts/build-obfuscated.js",
+    "build:analyze": "vite build --mode production && npx vite-bundle-analyzer dist",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "lint:fix": "eslint . --fix",
+    "preview": "vite preview",
+    "lighthouse": "lighthouse http://localhost:4173 --output html --output-path ./lighthouse-report.html",
+    "test:performance": "npm run build && npm run preview & sleep 5 && npm run lighthouse",
+    "optimize:images": "imagemin src/assets/* --out-dir=src/assets/optimized --plugin=imagemin-webp --plugin=imagemin-avif",
+    "check:bundle": "npm run build && ls -la dist/assets/"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

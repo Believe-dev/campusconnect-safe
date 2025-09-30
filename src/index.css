@@ -3,6 +3,7 @@
 @import "./styles/browser-fixes.css";
 @import "./styles/mobile-upload.css";
 @import "./styles/ios-fixes.css";
+@import "./styles/accessibility.css";
 
 @tailwind base;
 @tailwind components;
@@ -593,5 +594,68 @@
   .low-memory img {
     image-rendering: pixelated;
     filter: none !important;
+  }
+
+  /* Low-end device optimizations */
+  .low-end-device {
+    contain: layout style;
+  }
+
+  .low-end-device * {
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    filter: none !important;
+  }
+
+  .low-end-device .gradient-brand,
+  .low-end-device .gradient-accent,
+  .low-end-device .gradient-hero {
+    background: hsl(var(--primary)) !important;
+  }
+
+  .low-end-device .loading-shimmer {
+    animation: none !important;
+    background: rgba(0, 0, 0, 0.05) !important;
+  }
+
+  /* Reduced motion support */
+  .reduce-motion *,
+  .reduce-motion *::before,
+  .reduce-motion *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* Critical CSS for above-the-fold content */
+  .critical-css {
+    font-display: swap;
+    contain: layout;
+  }
+
+  /* Optimize images for performance */
+  .perf-image {
+    content-visibility: auto;
+    contain-intrinsic-size: 300px 200px;
+  }
+
+  /* Efficient scrolling */
+  .efficient-scroll {
+    overflow-anchor: auto;
+    overscroll-behavior: contain;
+  }
+
+  /* GPU-optimized transforms */
+  .gpu-optimized {
+    transform: translateZ(0);
+    backface-visibility: hidden;
+    perspective: 1000px;
+  }
+
+  /* Content visibility for performance */
+  .lazy-content {
+    content-visibility: auto;
+    contain-intrinsic-size: 0 200px;
   }
 }

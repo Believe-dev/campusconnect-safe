@@ -178,15 +178,15 @@ const Favorites = () => {
   const getConditionColor = (condition: string) => {
     switch (condition) {
       case 'new':
-        return 'bg-success/10 text-success border-success/20';
+        return 'bg-green-100 text-green-800 border-green-200';
       case 'like_new':
-        return 'bg-verified-blue/10 text-verified-blue border-verified-blue/20';
+        return 'bg-blue-100 text-blue-800 border-blue-200';
       case 'good':
-        return 'bg-warning/10 text-warning border-warning/20';
+        return 'bg-orange-100 text-orange-800 border-orange-200';
       case 'fair':
-        return 'bg-muted text-muted-foreground border-border';
+        return 'bg-gray-100 text-gray-800 border-gray-200';
       default:
-        return 'bg-muted text-muted-foreground border-border';
+        return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
 
@@ -261,13 +261,13 @@ const Favorites = () => {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
             {favorites.map((favorite) => {
               const product = favorite.products;
               return (
                 <Card 
                   key={favorite.id} 
-                  className="group hover:shadow-lg transition-all duration-200 hover:scale-[1.02] overflow-hidden cursor-pointer border-border/50 hover:border-primary/20 flex flex-col h-full"
+                  className="group hover:shadow-md transition-all duration-200 overflow-hidden cursor-pointer border-border/50 hover:border-primary/20 flex flex-col"
                   onClick={() => navigate(`/product/${product.id}`)}
                 >
                   <div className="relative aspect-square overflow-hidden bg-muted">
@@ -275,18 +275,18 @@ const Favorites = () => {
                       <img
                         src={product.images[0]}
                         alt={product.title}
-                        className="object-cover w-full h-full group-hover:scale-105 transition-smooth"
+                        className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-300"
                       />
                     ) : (
                       <div className="flex items-center justify-center h-full bg-muted">
-                        <Package className="h-12 w-12 text-muted-foreground" />
+                        <Package className="h-8 w-8 text-muted-foreground" />
                       </div>
                     )}
                     
                     {/* Condition Badge */}
-                    <div className={`absolute top-2 right-2 px-2 py-1 rounded-full text-xs font-medium border ${getConditionColor(product.condition)}`}>
-                      {product.condition.replace('_', ' ').toUpperCase()}
-                    </div>
+                    <Badge className={`absolute top-2 right-2 text-xs px-2 py-1 font-medium shadow-sm ${getConditionColor(product.condition)}`}>
+                      {product.condition === 'like_new' ? 'Like New' : product.condition.charAt(0).toUpperCase() + product.condition.slice(1)}
+                    </Badge>
 
                     {/* Remove from Favorites Button */}
                     <button
@@ -294,101 +294,84 @@ const Favorites = () => {
                         e.stopPropagation();
                         handleRemoveFavorite(favorite.id, product.title);
                       }}
-                      className="absolute top-2 left-2 bg-background/90 hover:bg-background p-1.5 rounded-full transition-all duration-200 hover:scale-110 shadow-sm"
+                      className="absolute top-2 left-2 bg-red-500 hover:bg-red-600 w-6 h-6 rounded-full transition-all duration-200 hover:scale-110 shadow-md flex items-center justify-center"
                       title="Remove from favorites"
                     >
-                      <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                      <Trash2 className="h-3 w-3 text-white" />
                     </button>
 
                     {/* Stock indicator */}
                     {product.stock_quantity === 0 && (
-                      <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                        <span className="text-white font-medium">Out of Stock</span>
+                      <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                        <span className="text-white text-xs font-medium">Out of Stock</span>
                       </div>
                     )}
                   </div>
 
-                  <CardContent className="p-2 sm:p-3 md:p-4 flex-1 flex flex-col">
-                    <div className="space-y-2 flex-1">
-                      <h3 className="font-semibold text-sm sm:text-base leading-tight line-clamp-3 group-hover:text-primary transition-colors min-h-[3rem] sm:min-h-[3.5rem]">
+                  <CardContent className="p-2 flex-1 flex flex-col">
+                    <div className="space-y-1 flex-1">
+                      <h3 className="font-medium text-sm leading-tight line-clamp-2 group-hover:text-primary transition-colors">
                         {product.title}
                       </h3>
-                      {product.description && (
-                        <p className="text-xs sm:text-sm text-muted-foreground line-clamp-2 min-h-[2rem] sm:min-h-[2.5rem] hidden sm:block">
-                          {product.description}
-                        </p>
-                      )}
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <MapPin className="h-3 w-3 flex-shrink-0" />
-                        <span className="truncate">{product.campus || 'Campus'}</span>
-                        <span className="text-accent">•</span>
-                        <span className="capitalize truncate">{product.category}</span>
-                      </div>
-                      {product.stock_quantity > 0 && product.stock_quantity <= 5 && (
-                        <div className="flex items-center gap-1 text-xs text-warning">
-                          <Package className="h-3 w-3" />
-                          <span>Only {product.stock_quantity} left</span>
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-
-                  <div className="p-2 sm:p-3 md:p-4 pt-0 space-y-2 sm:space-y-3 mt-auto">
-                    <div className="flex items-center justify-between">
-                      <div className="space-y-1">
-                        <div className="font-bold text-lg sm:text-xl text-university-green">
-                          ₦{product.price.toLocaleString()}
-                        </div>
-                        <div className="flex items-center gap-1 text-xs sm:text-sm">
-                          <span className="text-muted-foreground">by</span>
-                          <span className="font-medium truncate">{product.profiles?.full_name || 'Unknown Seller'}</span>
-                          {product.profiles?.is_verified && (
-                            <div className="bg-verified-blue rounded-full p-0.5">
-                              <svg className="h-2.5 w-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                              </svg>
-                            </div>
-                          )}
-                        </div>
-                        {product.profiles?.rating && (
-                          <div className="flex items-center gap-1">
-                            <Star className="h-3 w-3 fill-warning text-warning" />
-                            <span className="text-xs font-medium">{product.profiles.rating.toFixed(1)}</span>
-                            <span className="text-xs text-muted-foreground">rating</span>
+                      
+                      <div className="flex items-center gap-1 text-xs">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/seller/${product.profiles?.user_id || product.seller_id}`);
+                          }}
+                          className="text-primary hover:text-primary/80 font-medium underline underline-offset-2 hover:underline-offset-1 transition-all truncate"
+                        >
+                          {product.profiles?.full_name || 'Unknown'}
+                        </button>
+                        {product.profiles?.is_verified && (
+                          <div className="bg-verified-blue rounded-full p-0.5 flex-shrink-0">
+                            <svg className="h-2 w-2 text-white" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                            </svg>
                           </div>
                         )}
                       </div>
+
+                      <div className="font-bold text-base text-university-green">
+                        ₦{product.price.toLocaleString()}
+                      </div>
+
+                      {product.stock_quantity > 0 && product.stock_quantity <= 5 && (
+                        <div className="flex items-center gap-1 text-xs text-warning">
+                          <Package className="h-2.5 w-2.5" />
+                          <span>{product.stock_quantity} left</span>
+                        </div>
+                      )}
                     </div>
 
-                    <div className="flex gap-1 sm:gap-2">
+                    <div className="flex gap-1 mt-2">
                       <Button
                         variant="outline"
                         size="sm"
-                        className="flex-1 text-xs px-2 sm:px-3"
+                        className="flex-1 text-xs h-7 px-2"
                         onClick={(e) => {
                           e.stopPropagation();
                           navigate('/messages');
                         }}
                         disabled={product.stock_quantity === 0}
                       >
-                        <MessageCircle className="h-3 w-3 mr-1" />
-                        Chat
+                        <MessageCircle className="h-2.5 w-2.5" />
                       </Button>
                       <Button
-                        variant="marketplace"
+                        variant="brand"
                         size="sm"
-                        className="flex-1 text-xs px-2 sm:px-3"
+                        className="flex-1 text-xs h-7 px-2"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleAddToCart(product.id, product.title);
                         }}
                         disabled={product.stock_quantity === 0}
                       >
-                        <ShoppingCart className="h-3 w-3 mr-1" />
-                        Cart
+                        <ShoppingCart className="h-2.5 w-2.5" />
                       </Button>
                     </div>
-                  </div>
+                  </CardContent>
                 </Card>
               );
             })}

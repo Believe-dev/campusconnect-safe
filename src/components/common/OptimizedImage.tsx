@@ -1,93 +1,128 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { createIntersectionObserver, optimizeImageUrl } from '@/lib/performance';
+import React, { useState, useCallback, memo } from 'react';
+import { cn } from '@/lib/utils';
 
 interface OptimizedImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
   src: string;
   alt: string;
   width?: number;
   height?: number;
-  lazy?: boolean;
+  priority?: boolean;
+  quality?: number;
+  sizes?: string;
   fallback?: string;
+  className?: string;
   onLoad?: () => void;
   onError?: () => void;
 }
 
-export const OptimizedImage: React.FC<OptimizedImageProps> = ({
+const OptimizedImage = memo(({
   src,
   alt,
   width,
   height,
-  lazy = true,
+  priority = false,
+  quality = 75,
+  sizes,
   fallback = '/placeholder.svg',
+  className,
   onLoad,
   onError,
-  className = '',
   ...props
-}) => {
-  const [isLoaded, setIsLoaded] = useState(false);
+}: OptimizedImageProps) => {
+  const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
-  const [shouldLoad, setShouldLoad] = useState(!lazy);
-  const imgRef = useRef<HTMLImageElement>(null);
+  const [currentSrc, setCurrentSrc] = useState(src);
 
-  useEffect(() => {
-    if (!lazy || shouldLoad) return;
+  const handleLoad = useCallback(() => {
+    setIsLoading(false);
+    onLoad?.();
+  }, [onLoad]);
 
-    const observer = createIntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            setShouldLoad(true);
-            observer?.unobserve(entry.target);
-          }
-        });
-      },
-      { rootMargin: '50px' }
-    );
+  const handleError = useCallback(() => {
+    setHasError(true);
+    setIsLoading(false);
+    setCurrentSrc(fallback);
+    onError?.();
+  }, [fallback, onError]);
 
-    if (observer && imgRef.current) {
-      observer.observe(imgRef.current);
+  // Generate WebP and responsive sources
+  const generateSrcSet = (baseSrc: string) => {
+    if (!baseSrc || baseSrc.startsWith('data:') || baseSrc.includes('placeholder')) {
+      return baseSrc;
     }
 
-    return () => {
-      if (observer && imgRef.current) {
-        observer.unobserve(imgRef.current);
-      }
-    };
-  }, [lazy, shouldLoad]);
+    // For Supabase storage URLs, generate responsive variants
+    if (baseSrc.includes('supabase.co/storage')) {
+      const baseUrl = baseSrc.split('?')[0];
+      const sizes = [320, 640, 768, 1024, 1280];
+      
+      return sizes
+        .map(size => `${baseUrl}?width=${size}&quality=${quality} ${size}w`)
+        .join(', ');
+    }
 
-  const handleLoad = () => {
-    setIsLoaded(true);
-    onLoad?.();
+    return baseSrc;
   };
 
-  const handleError = () => {
-    setHasError(true);
-    onError?.();
-  };
-
-  const optimizedSrc = shouldLoad ? optimizeImageUrl(src, width, height) : '';
-  const displaySrc = hasError ? fallback : optimizedSrc;
+  const srcSet = generateSrcSet(currentSrc);
 
   return (
-    <div className={`relative overflow-hidden ${className}`}>
-      {!isLoaded && shouldLoad && (
-        <div className="absolute inset-0 bg-muted animate-pulse" />
+    <div className={cn('relative overflow-hidden', className)}>
+      {isLoading && (
+        <div 
+          className="absolute inset-0 bg-muted animate-pulse"
+          style={{ aspectRatio: width && height ? `${width}/${height}` : undefined }}
+        />
       )}
-      <img
-        ref={imgRef}
-        src={displaySrc}
-        alt={alt}
-        width={width}
-        height={height}
-        onLoad={handleLoad}
-        onError={handleError}
-        className={`transition-opacity duration-300 ${
-          isLoaded ? 'opacity-100' : 'opacity-0'
-        }`}
-        loading={lazy ? 'lazy' : 'eager'}
-        style={{ maxWidth: '100%', height: 'auto' }}
-        {...props}
-      />
+      
+      <picture>
+        {/* WebP source for modern browsers */}
+        {!hasError && !currentSrc.includes('placeholder') && (
+          <source
+            srcSet={srcSet.replace(/\.(jpg|jpeg|png)/gi, '.webp')}
+            sizes={sizes}
+            type="image/webp"
+          />
+        )}
+        
+        {/* AVIF source for even better compression */}
+        {!hasError && !currentSrc.includes('placeholder') && (
+          <source
+            srcSet={srcSet.replace(/\.(jpg|jpeg|png)/gi, '.avif')}
+            sizes={sizes}
+            type="image/avif"
+          />
+        )}
+        
+        {/* Fallback image */}
+        <img
+          src={currentSrc}
+          srcSet={srcSet}
+          sizes={sizes}
+          alt={alt}
+          width={width}
+          height={height}
+          loading={priority ? 'eager' : 'lazy'}
+          decoding="async"
+          onLoad={handleLoad}
+          onError={handleError}
+          className={cn(
+            'transition-opacity duration-300',
+            isLoading ? 'opacity-0' : 'opacity-100',
+            'max-w-full h-auto'
+          )}
+          {...props}
+        />
+      </picture>
+      
+      {/* Loading skeleton overlay */}
+      {isLoading && (
+        <div className="absolute inset-0 bg-gradient-to-r from-muted via-muted/50 to-muted loading-shimmer" />
+      )}
     </div>
   );
-};
+});
+
+OptimizedImage.displayName = 'OptimizedImage';
+
+export { OptimizedImage };

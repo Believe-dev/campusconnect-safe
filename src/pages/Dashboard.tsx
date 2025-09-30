@@ -155,7 +155,10 @@ const Dashboard = () => {
       }
 
       // Check if user is approved seller
-      if (profile.account_type === 'buyer' || profile.seller_status !== 'approved') {
+      if (
+        profile.account_type === "buyer" ||
+        profile.seller_status !== "approved"
+      ) {
         setAccessDenied(true);
         return;
       }
@@ -214,17 +217,19 @@ const Dashboard = () => {
 
   const handleUpdateProduct = async (product: Product) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) {
-        navigate('/auth');
+        navigate("/auth");
         return;
       }
 
       // Re-verify seller status before update (prevent race conditions)
       const { data: currentProfile, error: profileError } = await supabase
-        .from('profiles')
-        .select('account_type, seller_status')
-        .eq('user_id', user.id)
+        .from("profiles")
+        .select("account_type, seller_status")
+        .eq("user_id", user.id)
         .single();
 
       if (profileError || !currentProfile) {
@@ -236,13 +241,16 @@ const Dashboard = () => {
         return;
       }
 
-      if (currentProfile.account_type === 'buyer' || currentProfile.seller_status !== 'approved') {
+      if (
+        currentProfile.account_type === "buyer" ||
+        currentProfile.seller_status !== "approved"
+      ) {
         toast({
           title: "Access Denied",
           description: "You must be an approved seller to update products",
           variant: "destructive",
         });
-        navigate('/profile');
+        navigate("/profile");
         return;
       }
 
@@ -261,13 +269,13 @@ const Dashboard = () => {
         .eq("id", product.id);
 
       if (error) {
-        if (error.message.includes('approved sellers')) {
+        if (error.message.includes("approved sellers")) {
           toast({
             title: "Access Denied",
             description: "Only approved sellers can update products",
             variant: "destructive",
           });
-          navigate('/profile');
+          navigate("/profile");
           return;
         }
         throw error;
@@ -291,17 +299,19 @@ const Dashboard = () => {
 
   const toggleProductStatus = async (productId: string, isActive: boolean) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) {
-        navigate('/auth');
+        navigate("/auth");
         return;
       }
 
       // Re-verify seller status before status toggle
       const { data: currentProfile, error: profileError } = await supabase
-        .from('profiles')
-        .select('account_type, seller_status')
-        .eq('user_id', user.id)
+        .from("profiles")
+        .select("account_type, seller_status")
+        .eq("user_id", user.id)
         .single();
 
       if (profileError || !currentProfile) {
@@ -313,13 +323,16 @@ const Dashboard = () => {
         return;
       }
 
-      if (currentProfile.account_type === 'buyer' || currentProfile.seller_status !== 'approved') {
+      if (
+        currentProfile.account_type === "buyer" ||
+        currentProfile.seller_status !== "approved"
+      ) {
         toast({
           title: "Access Denied",
           description: "You must be an approved seller to manage products",
           variant: "destructive",
         });
-        navigate('/profile');
+        navigate("/profile");
         return;
       }
 
@@ -329,13 +342,13 @@ const Dashboard = () => {
         .eq("id", productId);
 
       if (error) {
-        if (error.message.includes('approved sellers')) {
+        if (error.message.includes("approved sellers")) {
           toast({
             title: "Access Denied",
             description: "Only approved sellers can manage products",
             variant: "destructive",
           });
-          navigate('/profile');
+          navigate("/profile");
           return;
         }
         throw error;
@@ -421,12 +434,14 @@ const Dashboard = () => {
           <Card className="max-w-2xl mx-auto">
             <CardContent className="pt-6 text-center">
               <div className="text-center">
-                <div className="mx-auto h-12 w-12 text-muted-foreground mb-4">🚫</div>
+                <div className="mx-auto h-12 w-12 text-muted-foreground mb-4">
+                  🚫
+                </div>
                 <h2 className="text-2xl font-bold mb-2">Access Denied</h2>
                 <p className="text-muted-foreground mb-4">
                   You need to be an approved seller to access the dashboard.
                 </p>
-                <Button onClick={() => navigate('/profile')} variant="outline">
+                <Button onClick={() => navigate("/profile")} variant="outline">
                   Go to Profile
                 </Button>
               </div>
@@ -510,7 +525,7 @@ const Dashboard = () => {
         </div>
 
         <Tabs defaultValue="products" className="space-y-4 sm:space-y-6">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-3 h-fit">
             <TabsTrigger value="products" className="text-xs sm:text-sm">
               Products
             </TabsTrigger>

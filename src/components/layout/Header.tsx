@@ -490,13 +490,7 @@ const Header = () => {
                 </Link>
               </Button>
 
-              <Button
-                onClick={() => setTheme(theme === "light" ? "dark" : "light")}
-                className="flex items-center justify-between px-3 py-2"
-              >
-                <span className="text-sm font-medium">Theme</span>
-                <ThemeToggle />
-              </Button>
+              <ThemeToggle />
 
               <div className="border-t my-2" />
 
@@ -567,9 +561,6 @@ const Header = () => {
             <NetworkIndicator />
 
             {/* Theme Toggle - Desktop only */}
-            <div className="hidden lg:block">
-              <ThemeToggle />
-            </div>
 
             {/* Mobile Search Dialog */}
             <div className="lg:hidden">
@@ -619,27 +610,18 @@ const Header = () => {
               <>
                 {/* Desktop Navigation - Hidden on mobile */}
                 <div className="hidden lg:flex items-center gap-2">
-                  <Button variant="ghost" size="sm" asChild>
-                    <Link to="/marketplace">
-                      <Store className="mr-1 h-4 w-4" />
-                      Marketplace
-                    </Link>
-                  </Button>
-
-                  <Button variant="ghost" size="sm" asChild>
-                    <Link to="/sellers">
-                      <User className="mr-1 h-4 w-4" />
-                      Sellers
-                    </Link>
-                  </Button>
-
-                  <Button variant="ghost" size="sm" asChild>
-                    <Link to="/learn-more">Learn More</Link>
-                  </Button>
-
-                  <Button variant="ghost" size="sm" asChild>
-                    <Link to="/suggestions">Suggestions</Link>
-                  </Button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="ghost" size="sm" asChild>
+                        <Link to="/marketplace">
+                          <Store className="mr-1 h-4 w-4" />
+                        </Link>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Marketplace</p>
+                    </TooltipContent>
+                  </Tooltip>
 
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -650,12 +632,23 @@ const Header = () => {
                         className="relative"
                       >
                         <Link to="/notifications">
-                          <Bell className="h-5 w-5" style={{ WebkitAppearance: 'none', appearance: 'none' }} />
+                          <Bell
+                            className="h-5 w-5"
+                            style={{
+                              WebkitAppearance: "none",
+                              appearance: "none",
+                            }}
+                          />
                           {unreadCount > 0 && (
                             <Badge
                               variant="destructive"
                               className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center p-0 text-xs font-bold rounded-full bg-red-500 text-white border-2 border-background shadow-sm"
-                              style={{ WebkitAppearance: 'none', appearance: 'none', minWidth: '20px', minHeight: '20px' }}
+                              style={{
+                                WebkitAppearance: "none",
+                                appearance: "none",
+                                minWidth: "20px",
+                                minHeight: "20px",
+                              }}
                             >
                               {unreadCount > 99 ? "99+" : unreadCount}
                             </Badge>
@@ -806,12 +799,12 @@ const Header = () => {
                       forceMount
                     >
                       <div className="flex items-center justify-start gap-2 p-2">
-                        <div className="flex flex-col space-y-1 leading-none">
+                        <div className="flex flex-col space-y-0.5 leading-none">
                           <p className="font-medium">{profile?.full_name}</p>
                           <p className="text-xs text-muted-foreground">
                             {user.email}
                           </p>
-                          <div className="flex items-center gap-1">
+                          <div className="flex items-center gap-1 mt-1">
                             <Badge variant="outline" className="text-xs">
                               {profile?.account_type}
                             </Badge>
@@ -862,6 +855,24 @@ const Header = () => {
                           <Settings className="mr-2 h-4 w-4" />
                           Settings
                         </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem asChild>
+                        <Link to="/suggestions">Suggestions</Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild>
+                        <Link to="/sellers">
+                          <User className="mr-1 h-4 w-4" />
+                          Sellers
+                        </Link>
+                      </DropdownMenuItem>
+
+                      <DropdownMenuItem asChild>
+                        <Link to="/learn-more">Learn More</Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem asChild>
+                        <ThemeToggle />
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem onClick={handleSignOut}>

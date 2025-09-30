@@ -44,6 +44,9 @@ import { DevToolsProtection } from "@/components/security/DevToolsProtection";
 import { useEffect } from "react";
 import { NetworkNotification } from "@/components/notifications/NetworkNotification";
 import { useAutoReload } from "@/hooks/useAutoReload";
+import { PerformanceMonitor } from "@/components/common/PerformanceMonitor";
+import { AccessibilityProvider } from "@/components/common/AccessibilityProvider";
+import { usePerformanceOptimization } from "@/hooks/usePerformanceOptimization";
 
 // Lazy load pages for better performance with error boundaries
 const Index = React.lazy(() =>
@@ -242,6 +245,7 @@ const AppContent = () => {
   useRealTimeUpdates();
   useLiteMode();
   useAutoReload();
+  const { metrics } = usePerformanceOptimization();
   const { showModal, missingFields, dismissModal, completeProfile } =
     useProfileCompletion();
   const { isBanned, banReason, userEmail } = useBanCheck();
@@ -277,8 +281,9 @@ const AppContent = () => {
 
   return (
     <>
+      <PerformanceMonitor />
       <NetworkNotification />
-      <div className="pb-24 lg:pb-0 layout-stable">
+      <div className={`pb-24 lg:pb-0 layout-stable ${metrics.isLowEndDevice ? 'low-end-device' : ''}`}>
         <AuthGuard>
           <Suspense fallback={<LoadingSkeleton />}>
             <div className="page-transition student-focus">
@@ -354,21 +359,23 @@ const AppContent = () => {
 const App = () => (
   <ErrorBoundary>
     <BrowserRouter>
-      <ThemeProvider defaultTheme="light">
-        <SecurityProvider>
-          <QueryClientProvider client={queryClient}>
-            <TooltipProvider>
-              <Toaster />
-              <Sonner />
-              <ProfileProvider>
-                <RealTimeProvider>
-                  <AppContent />
-                </RealTimeProvider>
-              </ProfileProvider>
-            </TooltipProvider>
-          </QueryClientProvider>
-        </SecurityProvider>
-      </ThemeProvider>
+      <AccessibilityProvider>
+        <ThemeProvider defaultTheme="light">
+          <SecurityProvider>
+            <QueryClientProvider client={queryClient}>
+              <TooltipProvider>
+                <Toaster />
+                <Sonner />
+                <ProfileProvider>
+                  <RealTimeProvider>
+                    <AppContent />
+                  </RealTimeProvider>
+                </ProfileProvider>
+              </TooltipProvider>
+            </QueryClientProvider>
+          </SecurityProvider>
+        </ThemeProvider>
+      </AccessibilityProvider>
     </BrowserRouter>
   </ErrorBoundary>
 );

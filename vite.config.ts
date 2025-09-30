@@ -23,19 +23,33 @@ export default defineConfig(({ mode }) => ({
   build: {
     sourcemap: false,
     minify: 'terser',
+    target: 'es2015',
+    cssCodeSplit: true,
+    chunkSizeWarningLimit: 1000,
     terserOptions: {
       compress: {
         drop_console: true,
         drop_debugger: true,
+        pure_funcs: ['console.log', 'console.info', 'console.debug'],
+        passes: 2,
       },
-      mangle: true,
+      mangle: {
+        safari10: true,
+      },
       format: {
         comments: false,
       },
     },
     rollupOptions: {
       output: {
-        manualChunks: undefined,
+        manualChunks: {
+          vendor: ['react', 'react-dom'],
+          router: ['react-router-dom'],
+          ui: ['@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu', '@radix-ui/react-toast'],
+          supabase: ['@supabase/supabase-js'],
+          query: ['@tanstack/react-query'],
+          utils: ['date-fns', 'clsx', 'tailwind-merge'],
+        },
         entryFileNames: (chunkInfo) => {
           const hash = Math.random().toString(36).substring(2, 15);
           return `assets/${hash}.js`;
@@ -54,5 +68,9 @@ export default defineConfig(({ mode }) => ({
   },
   define: {
     __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
+  },
+  optimizeDeps: {
+    include: ['react', 'react-dom', 'react-router-dom'],
+    exclude: ['@vercel/analytics'],
   },
 }));

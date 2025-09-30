@@ -362,16 +362,14 @@ const Orders = () => {
       }
 
       // Create dispute record in the disputes table
-      const { error: disputeError } = await supabase
-        .from("disputes")
-        .insert({
-          order_id: orderId,
-          escrow_transaction_id: escrowTransaction.id,
-          reported_by: user.id,
-          reason: reason,
-          description: description,
-          status: "open"
-        });
+      const { error: disputeError } = await supabase.from("disputes").insert({
+        order_id: orderId,
+        escrow_transaction_id: escrowTransaction.id,
+        reported_by: user.id,
+        reason: reason,
+        description: description,
+        status: "open",
+      });
 
       if (disputeError) {
         console.error("Dispute creation error:", disputeError);
@@ -390,7 +388,8 @@ const Orders = () => {
       console.error("Report issue error:", error);
       toast({
         title: "Error",
-        description: error?.message || "Failed to report issue. Please try again.",
+        description:
+          error?.message || "Failed to report issue. Please try again.",
         variant: "destructive",
       });
     }
@@ -428,7 +427,8 @@ const Orders = () => {
       if (!data) {
         toast({
           title: "Error",
-          description: "Failed to withdraw dispute - you may not have permission",
+          description:
+            "Failed to withdraw dispute - you may not have permission",
           variant: "destructive",
         });
         return;
@@ -508,7 +508,11 @@ const Orders = () => {
   const [reportReason, setReportReason] = useState("");
   const [reportDescription, setReportDescription] = useState("");
   const [showReviewModal, setShowReviewModal] = useState(false);
-  const [reviewOrderData, setReviewOrderData] = useState<{orderId: string, sellerId: string, sellerName: string} | null>(null);
+  const [reviewOrderData, setReviewOrderData] = useState<{
+    orderId: string;
+    sellerId: string;
+    sellerName: string;
+  } | null>(null);
 
   const handleChat = async (order: Order, isSeller: boolean) => {
     if (!user) return;
@@ -759,7 +763,7 @@ const Orders = () => {
                             setReviewOrderData({
                               orderId: order.id,
                               sellerId: order.seller_id,
-                              sellerName: order.seller?.full_name || 'Seller'
+                              sellerName: order.seller?.full_name || "Seller",
                             });
                             setShowReviewModal(true);
                           }, 1500);
@@ -962,7 +966,7 @@ const Orders = () => {
           ) : (
             // Seller view with tabs
             <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className="grid w-full grid-cols-2">
+              <TabsList className="grid w-full grid-cols-2 h-fit">
                 <TabsTrigger value="buyer">As Buyer</TabsTrigger>
                 <TabsTrigger value="seller">As Seller</TabsTrigger>
               </TabsList>
@@ -1016,7 +1020,7 @@ const Orders = () => {
           )}
         </div>
       </main>
-      
+
       {/* Profile Review Modal */}
       {reviewOrderData && (
         <ProfileReviewModal

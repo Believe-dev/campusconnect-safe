@@ -238,7 +238,7 @@ const WalletDashboard = () => {
         .single();
 
       if (error && error.code !== "PGRST116") throw error;
-      
+
       if (data) {
         setBankDetails(data);
         setBankDetailsForm({
@@ -282,8 +282,10 @@ const WalletDashboard = () => {
 
       // Use saved bank details if available, otherwise use payout form
       const bankDetailsToUse = {
-        bank_account_name: bankDetails?.bank_account_name || payoutForm.bank_account_name,
-        bank_account_number: bankDetails?.bank_account_number || payoutForm.bank_account_number,
+        bank_account_name:
+          bankDetails?.bank_account_name || payoutForm.bank_account_name,
+        bank_account_number:
+          bankDetails?.bank_account_number || payoutForm.bank_account_number,
         bank_name: bankDetails?.bank_name || payoutForm.bank_name,
       };
 
@@ -340,11 +342,19 @@ const WalletDashboard = () => {
       if (!user || !userProfile) return;
 
       // Input validation and sanitization
-      const sanitizedAccountName = sanitizeInput(bankDetailsForm.bank_account_name);
-      const sanitizedAccountNumber = sanitizeInput(bankDetailsForm.bank_account_number);
+      const sanitizedAccountName = sanitizeInput(
+        bankDetailsForm.bank_account_name
+      );
+      const sanitizedAccountNumber = sanitizeInput(
+        bankDetailsForm.bank_account_number
+      );
       const sanitizedBankName = sanitizeInput(bankDetailsForm.bank_name);
-      
-      if (!sanitizedAccountName || !sanitizedAccountNumber || !sanitizedBankName) {
+
+      if (
+        !sanitizedAccountName ||
+        !sanitizedAccountNumber ||
+        !sanitizedBankName
+      ) {
         toast({
           title: "Validation Error",
           description: "All bank details fields are required",
@@ -356,13 +366,17 @@ const WalletDashboard = () => {
       if (!validateName(sanitizedAccountName)) {
         toast({
           title: "Invalid Account Name",
-          description: "Account name must be 2-50 characters and contain only letters",
+          description:
+            "Account name must be 2-50 characters and contain only letters",
           variant: "destructive",
         });
         return;
       }
 
-      if (sanitizedAccountNumber.length < 10 || sanitizedAccountNumber.length > 20) {
+      if (
+        sanitizedAccountNumber.length < 10 ||
+        sanitizedAccountNumber.length > 20
+      ) {
         toast({
           title: "Invalid Account Number",
           description: "Account number must be 10-20 characters",
@@ -415,16 +429,17 @@ const WalletDashboard = () => {
       }
 
       // Upsert bank details with sanitized input
-      const { error } = await supabase
-        .from("bank_details")
-        .upsert({
+      const { error } = await supabase.from("bank_details").upsert(
+        {
           user_id: user.id,
           bank_account_name: sanitizedAccountName,
           bank_account_number: sanitizedAccountNumber,
           bank_name: sanitizedBankName,
-        }, {
-          onConflict: 'user_id'
-        });
+        },
+        {
+          onConflict: "user_id",
+        }
+      );
 
       if (error) throw error;
 
@@ -659,7 +674,9 @@ const WalletDashboard = () => {
                     </p>
                     <p className="text-sm">{bankDetails.bank_account_name}</p>
                     <p className="text-sm">{bankDetails.bank_name}</p>
-                    <p className="text-sm">****{bankDetails.bank_account_number.slice(-4)}</p>
+                    <p className="text-sm">
+                      ****{bankDetails.bank_account_number.slice(-4)}
+                    </p>
                   </div>
                 ) : (
                   <>
@@ -712,7 +729,8 @@ const WalletDashboard = () => {
                 {!bankDetails && (
                   <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                     <p className="text-sm text-yellow-800">
-                      Please add your bank details first using the "Bank Details" button above.
+                      Please add your bank details first using the "Bank
+                      Details" button above.
                     </p>
                   </div>
                 )}
@@ -777,7 +795,7 @@ const WalletDashboard = () => {
 
       {/* Tabs for Transactions and Payouts */}
       <Tabs defaultValue="transactions" className="space-y-3 sm:space-y-4">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-2 h-fit">
           <TabsTrigger value="transactions" className="text-xs sm:text-sm">
             Transactions
           </TabsTrigger>

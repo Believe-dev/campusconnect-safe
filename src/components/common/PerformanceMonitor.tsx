@@ -1,95 +1,104 @@
-import React, { useEffect, useState } from 'react';
-import { useRealTime } from '@/contexts/RealTimeContext';
-import { Badge } from '@/components/ui/badge';
-import { Activity, Zap, Wifi } from 'lucide-react';
+import { useEffect } from 'react';
 
 interface PerformanceMetrics {
-  messageLatency: number;
-  connectionUptime: number;
-  dataUsage: number;
-  activeSubscriptions: number;
+  fcp?: number;
+  lcp?: number;
+  fid?: number;
+  cls?: number;
+  ttfb?: number;
 }
 
-export const PerformanceMonitor: React.FC<{ showDetails?: boolean }> = ({ 
-  showDetails = false 
-}) => {
-  const { state } = useRealTime();
-  const [metrics, setMetrics] = useState<PerformanceMetrics>({
-    messageLatency: 0,
-    connectionUptime: 0,
-    dataUsage: 0,
-    activeSubscriptions: 0
-  });
-
+export const PerformanceMonitor = () => {
   useEffect(() => {
-    const updateMetrics = () => {
-      const uptime = state.lastActivity 
-        ? Date.now() - state.lastActivity.getTime()
-        : 0;
+    const metrics: PerformanceMetrics = {};
 
-      setMetrics(prev => ({
-        ...prev,
-        connectionUptime: uptime,
-        messageLatency: state.isConnected ? Math.random() * 100 + 50 : 0, // Simulated
-        activeSubscriptions: state.isConnected ? 3 : 0 // Simulated
-      }));
+    // First Contentful Paint
+    const observeFCP = () => {
+      new PerformanceObserver((entryList) => {
+        for (const entry of entryList.getEntries()) {
+          if (entry.name === 'first-contentful-paint') {
+            metrics.fcp = entry.startTime;
+          }
+        }
+      }).observe({ entryTypes: ['paint'] });
     };
 
-    const interval = setInterval(updateMetrics, 1000);
-    return () => clearInterval(interval);
-  }, [state]);
+    // Largest Contentful Paint
+    const observeLCP = () => {
+      new PerformanceObserver((entryList) => {
+        const entries = entryList.getEntries();
+        const lastEntry = entries[entries.length - 1];
+        metrics.lcp = lastEntry.startTime;
+      }).observe({ entryTypes: ['largest-contentful-paint'] });
+    };
 
-  if (!showDetails) {
-    return (
-      <div className="flex items-center gap-1 text-xs text-muted-foreground">
-        <Activity className="h-3 w-3" />
-        <span>{metrics.messageLatency.toFixed(0)}ms</span>
-      </div>
-    );
-  }
+    // First Input Delay
+    const observeFID = () => {
+      new PerformanceObserver((entryList) => {
+        for (const entry of entryList.getEntries()) {
+          metrics.fid = entry.processingStart - entry.startTime;
+        }
+      }).observe({ entryTypes: ['first-input'] });
+    };
 
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-2">
-        <Zap className="h-4 w-4 text-green-500" />
-        <span className="text-sm font-medium">Real-time Performance</span>
-      </div>
-      
-      <div className="grid grid-cols-2 gap-2 text-xs">
-        <div className="flex items-center justify-between">
-          <span className="text-muted-foreground">Latency:</span>
-          <Badge variant="outline" className="text-xs">
-            {metrics.messageLatency.toFixed(0)}ms
-          </Badge>
-        </div>
+    // Cumulative Layout Shift
+    const observeCLS = () => {
+      let clsValue = 0;
+      new PerformanceObserver((entryList) => {
+        for (const entry of entryList.getEntries()) {
+          if (!(entry as any).hadRecentInput) {
+            clsValue += (entry as any).value;
+          }
+        }
+        metrics.cls = clsValue;
+      }).observe({ entryTypes: ['layout-shift'] });
+    };
+
+    // Time to First Byte
+    const observeTTFB = () => {
+      const navigation = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming;
+      if (navigation) {
+        metrics.ttfb = navigation.responseStart - navigation.requestStart;
+      }
+    };
+
+    // Initialize observers
+    if ('PerformanceObserver' in window) {
+      observeFCP();
+      observeLCP();
+      observeFID();
+      observeCLS();
+    }
+    observeTTFB();
+
+    // Report metrics after page load
+    const reportMetrics = () => {
+      setTimeout(() => {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Performance Metrics:', metrics);
+        }
         
-        <div className="flex items-center justify-between">
-          <span className="text-muted-foreground">Uptime:</span>
-          <Badge variant="outline" className="text-xs">
-            {Math.floor(metrics.connectionUptime / 1000)}s
-          </Badge>
-        </div>
-        
-        <div className="flex items-center justify-between">
-          <span className="text-muted-foreground">Subscriptions:</span>
-          <Badge variant="outline" className="text-xs">
-            {metrics.activeSubscriptions}
-          </Badge>
-        </div>
-        
-        <div className="flex items-center justify-between">
-          <span className="text-muted-foreground">Status:</span>
-          <Badge 
-            variant={state.isConnected ? "default" : "destructive"} 
-            className="text-xs"
-          >
-            <Wifi className="h-2 w-2 mr-1" />
-            {state.connectionStatus}
-          </Badge>
-        </div>
-      </div>
-    </div>
-  );
+        // Send to analytics in production
+        if (process.env.NODE_ENV === 'production' && window.gtag) {
+          Object.entries(metrics).forEach(([key, value]) => {
+            if (value !== undefined) {
+              window.gtag('event', 'performance_metric', {
+                metric_name: key,
+                metric_value: Math.round(value),
+                custom_parameter: 'web_vitals'
+              });
+            }
+          });
+        }
+      }, 1000);
+    };
+
+    window.addEventListener('load', reportMetrics);
+
+    return () => {
+      window.removeEventListener('load', reportMetrics);
+    };
+  }, []);
+
+  return null;
 };
-
-export default PerformanceMonitor;

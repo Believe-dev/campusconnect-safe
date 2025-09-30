@@ -65,6 +65,7 @@ const Search = () => {
   const [sortBy, setSortBy] = useState('newest');
   const [showFilters, setShowFilters] = useState(false);
   const [user, setUser] = useState(null);
+  const [cartItems, setCartItems] = useState<string[]>([]);
 
   useEffect(() => {
     checkAuth();
@@ -74,6 +75,24 @@ const Search = () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       setUser(user);
+      if (user) {
+        loadCartItems(user.id);
+      }
+    } catch (error) {
+      // Error handled silently
+    }
+  };
+
+  const loadCartItems = async (userId: string) => {
+    try {
+      const { data } = await supabase
+        .from('cart')
+        .select('product_id')
+        .eq('user_id', userId);
+      
+      if (data) {
+        setCartItems(data.map(item => item.product_id));
+      }
     } catch (error) {
       // Error handled silently
     }
@@ -252,6 +271,9 @@ const Search = () => {
         if (error) throw error;
       }
 
+      // Update local cart items state
+      setCartItems(prev => [...prev, productId]);
+      
       // Trigger cart count refresh
       if (window.refreshCartCount) {
         window.refreshCartCount();
@@ -465,18 +487,33 @@ const Search = () => {
                           ₦{product.price.toLocaleString()}
                         </div>
                         
-                        <Button
-                          variant="brand"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            addToCart(product.id);
-                          }}
-                          className="w-full text-xs"
-                        >
-                          <ShoppingCart className="h-3 w-3 mr-1" />
-                          Add to Cart
-                        </Button>
+                        {cartItems.includes(product.id) ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate('/cart');
+                            }}
+                            className="w-full text-xs"
+                          >
+                            <ShoppingCart className="h-3 w-3 mr-1" />
+                            In Cart
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="brand"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              addToCart(product.id);
+                            }}
+                            className="w-full text-xs"
+                          >
+                            <ShoppingCart className="h-3 w-3 mr-1" />
+                            Add to Cart
+                          </Button>
+                        )}
                       </CardContent>
                     </Card>
                   ))}

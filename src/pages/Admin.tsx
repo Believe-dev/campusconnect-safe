@@ -789,7 +789,8 @@ export default function Admin() {
       // First fetch suggestions
       const { data: suggestionsData, error: suggestionsError } = await supabase
         .from("suggestions")
-        .select(`
+        .select(
+          `
           id,
           user_id,
           title,
@@ -802,11 +803,12 @@ export default function Admin() {
           reviewed_at,
           created_at,
           updated_at
-        `)
+        `
+        )
         .order("created_at", { ascending: false });
 
       if (suggestionsError) {
-        console.error('Suggestions fetch error:', suggestionsError);
+        console.error("Suggestions fetch error:", suggestionsError);
         setSuggestions([]);
         return;
       }
@@ -817,8 +819,10 @@ export default function Admin() {
       }
 
       // Get unique user IDs
-      const userIds = [...new Set(suggestionsData.map(s => s.user_id).filter(Boolean))];
-      
+      const userIds = [
+        ...new Set(suggestionsData.map((s) => s.user_id).filter(Boolean)),
+      ];
+
       // Fetch user profiles separately
       const { data: profiles } = await supabase
         .from("profiles")
@@ -826,18 +830,18 @@ export default function Admin() {
         .in("user_id", userIds);
 
       // Combine data
-      const enrichedSuggestions = suggestionsData.map(suggestion => ({
+      const enrichedSuggestions = suggestionsData.map((suggestion) => ({
         ...suggestion,
-        profiles: profiles?.find(p => p.user_id === suggestion.user_id) || {
+        profiles: profiles?.find((p) => p.user_id === suggestion.user_id) || {
           full_name: "Unknown User",
-          email: "unknown@example.com"
-        }
+          email: "unknown@example.com",
+        },
       }));
-      
-      console.log('Fetched suggestions:', enrichedSuggestions);
+
+      console.log("Fetched suggestions:", enrichedSuggestions);
       setSuggestions(enrichedSuggestions);
     } catch (error) {
-      console.error('Failed to fetch suggestions:', error);
+      console.error("Failed to fetch suggestions:", error);
       setSuggestions([]);
     }
   };
@@ -946,18 +950,24 @@ export default function Admin() {
 
       // Fetch user profiles and wallets for payout requests
       if (payoutData && payoutData.length > 0) {
-        const userIds = [...new Set(payoutData.map(p => p.user_id))];
-        const walletIds = [...new Set(payoutData.map(p => p.wallet_id))];
+        const userIds = [...new Set(payoutData.map((p) => p.user_id))];
+        const walletIds = [...new Set(payoutData.map((p) => p.wallet_id))];
 
         const [{ data: profiles }, { data: wallets }] = await Promise.all([
-          supabase.from("profiles").select("user_id, full_name, email").in("user_id", userIds),
-          supabase.from("wallets").select("id, available_balance").in("id", walletIds)
+          supabase
+            .from("profiles")
+            .select("user_id, full_name, email")
+            .in("user_id", userIds),
+          supabase
+            .from("wallets")
+            .select("id, available_balance")
+            .in("id", walletIds),
         ]);
 
-        const enrichedPayouts = payoutData.map(payout => ({
+        const enrichedPayouts = payoutData.map((payout) => ({
           ...payout,
-          profiles: profiles?.find(p => p.user_id === payout.user_id),
-          wallets: wallets?.find(w => w.id === payout.wallet_id)
+          profiles: profiles?.find((p) => p.user_id === payout.user_id),
+          wallets: wallets?.find((w) => w.id === payout.wallet_id),
         }));
 
         setPayoutRequests(enrichedPayouts);
@@ -968,7 +978,8 @@ export default function Admin() {
       // Fetch disputes with left joins to handle missing data gracefully
       const { data: disputesData, error: disputeError } = await supabase
         .from("disputes")
-        .select(`
+        .select(
+          `
           id,
           order_id,
           reported_by,
@@ -986,7 +997,8 @@ export default function Admin() {
               title
             )
           )
-        `)
+        `
+        )
         .order("created_at", { ascending: false });
 
       if (disputeError) {
@@ -1001,23 +1013,38 @@ export default function Admin() {
       }
 
       // Get all unique user IDs (sellers, buyers, reporters)
-      const sellerIds = disputesData.map(d => d.orders?.seller_id).filter(Boolean);
-      const buyerIds = disputesData.map(d => d.orders?.buyer_id).filter(Boolean);
-      const reporterIds = disputesData.map(d => d.reported_by).filter(Boolean);
-      const allUserIds = [...new Set([...sellerIds, ...buyerIds, ...reporterIds])];
+      const sellerIds = disputesData
+        .map((d) => d.orders?.seller_id)
+        .filter(Boolean);
+      const buyerIds = disputesData
+        .map((d) => d.orders?.buyer_id)
+        .filter(Boolean);
+      const reporterIds = disputesData
+        .map((d) => d.reported_by)
+        .filter(Boolean);
+      const allUserIds = [
+        ...new Set([...sellerIds, ...buyerIds, ...reporterIds]),
+      ];
 
       // Fetch all user profiles at once
-      const { data: userProfiles } = allUserIds.length > 0 ? await supabase
-        .from('profiles')
-        .select('user_id, full_name, student_id')
-        .in('user_id', allUserIds) : { data: [] };
+      const { data: userProfiles } =
+        allUserIds.length > 0
+          ? await supabase
+              .from("profiles")
+              .select("user_id, full_name, student_id")
+              .in("user_id", allUserIds)
+          : { data: [] };
 
       const transformedDisputes = disputesData.map((dispute) => {
         const order = dispute.orders;
         const product = order?.products;
-        const seller = userProfiles?.find(p => p.user_id === order?.seller_id);
-        const buyer = userProfiles?.find(p => p.user_id === order?.buyer_id);
-        const reporter = userProfiles?.find(p => p.user_id === dispute.reported_by);
+        const seller = userProfiles?.find(
+          (p) => p.user_id === order?.seller_id
+        );
+        const buyer = userProfiles?.find((p) => p.user_id === order?.buyer_id);
+        const reporter = userProfiles?.find(
+          (p) => p.user_id === dispute.reported_by
+        );
 
         return {
           id: dispute.id,
@@ -1028,8 +1055,8 @@ export default function Admin() {
           created_at: dispute.created_at,
           reported_by: dispute.reported_by,
           orders: {
-            products: { 
-              title: product?.title || "Product Not Found" 
+            products: {
+              title: product?.title || "Product Not Found",
             },
             seller_profile: {
               full_name: seller?.full_name || "Seller Not Found",
@@ -1040,20 +1067,20 @@ export default function Admin() {
               student_id: buyer?.student_id || "N/A",
             },
           },
-          reporter: { 
-            full_name: reporter?.full_name || `Reporter: ${dispute.reported_by?.slice(0, 8) || "Unknown"}` 
+          reporter: {
+            full_name:
+              reporter?.full_name ||
+              `Reporter: ${dispute.reported_by?.slice(0, 8) || "Unknown"}`,
           },
         };
       });
-      
+
       setDisputes(transformedDisputes);
     } catch (error) {
       console.error("Error in fetchEscrowData:", error);
       toast.error("Failed to fetch escrow data");
     }
   };
-
-
 
   const releaseEscrowFunds = async (escrowId: string) => {
     try {
@@ -1088,34 +1115,38 @@ export default function Admin() {
 
       if (approve) {
         // First check payout eligibility for debugging
-        const { data: eligibilityData, error: eligibilityError } = await supabase.rpc(
-          "check_payout_eligibility",
-          { payout_id: payoutId }
-        );
+        const { data: eligibilityData, error: eligibilityError } =
+          await supabase.rpc("check_payout_eligibility", {
+            payout_id: payoutId,
+          });
 
         if (eligibilityError) {
           console.error("Eligibility check error:", eligibilityError);
         } else if (eligibilityData && eligibilityData.length > 0) {
           const check = eligibilityData[0];
           console.log("Payout eligibility check:", check);
-          
+
           if (!check.payout_exists) {
             toast.error("Payout request not found");
             return;
           }
-          
-          if (check.payout_status !== 'pending') {
-            toast.error(`Payout request status is '${check.payout_status}', not 'pending'`);
+
+          if (check.payout_status !== "pending") {
+            toast.error(
+              `Payout request status is '${check.payout_status}', not 'pending'`
+            );
             return;
           }
-          
+
           if (!check.wallet_exists) {
             toast.error("User wallet not found");
             return;
           }
-          
+
           if (!check.sufficient_balance) {
-            toast.error(`Insufficient balance. Available: ₦${check.available_balance}, Requested: ₦${check.requested_amount}`);
+            toast.error(
+              `Insufficient balance. Available: ₦${check.available_balance}, Requested: ₦${check.requested_amount}`
+            );
             return;
           }
         }
@@ -1127,7 +1158,7 @@ export default function Admin() {
             body: {
               payout_id: payoutId,
               admin_id: user.id,
-            }
+            },
           }
         );
 
@@ -1143,7 +1174,9 @@ export default function Admin() {
         }
 
         if (data?.success) {
-          toast.success(`Real money transfer initiated! Transfer code: ${data.transfer_code}`);
+          toast.success(
+            `Real money transfer initiated! Transfer code: ${data.transfer_code}`
+          );
         }
       } else {
         // Just reject the payout request
@@ -1160,7 +1193,9 @@ export default function Admin() {
         if (error) throw error;
       }
 
-      toast.success(`Payout request ${approve ? "approved and processed" : "rejected"}`);
+      toast.success(
+        `Payout request ${approve ? "approved and processed" : "rejected"}`
+      );
       fetchEscrowData();
     } catch (error) {
       console.error("Process payout error:", error);
@@ -1754,51 +1789,69 @@ export default function Admin() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <p>
-                  <strong>Product:</strong> {dispute.orders?.products?.title || "Unknown Product"}
+                  <strong>Product:</strong>{" "}
+                  {dispute.orders?.products?.title || "Unknown Product"}
                 </p>
                 <p>
                   <strong>Order ID:</strong> #{dispute.order_id.slice(0, 8)}...
                 </p>
                 <p>
                   <strong>Status:</strong>{" "}
-                  <Badge variant={dispute.status === "open" ? "destructive" : "default"}>
+                  <Badge
+                    variant={
+                      dispute.status === "open" ? "destructive" : "default"
+                    }
+                  >
                     {dispute.status}
                   </Badge>
                 </p>
               </div>
               <div>
                 <p>
-                  <strong>Reported By:</strong> {dispute.reporter?.full_name || "Unknown Reporter"}
+                  <strong>Reported By:</strong>{" "}
+                  {dispute.reporter?.full_name || "Unknown Reporter"}
                 </p>
                 <p>
-                  <strong>Date:</strong> {new Date(dispute.created_at).toLocaleDateString()}
+                  <strong>Date:</strong>{" "}
+                  {new Date(dispute.created_at).toLocaleDateString()}
                 </p>
               </div>
             </div>
-            
+
             <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="p-3 bg-blue-50 rounded">
-                <h5 className="font-medium text-blue-900 mb-2">Seller Information</h5>
+                <h5 className="font-medium text-blue-900 mb-2">
+                  Seller Information
+                </h5>
                 <p className="text-sm">
-                  <strong>Name:</strong> {dispute.orders?.seller_profile?.full_name || "Unknown Seller"}
+                  <strong>Name:</strong>{" "}
+                  {dispute.orders?.seller_profile?.full_name ||
+                    "Unknown Seller"}
                 </p>
                 <p className="text-sm">
-                  <strong>Student ID:</strong> {dispute.orders?.seller_profile?.student_id || "N/A"}
+                  <strong>Student ID:</strong>{" "}
+                  {dispute.orders?.seller_profile?.student_id || "N/A"}
                 </p>
               </div>
               <div className="p-3 bg-green-50 rounded">
-                <h5 className="font-medium text-green-900 mb-2">Buyer Information</h5>
+                <h5 className="font-medium text-green-900 mb-2">
+                  Buyer Information
+                </h5>
                 <p className="text-sm">
-                  <strong>Name:</strong> {dispute.orders?.buyer_profile?.full_name || "Unknown Buyer"}
+                  <strong>Name:</strong>{" "}
+                  {dispute.orders?.buyer_profile?.full_name || "Unknown Buyer"}
                 </p>
                 <p className="text-sm">
-                  <strong>Student ID:</strong> {dispute.orders?.buyer_profile?.student_id || "N/A"}
+                  <strong>Student ID:</strong>{" "}
+                  {dispute.orders?.buyer_profile?.student_id || "N/A"}
                 </p>
               </div>
             </div>
-            
+
             <div className="mt-4 p-3 bg-red-50 rounded">
-              <h5 className="font-medium text-red-900 mb-2">Dispute Information</h5>
+              <h5 className="font-medium text-red-900 mb-2">
+                Dispute Information
+              </h5>
               <p className="text-sm">
                 <strong>Reason:</strong>{" "}
                 <Badge variant="outline" className="ml-1">
@@ -1807,7 +1860,8 @@ export default function Admin() {
               </p>
               {dispute.description && (
                 <p className="text-sm mt-2">
-                  <strong>Description:</strong> <span className="italic">{dispute.description}</span>
+                  <strong>Description:</strong>{" "}
+                  <span className="italic">{dispute.description}</span>
                 </p>
               )}
             </div>
@@ -1971,9 +2025,9 @@ export default function Admin() {
         </div>
 
         {/* Tabs for different management areas */}
-        <Tabs defaultValue="users" className="space-y-6">
-          <div className="overflow-x-auto">
-            <TabsList className="grid w-full min-w-max grid-cols-12 md:grid-cols-12">
+        <Tabs defaultValue="users" className="space-y-6 ">
+          <div className="overflow-x-auto w-fit h-[150px]">
+            <TabsList className="grid w-full min-w-max grid-cols-12 md:grid-cols-12 h-fit py-[15px]">
               <TabsTrigger value="users" className="text-xs md:text-sm">
                 Users
               </TabsTrigger>
@@ -5246,12 +5300,21 @@ export default function Admin() {
                 <div className="flex justify-between items-center">
                   <CardTitle>User Suggestions</CardTitle>
                   <div className="flex items-center gap-2">
-                    {suggestions.filter(s => s.status === 'pending').length > 0 && (
+                    {suggestions.filter((s) => s.status === "pending").length >
+                      0 && (
                       <Badge variant="secondary">
-                        {suggestions.filter(s => s.status === 'pending').length} pending
+                        {
+                          suggestions.filter((s) => s.status === "pending")
+                            .length
+                        }{" "}
+                        pending
                       </Badge>
                     )}
-                    <Button onClick={fetchSuggestions} variant="outline" size="sm">
+                    <Button
+                      onClick={fetchSuggestions}
+                      variant="outline"
+                      size="sm"
+                    >
                       <RefreshCw className="h-4 w-4 mr-2" />
                       Refresh
                     </Button>
@@ -5265,7 +5328,9 @@ export default function Admin() {
                 {suggestions.length === 0 ? (
                   <div className="text-center py-12">
                     <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold mb-2">No suggestions</h3>
+                    <h3 className="text-lg font-semibold mb-2">
+                      No suggestions
+                    </h3>
                     <p className="text-muted-foreground">
                       Users can submit suggestions for platform improvements
                     </p>
@@ -5289,40 +5354,57 @@ export default function Admin() {
                           <TableRow key={suggestion.id}>
                             <TableCell>
                               <div>
-                                <p className="font-medium">{suggestion.title}</p>
-                                <p className="text-sm text-muted-foreground truncate max-w-xs" title={suggestion.description}>
+                                <p className="font-medium">
+                                  {suggestion.title}
+                                </p>
+                                <p
+                                  className="text-sm text-muted-foreground truncate max-w-xs"
+                                  title={suggestion.description}
+                                >
                                   {suggestion.description}
                                 </p>
                               </div>
                             </TableCell>
                             <TableCell>
                               <Badge variant="outline">
-                                {suggestion.category || 'General'}
+                                {suggestion.category || "General"}
                               </Badge>
                             </TableCell>
                             <TableCell>
-                              <Badge variant={
-                                suggestion.priority === 'critical' ? 'destructive' :
-                                suggestion.priority === 'high' ? 'default' :
-                                suggestion.priority === 'medium' ? 'secondary' : 'outline'
-                              }>
+                              <Badge
+                                variant={
+                                  suggestion.priority === "critical"
+                                    ? "destructive"
+                                    : suggestion.priority === "high"
+                                    ? "default"
+                                    : suggestion.priority === "medium"
+                                    ? "secondary"
+                                    : "outline"
+                                }
+                              >
                                 {suggestion.priority}
                               </Badge>
                             </TableCell>
                             <TableCell>
-                              <Badge variant={
-                                suggestion.status === 'pending' ? 'secondary' :
-                                suggestion.status === 'approved' ? 'default' :
-                                suggestion.status === 'implemented' ? 'default' :
-                                'destructive'
-                              }>
+                              <Badge
+                                variant={
+                                  suggestion.status === "pending"
+                                    ? "secondary"
+                                    : suggestion.status === "approved"
+                                    ? "default"
+                                    : suggestion.status === "implemented"
+                                    ? "default"
+                                    : "destructive"
+                                }
+                              >
                                 {suggestion.status}
                               </Badge>
                             </TableCell>
                             <TableCell>
                               <div>
                                 <p className="font-medium">
-                                  {suggestion.profiles?.full_name || 'Unknown User'}
+                                  {suggestion.profiles?.full_name ||
+                                    "Unknown User"}
                                 </p>
                                 <p className="text-sm text-muted-foreground">
                                   {suggestion.profiles?.email}
@@ -5330,7 +5412,9 @@ export default function Admin() {
                               </div>
                             </TableCell>
                             <TableCell>
-                              {new Date(suggestion.created_at).toLocaleDateString()}
+                              {new Date(
+                                suggestion.created_at
+                              ).toLocaleDateString()}
                             </TableCell>
                             <TableCell>
                               <div className="flex gap-2">
@@ -5343,31 +5427,46 @@ export default function Admin() {
                                   </DialogTrigger>
                                   <DialogContent className="max-w-2xl">
                                     <DialogHeader>
-                                      <DialogTitle>{suggestion.title}</DialogTitle>
+                                      <DialogTitle>
+                                        {suggestion.title}
+                                      </DialogTitle>
                                       <DialogDescription>
-                                        Suggestion from {suggestion.profiles?.full_name}
+                                        Suggestion from{" "}
+                                        {suggestion.profiles?.full_name}
                                       </DialogDescription>
                                     </DialogHeader>
                                     <div className="space-y-4">
                                       <div>
-                                        <Label className="font-medium">Description</Label>
+                                        <Label className="font-medium">
+                                          Description
+                                        </Label>
                                         <p className="text-sm mt-1 whitespace-pre-wrap">
                                           {suggestion.description}
                                         </p>
                                       </div>
                                       <div className="grid grid-cols-2 gap-4">
                                         <div>
-                                          <Label className="font-medium">Category</Label>
-                                          <p className="text-sm">{suggestion.category || 'General'}</p>
+                                          <Label className="font-medium">
+                                            Category
+                                          </Label>
+                                          <p className="text-sm">
+                                            {suggestion.category || "General"}
+                                          </p>
                                         </div>
                                         <div>
-                                          <Label className="font-medium">Priority</Label>
-                                          <p className="text-sm">{suggestion.priority}</p>
+                                          <Label className="font-medium">
+                                            Priority
+                                          </Label>
+                                          <p className="text-sm">
+                                            {suggestion.priority}
+                                          </p>
                                         </div>
                                       </div>
                                       {suggestion.admin_notes && (
                                         <div>
-                                          <Label className="font-medium">Admin Notes</Label>
+                                          <Label className="font-medium">
+                                            Admin Notes
+                                          </Label>
                                           <p className="text-sm mt-1 whitespace-pre-wrap">
                                             {suggestion.admin_notes}
                                           </p>
@@ -5376,7 +5475,7 @@ export default function Admin() {
                                     </div>
                                   </DialogContent>
                                 </Dialog>
-                                {suggestion.status === 'pending' && (
+                                {suggestion.status === "pending" && (
                                   <>
                                     <Button
                                       size="sm"
@@ -5384,20 +5483,23 @@ export default function Admin() {
                                       onClick={async () => {
                                         try {
                                           const { error } = await supabase
-                                            .from('suggestions')
-                                            .update({ 
-                                              status: 'approved',
+                                            .from("suggestions")
+                                            .update({
+                                              status: "approved",
                                               reviewed_by: user?.id,
-                                              reviewed_at: new Date().toISOString()
+                                              reviewed_at:
+                                                new Date().toISOString(),
                                             })
-                                            .eq('id', suggestion.id);
-                                          
+                                            .eq("id", suggestion.id);
+
                                           if (error) throw error;
-                                          
-                                          toast.success('Suggestion approved');
+
+                                          toast.success("Suggestion approved");
                                           fetchSuggestions();
                                         } catch (error) {
-                                          toast.error('Failed to approve suggestion');
+                                          toast.error(
+                                            "Failed to approve suggestion"
+                                          );
                                         }
                                       }}
                                     >
@@ -5409,20 +5511,23 @@ export default function Admin() {
                                       onClick={async () => {
                                         try {
                                           const { error } = await supabase
-                                            .from('suggestions')
-                                            .update({ 
-                                              status: 'rejected',
+                                            .from("suggestions")
+                                            .update({
+                                              status: "rejected",
                                               reviewed_by: user?.id,
-                                              reviewed_at: new Date().toISOString()
+                                              reviewed_at:
+                                                new Date().toISOString(),
                                             })
-                                            .eq('id', suggestion.id);
-                                          
+                                            .eq("id", suggestion.id);
+
                                           if (error) throw error;
-                                          
-                                          toast.success('Suggestion rejected');
+
+                                          toast.success("Suggestion rejected");
                                           fetchSuggestions();
                                         } catch (error) {
-                                          toast.error('Failed to reject suggestion');
+                                          toast.error(
+                                            "Failed to reject suggestion"
+                                          );
                                         }
                                       }}
                                     >
@@ -5430,27 +5535,32 @@ export default function Admin() {
                                     </Button>
                                   </>
                                 )}
-                                {suggestion.status === 'approved' && (
+                                {suggestion.status === "approved" && (
                                   <Button
                                     size="sm"
                                     variant="default"
                                     onClick={async () => {
                                       try {
                                         const { error } = await supabase
-                                          .from('suggestions')
-                                          .update({ 
-                                            status: 'implemented',
+                                          .from("suggestions")
+                                          .update({
+                                            status: "implemented",
                                             reviewed_by: user?.id,
-                                            reviewed_at: new Date().toISOString()
+                                            reviewed_at:
+                                              new Date().toISOString(),
                                           })
-                                          .eq('id', suggestion.id);
-                                        
+                                          .eq("id", suggestion.id);
+
                                         if (error) throw error;
-                                        
-                                        toast.success('Suggestion marked as implemented');
+
+                                        toast.success(
+                                          "Suggestion marked as implemented"
+                                        );
                                         fetchSuggestions();
                                       } catch (error) {
-                                        toast.error('Failed to update suggestion');
+                                        toast.error(
+                                          "Failed to update suggestion"
+                                        );
                                       }
                                     }}
                                   >
@@ -5672,14 +5782,17 @@ export default function Admin() {
                             <TableCell>
                               <div>
                                 <p className="font-medium">
-                                  {payout.profiles?.full_name || `User #${payout.user_id.slice(0, 8)}`}
+                                  {payout.profiles?.full_name ||
+                                    `User #${payout.user_id.slice(0, 8)}`}
                                 </p>
                                 <p className="text-sm text-muted-foreground">
                                   {payout.profiles?.email || "No email"}
                                 </p>
                                 {payout.wallets && (
                                   <p className="text-xs text-blue-600">
-                                    Wallet: ₦{payout.wallets.available_balance?.toLocaleString() || '0'}
+                                    Wallet: ₦
+                                    {payout.wallets.available_balance?.toLocaleString() ||
+                                      "0"}
                                   </p>
                                 )}
                               </div>
@@ -5713,9 +5826,7 @@ export default function Admin() {
                                 <div className="flex gap-2">
                                   <AlertDialog>
                                     <AlertDialogTrigger asChild>
-                                      <Button size="sm">
-                                        Approve
-                                      </Button>
+                                      <Button size="sm">Approve</Button>
                                     </AlertDialogTrigger>
                                     <AlertDialogContent>
                                       <AlertDialogHeader>
@@ -5723,12 +5834,22 @@ export default function Admin() {
                                           Approve Payout Request
                                         </AlertDialogTitle>
                                         <AlertDialogDescription>
-                                          Are you sure you want to approve this payout of ₦{payout.amount.toLocaleString()} to {payout.bank_account_name} ({payout.bank_name})?
-                                          {payout.wallets && payout.wallets.available_balance < payout.amount && (
-                                            <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-red-700">
-                                              ⚠️ Warning: Insufficient wallet balance (₦{payout.wallets.available_balance?.toLocaleString() || '0'}) for this payout.
-                                            </div>
-                                          )}
+                                          Are you sure you want to approve this
+                                          payout of ₦
+                                          {payout.amount.toLocaleString()} to{" "}
+                                          {payout.bank_account_name} (
+                                          {payout.bank_name})?
+                                          {payout.wallets &&
+                                            payout.wallets.available_balance <
+                                              payout.amount && (
+                                              <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-red-700">
+                                                ⚠️ Warning: Insufficient wallet
+                                                balance (₦
+                                                {payout.wallets.available_balance?.toLocaleString() ||
+                                                  "0"}
+                                                ) for this payout.
+                                              </div>
+                                            )}
                                         </AlertDialogDescription>
                                       </AlertDialogHeader>
                                       <AlertDialogFooter>
@@ -5743,7 +5864,11 @@ export default function Admin() {
                                               "Payout approved by admin"
                                             )
                                           }
-                                          disabled={payout.wallets && payout.wallets.available_balance < payout.amount}
+                                          disabled={
+                                            payout.wallets &&
+                                            payout.wallets.available_balance <
+                                              payout.amount
+                                          }
                                         >
                                           Approve Payout
                                         </AlertDialogAction>
@@ -5766,15 +5891,19 @@ export default function Admin() {
                                 </div>
                               )}
                               {payout.status === "approved" && (
-                                <Badge variant="default" className="text-green-700 bg-green-100">
+                                <Badge
+                                  variant="default"
+                                  className="text-green-700 bg-green-100"
+                                >
                                   ✓ Processed
                                 </Badge>
                               )}
-                              {payout.status === "rejected" && payout.admin_notes && (
-                                <div className="text-xs text-red-600">
-                                  Rejected: {payout.admin_notes}
-                                </div>
-                              )}
+                              {payout.status === "rejected" &&
+                                payout.admin_notes && (
+                                  <div className="text-xs text-red-600">
+                                    Rejected: {payout.admin_notes}
+                                  </div>
+                                )}
                             </TableCell>
                           </TableRow>
                         ))}
@@ -5879,15 +6008,22 @@ export default function Admin() {
                                           <div>
                                             <p>
                                               <strong>Product:</strong>{" "}
-                                              {dispute.orders?.products?.title || "Unknown Product"}
+                                              {dispute.orders?.products
+                                                ?.title || "Unknown Product"}
                                             </p>
                                             <p>
-                                              <strong>Order ID:</strong>{" "}
-                                              #{dispute.order_id.slice(0, 8)}...
+                                              <strong>Order ID:</strong> #
+                                              {dispute.order_id.slice(0, 8)}...
                                             </p>
                                             <p>
                                               <strong>Status:</strong>{" "}
-                                              <Badge variant={dispute.status === "open" ? "destructive" : "default"}>
+                                              <Badge
+                                                variant={
+                                                  dispute.status === "open"
+                                                    ? "destructive"
+                                                    : "default"
+                                                }
+                                              >
                                                 {dispute.status}
                                               </Badge>
                                             </p>
@@ -5895,52 +6031,72 @@ export default function Admin() {
                                           <div>
                                             <p>
                                               <strong>Reported By:</strong>{" "}
-                                              {dispute.reporter?.full_name || "Unknown Reporter"}
+                                              {dispute.reporter?.full_name ||
+                                                "Unknown Reporter"}
                                             </p>
                                             <p>
                                               <strong>Date Reported:</strong>{" "}
-                                              {new Date(dispute.created_at).toLocaleDateString()}
+                                              {new Date(
+                                                dispute.created_at
+                                              ).toLocaleDateString()}
                                             </p>
                                           </div>
                                         </div>
-                                        
+
                                         <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                                           <div className="p-3 bg-blue-50 rounded">
-                                            <h5 className="font-medium text-blue-900 mb-2">Seller Information</h5>
+                                            <h5 className="font-medium text-blue-900 mb-2">
+                                              Seller Information
+                                            </h5>
                                             <p className="text-sm">
                                               <strong>Name:</strong>{" "}
-                                              {dispute.orders?.seller_profile?.full_name || "Unknown Seller"}
+                                              {dispute.orders?.seller_profile
+                                                ?.full_name || "Unknown Seller"}
                                             </p>
                                             <p className="text-sm">
                                               <strong>Student ID:</strong>{" "}
-                                              {dispute.orders?.seller_profile?.student_id || "N/A"}
+                                              {dispute.orders?.seller_profile
+                                                ?.student_id || "N/A"}
                                             </p>
                                           </div>
                                           <div className="p-3 bg-green-50 rounded">
-                                            <h5 className="font-medium text-green-900 mb-2">Buyer Information</h5>
+                                            <h5 className="font-medium text-green-900 mb-2">
+                                              Buyer Information
+                                            </h5>
                                             <p className="text-sm">
                                               <strong>Name:</strong>{" "}
-                                              {dispute.orders?.buyer_profile?.full_name || "Unknown Buyer"}
+                                              {dispute.orders?.buyer_profile
+                                                ?.full_name || "Unknown Buyer"}
                                             </p>
                                             <p className="text-sm">
                                               <strong>Student ID:</strong>{" "}
-                                              {dispute.orders?.buyer_profile?.student_id || "N/A"}
+                                              {dispute.orders?.buyer_profile
+                                                ?.student_id || "N/A"}
                                             </p>
                                           </div>
                                         </div>
-                                        
+
                                         <div className="mt-4 p-3 bg-red-50 rounded">
-                                          <h5 className="font-medium text-red-900 mb-2">Dispute Information</h5>
+                                          <h5 className="font-medium text-red-900 mb-2">
+                                            Dispute Information
+                                          </h5>
                                           <p className="text-sm">
                                             <strong>Reason:</strong>{" "}
-                                            <Badge variant="outline" className="ml-1">
-                                              {dispute.reason.replace("_", " ").toUpperCase()}
+                                            <Badge
+                                              variant="outline"
+                                              className="ml-1"
+                                            >
+                                              {dispute.reason
+                                                .replace("_", " ")
+                                                .toUpperCase()}
                                             </Badge>
                                           </p>
                                           {dispute.description && (
                                             <p className="text-sm mt-2">
                                               <strong>Description:</strong>{" "}
-                                              <span className="italic">{dispute.description}</span>
+                                              <span className="italic">
+                                                {dispute.description}
+                                              </span>
                                             </p>
                                           )}
                                         </div>
@@ -5949,7 +6105,32 @@ export default function Admin() {
                                       <div className="flex gap-2">
                                         <Button
                                           onClick={() => {
-                                            const message = `🚨 DISPUTE ALERT - CampusConnect Admin\n\n📋 Order Details:\n• Order ID: #${dispute.order_id.slice(0, 8)}...\n• Product: ${dispute.orders?.products?.title || "Unknown Product"}\n\n👤 Seller Info:\n• Name: ${dispute.orders?.seller_profile?.full_name || "Unknown"}\n• Student ID: ${dispute.orders?.seller_profile?.student_id || "N/A"}\n\n👤 Buyer Info:\n• Name: ${dispute.orders?.buyer_profile?.full_name || "Unknown"}\n• Student ID: ${dispute.orders?.buyer_profile?.student_id || "N/A"}\n\n⚠️ Dispute Details:\n• Reason: ${dispute.reason.replace("_", " ").toUpperCase()}\n• Description: ${dispute.description || "No description provided"}\n• Reported: ${new Date(dispute.created_at).toLocaleDateString()}\n\n📞 Please respond ASAP to help resolve this issue. Contact the buyer directly or provide clarification about the product/service.`;
+                                            const message = `🚨 DISPUTE ALERT - CampusConnect Admin\n\n📋 Order Details:\n• Order ID: #${dispute.order_id.slice(
+                                              0,
+                                              8
+                                            )}...\n• Product: ${
+                                              dispute.orders?.products?.title ||
+                                              "Unknown Product"
+                                            }\n\n👤 Seller Info:\n• Name: ${
+                                              dispute.orders?.seller_profile
+                                                ?.full_name || "Unknown"
+                                            }\n• Student ID: ${
+                                              dispute.orders?.seller_profile
+                                                ?.student_id || "N/A"
+                                            }\n\n👤 Buyer Info:\n• Name: ${
+                                              dispute.orders?.buyer_profile
+                                                ?.full_name || "Unknown"
+                                            }\n• Student ID: ${
+                                              dispute.orders?.buyer_profile
+                                                ?.student_id || "N/A"
+                                            }\n\n⚠️ Dispute Details:\n• Reason: ${dispute.reason
+                                              .replace("_", " ")
+                                              .toUpperCase()}\n• Description: ${
+                                              dispute.description ||
+                                              "No description provided"
+                                            }\n• Reported: ${new Date(
+                                              dispute.created_at
+                                            ).toLocaleDateString()}\n\n📞 Please respond ASAP to help resolve this issue. Contact the buyer directly or provide clarification about the product/service.`;
                                             window.open(
                                               `https://wa.me/2349133054018?text=${encodeURIComponent(
                                                 message
