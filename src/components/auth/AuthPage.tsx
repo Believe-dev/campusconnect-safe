@@ -333,6 +333,15 @@ const AuthPage = () => {
         title: "Welcome Back!",
         description: "Successfully signed in to UniMarket.",
       });
+      
+      // Handle redirect after auth
+      const redirectPath = localStorage.getItem('redirect_after_auth');
+      if (redirectPath) {
+        localStorage.removeItem('redirect_after_auth');
+        setTimeout(() => {
+          window.location.href = redirectPath;
+        }, 1000);
+      }
     }
 
     setLoading(false);

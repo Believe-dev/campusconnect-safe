@@ -459,7 +459,8 @@ const Cart = () => {
                           <img
                             src={item.products.images[0]}
                             alt={item.products?.title || 'Product image'}
-                            className="w-16 h-16 sm:w-20 sm:h-20 object-cover rounded flex-shrink-0"
+                            className="w-16 h-16 sm:w-20 sm:h-20 object-cover rounded flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
+                            onClick={() => handleViewProduct(item.products.id)}
                             onError={(e) => {
                               e.currentTarget.style.display = 'none';
                             }}
@@ -469,7 +470,12 @@ const Cart = () => {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-start justify-between mb-2 gap-2">
                             <div className="min-w-0 flex-1">
-                              <h3 className="font-semibold text-base sm:text-lg line-clamp-2">{item.products?.title || 'Unknown Product'}</h3>
+                              <h3 
+                                className="font-semibold text-base sm:text-lg line-clamp-2 cursor-pointer hover:text-primary transition-colors"
+                                onClick={() => handleViewProduct(item.products.id)}
+                              >
+                                {item.products?.title || 'Unknown Product'}
+                              </h3>
                               <p className="text-xs sm:text-sm text-muted-foreground truncate">
                                 by {item.products?.profiles?.full_name || 'Unknown Seller'}
                               </p>

@@ -962,9 +962,7 @@ const SecureChat = ({
           // Handle message updates
           setMessages((prev) =>
             prev.map((msg) =>
-              msg.id === payload.new.id
-                ? { ...msg, ...payload.new }
-                : msg
+              msg.id === payload.new.id ? { ...msg, ...payload.new } : msg
             )
           );
         }
@@ -982,7 +980,7 @@ const SecureChat = ({
 
   // Scroll to top when component mounts
   useEffect(() => {
-    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
     document.body.scrollTop = 0;
     document.documentElement.scrollTop = 0;
   }, []);
@@ -1279,8 +1277,8 @@ const SecureChat = ({
     <div className="fixed inset-0 flex flex-col bg-white">
       <Card className="h-full flex flex-col border-0 shadow-lg rounded-none sm:rounded-lg">
         {/* Secure Chat Header */}
-        <CardHeader className="bg-gradient-to-r from-green-600 to-green-700 text-white p-3 sm:p-4 rounded-t-lg">
-          <div className="flex items-center gap-2 sm:gap-3">
+        <CardHeader className="fixed top-0 left-0 bg-gradient-to-r from-green-600 to-green-700 text-white p-3 sm:p-4 rounded-t-lg">
+          <div className="fixed top-0 left-0 flex items-center gap-2 sm:gap-3">
             {onClose && (
               <Button
                 variant="ghost"
@@ -1544,7 +1542,11 @@ const SecureChat = ({
                   <span className="text-lg mr-3">😊</span>
                   <span className="font-medium">React with Emoji</span>
                 </Button>
-                {Boolean(selectedMessage && messages.find((m) => m.id === selectedMessage)?.sender_id === currentUserId) && (
+                {Boolean(
+                  selectedMessage &&
+                    messages.find((m) => m.id === selectedMessage)
+                      ?.sender_id === currentUserId
+                ) && (
                   <Button
                     variant="outline"
                     className="w-full justify-start h-12 text-left border-red-200 text-red-600 hover:bg-red-50 transition-all duration-200"

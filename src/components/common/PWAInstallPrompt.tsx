@@ -69,8 +69,10 @@ export const PWAInstallPrompt: React.FC = () => {
           <Smartphone className="h-5 w-5 text-primary" />
         </div>
         <div className="flex-1">
-          <h3 className="font-semibold text-sm">Install UniMarket</h3>
-          <p className="text-xs text-muted-foreground mt-1">
+          <h3 className="font-semibold text-sm text-black">
+            Install UniMarket
+          </h3>
+          <p className="text-xs text-black mt-1">
             {isIOS
               ? "Tap Share → Add to Home Screen for the best experience"
               : "Install our app for faster access and offline features"}

@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import Header from '@/components/layout/Header';
 import ProductCard from '@/components/marketplace/ProductCard';
+import { ProductReviews } from '@/components/reviews/ProductReviews';
 
 interface Product {
   id: string;
@@ -205,6 +206,8 @@ const ProductDetails = () => {
   const handleAddToCart = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
+      // Store current product URL for redirect after login
+      localStorage.setItem('redirect_after_auth', window.location.pathname);
       navigate('/auth');
       return;
     }
@@ -845,6 +848,11 @@ const ProductDetails = () => {
                 </Button>
               </div>
             </div>
+          </div>
+
+          {/* Product Reviews Section */}
+          <div className="mt-12">
+            <ProductReviews productId={product.id} />
           </div>
 
           {/* Similar Products Section */}

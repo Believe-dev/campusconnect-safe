@@ -22,3 +22,47 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# SQL files with sensitive information or test data
+# Files containing INSERT statements with sample/test data
+create_dispute_system.sql
+create_test_report.sql
+test_email_trigger.sql
+test_product_reports.sql
+test_user_deletion.sql
+test_verification_queries.sql
+
+# Files containing sensitive API keys or credentials
+supabase/migrations/20250113000008_onesignal_push_notifications.sql
+
+# All fix/debug SQL files (temporary scripts)
+fix_*.sql
+FIX_*.sql
+debug_*.sql
+diagnose_*.sql
+run_*.sql
+setup_*.sql
+simple_*.sql
+performance-optimization.sql
+supabase-functions.sql
+wallet_functions.sql
+update_*.sql
+update-*.sql
+storage_permissions.sql
+consolidate_conversations.sql
+create_consolidated_conversation_function.sql
+create_dispute_trigger.sql
+create_missing_function.sql
+create_reviews_table.sql
+create_verification_function.sql
+create_verification_table.sql
+database-migration.sql
+run-migration.sql
+add_*.sql
+add-*.sql
+fixes sql/
+
+# Environment files
+.env
+.env.local
+.env.*.local

@@ -1,0 +1,116 @@
+/* iOS-specific fixes */
+
+/* Fix notification bell and icons on iOS */
+.lucide-bell,
+.lucide-shopping-cart,
+.lucide-message-circle,
+.lucide-heart {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/* Fix badge positioning on iOS */
+.badge {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  min-width: 20px !important;
+  min-height: 20px !important;
+}
+
+/* Fix header backdrop blur on iOS */
+header {
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+}
+
+/* Prevent content overlap with header */
+.layout-stable {
+  padding-top: env(safe-area-inset-top);
+}
+
+/* Fix bottom navigation safe area */
+.safe-area-pb {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Fix iOS button appearance */
+button {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+}
+
+/* Fix iOS input appearance */
+input, textarea, select {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  border-radius: 0.375rem;
+}
+
+/* Fix iOS scroll behavior */
+.scrollbar-thin {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Fix iOS theme toggle */
+.theme-toggle {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Fix iOS notification positioning */
+.notification-badge {
+  position: absolute !important;
+  top: -8px !important;
+  right: -8px !important;
+  z-index: 10 !important;
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+}
+
+/* Fix iOS modal backdrop */
+.modal-backdrop {
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+}
+
+/* Fix iOS card shadows */
+.shadow-sm {
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+.shadow-md {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+/* Fix iOS network indicator */
+.network-indicator {
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/* Fix iOS theme detection */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: light !important;
+  }
+}
+
+/* Force light mode on iOS by default */
+html {
+  color-scheme: light !important;
+}
+
+html.dark {
+  color-scheme: dark !important;
+}

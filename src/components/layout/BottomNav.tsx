@@ -52,11 +52,12 @@ const BottomNav = () => {
                 <Icon className={cn(
                   "h-5 w-5 transition-all duration-200",
                   isActive ? "drop-shadow-sm" : ""
-                )} />
+                )} style={{ WebkitAppearance: 'none', appearance: 'none' }} />
                 {badge !== undefined && (
                   <Badge 
                     variant="destructive" 
-                    className="absolute -top-2 -right-2 h-4 w-4 flex items-center justify-center p-0 text-xs font-bold rounded-full bg-gradient-to-r from-red-500 to-red-600 text-white border-2 border-background shadow-sm"
+                    className="absolute -top-2 -right-2 h-4 w-4 flex items-center justify-center p-0 text-xs font-bold rounded-full bg-gradient-to-r from-red-500 to-red-600 text-white border-2 border-background shadow-sm notification-badge"
+                    style={{ WebkitAppearance: 'none', appearance: 'none', minWidth: '16px', minHeight: '16px' }}
                   >
                     {badge > 99 ? '99+' : badge}
                   </Badge>

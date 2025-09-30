@@ -1,10 +1,42 @@
 import { useParams, Navigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import SecureChat from "@/components/chat/SecureChat";
+import OptimizedChat from "@/components/chat/OptimizedChat";
+import { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 const Chat = () => {
   const { conversationId } = useParams();
   const { user, loading } = useAuth();
+  const [otherUser, setOtherUser] = useState(null);
+
+  // Fetch conversation details to get other user info
+  useEffect(() => {
+    if (conversationId && user) {
+      const fetchConversation = async () => {
+        try {
+          const { data, error } = await supabase
+            .from('conversations')
+            .select(`
+              *,
+              buyer:profiles!conversations_buyer_id_fkey (full_name, avatar_url, is_verified),
+              seller:profiles!conversations_seller_id_fkey (full_name, avatar_url, is_verified)
+            `)
+            .eq('id', conversationId)
+            .single();
+
+          if (error) throw error;
+
+          // Determine other user
+          const otherUserData = data.buyer_id === user.id ? data.seller : data.buyer;
+          setOtherUser(otherUserData);
+        } catch (error) {
+          console.error('Failed to fetch conversation:', error);
+        }
+      };
+
+      fetchConversation();
+    }
+  }, [conversationId, user]);
 
   if (loading) {
     return (
@@ -23,11 +55,12 @@ const Chat = () => {
   }
 
   return (
-    <div className="h-fit bg-background flex flex-col overflow-hidden">
+    <div className="h-screen bg-background flex flex-col overflow-hidden">
       <main className="flex-1 overflow-hidden">
-        <SecureChat
+        <OptimizedChat
           conversationId={conversationId}
           currentUserId={user.id}
+          otherUser={otherUser}
           onClose={() => window.history.back()}
         />
       </main>

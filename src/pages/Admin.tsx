@@ -266,6 +266,7 @@ export default function Admin() {
   const [banAppeals, setBanAppeals] = useState<any[]>([]);
   const [emailLogs, setEmailLogs] = useState<any[]>([]);
   const [disputeTemplates, setDisputeTemplates] = useState<any[]>([]);
+  const [suggestions, setSuggestions] = useState<any[]>([]);
 
   useEffect(() => {
     if (isAdmin) {
@@ -282,6 +283,7 @@ export default function Admin() {
       fetchBanAppeals();
       fetchEmailLogs();
       fetchDisputeTemplates();
+      fetchSuggestions();
     }
   }, [isAdmin]);
 
@@ -779,6 +781,64 @@ export default function Admin() {
       setDisputeTemplates(templates || []);
     } catch (error) {
       setDisputeTemplates([]);
+    }
+  };
+
+  const fetchSuggestions = async () => {
+    try {
+      // First fetch suggestions
+      const { data: suggestionsData, error: suggestionsError } = await supabase
+        .from("suggestions")
+        .select(`
+          id,
+          user_id,
+          title,
+          category,
+          description,
+          priority,
+          status,
+          admin_notes,
+          reviewed_by,
+          reviewed_at,
+          created_at,
+          updated_at
+        `)
+        .order("created_at", { ascending: false });
+
+      if (suggestionsError) {
+        console.error('Suggestions fetch error:', suggestionsError);
+        setSuggestions([]);
+        return;
+      }
+
+      if (!suggestionsData || suggestionsData.length === 0) {
+        setSuggestions([]);
+        return;
+      }
+
+      // Get unique user IDs
+      const userIds = [...new Set(suggestionsData.map(s => s.user_id).filter(Boolean))];
+      
+      // Fetch user profiles separately
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("user_id, full_name, email")
+        .in("user_id", userIds);
+
+      // Combine data
+      const enrichedSuggestions = suggestionsData.map(suggestion => ({
+        ...suggestion,
+        profiles: profiles?.find(p => p.user_id === suggestion.user_id) || {
+          full_name: "Unknown User",
+          email: "unknown@example.com"
+        }
+      }));
+      
+      console.log('Fetched suggestions:', enrichedSuggestions);
+      setSuggestions(enrichedSuggestions);
+    } catch (error) {
+      console.error('Failed to fetch suggestions:', error);
+      setSuggestions([]);
     }
   };
 
@@ -2013,6 +2073,9 @@ export default function Admin() {
               </TabsTrigger>
               <TabsTrigger value="analytics" className="text-xs md:text-sm">
                 Analytics
+              </TabsTrigger>
+              <TabsTrigger value="suggestions" className="text-xs md:text-sm">
+                Suggestions
               </TabsTrigger>
               <TabsTrigger value="settings" className="text-xs md:text-sm">
                 Settings
@@ -5164,6 +5227,236 @@ export default function Admin() {
                                     </form>
                                   </DialogContent>
                                 </Dialog>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Suggestions Tab */}
+          <TabsContent value="suggestions">
+            <Card>
+              <CardHeader>
+                <div className="flex justify-between items-center">
+                  <CardTitle>User Suggestions</CardTitle>
+                  <div className="flex items-center gap-2">
+                    {suggestions.filter(s => s.status === 'pending').length > 0 && (
+                      <Badge variant="secondary">
+                        {suggestions.filter(s => s.status === 'pending').length} pending
+                      </Badge>
+                    )}
+                    <Button onClick={fetchSuggestions} variant="outline" size="sm">
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Refresh
+                    </Button>
+                  </div>
+                </div>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Review and manage user suggestions for platform improvements
+                </p>
+              </CardHeader>
+              <CardContent>
+                {suggestions.length === 0 ? (
+                  <div className="text-center py-12">
+                    <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold mb-2">No suggestions</h3>
+                    <p className="text-muted-foreground">
+                      Users can submit suggestions for platform improvements
+                    </p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Title</TableHead>
+                          <TableHead>Category</TableHead>
+                          <TableHead>Priority</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Submitted By</TableHead>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {suggestions.map((suggestion) => (
+                          <TableRow key={suggestion.id}>
+                            <TableCell>
+                              <div>
+                                <p className="font-medium">{suggestion.title}</p>
+                                <p className="text-sm text-muted-foreground truncate max-w-xs" title={suggestion.description}>
+                                  {suggestion.description}
+                                </p>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline">
+                                {suggestion.category || 'General'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={
+                                suggestion.priority === 'critical' ? 'destructive' :
+                                suggestion.priority === 'high' ? 'default' :
+                                suggestion.priority === 'medium' ? 'secondary' : 'outline'
+                              }>
+                                {suggestion.priority}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={
+                                suggestion.status === 'pending' ? 'secondary' :
+                                suggestion.status === 'approved' ? 'default' :
+                                suggestion.status === 'implemented' ? 'default' :
+                                'destructive'
+                              }>
+                                {suggestion.status}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <div>
+                                <p className="font-medium">
+                                  {suggestion.profiles?.full_name || 'Unknown User'}
+                                </p>
+                                <p className="text-sm text-muted-foreground">
+                                  {suggestion.profiles?.email}
+                                </p>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              {new Date(suggestion.created_at).toLocaleDateString()}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex gap-2">
+                                <Dialog>
+                                  <DialogTrigger asChild>
+                                    <Button size="sm" variant="outline">
+                                      <Eye className="h-4 w-4 mr-1" />
+                                      View
+                                    </Button>
+                                  </DialogTrigger>
+                                  <DialogContent className="max-w-2xl">
+                                    <DialogHeader>
+                                      <DialogTitle>{suggestion.title}</DialogTitle>
+                                      <DialogDescription>
+                                        Suggestion from {suggestion.profiles?.full_name}
+                                      </DialogDescription>
+                                    </DialogHeader>
+                                    <div className="space-y-4">
+                                      <div>
+                                        <Label className="font-medium">Description</Label>
+                                        <p className="text-sm mt-1 whitespace-pre-wrap">
+                                          {suggestion.description}
+                                        </p>
+                                      </div>
+                                      <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                          <Label className="font-medium">Category</Label>
+                                          <p className="text-sm">{suggestion.category || 'General'}</p>
+                                        </div>
+                                        <div>
+                                          <Label className="font-medium">Priority</Label>
+                                          <p className="text-sm">{suggestion.priority}</p>
+                                        </div>
+                                      </div>
+                                      {suggestion.admin_notes && (
+                                        <div>
+                                          <Label className="font-medium">Admin Notes</Label>
+                                          <p className="text-sm mt-1 whitespace-pre-wrap">
+                                            {suggestion.admin_notes}
+                                          </p>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </DialogContent>
+                                </Dialog>
+                                {suggestion.status === 'pending' && (
+                                  <>
+                                    <Button
+                                      size="sm"
+                                      variant="default"
+                                      onClick={async () => {
+                                        try {
+                                          const { error } = await supabase
+                                            .from('suggestions')
+                                            .update({ 
+                                              status: 'approved',
+                                              reviewed_by: user?.id,
+                                              reviewed_at: new Date().toISOString()
+                                            })
+                                            .eq('id', suggestion.id);
+                                          
+                                          if (error) throw error;
+                                          
+                                          toast.success('Suggestion approved');
+                                          fetchSuggestions();
+                                        } catch (error) {
+                                          toast.error('Failed to approve suggestion');
+                                        }
+                                      }}
+                                    >
+                                      Approve
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={async () => {
+                                        try {
+                                          const { error } = await supabase
+                                            .from('suggestions')
+                                            .update({ 
+                                              status: 'rejected',
+                                              reviewed_by: user?.id,
+                                              reviewed_at: new Date().toISOString()
+                                            })
+                                            .eq('id', suggestion.id);
+                                          
+                                          if (error) throw error;
+                                          
+                                          toast.success('Suggestion rejected');
+                                          fetchSuggestions();
+                                        } catch (error) {
+                                          toast.error('Failed to reject suggestion');
+                                        }
+                                      }}
+                                    >
+                                      Reject
+                                    </Button>
+                                  </>
+                                )}
+                                {suggestion.status === 'approved' && (
+                                  <Button
+                                    size="sm"
+                                    variant="default"
+                                    onClick={async () => {
+                                      try {
+                                        const { error } = await supabase
+                                          .from('suggestions')
+                                          .update({ 
+                                            status: 'implemented',
+                                            reviewed_by: user?.id,
+                                            reviewed_at: new Date().toISOString()
+                                          })
+                                          .eq('id', suggestion.id);
+                                        
+                                        if (error) throw error;
+                                        
+                                        toast.success('Suggestion marked as implemented');
+                                        fetchSuggestions();
+                                      } catch (error) {
+                                        toast.error('Failed to update suggestion');
+                                      }
+                                    }}
+                                  >
+                                    Mark Implemented
+                                  </Button>
+                                )}
                               </div>
                             </TableCell>
                           </TableRow>

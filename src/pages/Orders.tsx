@@ -31,6 +31,7 @@ import {
 import Header from "@/components/layout/Header";
 import { findOrCreateConversation } from "@/utils/conversationUtils";
 import { useNavigate } from "react-router-dom";
+import { ProfileReviewModal } from "@/components/reviews/ProfileReviewModal";
 
 interface Order {
   id: string;
@@ -506,6 +507,8 @@ const Orders = () => {
   const [showReportDialog, setShowReportDialog] = useState(false);
   const [reportReason, setReportReason] = useState("");
   const [reportDescription, setReportDescription] = useState("");
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [reviewOrderData, setReviewOrderData] = useState<{orderId: string, sellerId: string, sellerName: string} | null>(null);
 
   const handleChat = async (order: Order, isSeller: boolean) => {
     if (!user) return;
@@ -749,7 +752,18 @@ const Orders = () => {
                     <div className="flex flex-col gap-2">
                       <Button
                         size="sm"
-                        onClick={() => updateOrderStatus(order.id, "confirmed")}
+                        onClick={() => {
+                          updateOrderStatus(order.id, "confirmed");
+                          // Show review modal after confirmation
+                          setTimeout(() => {
+                            setReviewOrderData({
+                              orderId: order.id,
+                              sellerId: order.seller_id,
+                              sellerName: order.seller?.full_name || 'Seller'
+                            });
+                            setShowReviewModal(true);
+                          }, 1500);
+                        }}
                         className="w-full sm:w-auto text-xs sm:text-sm"
                       >
                         ✅ Confirm Receipt
@@ -1002,6 +1016,20 @@ const Orders = () => {
           )}
         </div>
       </main>
+      
+      {/* Profile Review Modal */}
+      {reviewOrderData && (
+        <ProfileReviewModal
+          open={showReviewModal}
+          onClose={() => {
+            setShowReviewModal(false);
+            setReviewOrderData(null);
+          }}
+          sellerId={reviewOrderData.sellerId}
+          sellerName={reviewOrderData.sellerName}
+          orderId={reviewOrderData.orderId}
+        />
+      )}
     </div>
   );
 };

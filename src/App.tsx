@@ -18,6 +18,7 @@ import { ROUTES } from "@/lib/constants";
 import BottomNav from "@/components/layout/BottomNav";
 import ProtectedSellerRoute from "./components/auth/ProtectedSellerRoute";
 import { ProfileProvider } from "@/contexts/ProfileContext";
+import { RealTimeProvider } from "@/contexts/RealTimeContext";
 
 import { MessagePopup } from "@/components/notifications/MessagePopup";
 import { OfflineNotification } from "@/components/common/OfflineNotification";
@@ -41,6 +42,8 @@ import { useLiteMode } from "@/hooks/useLiteMode";
 import { useOnboarding } from "@/hooks/useOnboarding";
 import { DevToolsProtection } from "@/components/security/DevToolsProtection";
 import { useEffect } from "react";
+import { NetworkNotification } from "@/components/notifications/NetworkNotification";
+import { useAutoReload } from "@/hooks/useAutoReload";
 
 // Lazy load pages for better performance with error boundaries
 const Index = React.lazy(() =>
@@ -168,6 +171,11 @@ const PrivacyPolicy = React.lazy(() =>
     default: () => <div>Error loading page</div>,
   }))
 );
+const Suggestions = React.lazy(() =>
+  import("./pages/Suggestions").catch(() => ({
+    default: () => <div>Error loading page</div>,
+  }))
+);
 
 // Clear all caches on app start
 const clearAllCaches = async () => {
@@ -233,6 +241,7 @@ const AppContent = () => {
   useBackgroundSync();
   useRealTimeUpdates();
   useLiteMode();
+  useAutoReload();
   const { showModal, missingFields, dismissModal, completeProfile } =
     useProfileCompletion();
   const { isBanned, banReason, userEmail } = useBanCheck();
@@ -268,6 +277,7 @@ const AppContent = () => {
 
   return (
     <>
+      <NetworkNotification />
       <div className="pb-24 lg:pb-0 layout-stable">
         <AuthGuard>
           <Suspense fallback={<LoadingSkeleton />}>
@@ -314,6 +324,7 @@ const AppContent = () => {
                 <Route path="/wallet" element={<Wallet />} />
                 <Route path="/terms-of-service" element={<TermsOfService />} />
                 <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+                <Route path="/suggestions" element={<Suggestions />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </div>
@@ -350,7 +361,9 @@ const App = () => (
               <Toaster />
               <Sonner />
               <ProfileProvider>
-                <AppContent />
+                <RealTimeProvider>
+                  <AppContent />
+                </RealTimeProvider>
               </ProfileProvider>
             </TooltipProvider>
           </QueryClientProvider>

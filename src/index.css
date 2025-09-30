@@ -2,6 +2,7 @@
 @import "./styles/lite-mode.css";
 @import "./styles/browser-fixes.css";
 @import "./styles/mobile-upload.css";
+@import "./styles/ios-fixes.css";
 
 @tailwind base;
 @tailwind components;

@@ -41,6 +41,7 @@ import {
   Wifi,
   WifiOff,
   Signal,
+  Lightbulb,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
@@ -294,6 +295,18 @@ const Header = () => {
                 variant="ghost"
                 size="lg"
                 asChild
+                className="justify-start"
+              >
+                <Link to="/suggestions">
+                  <Lightbulb className="mr-3 h-5 w-5" />
+                  Suggestions
+                </Link>
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="lg"
+                asChild
                 className="justify-start relative"
               >
                 <Link to="/notifications">
@@ -513,7 +526,7 @@ const Header = () => {
   );
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-primary/10 bg-background shadow-sm">
+    <header className="sticky top-0 z-50 w-full border-b border-primary/10 bg-background/95 backdrop-blur-sm shadow-sm">
       <div className="container mx-auto px-4">
         <div className="flex h-16 items-center justify-between">
           {/* Mobile Menu */}
@@ -624,6 +637,10 @@ const Header = () => {
                     <Link to="/learn-more">Learn More</Link>
                   </Button>
 
+                  <Button variant="ghost" size="sm" asChild>
+                    <Link to="/suggestions">Suggestions</Link>
+                  </Button>
+
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
@@ -633,11 +650,12 @@ const Header = () => {
                         className="relative"
                       >
                         <Link to="/notifications">
-                          <Bell className="h-5 w-5" />
+                          <Bell className="h-5 w-5" style={{ WebkitAppearance: 'none', appearance: 'none' }} />
                           {unreadCount > 0 && (
                             <Badge
                               variant="destructive"
-                              className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center p-0 text-xs font-bold rounded-full bg-red-500 text-white border-2 border-background"
+                              className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center p-0 text-xs font-bold rounded-full bg-red-500 text-white border-2 border-background shadow-sm"
+                              style={{ WebkitAppearance: 'none', appearance: 'none', minWidth: '20px', minHeight: '20px' }}
                             >
                               {unreadCount > 99 ? "99+" : unreadCount}
                             </Badge>
