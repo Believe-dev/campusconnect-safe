@@ -69,6 +69,7 @@ const ProductDetails = () => {
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
   const [isFavorited, setIsFavorited] = useState(false);
   const [favoriteLoading, setFavoriteLoading] = useState(false);
+  const [isInCart, setIsInCart] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -81,6 +82,7 @@ const ProductDetails = () => {
     if (product) {
       fetchSimilarProducts();
       checkFavoriteStatus();
+      checkCartStatus();
     }
   }, [product]);
 
@@ -204,6 +206,8 @@ const ProductDetails = () => {
   };
 
   const handleAddToCart = async () => {
+    if (isInCart) return; // Prevent action if already in cart
+    
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       // Store current product URL for redirect after login
@@ -224,6 +228,16 @@ const ProductDetails = () => {
         .maybeSingle();
 
       if (existingItem) {
+        // Check if adding more would exceed stock
+        if (existingItem.quantity + quantity > product.stock_quantity) {
+          toast({
+            title: "Stock Limit Exceeded",
+            description: `Only ${product.stock_quantity - existingItem.quantity} more items available`,
+            variant: "destructive",
+          });
+          return;
+        }
+
         // Update quantity if item exists
         const { error } = await supabase
           .from('cart')
@@ -235,6 +249,16 @@ const ProductDetails = () => {
 
         if (error) throw error;
       } else {
+        // Check if requested quantity exceeds stock
+        if (quantity > product.stock_quantity) {
+          toast({
+            title: "Stock Limit Exceeded",
+            description: `Only ${product.stock_quantity} items available`,
+            variant: "destructive",
+          });
+          return;
+        }
+
         // Insert new item to cart
         const { error } = await supabase
           .from('cart')
@@ -247,6 +271,7 @@ const ProductDetails = () => {
         if (error) throw error;
       }
 
+      setIsInCart(true);
       toast({
         title: "Added to Cart",
         description: `${quantity} item(s) added to your cart`,
@@ -374,6 +399,27 @@ const ProductDetails = () => {
     } catch (error) {
       // Not favorited or error - default to false
       setIsFavorited(false);
+    }
+  };
+
+  const checkCartStatus = async () => {
+    if (!product) return;
+    
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data } = await supabase
+        .from('cart')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('product_id', product.id)
+        .single();
+
+      setIsInCart(!!data);
+    } catch (error) {
+      // Not in cart or error - default to false
+      setIsInCart(false);
     }
   };
 
@@ -842,9 +888,15 @@ const ProductDetails = () => {
                   </select>
                 </div>
 
-                <Button onClick={handleAddToCart} className="w-full" size="lg">
+                <Button 
+                  onClick={handleAddToCart} 
+                  className="w-full" 
+                  size="lg" 
+                  variant={isInCart ? "outline" : "default"}
+                  disabled={isInCart}
+                >
                   <ShoppingCart className="h-4 w-4 mr-2" />
-                  Add to Cart
+                  {isInCart ? "In Cart" : "Add to Cart"}
                 </Button>
               </div>
             </div>

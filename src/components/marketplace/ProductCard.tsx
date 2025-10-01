@@ -8,6 +8,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { sanitizeInput, secureLog } from '@/utils/security';
 import { supabase } from '@/integrations/supabase/client';
+import { useState, useEffect } from 'react';
 
 interface Product {
   id: string;
@@ -19,6 +20,7 @@ interface Product {
   campus: string;
   condition: string;
   seller_id: string;
+  stock_quantity: number;
   seller: {
     full_name: string;
     rating: number;
@@ -46,6 +48,98 @@ const ProductCard = ({
   const { user } = useAuth();
   const { toast } = useToast();
   const { isLowMemory } = useMemoryOptimization();
+  const [isInCart, setIsInCart] = useState(false);
+
+  useEffect(() => {
+    if (user && product) {
+      checkCartStatus();
+    }
+  }, [user, product]);
+
+  const checkCartStatus = async () => {
+    if (!user || !product) return;
+    
+    try {
+      const { data } = await supabase
+        .from('cart')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('product_id', product.id)
+        .single();
+
+      setIsInCart(!!data);
+    } catch (error) {
+      setIsInCart(false);
+    }
+  };
+
+  const handleAddToCart = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    if (isInCart) return; // Prevent action if already in cart
+    
+    if (!user) {
+      toast({
+        title: "Authentication Required",
+        description: "Please sign in to add items to cart",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const { data: existingItem } = await supabase
+        .from('cart')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('product_id', product.id)
+        .maybeSingle();
+
+      if (existingItem) {
+        // Check if adding one more would exceed stock
+        if (existingItem.quantity >= (product as any).stock_quantity) {
+          toast({
+            title: "Stock Limit Reached",
+            description: "Cannot add more items than available stock",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        const { error } = await supabase
+          .from('cart')
+          .update({ 
+            quantity: existingItem.quantity + 1,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', existingItem.id);
+
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('cart')
+          .insert({
+            user_id: user.id,
+            product_id: product.id,
+            quantity: 1
+          });
+
+        if (error) throw error;
+      }
+
+      setIsInCart(true);
+      toast({
+        title: "Added to Cart",
+        description: "Item added to your cart",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to add item to cart",
+        variant: "destructive",
+      });
+    }
+  };
 
   const handleMessageSeller = async () => {
     if (!user) {
@@ -149,21 +243,17 @@ const ProductCard = ({
         {/* Hover Actions - Hidden on mobile for better touch experience */}
         {showHoverActions && isAuthenticated && (
           <div className="absolute inset-x-1 bottom-1 sm:inset-x-2 sm:bottom-2 flex gap-1 sm:gap-2 opacity-0 sm:group-hover:opacity-100 transition-opacity z-10">
-            {onAddToCart && (
-              <Button 
-                size="sm" 
-                variant="brand" 
-                className="flex-1 h-7 sm:h-8 text-xs"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onAddToCart(product.id);
-                }}
-              >
-                <ShoppingCart className="h-3 w-3 mr-1" />
-                <span className="hidden sm:inline">Add to Cart</span>
-                <span className="sm:hidden">Add</span>
-              </Button>
-            )}
+            <Button 
+              size="sm" 
+              variant={isInCart ? "outline" : "brand"} 
+              className="flex-1 h-7 sm:h-8 text-xs"
+              onClick={handleAddToCart}
+              disabled={isInCart}
+            >
+              <ShoppingCart className="h-3 w-3 mr-1" />
+              <span className="hidden sm:inline">{isInCart ? "In Cart" : "Add to Cart"}</span>
+              <span className="sm:hidden">{isInCart ? "In Cart" : "Add"}</span>
+            </Button>
             {/* Message Seller Button */}
             <Button
               variant="outline"

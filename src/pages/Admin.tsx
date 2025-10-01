@@ -91,6 +91,7 @@ import Header from "@/components/layout/Header";
 import { triggerProfileUpdate } from "@/utils/realTimeEvents";
 import { emailService } from "@/utils/emailService";
 import { sanitizeInput, validateEmail, validateName } from "@/lib/security";
+import { AdminWallet } from "@/components/admin/AdminWallet";
 
 interface User {
   id: string;
@@ -1151,33 +1152,28 @@ export default function Admin() {
           }
         }
 
-        // Call the real money transfer function
-        const { data, error: payoutError } = await supabase.functions.invoke(
-          "process-payout",
+        // Process automatic bank transfer using Edge Function
+        const { data: transferResult, error: transferError } = await supabase.functions.invoke(
+          'process-payout',
           {
-            body: {
-              payout_id: payoutId,
-              admin_id: user.id,
-            },
+            body: { payout_id: payoutId }
           }
         );
 
-        if (payoutError) {
-          console.error("Payout processing error:", payoutError);
-          toast.error(`Payout processing failed: ${payoutError.message}`);
+        if (transferError) {
+          console.error('Transfer error:', transferError);
+          toast.error(`Transfer failed: ${transferError.message}`);
           return;
         }
 
-        if (data?.error) {
-          toast.error(`Transfer failed: ${data.error}`);
+        if (transferResult?.error) {
+          toast.error(`Transfer failed: ${transferResult.error}`);
           return;
         }
 
-        if (data?.success) {
-          toast.success(
-            `Real money transfer initiated! Transfer code: ${data.transfer_code}`
-          );
-        }
+        toast.success(
+          `Payout approved and bank transfer initiated! Transfer code: ${transferResult.transfer_code}`
+        );
       } else {
         // Just reject the payout request
         const { error } = await supabase
@@ -2130,6 +2126,9 @@ export default function Admin() {
               </TabsTrigger>
               <TabsTrigger value="suggestions" className="text-xs md:text-sm">
                 Suggestions
+              </TabsTrigger>
+              <TabsTrigger value="wallet" className="text-xs md:text-sm">
+                Admin Wallet
               </TabsTrigger>
               <TabsTrigger value="settings" className="text-xs md:text-sm">
                 Settings
@@ -4424,6 +4423,11 @@ export default function Admin() {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Admin Wallet Tab */}
+          <TabsContent value="wallet">
+            <AdminWallet />
           </TabsContent>
 
           {/* Products Tab */}

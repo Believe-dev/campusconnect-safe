@@ -271,10 +271,10 @@ const WalletDashboard = () => {
       }
 
       // Minimum payout amount check
-      if (amount < 1000) {
+      if (amount < 100) {
         toast({
           title: "Minimum Payout Amount",
-          description: "Minimum payout amount is ₦1,000",
+          description: "Minimum payout amount is ₦100",
           variant: "destructive",
         });
         return;
@@ -302,18 +302,19 @@ const WalletDashboard = () => {
         return;
       }
 
-      const { error } = await supabase.from("payout_requests").insert({
+      // Create payout request
+      const { data: payoutData, error: insertError } = await supabase.from("payout_requests").insert({
         user_id: user.id,
         wallet_id: wallet.id,
         amount,
         ...bankDetailsToUse,
-      });
+      }).select().single();
 
-      if (error) throw error;
+      if (insertError) throw insertError;
 
       toast({
         title: "Payout Requested",
-        description: "Your payout request has been submitted for processing",
+        description: "Your payout request has been submitted and will be processed within 24 hours",
       });
 
       setShowPayoutDialog(false);
@@ -615,17 +616,51 @@ const WalletDashboard = () => {
                 </div>
                 <div>
                   <Label htmlFor="bank_name">Bank Name</Label>
-                  <Input
-                    id="bank_name"
-                    placeholder="Bank name"
+                  <Select
                     value={bankDetailsForm.bank_name}
-                    onChange={(e) =>
+                    onValueChange={(value) =>
                       setBankDetailsForm({
                         ...bankDetailsForm,
-                        bank_name: e.target.value,
+                        bank_name: value,
                       })
                     }
-                  />
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select your bank" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Access Bank">Access Bank</SelectItem>
+                      <SelectItem value="Citibank Nigeria">Citibank Nigeria</SelectItem>
+                      <SelectItem value="Diamond Bank">Diamond Bank</SelectItem>
+                      <SelectItem value="Ecobank Nigeria">Ecobank Nigeria</SelectItem>
+                      <SelectItem value="Fidelity Bank">Fidelity Bank</SelectItem>
+                      <SelectItem value="First Bank of Nigeria">First Bank of Nigeria</SelectItem>
+                      <SelectItem value="First City Monument Bank">First City Monument Bank</SelectItem>
+                      <SelectItem value="Guaranty Trust Bank">Guaranty Trust Bank</SelectItem>
+                      <SelectItem value="Heritage Bank">Heritage Bank</SelectItem>
+                      <SelectItem value="Keystone Bank">Keystone Bank</SelectItem>
+                      <SelectItem value="Polaris Bank">Polaris Bank</SelectItem>
+                      <SelectItem value="Providus Bank">Providus Bank</SelectItem>
+                      <SelectItem value="Stanbic IBTC Bank">Stanbic IBTC Bank</SelectItem>
+                      <SelectItem value="Standard Chartered Bank">Standard Chartered Bank</SelectItem>
+                      <SelectItem value="Sterling Bank">Sterling Bank</SelectItem>
+                      <SelectItem value="Union Bank of Nigeria">Union Bank of Nigeria</SelectItem>
+                      <SelectItem value="United Bank For Africa">United Bank For Africa</SelectItem>
+                      <SelectItem value="Unity Bank">Unity Bank</SelectItem>
+                      <SelectItem value="Wema Bank">Wema Bank</SelectItem>
+                      <SelectItem value="Zenith Bank">Zenith Bank</SelectItem>
+                      <SelectItem value="Kuda Bank">Kuda Bank</SelectItem>
+                      <SelectItem value="Opay">Opay</SelectItem>
+                      <SelectItem value="PalmPay">PalmPay</SelectItem>
+                      <SelectItem value="Moniepoint">Moniepoint</SelectItem>
+                      <SelectItem value="Carbon">Carbon</SelectItem>
+                      <SelectItem value="Rubies Bank">Rubies Bank</SelectItem>
+                      <SelectItem value="VFD Microfinance Bank">VFD Microfinance Bank</SelectItem>
+                      <SelectItem value="Jaiz Bank">Jaiz Bank</SelectItem>
+                      <SelectItem value="TAJ Bank">TAJ Bank</SelectItem>
+                      <SelectItem value="Lotus Bank">Lotus Bank</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <Button onClick={handleUpdateBankDetails} className="w-full">
                   Update Bank Details
@@ -636,7 +671,7 @@ const WalletDashboard = () => {
           <Dialog open={showPayoutDialog} onOpenChange={setShowPayoutDialog}>
             <DialogTrigger asChild>
               <Button
-                disabled={!wallet || wallet.available_balance <= 0}
+                disabled={!wallet || wallet.available_balance < 100}
                 className="w-full sm:w-auto"
               >
                 <CreditCard className="h-4 w-4 mr-2" />
@@ -712,17 +747,51 @@ const WalletDashboard = () => {
                     </div>
                     <div>
                       <Label htmlFor="bank_name">Bank Name</Label>
-                      <Input
-                        id="bank_name"
-                        placeholder="Bank name"
+                      <Select
                         value={payoutForm.bank_name}
-                        onChange={(e) =>
+                        onValueChange={(value) =>
                           setPayoutForm({
                             ...payoutForm,
-                            bank_name: e.target.value,
+                            bank_name: value,
                           })
                         }
-                      />
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select your bank" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Access Bank">Access Bank</SelectItem>
+                          <SelectItem value="Citibank Nigeria">Citibank Nigeria</SelectItem>
+                          <SelectItem value="Diamond Bank">Diamond Bank</SelectItem>
+                          <SelectItem value="Ecobank Nigeria">Ecobank Nigeria</SelectItem>
+                          <SelectItem value="Fidelity Bank">Fidelity Bank</SelectItem>
+                          <SelectItem value="First Bank of Nigeria">First Bank of Nigeria</SelectItem>
+                          <SelectItem value="First City Monument Bank">First City Monument Bank</SelectItem>
+                          <SelectItem value="Guaranty Trust Bank">Guaranty Trust Bank</SelectItem>
+                          <SelectItem value="Heritage Bank">Heritage Bank</SelectItem>
+                          <SelectItem value="Keystone Bank">Keystone Bank</SelectItem>
+                          <SelectItem value="Polaris Bank">Polaris Bank</SelectItem>
+                          <SelectItem value="Providus Bank">Providus Bank</SelectItem>
+                          <SelectItem value="Stanbic IBTC Bank">Stanbic IBTC Bank</SelectItem>
+                          <SelectItem value="Standard Chartered Bank">Standard Chartered Bank</SelectItem>
+                          <SelectItem value="Sterling Bank">Sterling Bank</SelectItem>
+                          <SelectItem value="Union Bank of Nigeria">Union Bank of Nigeria</SelectItem>
+                          <SelectItem value="United Bank For Africa">United Bank For Africa</SelectItem>
+                          <SelectItem value="Unity Bank">Unity Bank</SelectItem>
+                          <SelectItem value="Wema Bank">Wema Bank</SelectItem>
+                          <SelectItem value="Zenith Bank">Zenith Bank</SelectItem>
+                          <SelectItem value="Kuda Bank">Kuda Bank</SelectItem>
+                          <SelectItem value="Opay">Opay</SelectItem>
+                          <SelectItem value="PalmPay">PalmPay</SelectItem>
+                          <SelectItem value="Moniepoint">Moniepoint</SelectItem>
+                          <SelectItem value="Carbon">Carbon</SelectItem>
+                          <SelectItem value="Rubies Bank">Rubies Bank</SelectItem>
+                          <SelectItem value="VFD Microfinance Bank">VFD Microfinance Bank</SelectItem>
+                          <SelectItem value="Jaiz Bank">Jaiz Bank</SelectItem>
+                          <SelectItem value="TAJ Bank">TAJ Bank</SelectItem>
+                          <SelectItem value="Lotus Bank">Lotus Bank</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                   </>
                 )}
@@ -735,7 +804,7 @@ const WalletDashboard = () => {
                   </div>
                 )}
                 <Button onClick={handlePayoutRequest} className="w-full">
-                  Submit Request
+                  Request Payout
                 </Button>
               </div>
             </DialogContent>

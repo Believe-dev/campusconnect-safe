@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/enhanced-button";
 import { SAFE_PROFILE_SELECT } from "@/lib/profileSecurity";
+import { API_CONFIG } from "@/lib/constants";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -138,8 +139,10 @@ const Checkout = () => {
       if (error) throw error;
 
       // Filter out items with null products
-      const validItems = (data || []).filter(item => item.products && item.products.id);
-      
+      const validItems = (data || []).filter(
+        (item) => item.products && item.products.id
+      );
+
       if (validItems.length === 0) {
         toast({
           title: "Empty cart",
@@ -160,20 +163,15 @@ const Checkout = () => {
 
   const getTotalPrice = () => {
     return cartItems
-      .filter(item => item.products?.price)
+      .filter((item) => item.products?.price)
       .reduce(
         (total, item) => total + (item.products?.price || 0) * item.quantity,
         0
       );
   };
 
-  const getDeliveryFee = () => {
-    // Simple delivery fee calculation
-    return 2000; // ₦2,000 flat rate
-  };
-
   const getFinalTotal = () => {
-    return getTotalPrice() + getDeliveryFee();
+    return getTotalPrice();
   };
 
   const handleInputChange = (field: keyof CheckoutForm, value: string) => {
@@ -181,7 +179,15 @@ const Checkout = () => {
   };
 
   const validateForm = () => {
-    const required = ["fullName", "email", "phone", "universityName", "address", "city", "state"];
+    const required = [
+      "fullName",
+      "email",
+      "phone",
+      "universityName",
+      "address",
+      "city",
+      "state",
+    ];
     for (const field of required) {
       if (!formData[field as keyof CheckoutForm]) {
         toast({
@@ -201,22 +207,25 @@ const Checkout = () => {
     if (!validateForm() || !user) {
       return;
     }
-    
+
     if (!(window as any).PaystackPop) {
       toast({
         title: "Payment Error",
-        description: "Paystack not loaded. Check your internet connection and refresh.",
+        description:
+          "Paystack not loaded. Check your internet connection and refresh.",
         variant: "destructive",
       });
       return;
     }
 
     const totalAmount = getFinalTotal() * 100;
-    const paymentRef = `CC_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const paymentRef = `CC_${Date.now()}_${Math.random()
+      .toString(36)
+      .substr(2, 9)}`;
 
     try {
       const handler = (window as any).PaystackPop.setup({
-        key: "pk_test_5fdf1c7e08e4950078f88266e68ede32e832baf7",
+        key: API_CONFIG.paystack.publicKey,
         email: formData.email,
         amount: totalAmount,
         currency: "NGN",
@@ -252,7 +261,9 @@ const Checkout = () => {
 
     try {
       // Group items by seller (filter out items with null products)
-      const validCartItems = cartItems.filter(item => item.products?.seller_id);
+      const validCartItems = cartItems.filter(
+        (item) => item.products?.seller_id
+      );
       const sellerGroups = validCartItems.reduce((groups, item) => {
         const sellerId = item.products.seller_id;
         if (!groups[sellerId]) {
@@ -270,8 +281,7 @@ const Checkout = () => {
             0
           );
 
-          const totalAmount =
-            orderTotal + getDeliveryFee() / Object.keys(sellerGroups).length;
+          const totalAmount = orderTotal;
           const commissionRate = 0.05;
           const commissionAmount = totalAmount * commissionRate;
 
@@ -291,7 +301,7 @@ const Checkout = () => {
               status: "paid",
               auto_confirm_at: new Date(
                 Date.now() + 2 * 24 * 60 * 60 * 1000
-              ).toISOString()
+              ).toISOString(),
             })
             .select()
             .single();
@@ -300,56 +310,59 @@ const Checkout = () => {
 
           // Send notifications to seller and buyer
           const { data: sellerProfile } = await supabase
-            .from('profiles')
-            .select('full_name, email')
-            .eq('user_id', sellerId)
+            .from("profiles")
+            .select("full_name, email")
+            .eq("user_id", sellerId)
             .single();
 
           const { data: buyerProfile } = await supabase
-            .from('profiles')
-            .select('full_name, email')
-            .eq('user_id', user!.id)
+            .from("profiles")
+            .select("full_name, email")
+            .eq("user_id", user!.id)
             .single();
 
           const productTitles = items
-            .filter(i => i.products?.title)
-            .map(i => i.products.title)
-            .join(', ');
+            .filter((i) => i.products?.title)
+            .map((i) => i.products.title)
+            .join(", ");
 
           if (sellerProfile) {
             // Create in-app notification for seller
-            const { data: sellerNotification, error: sellerNotifError } = await supabase.from('notifications').insert({
-              user_id: sellerId,
-              title: 'New Order Received! 🎉',
-              message: `You have a new order for ${productTitles}. Total: ₦${orderTotal.toLocaleString()}`,
-              type: 'success'
-            });
-            
+            const { data: sellerNotification, error: sellerNotifError } =
+              await supabase.from("notifications").insert({
+                user_id: sellerId,
+                title: "New Order Received! 🎉",
+                message: `You have a new order for ${productTitles}. Total: ₦${orderTotal.toLocaleString()}`,
+                type: "success",
+              });
+
             if (sellerNotifError) {
               // Error handled silently
             }
 
             // Send email notification to seller
             try {
-              await supabase.functions.invoke('send-email', {
+              await supabase.functions.invoke("send-email", {
                 body: {
                   to: sellerProfile.email,
-                  subject: 'New Order Received - CampusConnect',
+                  subject: "New Order Received - CampusConnect",
                   html: `
                     <h2>New Order Received!</h2>
                     <p>Hello ${sellerProfile.full_name},</p>
                     <p>You have received a new order:</p>
                     <ul>
                       <li><strong>Products:</strong> ${productTitles}</li>
-                      <li><strong>Buyer:</strong> ${buyerProfile?.full_name || 'Unknown'}</li>
+                      <li><strong>Buyer:</strong> ${
+                        buyerProfile?.full_name || "Unknown"
+                      }</li>
                       <li><strong>Total Amount:</strong> ₦${orderTotal.toLocaleString()}</li>
                       <li><strong>Order Date:</strong> ${new Date().toLocaleDateString()}</li>
                     </ul>
                     <p><strong>⚠️ Important:</strong> Payment will be automatically released in 2 days if the buyer doesn't confirm receipt.</p>
                     <p>Please log in to your dashboard to manage this order.</p>
                     <p>Best regards,<br>CampusConnect Team</p>
-                  `
-                }
+                  `,
+                },
               });
             } catch (emailError) {
               // Error handled silently
@@ -357,13 +370,14 @@ const Checkout = () => {
           }
 
           // Create in-app notification for buyer
-          const { data: buyerNotification, error: buyerNotifError } = await supabase.from('notifications').insert({
-            user_id: user!.id,
-            title: 'Order Placed Successfully! ✅',
-            message: `Your order for ${productTitles} has been placed. Total: ₦${orderTotal.toLocaleString()}`,
-            type: 'success'
-          });
-          
+          const { data: buyerNotification, error: buyerNotifError } =
+            await supabase.from("notifications").insert({
+              user_id: user!.id,
+              title: "Order Placed Successfully! ✅",
+              message: `Your order for ${productTitles} has been placed. Total: ₦${orderTotal.toLocaleString()}`,
+              type: "success",
+            });
+
           if (buyerNotifError) {
             // Error handled silently
           }
@@ -371,24 +385,26 @@ const Checkout = () => {
           // Send email confirmation to buyer
           if (buyerProfile) {
             try {
-              await supabase.functions.invoke('send-email', {
+              await supabase.functions.invoke("send-email", {
                 body: {
                   to: buyerProfile.email,
-                  subject: 'Order Confirmation - CampusConnect',
+                  subject: "Order Confirmation - CampusConnect",
                   html: `
                     <h2>Order Confirmation</h2>
                     <p>Hello ${buyerProfile.full_name},</p>
                     <p>Your order has been successfully placed:</p>
                     <ul>
                       <li><strong>Products:</strong> ${productTitles}</li>
-                      <li><strong>Seller:</strong> ${sellerProfile?.full_name || 'Unknown'}</li>
+                      <li><strong>Seller:</strong> ${
+                        sellerProfile?.full_name || "Unknown"
+                      }</li>
                       <li><strong>Total Amount:</strong> ₦${orderTotal.toLocaleString()}</li>
                       <li><strong>Order Date:</strong> ${new Date().toLocaleDateString()}</li>
                     </ul>
                     <p>You can track your order in your account dashboard.</p>
                     <p>Best regards,<br>CampusConnect Team</p>
-                  `
-                }
+                  `,
+                },
               });
             } catch (emailError) {
               // Error handled silently
@@ -403,15 +419,15 @@ const Checkout = () => {
 
       // Clear cart
       await supabase.from("cart").delete().eq("user_id", user!.id);
-      
+
       // Invalidate cart queries to refresh UI
-      await queryClient.invalidateQueries({ queryKey: ['cart', user!.id] });
-      
+      await queryClient.invalidateQueries({ queryKey: ["cart", user!.id] });
+
       // Trigger cart update event to refresh cart count and UI
-      window.dispatchEvent(new CustomEvent('cartUpdated'));
+      window.dispatchEvent(new CustomEvent("cartUpdated"));
 
       // Update analytics
-      for (const item of cartItems.filter(item => item.products?.id)) {
+      for (const item of cartItems.filter((item) => item.products?.id)) {
         await updateAnalytics(item.products.id, "orders_count", item.quantity);
         await updateAnalytics(
           item.products.id,
@@ -499,7 +515,9 @@ const Checkout = () => {
             >
               <ArrowLeft className="h-4 w-4" />
             </Button>
-            <h1 className="text-2xl sm:text-3xl font-bold text-primary">Checkout</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-primary">
+              Checkout
+            </h1>
           </div>
 
           <form onSubmit={handleSubmit}>
@@ -517,7 +535,12 @@ const Checkout = () => {
                   <CardContent className="space-y-3 sm:space-y-4">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                       <div>
-                        <Label htmlFor="fullName" className="text-sm sm:text-base">Full Name *</Label>
+                        <Label
+                          htmlFor="fullName"
+                          className="text-sm sm:text-base"
+                        >
+                          Full Name *
+                        </Label>
                         <Input
                           id="fullName"
                           value={formData.fullName}
@@ -529,7 +552,9 @@ const Checkout = () => {
                         />
                       </div>
                       <div>
-                        <Label htmlFor="email" className="text-sm sm:text-base">Email *</Label>
+                        <Label htmlFor="email" className="text-sm sm:text-base">
+                          Email *
+                        </Label>
                         <Input
                           id="email"
                           type="email"
@@ -543,7 +568,9 @@ const Checkout = () => {
                       </div>
                     </div>
                     <div>
-                      <Label htmlFor="phone" className="text-sm sm:text-base">Phone Number *</Label>
+                      <Label htmlFor="phone" className="text-sm sm:text-base">
+                        Phone Number *
+                      </Label>
                       <Input
                         id="phone"
                         type="tel"
@@ -556,7 +583,12 @@ const Checkout = () => {
                       />
                     </div>
                     <div>
-                      <Label htmlFor="universityName" className="text-sm sm:text-base">University Name *</Label>
+                      <Label
+                        htmlFor="universityName"
+                        className="text-sm sm:text-base"
+                      >
+                        University Name *
+                      </Label>
                       <Input
                         id="universityName"
                         value={formData.universityName}
@@ -580,7 +612,7 @@ const Checkout = () => {
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div>
-                      <Label htmlFor="address">Street Address *</Label>
+                      <Label htmlFor="address">School/hostel Address *</Label>
                       <Textarea
                         id="address"
                         value={formData.address}
@@ -607,9 +639,11 @@ const Checkout = () => {
                       <div>
                         <Label htmlFor="state">State *</Label>
                         <div className="relative">
-                          <select 
-                            value={formData.state} 
-                            onChange={(e) => handleInputChange("state", e.target.value)}
+                          <select
+                            value={formData.state}
+                            onChange={(e) =>
+                              handleInputChange("state", e.target.value)
+                            }
                             className="w-full h-10 px-3 text-sm border border-input bg-background rounded-md"
                             required
                           >
@@ -668,12 +702,16 @@ const Checkout = () => {
                   </CardHeader>
                   <CardContent>
                     <div className="relative">
-                      <select 
-                        value={formData.paymentMethod} 
-                        onChange={(e) => handleInputChange("paymentMethod", e.target.value)}
+                      <select
+                        value={formData.paymentMethod}
+                        onChange={(e) =>
+                          handleInputChange("paymentMethod", e.target.value)
+                        }
                         className="w-full h-10 px-3 text-sm border border-input bg-background rounded-md"
                       >
-                        <option value="paystack">Paystack (Card/Bank/Transfer)</option>
+                        <option value="paystack">
+                          Paystack (Card/Bank/Transfer)
+                        </option>
                       </select>
                     </div>
                     <p className="text-xs text-muted-foreground mt-2">
@@ -692,55 +730,54 @@ const Checkout = () => {
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="space-y-3">
-                      {cartItems.filter(item => item.products?.id).map((item) => (
-                        <div key={item.id} className="flex items-center gap-3">
-                          {item.products?.images?.[0] && (
-                            <img
-                              src={item.products.images[0]}
-                              alt={item.products?.title || 'Product image'}
-                              className="w-12 h-12 object-cover rounded"
-                              onError={(e) => {
-                                e.currentTarget.style.display = 'none';
-                              }}
-                            />
-                          )}
-                          <div className="flex-1">
-                            <h4 className="font-medium text-sm line-clamp-1">
-                              {item.products?.title || 'Unknown Product'}
-                            </h4>
-                            <p className="text-xs text-muted-foreground">
-                              by {item.products?.profiles?.full_name || 'Unknown Seller'}
-                            </p>
-                            <div className="flex items-center gap-2 mt-1">
-                              <Badge variant="outline" className="text-xs">
-                                Qty: {item.quantity}
-                              </Badge>
+                      {cartItems
+                        .filter((item) => item.products?.id)
+                        .map((item) => (
+                          <div
+                            key={item.id}
+                            className="flex items-center gap-3"
+                          >
+                            {item.products?.images?.[0] && (
+                              <img
+                                src={item.products.images[0]}
+                                alt={item.products?.title || "Product image"}
+                                className="w-12 h-12 object-cover rounded"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = "none";
+                                }}
+                              />
+                            )}
+                            <div className="flex-1">
+                              <h4 className="font-medium text-sm line-clamp-1">
+                                {item.products?.title || "Unknown Product"}
+                              </h4>
+                              <p className="text-xs text-muted-foreground">
+                                by{" "}
+                                {item.products?.profiles?.full_name ||
+                                  "Unknown Seller"}
+                              </p>
+                              <div className="flex items-center gap-2 mt-1">
+                                <Badge variant="outline" className="text-xs">
+                                  Qty: {item.quantity}
+                                </Badge>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="font-medium">
+                                ₦
+                                {(
+                                  (item.products?.price || 0) * item.quantity
+                                ).toLocaleString()}
+                              </div>
                             </div>
                           </div>
-                          <div className="text-right">
-                            <div className="font-medium">
-                              ₦
-                              {(
-                                (item.products?.price || 0) * item.quantity
-                              ).toLocaleString()}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
+                        ))}
                     </div>
 
                     <Separator />
 
                     <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span>Subtotal</span>
-                        <span>₦{getTotalPrice().toLocaleString()}</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span>Delivery</span>
-                        <span>₦{getDeliveryFee().toLocaleString()}</span>
-                      </div>
-                      <div className="flex items-center gap-1 text-xs text-muted-foreground mt-2">
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
                         <Info className="h-3 w-3" />
                         <span>Platform fee (5%) deducted from seller</span>
                       </div>
