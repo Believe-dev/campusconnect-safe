@@ -12,6 +12,12 @@ import { Shield, Bell, User, CreditCard, HelpCircle, LogOut, Trash2 } from 'luci
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import Header from '@/components/layout/Header';
+import { ChangePasswordDialog } from '@/components/settings/ChangePasswordDialog';
+import { TwoFactorAuthDialog } from '@/components/settings/TwoFactorAuthDialog';
+import { HelpCenterDialog } from '@/components/settings/HelpCenterDialog';
+import { SecurityLogDialog } from '@/components/settings/SecurityLogDialog';
+import { PrivacySettingsDialog } from '@/components/settings/PrivacySettingsDialog';
+import { DataExportDialog } from '@/components/settings/DataExportDialog';
 
 interface NotificationSettings {
   email_notifications: boolean;
@@ -123,15 +129,19 @@ const Settings = () => {
                 <Button variant="outline" asChild>
                   <a href="/profile">Edit Profile</a>
                 </Button>
-                <Button variant="outline" disabled>
-                  Change Password
-                </Button>
+                <ChangePasswordDialog>
+                  <Button variant="outline">
+                    Change Password
+                  </Button>
+                </ChangePasswordDialog>
                 <Button variant="outline" disabled>
                   Verify Student ID
                 </Button>
-                <Button variant="outline" disabled>
-                  Two-Factor Authentication
-                </Button>
+                <TwoFactorAuthDialog>
+                  <Button variant="outline">
+                    Two-Factor Authentication
+                  </Button>
+                </TwoFactorAuthDialog>
               </div>
             </CardContent>
           </Card>
@@ -226,12 +236,16 @@ const Settings = () => {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Button variant="outline" disabled>
-                  Privacy Settings
-                </Button>
-                <Button variant="outline" disabled>
-                  Data Export
-                </Button>
+                <PrivacySettingsDialog>
+                  <Button variant="outline">
+                    Privacy Settings
+                  </Button>
+                </PrivacySettingsDialog>
+                <DataExportDialog>
+                  <Button variant="outline">
+                    Data Export
+                  </Button>
+                </DataExportDialog>
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
                     <Button variant="destructive">
@@ -258,9 +272,11 @@ const Settings = () => {
                     </AlertDialogFooter>
                   </AlertDialogContent>
                 </AlertDialog>
-                <Button variant="outline" disabled>
-                  Security Log
-                </Button>
+                <SecurityLogDialog>
+                  <Button variant="outline">
+                    Security Log
+                  </Button>
+                </SecurityLogDialog>
               </div>
             </CardContent>
           </Card>
@@ -277,9 +293,11 @@ const Settings = () => {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Button variant="outline" disabled>
-                  Help Center
-                </Button>
+                <HelpCenterDialog>
+                  <Button variant="outline">
+                    Help Center
+                  </Button>
+                </HelpCenterDialog>
                 <Button variant="outline" onClick={() => window.open('https://wa.me/2349133054018?text=Hello%2C%20I%20need%20help%20with%20UniMarket', '_blank')}>
                   Contact Support
                 </Button>

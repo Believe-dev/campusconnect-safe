@@ -50,6 +50,9 @@ import { User, Session } from "@supabase/supabase-js";
 import { OnboardingModal } from "@/components/onboarding/OnboardingModal";
 import { SellerSetupModal } from "@/components/seller/SellerSetupModal";
 import { BannedUserModal } from "@/components/auth/BannedUserModal";
+import { ForgotPasswordDialog } from "@/components/auth/ForgotPasswordDialog";
+import { TwoFactorVerification } from "@/components/auth/TwoFactorVerification";
+import { logSecurityEvent } from '@/utils/securityLogger';
 
 const AuthPage = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -70,6 +73,8 @@ const AuthPage = () => {
   const [isBanned, setIsBanned] = useState(false);
   const [banReason, setBanReason] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [show2FA, setShow2FA] = useState(false);
+  const [pendingUserId, setPendingUserId] = useState<string | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -168,6 +173,25 @@ const AuthPage = () => {
         await supabase.auth.signOut();
         return { error: new Error("Account is banned") };
       }
+
+      // Check if 2FA is enabled
+      const { data: twoFAData } = await supabase
+        .from('user_2fa')
+        .select('enabled')
+        .eq('user_id', data.user.id)
+        .eq('enabled', true)
+        .single();
+
+      if (twoFAData?.enabled) {
+        // Sign out temporarily and show 2FA verification
+        await supabase.auth.signOut();
+        setPendingUserId(data.user.id);
+        setShow2FA(true);
+        return { error: null, requires2FA: true };
+      }
+
+      // Log successful login
+      await logSecurityEvent(data.user.id, 'login', 'User signed in successfully');
     }
 
     return { error };
@@ -298,9 +322,17 @@ const AuthPage = () => {
 
     setLoading(true);
 
-    const { error } = isSignUp
+    const result = isSignUp
       ? await signUp(sanitizedEmail, password)
       : await signIn(sanitizedEmail, password);
+    
+    const { error } = result;
+    
+    // Handle 2FA requirement
+    if (!isSignUp && (result as any).requires2FA) {
+      setLoading(false);
+      return;
+    }
 
     if (error) {
       toast({
@@ -346,6 +378,34 @@ const AuthPage = () => {
 
     setLoading(false);
   };
+
+  if (show2FA && pendingUserId) {
+    return (
+      <div className="min-h-screen gradient-hero flex items-center justify-center p-4">
+        <TwoFactorVerification
+          userId={pendingUserId}
+          onSuccess={() => {
+            // Re-authenticate the user after successful 2FA
+            supabase.auth.signInWithPassword({ email, password }).then(async ({ data }) => {
+              if (data.user) {
+                await logSecurityEvent(data.user.id, 'login', 'User signed in with 2FA');
+              }
+              setShow2FA(false);
+              setPendingUserId(null);
+              toast({
+                title: "Welcome Back!",
+                description: "Successfully signed in to UniMarket.",
+              });
+            });
+          }}
+          onCancel={() => {
+            setShow2FA(false);
+            setPendingUserId(null);
+          }}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen gradient-hero flex items-center justify-center p-4">
@@ -426,6 +486,13 @@ const AuthPage = () => {
                   <Mail className="h-4 w-4" />
                   {loading ? "Signing In..." : "Sign In"}
                 </Button>
+                <div className="text-center">
+                  <ForgotPasswordDialog>
+                    <Button variant="link" className="text-sm">
+                      Forgot your password?
+                    </Button>
+                  </ForgotPasswordDialog>
+                </div>
               </form>
             </TabsContent>
 
