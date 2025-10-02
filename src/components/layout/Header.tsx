@@ -42,6 +42,7 @@ import {
   WifiOff,
   Signal,
   Lightbulb,
+  Zap,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
@@ -288,6 +289,18 @@ const Header = () => {
                     className="mr-3 h-5 w-5 object-contain"
                   />
                   Learn More
+                </Link>
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="lg"
+                asChild
+                className="justify-start"
+              >
+                <Link to="/live-feed">
+                  <Zap className="mr-3 h-5 w-5" />
+                  Live Feed
                 </Link>
               </Button>
 
@@ -620,6 +633,19 @@ const Header = () => {
                     </TooltipTrigger>
                     <TooltipContent>
                       <p>Marketplace</p>
+                    </TooltipContent>
+                  </Tooltip>
+
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="ghost" size="sm" asChild>
+                        <Link to="/live-feed">
+                          <Zap className="mr-1 h-4 w-4" />
+                        </Link>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Live Feed</p>
                     </TooltipContent>
                   </Tooltip>
 

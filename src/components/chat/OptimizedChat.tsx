@@ -152,7 +152,7 @@ const OptimizedChat: React.FC<OptimizedChatProps> = ({
     <div className="flex flex-col h-full">
       <Card className="flex-1 flex flex-col border-0 shadow-lg">
         {/* Header */}
-        <CardHeader className="bg-gradient-to-r from-green-600 to-green-700 text-white p-3 sm:p-4">
+        <CardHeader className="bg-gradient-to-r from-green-600 to-green-700 text-white p-3 sm:p-4 sticky top-0 z-10">
           <div className="flex items-center gap-3">
             {onClose && (
               <Button
