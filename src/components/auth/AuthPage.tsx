@@ -157,10 +157,15 @@ const AuthPage = () => {
           status: "completed",
         });
 
-        // Mark profile as paid
+        // Set up 2-month subscription
+        const expiryDate = new Date();
+        expiryDate.setMonth(expiryDate.getMonth() + 2);
+
         await supabase.from("profiles").update({
           seller_registration_paid: true,
           seller_registration_paid_at: new Date().toISOString(),
+          seller_subscription_expires_at: expiryDate.toISOString(),
+          seller_features_active: true,
         }).eq("user_id", data.user.id);
 
         // Create notification for sellers to upload documents
@@ -889,7 +894,7 @@ const AuthPage = () => {
                         Seller Registration Requirements:
                       </p>
                       <ul className="text-xs text-amber-700 space-y-1">
-                        <li>• ₦2,000 one-time fee (required before signup)</li>
+                        <li>• ₦2,000 per 2 months subscription (required before signup)</li>
                         <li>• Profile picture & student ID upload</li>
                         <li>• Quick admin approval (24-48 hours)</li>
                         <li>• Keep 100% of sales - No commission ever</li>
