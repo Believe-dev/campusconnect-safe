@@ -1,5 +1,5 @@
 -- Create wallets table for user balances
-CREATE TABLE wallets (
+CREATE TABLE IF NOT EXISTS wallets (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     available_balance DECIMAL(10,2) DEFAULT 0.00,
@@ -12,7 +12,7 @@ CREATE TABLE wallets (
 );
 
 -- Create escrow_transactions table for holding funds
-CREATE TABLE escrow_transactions (
+CREATE TABLE IF NOT EXISTS escrow_transactions (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
     buyer_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -30,7 +30,7 @@ CREATE TABLE escrow_transactions (
 );
 
 -- Create wallet_transactions table for transaction history
-CREATE TABLE wallet_transactions (
+CREATE TABLE IF NOT EXISTS wallet_transactions (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     wallet_id UUID NOT NULL REFERENCES wallets(id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -44,7 +44,7 @@ CREATE TABLE wallet_transactions (
 );
 
 -- Create payout_requests table for seller withdrawals
-CREATE TABLE payout_requests (
+CREATE TABLE IF NOT EXISTS payout_requests (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     wallet_id UUID NOT NULL REFERENCES wallets(id) ON DELETE CASCADE,
@@ -61,7 +61,7 @@ CREATE TABLE payout_requests (
 );
 
 -- Create disputes table for order issues
-CREATE TABLE disputes (
+CREATE TABLE IF NOT EXISTS disputes (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
     escrow_transaction_id UUID NOT NULL REFERENCES escrow_transactions(id) ON DELETE CASCADE,
@@ -77,15 +77,15 @@ CREATE TABLE disputes (
 );
 
 -- Add indexes for performance
-CREATE INDEX idx_wallets_user_id ON wallets(user_id);
-CREATE INDEX idx_escrow_transactions_order_id ON escrow_transactions(order_id);
-CREATE INDEX idx_escrow_transactions_status ON escrow_transactions(status);
-CREATE INDEX idx_wallet_transactions_wallet_id ON wallet_transactions(wallet_id);
-CREATE INDEX idx_wallet_transactions_user_id ON wallet_transactions(user_id);
-CREATE INDEX idx_payout_requests_user_id ON payout_requests(user_id);
-CREATE INDEX idx_payout_requests_status ON payout_requests(status);
-CREATE INDEX idx_disputes_order_id ON disputes(order_id);
-CREATE INDEX idx_disputes_status ON disputes(status);
+CREATE INDEX IF NOT EXISTS idx_wallets_user_id ON wallets(user_id);
+CREATE INDEX IF NOT EXISTS idx_escrow_transactions_order_id ON escrow_transactions(order_id);
+CREATE INDEX IF NOT EXISTS idx_escrow_transactions_status ON escrow_transactions(status);
+CREATE INDEX IF NOT EXISTS idx_wallet_transactions_wallet_id ON wallet_transactions(wallet_id);
+CREATE INDEX IF NOT EXISTS idx_wallet_transactions_user_id ON wallet_transactions(user_id);
+CREATE INDEX IF NOT EXISTS idx_payout_requests_user_id ON payout_requests(user_id);
+CREATE INDEX IF NOT EXISTS idx_payout_requests_status ON payout_requests(status);
+CREATE INDEX IF NOT EXISTS idx_disputes_order_id ON disputes(order_id);
+CREATE INDEX IF NOT EXISTS idx_disputes_status ON disputes(status);
 
 -- Enable RLS
 ALTER TABLE wallets ENABLE ROW LEVEL SECURITY;
@@ -95,12 +95,15 @@ ALTER TABLE payout_requests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE disputes ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies for wallets
+DROP POLICY IF EXISTS "Users can view their own wallet" ON wallets;
 CREATE POLICY "Users can view their own wallet" ON wallets
     FOR SELECT USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can update their own wallet" ON wallets;
 CREATE POLICY "Users can update their own wallet" ON wallets
     FOR UPDATE USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Admins can view all wallets" ON wallets;
 CREATE POLICY "Admins can view all wallets" ON wallets
     FOR ALL USING (
         EXISTS (
@@ -110,9 +113,11 @@ CREATE POLICY "Admins can view all wallets" ON wallets
     );
 
 -- RLS Policies for escrow_transactions
+DROP POLICY IF EXISTS "Users can view their escrow transactions" ON escrow_transactions;
 CREATE POLICY "Users can view their escrow transactions" ON escrow_transactions
     FOR SELECT USING (auth.uid() = buyer_id OR auth.uid() = seller_id);
 
+DROP POLICY IF EXISTS "Admins can manage all escrow transactions" ON escrow_transactions;
 CREATE POLICY "Admins can manage all escrow transactions" ON escrow_transactions
     FOR ALL USING (
         EXISTS (
@@ -122,9 +127,11 @@ CREATE POLICY "Admins can manage all escrow transactions" ON escrow_transactions
     );
 
 -- RLS Policies for wallet_transactions
+DROP POLICY IF EXISTS "Users can view their wallet transactions" ON wallet_transactions;
 CREATE POLICY "Users can view their wallet transactions" ON wallet_transactions
     FOR SELECT USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Admins can view all wallet transactions" ON wallet_transactions;
 CREATE POLICY "Admins can view all wallet transactions" ON wallet_transactions
     FOR ALL USING (
         EXISTS (
@@ -134,9 +141,11 @@ CREATE POLICY "Admins can view all wallet transactions" ON wallet_transactions
     );
 
 -- RLS Policies for payout_requests
+DROP POLICY IF EXISTS "Users can manage their payout requests" ON payout_requests;
 CREATE POLICY "Users can manage their payout requests" ON payout_requests
     FOR ALL USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Admins can manage all payout requests" ON payout_requests;
 CREATE POLICY "Admins can manage all payout requests" ON payout_requests
     FOR ALL USING (
         EXISTS (
@@ -146,6 +155,7 @@ CREATE POLICY "Admins can manage all payout requests" ON payout_requests
     );
 
 -- RLS Policies for disputes
+DROP POLICY IF EXISTS "Users can view disputes they're involved in" ON disputes;
 CREATE POLICY "Users can view disputes they're involved in" ON disputes
     FOR SELECT USING (
         auth.uid() = reported_by OR 
@@ -156,6 +166,7 @@ CREATE POLICY "Users can view disputes they're involved in" ON disputes
         )
     );
 
+DROP POLICY IF EXISTS "Users can create disputes for their orders" ON disputes;
 CREATE POLICY "Users can create disputes for their orders" ON disputes
     FOR INSERT WITH CHECK (
         auth.uid() = reported_by AND
@@ -166,6 +177,7 @@ CREATE POLICY "Users can create disputes for their orders" ON disputes
         )
     );
 
+DROP POLICY IF EXISTS "Admins can manage all disputes" ON disputes;
 CREATE POLICY "Admins can manage all disputes" ON disputes
     FOR ALL USING (
         EXISTS (
@@ -186,21 +198,22 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Trigger to create wallet when profile is created
+DROP TRIGGER IF EXISTS create_wallet_on_profile_creation ON profiles;
 CREATE TRIGGER create_wallet_on_profile_creation
     AFTER INSERT ON profiles
     FOR EACH ROW
     EXECUTE FUNCTION create_user_wallet();
 
--- Function to create escrow transaction when order is paid
+-- Function to create escrow transaction when order is paid (Updated for 0% commission)
 CREATE OR REPLACE FUNCTION create_escrow_transaction()
 RETURNS TRIGGER AS $$
 DECLARE
-    commission_rate DECIMAL(5,4) := 0.05; -- 5% commission
+    commission_rate DECIMAL(5,4) := 0.00; -- 0% commission - sellers pay registration fee instead
     seller_amount DECIMAL(10,2);
 BEGIN
     -- Only create escrow when order status changes to 'paid'
     IF NEW.status = 'paid' AND (OLD.status IS NULL OR OLD.status != 'paid') THEN
-        seller_amount := NEW.total_amount * (1 - commission_rate);
+        seller_amount := NEW.total_amount; -- Seller gets full amount
         
         INSERT INTO escrow_transactions (
             order_id,
@@ -215,7 +228,7 @@ BEGIN
             NEW.buyer_id,
             NEW.seller_id,
             NEW.total_amount,
-            NEW.total_amount * commission_rate,
+            0.00, -- No commission
             seller_amount,
             NEW.auto_confirm_at
         );
@@ -226,6 +239,7 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Trigger to create escrow transaction
+DROP TRIGGER IF EXISTS create_escrow_on_payment ON orders;
 CREATE TRIGGER create_escrow_on_payment
     AFTER INSERT OR UPDATE ON orders
     FOR EACH ROW

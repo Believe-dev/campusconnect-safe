@@ -282,8 +282,7 @@ const Checkout = () => {
           );
 
           const totalAmount = orderTotal;
-          const commissionRate = 0.05;
-          const commissionAmount = totalAmount * commissionRate;
+          const commissionAmount = 0; // No commission - sellers pay registration fee instead
 
           const { data: order, error: orderError } = await supabase
             .from("orders")
@@ -779,7 +778,7 @@ const Checkout = () => {
                     <div className="space-y-2">
                       <div className="flex items-center gap-1 text-xs text-muted-foreground">
                         <Info className="h-3 w-3" />
-                        <span>Platform fee (5%) deducted from seller</span>
+                        <span>No platform fees - Full amount goes to seller</span>
                       </div>
                     </div>
 

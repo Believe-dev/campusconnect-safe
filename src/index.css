@@ -658,4 +658,79 @@
     content-visibility: auto;
     contain-intrinsic-size: 0 200px;
   }
+
+  /* UniMarket Preloader Animations - Optimized for low-end devices */
+  .unimarket-preloader {
+    contain: layout style;
+    will-change: transform;
+  }
+
+  /* Smooth spin animation with reduced motion support */
+  @keyframes unimarket-spin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .unimarket-spinner {
+    animation: unimarket-spin 1s linear infinite;
+  }
+
+  /* Optimized bounce animation */
+  @keyframes unimarket-bounce {
+    0%, 80%, 100% {
+      transform: scale(0);
+    }
+    40% {
+      transform: scale(1);
+    }
+  }
+
+  .unimarket-bounce {
+    animation: unimarket-bounce 1.4s infinite ease-in-out;
+  }
+
+  /* Pulse animation for low-end devices */
+  @keyframes unimarket-pulse {
+    0% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
+    100% {
+      opacity: 1;
+    }
+  }
+
+  .unimarket-pulse {
+    animation: unimarket-pulse 2s infinite;
+  }
+
+  /* Disable animations on very low-end devices */
+  @media (max-width: 480px) and (max-height: 800px) {
+    .unimarket-spinner {
+      animation: none !important;
+    }
+    
+    .unimarket-bounce {
+      animation: unimarket-pulse 2s infinite !important;
+    }
+  }
+
+  /* Prefers reduced motion */
+  @media (prefers-reduced-motion: reduce) {
+    .unimarket-spinner,
+    .unimarket-bounce {
+      animation: none !important;
+    }
+    
+    .unimarket-pulse {
+      animation: none !important;
+      opacity: 0.8;
+    }
+  }
 }

@@ -49,6 +49,7 @@ import { useToast } from "@/hooks/use-toast";
 import { User, Session } from "@supabase/supabase-js";
 import { OnboardingModal } from "@/components/onboarding/OnboardingModal";
 import { SellerSetupModal } from "@/components/seller/SellerSetupModal";
+import { SellerPaymentStep } from "@/components/auth/SellerPaymentStep";
 import { BannedUserModal } from "@/components/auth/BannedUserModal";
 import { ForgotPasswordDialog } from "@/components/auth/ForgotPasswordDialog";
 import { TwoFactorVerification } from "@/components/auth/TwoFactorVerification";
@@ -70,6 +71,8 @@ const AuthPage = () => {
 
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showSellerSetup, setShowSellerSetup] = useState(false);
+  const [showSellerPayment, setShowSellerPayment] = useState(false);
+  const [paymentReference, setPaymentReference] = useState<string | null>(null);
   const [isBanned, setIsBanned] = useState(false);
   const [banReason, setBanReason] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -118,11 +121,13 @@ const AuthPage = () => {
     return <Navigate to="/" replace />;
   }
 
-  const signUp = async (email: string, password: string) => {
+  const signUp = async (email: string, password: string, paymentRef?: string) => {
     const redirectUrl = `${window.location.origin}/`;
 
-    // Keep the selected account type
-    const finalAccountType = accountType;
+    // For sellers, require payment reference
+    if (accountType === "seller" && !paymentRef) {
+      throw new Error("Payment required for seller registration");
+    }
 
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -134,20 +139,41 @@ const AuthPage = () => {
           university_name: university,
           student_id: studentId.trim(),
           phone_number: phoneNumber.trim(),
-          account_type: finalAccountType,
+          account_type: accountType,
+          payment_reference: paymentRef,
         },
       },
     });
 
-    // Create notification for sellers to upload documents
-    if (!error && data.user && accountType === "seller") {
-      await supabase.from("notifications").insert({
-        user_id: data.user.id,
-        title: "Complete Your Seller Profile",
-        message:
-          "Upload your profile picture and student ID card to get approved as a seller.",
-        type: "seller_setup",
-      });
+    // Record payment and mark as paid for sellers
+    if (!error && data.user && accountType === "seller" && paymentRef) {
+      try {
+        // Record the payment
+        await supabase.from("seller_registration_payments").insert({
+          user_id: data.user.id,
+          amount: 2000,
+          payment_reference: paymentRef,
+          payment_method: "paystack",
+          status: "completed",
+        });
+
+        // Mark profile as paid
+        await supabase.from("profiles").update({
+          seller_registration_paid: true,
+          seller_registration_paid_at: new Date().toISOString(),
+        }).eq("user_id", data.user.id);
+
+        // Create notification for sellers to upload documents
+        await supabase.from("notifications").insert({
+          user_id: data.user.id,
+          title: "Complete Your Seller Profile",
+          message: "Upload your profile picture and student ID card to get approved as a seller.",
+          type: "seller_setup",
+        });
+      } catch (paymentError) {
+        console.error("Error recording payment:", paymentError);
+        // Continue with signup even if payment recording fails
+      }
     }
 
     return { error };
@@ -197,8 +223,7 @@ const AuthPage = () => {
     return { error };
   };
 
-  const handleAuth = async (isSignUp: boolean) => {
-    // Input sanitization and validation
+  const validateForm = () => {
     const sanitizedEmail = email.trim().toLowerCase();
     const sanitizedFullName = fullName.trim();
     const sanitizedStudentId = studentId.trim();
@@ -210,7 +235,7 @@ const AuthPage = () => {
         description: "Please fill in all required fields.",
         variant: "destructive",
       });
-      return;
+      return false;
     }
 
     // Email validation
@@ -221,87 +246,36 @@ const AuthPage = () => {
         description: "Please enter a valid email address.",
         variant: "destructive",
       });
-      return;
+      return false;
     }
 
     // Password strength validation
-    if (isSignUp && password.length < 8) {
+    if (password.length < 8) {
       toast({
         title: "Weak Password",
         description: "Password must be at least 8 characters long.",
         variant: "destructive",
       });
-      return;
+      return false;
     }
 
-    // Different validation for buyers vs sellers
-    if (isSignUp && accountType === "buyer") {
-      // Buyers need minimal information
+    if (accountType === "buyer") {
       if (!sanitizedFullName || !university) {
         toast({
           title: "Missing Information",
           description: "Please fill in your name and university.",
           variant: "destructive",
         });
-        return;
+        return false;
       }
-
-      // Name validation
-      if (sanitizedFullName.length < 2 || sanitizedFullName.length > 50) {
-        toast({
-          title: "Invalid Name",
-          description: "Name must be between 2 and 50 characters.",
-          variant: "destructive",
-        });
-        return;
-      }
-    } else if (isSignUp && accountType === "seller") {
-      // Sellers need complete information
-      if (
-        !sanitizedFullName ||
-        !university ||
-        !sanitizedStudentId ||
-        !sanitizedPhoneNumber
-      ) {
+    } else if (accountType === "seller") {
+      if (!sanitizedFullName || !university || !sanitizedStudentId || !sanitizedPhoneNumber) {
         toast({
           title: "Missing Information",
-          description:
-            "Please fill in all required fields: name, university, student ID card photo, and phone number.",
+          description: "Please fill in all required fields for seller registration.",
           variant: "destructive",
         });
-        return;
-      }
-
-      // Name validation
-      if (sanitizedFullName.length < 2 || sanitizedFullName.length > 50) {
-        toast({
-          title: "Invalid Name",
-          description: "Name must be between 2 and 50 characters.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Student ID validation
-      if (sanitizedStudentId.length < 5 || sanitizedStudentId.length > 20) {
-        toast({
-          title: "Invalid Matric Number",
-          description: "Matric Number must be between 5 and 20 characters.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Phone number validation
-      const phoneRegex = /^\+?[1-9]\d{1,14}$/;
-      if (!phoneRegex.test(sanitizedPhoneNumber.replace(/\s/g, ""))) {
-        toast({
-          title: "Invalid Phone Number",
-          description:
-            "Please enter a valid phone number with your country code.",
-          variant: "destructive",
-        });
-        return;
+        return false;
       }
 
       // Validate school email for sellers
@@ -316,67 +290,93 @@ const AuthPage = () => {
           description: "Sellers must use a school/university email address.",
           variant: "destructive",
         });
-        return;
+        return false;
       }
+    }
+
+    return true;
+  };
+
+  const handleAuth = async (isSignUp: boolean) => {
+    if (isSignUp && !validateForm()) {
+      return;
+    }
+
+    // For seller signup, show payment step first
+    if (isSignUp && accountType === "seller" && !paymentReference) {
+      setShowSellerPayment(true);
+      return;
     }
 
     setLoading(true);
 
-    const result = isSignUp
-      ? await signUp(sanitizedEmail, password)
-      : await signIn(sanitizedEmail, password);
-    
-    const { error } = result;
-    
-    // Handle 2FA requirement
-    if (!isSignUp && (result as any).requires2FA) {
-      setLoading(false);
-      return;
-    }
+    try {
+      const sanitizedEmail = email.trim().toLowerCase();
+      
+      const result = isSignUp
+        ? await signUp(sanitizedEmail, password, paymentReference || undefined)
+        : await signIn(sanitizedEmail, password);
+      
+      const { error } = result;
+      
+      // Handle 2FA requirement
+      if (!isSignUp && (result as any).requires2FA) {
+        setLoading(false);
+        return;
+      }
 
-    if (error) {
-      toast({
-        title: "Authentication Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    } else if (isSignUp) {
-      const message =
-        accountType === "seller"
+      if (error) {
+        toast({
+          title: "Authentication Error",
+          description: error.message,
+          variant: "destructive",
+        });
+      } else if (isSignUp) {
+        const message = accountType === "seller"
           ? "Account created! Please check your email to verify. Your seller account will be reviewed by admin for approval."
           : "Account created! Please check your email to verify your account.";
-      toast({
-        title: "Account Created!",
-        description: message,
-      });
+        
+        toast({
+          title: "Account Created!",
+          description: message,
+        });
 
-      // Show setup modal for sellers, onboarding for buyers
-      if (accountType === "seller") {
+        // Reset payment reference after successful signup
+        setPaymentReference(null);
+        setShowSellerPayment(false);
+
+        // Show appropriate modal
         setTimeout(() => {
-          setShowSellerSetup(true);
+          if (accountType === "seller") {
+            setShowSellerSetup(true);
+          } else {
+            setShowOnboarding(true);
+          }
         }, 1000);
       } else {
-        setTimeout(() => {
-          setShowOnboarding(true);
-        }, 1000);
+        toast({
+          title: "Welcome Back!",
+          description: "Successfully signed in to UniMarket.",
+        });
+
+        // Handle redirect after auth
+        const redirectPath = localStorage.getItem("redirect_after_auth");
+        if (redirectPath) {
+          localStorage.removeItem("redirect_after_auth");
+          setTimeout(() => {
+            window.location.href = redirectPath;
+          }, 1000);
+        }
       }
-    } else {
+    } catch (error: any) {
       toast({
-        title: "Welcome Back!",
-        description: "Successfully signed in to UniMarket.",
+        title: "Error",
+        description: error.message || "An error occurred",
+        variant: "destructive",
       });
-
-      // Handle redirect after auth
-      const redirectPath = localStorage.getItem("redirect_after_auth");
-      if (redirectPath) {
-        localStorage.removeItem("redirect_after_auth");
-        setTimeout(() => {
-          window.location.href = redirectPath;
-        }, 1000);
-      }
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   if (show2FA && pendingUserId) {
@@ -884,11 +884,20 @@ const AuthPage = () => {
                     </div>
 
                     <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-                      <p className="text-sm text-amber-800">
+                      <p className="text-sm text-amber-800 font-medium mb-2">
                         <Shield className="h-4 w-4 inline mr-1" />
-                        After signup, you'll be guided to upload your profile
-                        picture and student ID Card for seller approval.
+                        Seller Registration Requirements:
                       </p>
+                      <ul className="text-xs text-amber-700 space-y-1">
+                        <li>• ₦2,000 one-time fee (required before signup)</li>
+                        <li>• Profile picture & student ID upload</li>
+                        <li>• Quick admin approval (24-48 hours)</li>
+                        <li>• Keep 100% of sales - No commission ever</li>
+                        <li>• Live feed bidding system for buyer requests</li>
+                        <li>• Access to gamification & rewards system</li>
+                        <li>• Advanced analytics & sales dashboard</li>
+                        <li>• WhatsApp integration for easy communication</li>
+                      </ul>
                     </div>
                   </>
                 )}
@@ -899,7 +908,8 @@ const AuthPage = () => {
                   disabled={loading}
                 >
                   <UserCheck className="h-4 w-4" />
-                  {loading ? "Creating Account..." : "Create Account"}
+                  {loading ? "Creating Account..." : 
+                   accountType === "seller" ? "Continue to Payment" : "Create Account"}
                 </Button>
                 <div className="text-xs text-muted-foreground text-center">
                   <Shield className="h-3 w-3 inline mr-1" />
@@ -929,6 +939,26 @@ const AuthPage = () => {
           window.location.href = "/profile";
         }}
       />
+
+      {/* Seller Payment Step Modal */}
+      {showSellerPayment && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <SellerPaymentStep
+            email={email}
+            onPaymentSuccess={(paymentRef) => {
+              setPaymentReference(paymentRef);
+              setShowSellerPayment(false);
+              // Automatically proceed with signup after payment
+              setTimeout(() => {
+                handleAuth(true);
+              }, 500);
+            }}
+            onBack={() => {
+              setShowSellerPayment(false);
+            }}
+          />
+        </div>
+      )}
 
       <BannedUserModal
         open={isBanned}

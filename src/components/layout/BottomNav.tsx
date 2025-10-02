@@ -1,4 +1,4 @@
-import { Link, useLocation } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import {
   Home,
@@ -13,11 +13,13 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { useCartCount } from "@/hooks/useCartCount";
 import { useAuth } from "@/hooks/useAuth";
+import { useUniMarketNavigation } from "@/hooks/useUniMarketNavigation";
 
 const BottomNav = () => {
   const location = useLocation();
   const { user } = useAuth();
   const { cartCount } = useCartCount();
+  const { goToMarketplace, goToOrders, goToLiveFeed, goToCart, goToProfile } = useUniMarketNavigation();
 
   // Hide bottom nav only on chat pages
   const isInChat = location.pathname.startsWith("/chat/");
@@ -41,11 +43,11 @@ const BottomNav = () => {
   );
 
   const navItems = [
-    { to: "/marketplace", icon: Store, label: "Shop" },
-    { to: "/orders", icon: Package, label: "Orders" },
-    { to: "/live-feed", icon: Zap, label: "Live" },
-    { to: "/cart", icon: ShoppingCart, label: "Cart", badge: cartCount },
-    { to: "/profile", icon: User, label: "Profile" },
+    { to: "/marketplace", icon: Store, label: "Shop", onClick: goToMarketplace },
+    { to: "/orders", icon: Package, label: "Orders", onClick: goToOrders },
+    { to: "/live-feed", icon: Zap, label: "Live", onClick: goToLiveFeed },
+    { to: "/cart", icon: ShoppingCart, label: "Cart", badge: cartCount, onClick: goToCart },
+    { to: "/profile", icon: User, label: "Profile", onClick: goToProfile },
   ];
 
   return (
@@ -54,16 +56,16 @@ const BottomNav = () => {
       style={{ position: "fixed", bottom: 0 }}
     >
       <div className="flex justify-around items-center py-2 px-1 safe-area-pb">
-        {navItems.map(({ to, icon: Icon, label, badge }) => {
+        {navItems.map(({ to, icon: Icon, label, badge, onClick }) => {
           const isActive =
             location.pathname === to ||
             (to === "/marketplace" &&
               location.pathname.startsWith("/marketplace"));
 
           return (
-            <Link
+            <button
               key={to}
-              to={to}
+              onClick={onClick}
               className={cn(
                 "flex flex-col items-center gap-1 p-2 rounded-xl min-w-0 flex-1 relative micro-bounce hover-lift transition-all duration-200",
                 isActive
@@ -102,7 +104,7 @@ const BottomNav = () => {
               >
                 {label}
               </span>
-            </Link>
+            </button>
           );
         })}
       </div>

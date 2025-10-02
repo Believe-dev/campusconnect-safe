@@ -39,6 +39,7 @@ import { SellerDocumentReminder } from "@/components/seller/SellerDocumentRemind
 import { CompressedImageUpload } from "@/components/ui/CompressedImageUpload";
 import { useMemoryOptimization } from "@/hooks/useMemoryOptimization";
 import { PremiumGameBadge } from "@/components/games/PremiumGameBadge";
+import { SellerRegistrationCard } from "@/components/seller/SellerRegistrationCard";
 
 interface Profile {
   full_name: string;
@@ -428,6 +429,7 @@ const Profile = () => {
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto space-y-6">
           <SellerDocumentReminder />
+          <SellerRegistrationCard />
           <div className="flex items-center justify-between">
             <h1 className="text-3xl font-bold text-primary">Profile</h1>
             <Button

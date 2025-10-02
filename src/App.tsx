@@ -47,6 +47,7 @@ import { useAutoReload } from "@/hooks/useAutoReload";
 import { PerformanceMonitor } from "@/components/common/PerformanceMonitor";
 import { AccessibilityProvider } from "@/components/common/AccessibilityProvider";
 import { usePerformanceOptimization } from "@/hooks/usePerformanceOptimization";
+import { NavigationPreloader } from "@/components/common/NavigationPreloader";
 
 // Lazy load pages for better performance with error boundaries
 const Index = React.lazy(() =>
@@ -295,9 +296,10 @@ const AppContent = () => {
       <NetworkNotification />
       <div className={`pb-24 lg:pb-0 layout-stable ${metrics.isLowEndDevice ? 'low-end-device' : ''}`}>
         <AuthGuard>
-          <Suspense fallback={<LoadingSkeleton />}>
-            <div className="page-transition student-focus">
-              <Routes>
+          <NavigationPreloader>
+            <Suspense fallback={<LoadingSkeleton />}>
+              <div className="page-transition student-focus">
+                <Routes>
                 <Route path={ROUTES.home} element={<Index />} />
                 <Route path={ROUTES.auth} element={<AuthPage />} />
                 <Route path="/learn-more" element={<LearnMore />} />
@@ -342,10 +344,11 @@ const AppContent = () => {
                 <Route path="/suggestions" element={<Suggestions />} />
                 <Route path="/live-feed" element={<LiveFeed />} />
                 <Route path="/games" element={<Games />} />
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </div>
-          </Suspense>
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </div>
+            </Suspense>
+          </NavigationPreloader>
         </AuthGuard>
       </div>
       <BottomNav />

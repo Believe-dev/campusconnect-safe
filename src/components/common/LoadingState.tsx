@@ -3,6 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { AlertCircle, RefreshCw } from 'lucide-react';
 import { LoadingStateProps } from '@/lib/types';
+import { UniMarketPreloader, useOptimizedPreloader } from './UniMarketPreloader';
 
 export const LoadingState: React.FC<LoadingStateProps> = ({
   loading,
@@ -21,13 +22,19 @@ export const LoadingState: React.FC<LoadingStateProps> = ({
   return <>{children}</>;
 };
 
-export const LoadingSkeleton: React.FC = () => (
+// Legacy skeleton for specific use cases
+export const LegacySkeleton: React.FC = () => (
   <div className="space-y-4 fade-in">
     <div className="h-4 bg-gradient-to-r from-muted via-muted/50 to-muted rounded w-3/4 loading-shimmer"></div>
     <div className="h-4 bg-gradient-to-r from-muted via-muted/50 to-muted rounded w-1/2 loading-shimmer"></div>
     <div className="h-32 bg-gradient-to-r from-muted via-muted/50 to-muted rounded loading-shimmer"></div>
   </div>
 );
+
+export const LoadingSkeleton: React.FC = () => {
+  const OptimizedPreloader = useOptimizedPreloader();
+  return <OptimizedPreloader message="Loading content..." fullScreen={false} size="sm" />;
+};
 
 export const CardSkeleton: React.FC = () => (
   <Card className="student-card fade-in">
