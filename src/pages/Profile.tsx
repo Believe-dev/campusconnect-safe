@@ -38,6 +38,7 @@ import { OnboardingModal } from "@/components/onboarding/OnboardingModal";
 import { SellerDocumentReminder } from "@/components/seller/SellerDocumentReminder";
 import { CompressedImageUpload } from "@/components/ui/CompressedImageUpload";
 import { useMemoryOptimization } from "@/hooks/useMemoryOptimization";
+import { PremiumGameBadge } from "@/components/games/PremiumGameBadge";
 
 interface Profile {
   full_name: string;
@@ -62,6 +63,12 @@ interface WalletData {
   total_earnings: number;
 }
 
+interface GameBadgeData {
+  overall_level: number;
+  badge_type: 'bronze' | 'silver' | 'gold' | 'none';
+  is_premium: boolean;
+}
+
 const Profile = () => {
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -83,6 +90,7 @@ const Profile = () => {
   const [uploadingStudentId, setUploadingStudentId] = useState(false);
   const [showUploadWarning, setShowUploadWarning] = useState(false);
   const [verificationRequest, setVerificationRequest] = useState<any>(null);
+  const [gameBadge, setGameBadge] = useState<GameBadgeData | null>(null);
 
   useEffect(() => {
     fetchProfile();
@@ -175,6 +183,14 @@ const Profile = () => {
 
       if (verificationData) {
         setVerificationRequest(verificationData);
+      }
+
+      // Fetch game badge
+      const { data: badgeData } = await supabase.rpc('get_user_game_badge', {
+        p_user_id: user.id
+      });
+      if (badgeData && badgeData.length > 0) {
+        setGameBadge(badgeData[0]);
       }
     } catch (error) {
       toast({
@@ -509,12 +525,20 @@ const Profile = () => {
                       {profile.email || user?.email || "No email"}
                     </p>
 
-                    <div className="flex items-center justify-center gap-2 mt-2">
+                    <div className="flex items-center justify-center gap-2 mt-2 flex-wrap">
                       <Badge variant="outline">{profile.account_type}</Badge>
                       {profile.is_verified && (
                         <Badge variant="outline" className="text-verified-blue">
                           Verified
                         </Badge>
+                      )}
+                      {gameBadge && gameBadge.is_premium && (
+                        <PremiumGameBadge 
+                          level={gameBadge.overall_level} 
+                          badgeType={gameBadge.badge_type}
+                          isPremium={gameBadge.is_premium}
+                          size="sm" 
+                        />
                       )}
                     </div>
 

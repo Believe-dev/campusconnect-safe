@@ -184,6 +184,11 @@ const LiveFeed = React.lazy(() =>
     default: () => <div>Error loading page</div>,
   }))
 );
+const Games = React.lazy(() =>
+  import("./pages/Games").catch(() => ({
+    default: () => <div>Error loading page</div>,
+  }))
+);
 
 // Clear all caches on app start
 const clearAllCaches = async () => {
@@ -336,6 +341,7 @@ const AppContent = () => {
                 <Route path="/privacy-policy" element={<PrivacyPolicy />} />
                 <Route path="/suggestions" element={<Suggestions />} />
                 <Route path="/live-feed" element={<LiveFeed />} />
+                <Route path="/games" element={<Games />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </div>

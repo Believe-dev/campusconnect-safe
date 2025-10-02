@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/enhanced-button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Download, FileText, Shield } from 'lucide-react';
+import { Download, FileText, Shield, FileSpreadsheet, FileImage } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
 interface DataExportDialogProps {
@@ -13,59 +14,133 @@ interface DataExportDialogProps {
 export const DataExportDialog = ({ children }: DataExportDialogProps) => {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [format, setFormat] = useState<'json' | 'csv' | 'pdf'>('json');
   const { toast } = useToast();
   const { user } = useAuth();
+
+  const collectUserData = async () => {
+    if (!user) return null;
+
+    const userData: any = {
+      export_date: new Date().toISOString(),
+      user_id: user.id,
+      email: user.email,
+      profile: null,
+      products: [],
+      orders: [],
+      messages: [],
+      notifications: []
+    };
+
+    const { data: profile } = await supabase.from('profiles').select('*').eq('user_id', user.id).single();
+    userData.profile = profile;
+
+    const { data: products } = await supabase.from('products').select('*').eq('seller_id', user.id);
+    userData.products = products || [];
+
+    const { data: buyerOrders } = await supabase.from('orders').select('*').eq('buyer_id', user.id);
+    const { data: sellerOrders } = await supabase.from('orders').select('*').eq('seller_id', user.id);
+    userData.orders = [...(buyerOrders || []), ...(sellerOrders || [])];
+
+    const { data: sentMessages } = await supabase.from('messages').select('*').eq('sender_id', user.id);
+    const { data: receivedMessages } = await supabase.from('messages').select('*').eq('receiver_id', user.id);
+    userData.messages = [...(sentMessages || []), ...(receivedMessages || [])];
+
+    const { data: notifications } = await supabase.from('notifications').select('*').eq('user_id', user.id);
+    userData.notifications = notifications || [];
+
+    return userData;
+  };
+
+  const convertToCSV = (data: any) => {
+    const sections = [
+      { name: 'Profile', data: data.profile ? [data.profile] : [] },
+      { name: 'Products', data: data.products },
+      { name: 'Orders', data: data.orders },
+      { name: 'Messages', data: data.messages },
+      { name: 'Notifications', data: data.notifications }
+    ];
+
+    let csv = '';
+    sections.forEach(section => {
+      if (section.data.length > 0) {
+        csv += `\n${section.name}\n`;
+        const headers = Object.keys(section.data[0]);
+        csv += headers.join(',') + '\n';
+        section.data.forEach(row => {
+          csv += headers.map(header => {
+            const value = row[header];
+            return typeof value === 'string' ? `"${value.replace(/"/g, '""')}"` : value;
+          }).join(',') + '\n';
+        });
+      }
+    });
+    return csv;
+  };
+
+  const convertToText = (data: any) => {
+    let content = `UniMarket Data Export\nExported on: ${new Date(data.export_date).toLocaleDateString()}\n\n`;
+    
+    if (data.profile) {
+      content += `Profile Information:\n`;
+      Object.entries(data.profile).forEach(([key, value]) => {
+        content += `${key}: ${value}\n`;
+      });
+      content += '\n';
+    }
+
+    content += `Products (${data.products.length}):\n`;
+    data.products.forEach((product: any, index: number) => {
+      content += `${index + 1}. ${product.title} - $${product.price}\n`;
+    });
+
+    content += `\nOrders (${data.orders.length}):\n`;
+    data.orders.forEach((order: any, index: number) => {
+      content += `${index + 1}. Order #${order.id} - ${order.status}\n`;
+    });
+
+    return content;
+  };
+
+  const downloadFile = (content: string, filename: string, mimeType: string) => {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
 
   const exportData = async () => {
     if (!user) return;
 
     try {
       setLoading(true);
+      const data = await collectUserData();
+      if (!data) throw new Error('Failed to collect user data');
 
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        throw new Error('No active session');
-      }
-
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/export-user-data`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Export failed');
-      }
-
-      const data = await response.json();
+      const timestamp = new Date().toISOString().split('T')[0];
       
-      // Create and download file
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `unimarket-data-${new Date().toISOString().split('T')[0]}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      switch (format) {
+        case 'json':
+          downloadFile(JSON.stringify(data, null, 2), `unimarket-data-${timestamp}.json`, 'application/json');
+          break;
+        case 'csv':
+          downloadFile(convertToCSV(data), `unimarket-data-${timestamp}.csv`, 'text/csv');
+          break;
+        case 'pdf':
+          downloadFile(convertToText(data), `unimarket-data-${timestamp}.txt`, 'text/plain');
+          break;
+      }
 
-      toast({
-        title: "Data Exported",
-        description: "Your data has been downloaded successfully",
-      });
-
+      toast({ title: "Data Exported", description: `Your data has been downloaded as ${format.toUpperCase()}` });
       setOpen(false);
 
     } catch (error: any) {
-      toast({
-        title: "Export Failed",
-        description: error.message || "Failed to export data",
-        variant: "destructive",
-      });
+      toast({ title: "Export Failed", description: error.message || "Failed to export data", variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -88,12 +163,49 @@ export const DataExportDialog = ({ children }: DataExportDialogProps) => {
         </DialogHeader>
 
         <div className="space-y-4">
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Export Format</label>
+            <Select value={format} onValueChange={(value: 'json' | 'csv' | 'pdf') => setFormat(value)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="json">
+                  <div className="flex items-center gap-2">
+                    <FileText className="h-4 w-4" />
+                    JSON - Structured data
+                  </div>
+                </SelectItem>
+                <SelectItem value="csv">
+                  <div className="flex items-center gap-2">
+                    <FileSpreadsheet className="h-4 w-4" />
+                    CSV - Spreadsheet format
+                  </div>
+                </SelectItem>
+                <SelectItem value="pdf">
+                  <div className="flex items-center gap-2">
+                    <FileImage className="h-4 w-4" />
+                    TXT - Readable format
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           <div className="flex items-center gap-3 p-4 bg-blue-50 rounded-lg">
-            <FileText className="h-8 w-8 text-blue-600" />
+            {format === 'json' && <FileText className="h-8 w-8 text-blue-600" />}
+            {format === 'csv' && <FileSpreadsheet className="h-8 w-8 text-blue-600" />}
+            {format === 'pdf' && <FileImage className="h-8 w-8 text-blue-600" />}
             <div>
-              <h3 className="font-medium text-blue-900">JSON Format</h3>
+              <h3 className="font-medium text-blue-900">
+                {format === 'json' && 'JSON Format'}
+                {format === 'csv' && 'CSV Format'}
+                {format === 'pdf' && 'Text Format'}
+              </h3>
               <p className="text-sm text-blue-700">
-                Your data will be exported as a structured JSON file
+                {format === 'json' && 'Structured data file with all information'}
+                {format === 'csv' && 'Spreadsheet-compatible format for analysis'}
+                {format === 'pdf' && 'Human-readable text format'}
               </p>
             </div>
           </div>

@@ -215,7 +215,16 @@ export const TwoFactorAuthDialog = ({ children }: TwoFactorAuthDialogProps) => {
             <div className="text-center space-y-2">
               <Smartphone className="h-12 w-12 mx-auto text-muted-foreground" />
               <p className="text-sm text-muted-foreground">
-                Use an authenticator app like Google Authenticator, Authy, or Microsoft Authenticator to generate verification codes.
+                First, install an authenticator app from the App Store or Play Store:
+              </p>
+              <div className="text-xs text-muted-foreground space-y-1">
+                <div>• Google Authenticator</div>
+                <div>• Microsoft Authenticator</div>
+                <div>• Authy</div>
+                <div>• Any TOTP-compatible app</div>
+              </div>
+              <p className="text-sm text-muted-foreground mt-3">
+                Then use the app to scan the QR code and generate verification codes.
               </p>
             </div>
             <Button onClick={handleSetup} className="w-full">

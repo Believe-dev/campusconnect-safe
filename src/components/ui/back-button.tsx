@@ -9,7 +9,8 @@ const FloatingBackButton = () => {
   const isInMessages = location.pathname === '/messages';
   const isInChat = location.pathname.startsWith('/chat/');
 
-  const showBackButton = location.pathname !== '/' && location.pathname !== '/marketplace' && !isInMessages && !isInChat;
+  const isInGameSession = sessionStorage.getItem('activeGame') !== null;
+  const showBackButton = location.pathname !== '/' && location.pathname !== '/marketplace' && !isInMessages && !isInChat && !isInGameSession;
 
   if (!showBackButton) return null;
 

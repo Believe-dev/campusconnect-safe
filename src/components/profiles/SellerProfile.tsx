@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/enhanced-button';
 import { Separator } from '@/components/ui/separator';
 import { Star, MessageCircle, MapPin, GraduationCap, ShieldCheck, User, Package, Heart, ShoppingCart, Phone } from 'lucide-react';
+import { PremiumGameBadge } from '@/components/games/PremiumGameBadge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
@@ -18,7 +19,7 @@ interface SellerProfile {
   id: string;
   user_id: string;
   full_name: string;
-  university_name?: string; // Make optional since we're not exposing this publicly
+  university_name?: string;
   campus: string;
   bio: string;
   avatar_url: string;
@@ -28,6 +29,12 @@ interface SellerProfile {
   seller_status: string;
   phone_number?: string;
   created_at: string;
+}
+
+interface GameBadgeData {
+  overall_level: number;
+  badge_type: 'bronze' | 'silver' | 'gold' | 'none';
+  is_premium: boolean;
 }
 
 interface Review {
@@ -67,14 +74,31 @@ const SellerProfile = () => {
   const [commentInput, setCommentInput] = useState<string>('');
   const [visibleProducts, setVisibleProducts] = useState(5);
   const [showAvatarModal, setShowAvatarModal] = useState(false);
+  const [gameBadge, setGameBadge] = useState<GameBadgeData | null>(null);
 
   useEffect(() => {
     if (sellerId) {
       fetchSellerProfile();
       fetchSellerReviews();
       fetchSellerProducts();
+      fetchGameBadge();
     }
   }, [sellerId]);
+
+  const fetchGameBadge = async () => {
+    try {
+      const { data, error } = await supabase.rpc('get_user_game_badge', {
+        p_user_id: sellerId
+      });
+
+      if (error) throw error;
+      if (data && data.length > 0) {
+        setGameBadge(data[0]);
+      }
+    } catch (error) {
+      console.error('Error fetching game badge:', error);
+    }
+  };
 
   const fetchSellerProfile = async () => {
     try {
@@ -338,16 +362,26 @@ const SellerProfile = () => {
               <div className="flex-1 text-center sm:text-left w-full">
                 <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-3">
                   <h1 className="text-xl sm:text-2xl md:text-3xl font-bold break-words">{seller.full_name}</h1>
-                  {seller.is_verified && (
-                    <div className="trust-badge mx-auto sm:mx-0">
-                      <div className="verification-badge-inline">
-                        <svg fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                        </svg>
+                  <div className="flex items-center gap-2 justify-center sm:justify-start">
+                    {seller.is_verified && (
+                      <div className="trust-badge">
+                        <div className="verification-badge-inline">
+                          <svg fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                          </svg>
+                        </div>
+                        <span className="text-xs font-medium">Verified</span>
                       </div>
-                      <span className="text-xs font-medium">Verified</span>
-                    </div>
-                  )}
+                    )}
+                    {gameBadge && gameBadge.is_premium && (
+                      <PremiumGameBadge 
+                        level={gameBadge.overall_level} 
+                        badgeType={gameBadge.badge_type}
+                        isPremium={gameBadge.is_premium}
+                        size="sm" 
+                      />
+                    )}
+                  </div>
                 </div>
                 
                 <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-muted-foreground mb-3">

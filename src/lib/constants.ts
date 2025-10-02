@@ -68,6 +68,7 @@ export const ROUTES = {
   admin: "/admin",
   sell: "/sell",
   dashboard: "/dashboard",
+  games: "/games",
 } as const;
 
 export const CATEGORIES = [

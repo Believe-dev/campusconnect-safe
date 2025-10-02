@@ -56,6 +56,7 @@ import { useRealTimeUpdates } from "@/hooks/useRealTimeUpdates";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import SmartSearchInput from "@/components/search/SmartSearchInput";
 import MobileSearchDialog from "@/components/search/MobileSearchDialog";
+import { PremiumGameBadge } from "@/components/games/PremiumGameBadge";
 
 interface Profile {
   full_name: string;
@@ -63,6 +64,12 @@ interface Profile {
   account_type: string;
   verification_status?: string;
   avatar_url?: string;
+}
+
+interface GameBadgeData {
+  overall_level: number;
+  badge_type: 'bronze' | 'silver' | 'gold' | 'none';
+  is_premium: boolean;
 }
 
 const Header = () => {
@@ -74,6 +81,7 @@ const Header = () => {
   const { ordersCount } = useOrdersCount();
   const { messagesCount } = useMessagesCount();
   const [searchQuery, setSearchQuery] = useState("");
+  const [gameBadge, setGameBadge] = useState<GameBadgeData | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -81,6 +89,29 @@ const Header = () => {
 
   // Enable real-time updates
   useRealTimeUpdates();
+
+  useEffect(() => {
+    if (user) {
+      fetchGameBadge();
+    }
+  }, [user]);
+
+  const fetchGameBadge = async () => {
+    if (!user) return;
+
+    try {
+      const { data, error } = await supabase.rpc('get_user_game_badge', {
+        p_user_id: user.id
+      });
+
+      if (error) throw error;
+      if (data && data.length > 0) {
+        setGameBadge(data[0]);
+      }
+    } catch (error) {
+      console.error('Error fetching game badge:', error);
+    }
+  };
 
   const NetworkIndicator = () => {
     const [connectionStrength, setConnectionStrength] = useState(5);
@@ -244,6 +275,7 @@ const Header = () => {
                       <span className="text-xs font-medium">Verified</span>
                     </div>
                   )}
+
                 </div>
               </div>
             </div>
@@ -313,6 +345,20 @@ const Header = () => {
                 <Link to="/suggestions">
                   <Lightbulb className="mr-3 h-5 w-5" />
                   Suggestions
+                </Link>
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="lg"
+                asChild
+                className="justify-start"
+              >
+                <Link to="/games">
+                  <svg className="mr-3 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                  </svg>
+                  UniGames
                 </Link>
               </Button>
 
@@ -649,6 +695,8 @@ const Header = () => {
                     </TooltipContent>
                   </Tooltip>
 
+
+
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
@@ -820,7 +868,7 @@ const Header = () => {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent
-                      className="w-56"
+                      className="w-56 py-1"
                       align="end"
                       forceMount
                     >
@@ -854,14 +902,22 @@ const Header = () => {
                         </div>
                       </div>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem asChild>
+                      <DropdownMenuItem asChild className="py-1.5">
                         <Link to="/profile">
                           <User className="mr-2 h-4 w-4" />
                           Profile
                         </Link>
                       </DropdownMenuItem>
+                      <DropdownMenuItem asChild className="py-1.5">
+                        <Link to="/games">
+                          <svg className="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                          </svg>
+                          UniGames
+                        </Link>
+                      </DropdownMenuItem>
                       {profile?.account_type !== "buyer" && (
-                        <DropdownMenuItem asChild>
+                        <DropdownMenuItem asChild className="py-1.5">
                           <Link to="/dashboard">
                             <Shield className="mr-2 h-4 w-4" />
                             Dashboard
@@ -869,39 +925,48 @@ const Header = () => {
                         </DropdownMenuItem>
                       )}
                       {isAdmin && (
-                        <DropdownMenuItem asChild>
+                        <DropdownMenuItem asChild className="py-1.5">
                           <Link to="/admin">
                             <Shield className="mr-2 h-4 w-4" />
                             Admin Panel
                           </Link>
                         </DropdownMenuItem>
                       )}
-                      <DropdownMenuItem asChild>
+                      <DropdownMenuItem asChild className="py-1.5">
                         <Link to="/settings">
                           <Settings className="mr-2 h-4 w-4" />
                           Settings
                         </Link>
                       </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem asChild>
-                        <Link to="/suggestions">Suggestions</Link>
+                      <DropdownMenuSeparator className="my-1" />
+                      <DropdownMenuItem asChild className="py-1.5">
+                        <Link to="/suggestions">
+                          <Lightbulb className="mr-2 h-4 w-4" />
+                          Suggestions
+                        </Link>
                       </DropdownMenuItem>
-                      <DropdownMenuItem asChild>
+                      <DropdownMenuItem asChild className="py-1.5">
                         <Link to="/sellers">
                           <User className="mr-1 h-4 w-4" />
                           Sellers
                         </Link>
                       </DropdownMenuItem>
-
-                      <DropdownMenuItem asChild>
-                        <Link to="/learn-more">Learn More</Link>
+                      <DropdownMenuItem asChild className="py-1.5">
+                        <Link to="/learn-more">
+                          <img
+                            src="/logo.png"
+                            alt="UniMarket Logo"
+                            className="mr-2 h-4 w-4 object-contain"
+                          />
+                          Learn More
+                        </Link>
                       </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem asChild>
+                      <DropdownMenuSeparator className="my-1" />
+                      <DropdownMenuItem asChild className="py-1.5">
                         <ThemeToggle />
                       </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={handleSignOut}>
+                      <DropdownMenuSeparator className="my-1" />
+                      <DropdownMenuItem onClick={handleSignOut} className="py-1.5">
                         <LogOut className="mr-2 h-4 w-4" />
                         Sign Out
                       </DropdownMenuItem>

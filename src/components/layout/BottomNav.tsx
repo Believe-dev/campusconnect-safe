@@ -24,11 +24,26 @@ const BottomNav = () => {
 
   if (!user || isInChat) return null;
 
+  const GamepadIcon = () => (
+    <svg
+      className="h-5 w-5"
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
+      />
+    </svg>
+  );
+
   const navItems = [
     { to: "/marketplace", icon: Store, label: "Shop" },
     { to: "/orders", icon: Package, label: "Orders" },
     { to: "/live-feed", icon: Zap, label: "Live" },
-
     { to: "/cart", icon: ShoppingCart, label: "Cart", badge: cartCount },
     { to: "/profile", icon: User, label: "Profile" },
   ];
