@@ -19,12 +19,6 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { findOrCreateConversation } from "@/utils/conversationUtils";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 
 interface LiveFeedItem {
   id: string;
@@ -87,6 +81,7 @@ export const LiveFeedCard = ({
   const [showReplies, setShowReplies] = useState<Record<string, boolean>>({});
   const [expandedDescription, setExpandedDescription] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [showDeleteMenu, setShowDeleteMenu] = useState(false);
   const { toast } = useToast();
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -110,6 +105,19 @@ export const LiveFeedCard = ({
     }, 1000);
     return () => clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element;
+      if (showDeleteMenu && !target.closest(".dropdown-container")) {
+        setShowDeleteMenu(false);
+      }
+    };
+    if (showDeleteMenu) {
+      document.addEventListener("click", handleClickOutside);
+    }
+    return () => document.removeEventListener("click", handleClickOutside);
+  }, [showDeleteMenu]);
 
   const fetchComments = async () => {
     setLoadingComments(true);
@@ -507,22 +515,34 @@ export const LiveFeedCard = ({
               {isOwner ? "Me" : "Live"}
             </Badge>
             {isOwner && (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                    <MoreVertical className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem
-                    onClick={handleDelete}
-                    className="text-red-600"
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Delete Post
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <div className="relative dropdown-container">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowDeleteMenu(!showDeleteMenu);
+                  }}
+                >
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+                {showDeleteMenu && (
+                  <div className="absolute right-0 top-8 bg-white border border-gray-200 rounded-lg shadow-lg py-1 z-50 min-w-[140px]">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete();
+                        setShowDeleteMenu(false);
+                      }}
+                      className="flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 w-fit text-left"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Delete Post
+                    </button>
+                  </div>
+                )}
+              </div>
             )}
           </div>
         </div>
