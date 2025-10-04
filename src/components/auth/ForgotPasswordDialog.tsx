@@ -1,11 +1,10 @@
 import { useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/enhanced-button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Mail } from 'lucide-react';
+import { MessageCircle } from 'lucide-react';
 
 interface ForgotPasswordDialogProps {
   children: React.ReactNode;
@@ -17,7 +16,7 @@ export const ForgotPasswordDialog = ({ children }: ForgotPasswordDialogProps) =>
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
 
-  const handleForgotPassword = async () => {
+  const handleForgotPassword = () => {
     if (!email) {
       toast({
         title: "Error",
@@ -37,34 +36,18 @@ export const ForgotPasswordDialog = ({ children }: ForgotPasswordDialogProps) =>
       return;
     }
 
-    try {
-      setLoading(true);
+    const message = `Hi UniMarket Support,\n\nI need help resetting my password for my account.\n\nEmail: ${email}\n\nPlease assist me with password reset instructions.\n\nThank you!`;
+    const whatsappUrl = `https://wa.me/2349133054018?text=${encodeURIComponent(message)}`;
+    
+    window.open(whatsappUrl, '_blank');
+    
+    toast({
+      title: "WhatsApp Opened",
+      description: "Send the message to our support team for password reset help",
+    });
 
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
-      });
-
-      if (error) {
-        throw error;
-      }
-
-      toast({
-        title: "Reset Email Sent",
-        description: "Check your email for password reset instructions",
-      });
-
-      setEmail('');
-      setOpen(false);
-
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to send reset email",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
+    setEmail('');
+    setOpen(false);
   };
 
   return (
@@ -75,11 +58,11 @@ export const ForgotPasswordDialog = ({ children }: ForgotPasswordDialogProps) =>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Mail className="h-5 w-5" />
+            <MessageCircle className="h-5 w-5" />
             Forgot Password
           </DialogTitle>
           <DialogDescription>
-            Enter your email address and we'll send you a link to reset your password.
+            Enter your email address and we'll help you reset your password via WhatsApp support.
           </DialogDescription>
         </DialogHeader>
         
@@ -109,7 +92,7 @@ export const ForgotPasswordDialog = ({ children }: ForgotPasswordDialogProps) =>
             onClick={handleForgotPassword}
             disabled={loading}
           >
-            {loading ? "Sending..." : "Send Reset Link"}
+"Contact Support"
           </Button>
         </DialogFooter>
       </DialogContent>

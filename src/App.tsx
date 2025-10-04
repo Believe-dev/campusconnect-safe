@@ -48,6 +48,7 @@ import { PerformanceMonitor } from "@/components/common/PerformanceMonitor";
 import { AccessibilityProvider } from "@/components/common/AccessibilityProvider";
 import { usePerformanceOptimization } from "@/hooks/usePerformanceOptimization";
 import { NavigationPreloader } from "@/components/common/NavigationPreloader";
+import "@/styles/mobile-fixes.css";
 
 // Lazy load pages for better performance with error boundaries
 const Index = React.lazy(() =>

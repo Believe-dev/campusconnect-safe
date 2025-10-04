@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/enhanced-button';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
@@ -133,22 +133,16 @@ export const PrivacySettingsDialog = ({ children }: PrivacySettingsDialogProps) 
               <Eye className="h-4 w-4" />
               <Label className="font-medium">Profile Visibility</Label>
             </div>
-            <Select
+            <select
               value={settings.profile_visibility}
-              onValueChange={(value: 'public' | 'university' | 'private') => 
-                updateSetting('profile_visibility', value)
-              }
+              onChange={(e) => updateSetting('profile_visibility', e.target.value as 'public' | 'university' | 'private')}
               disabled={loading}
+              className="w-full h-10 px-3 text-sm border border-input bg-background rounded-md"
             >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="public">Public - Anyone can see</SelectItem>
-                <SelectItem value="university">University Only - Same university students</SelectItem>
-                <SelectItem value="private">Private - Only you can see</SelectItem>
-              </SelectContent>
-            </Select>
+              <option value="public">Public - Anyone can see</option>
+              <option value="university">University Only - Same university students</option>
+              <option value="private">Private - Only you can see</option>
+            </select>
           </div>
 
           <Separator />

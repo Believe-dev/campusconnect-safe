@@ -63,6 +63,7 @@ import {
   Edit,
   Ban,
   Eye,
+  EyeOff,
   Users,
   Package,
   MessageSquare,
@@ -268,6 +269,7 @@ export default function Admin() {
   const [emailLogs, setEmailLogs] = useState<any[]>([]);
   const [disputeTemplates, setDisputeTemplates] = useState<any[]>([]);
   const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     if (isAdmin) {
@@ -2529,7 +2531,7 @@ export default function Admin() {
                                   </div>
 
                                   {/* Actions */}
-                                  <div className="flex gap-2 mt-6 pt-4 border-t">
+                                  <div className="flex gap-2 mt-6 pt-4 border-t flex-wrap">
                                     <Select
                                       onValueChange={(
                                         value: "admin" | "seller" | "buyer"
@@ -2550,6 +2552,202 @@ export default function Admin() {
                                         </SelectItem>
                                       </SelectContent>
                                     </Select>
+
+                                    {/* Password Reset */}
+                                    <Dialog>
+                                      <DialogTrigger asChild>
+                                        <Button variant="outline" size="sm">
+                                          Reset Password
+                                        </Button>
+                                      </DialogTrigger>
+                                      <DialogContent>
+                                        <DialogHeader>
+                                          <DialogTitle>Reset User Password</DialogTitle>
+                                        </DialogHeader>
+                                        <form
+                                          onSubmit={async (e) => {
+                                            e.preventDefault();
+                                            const formData = new FormData(e.currentTarget);
+                                            const newPassword = formData.get('new_password') as string;
+                                            
+                                            if (newPassword.length < 8) {
+                                              toast.error('Password must be at least 8 characters');
+                                              return;
+                                            }
+
+                                            try {
+                                              // Try Edge Function first
+                                              const { data, error } = await supabase.functions.invoke('admin-reset-password', {
+                                                body: {
+                                                  user_id: user.user_id,
+                                                  new_password: newPassword
+                                                }
+                                              });
+
+                                              if (error) {
+                                                console.error('Edge Function error:', error);
+                                                throw new Error('Edge Function not available. Please deploy the admin-reset-password function.');
+                                              }
+                                              
+                                              if (data?.error) throw new Error(data.error);
+
+                                              toast.success('Password updated successfully via Edge Function');
+                                              
+                                              // Send notification to user
+                                              await supabase.from('notifications').insert({
+                                                user_id: user.user_id,
+                                                title: 'Password Changed',
+                                                message: 'Your password has been reset by an administrator. Please log in with your new password.',
+                                                type: 'info'
+                                              });
+                                            } catch (error: any) {
+                                              console.error('Password reset error:', error);
+                                              
+                                              // Show specific error message with solution
+                                              if (error.message?.includes('Edge Function') || error.message?.includes('Failed to send a request')) {
+                                                toast.error(
+                                                  'Edge Function not deployed. Please run deploy-admin-functions.bat to deploy the admin-reset-password function, or contact the system administrator.',
+                                                  { duration: 8000 }
+                                                );
+                                              } else {
+                                                toast.error(error.message || 'Failed to reset password');
+                                              }
+                                            }
+                                          }}
+                                        >
+                                          <div className="space-y-4">
+                                            <div>
+                                              <Label htmlFor="new_password">New Password</Label>
+                                              <div className="relative">
+                                                <Input
+                                                  name="new_password"
+                                                  type={showPassword ? "text" : "password"}
+                                                  placeholder="Enter new password (min 8 characters)"
+                                                  required
+                                                  minLength={8}
+                                                  className="pr-10"
+                                                />
+                                                <button
+                                                  type="button"
+                                                  onClick={() => setShowPassword(!showPassword)}
+                                                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                                                >
+                                                  {showPassword ? (
+                                                    <EyeOff className="h-4 w-4" />
+                                                  ) : (
+                                                    <Eye className="h-4 w-4" />
+                                                  )}
+                                                </button>
+                                              </div>
+                                            </div>
+                                            <div className="flex justify-end gap-2">
+                                              <DialogTrigger asChild>
+                                                <Button type="button" variant="outline">
+                                                  Cancel
+                                                </Button>
+                                              </DialogTrigger>
+                                              <Button type="submit">
+                                                Reset Password
+                                              </Button>
+                                            </div>
+                                          </div>
+                                        </form>
+                                      </DialogContent>
+                                    </Dialog>
+
+                                    {/* Profile Picture Update */}
+                                    <Dialog>
+                                      <DialogTrigger asChild>
+                                        <Button variant="outline" size="sm">
+                                          Change Photo
+                                        </Button>
+                                      </DialogTrigger>
+                                      <DialogContent>
+                                        <DialogHeader>
+                                          <DialogTitle>Update Profile Picture</DialogTitle>
+                                        </DialogHeader>
+                                        <form
+                                          onSubmit={async (e) => {
+                                            e.preventDefault();
+                                            const formData = new FormData(e.currentTarget);
+                                            const file = formData.get('profile_image') as File;
+                                            
+                                            if (!file || file.size === 0) {
+                                              toast.error('Please select an image file');
+                                              return;
+                                            }
+
+                                            if (file.size > 5 * 1024 * 1024) {
+                                              toast.error('Image must be less than 5MB');
+                                              return;
+                                            }
+
+                                            try {
+                                              // Upload to Supabase storage
+                                              const fileExt = file.name.split('.').pop();
+                                              const fileName = `${user.user_id}-${Date.now()}.${fileExt}`;
+                                              
+                                              const { error: uploadError } = await supabase.storage
+                                                .from('verification-photos')
+                                                .upload(fileName, file);
+
+                                              if (uploadError) throw uploadError;
+
+                                              // Get public URL
+                                              const { data } = supabase.storage
+                                                .from('verification-photos')
+                                                .getPublicUrl(fileName);
+
+                                              // Update user profile
+                                              const { error: updateError } = await supabase
+                                                .from('profiles')
+                                                .update({ avatar_url: data.publicUrl })
+                                                .eq('user_id', user.user_id);
+
+                                              if (updateError) throw updateError;
+
+                                              toast.success('Profile picture updated successfully');
+                                              fetchUsers();
+                                              
+                                              // Send notification to user
+                                              await supabase.from('notifications').insert({
+                                                user_id: user.user_id,
+                                                title: 'Profile Updated',
+                                                message: 'Your profile picture has been updated by an administrator.',
+                                                type: 'info'
+                                              });
+                                            } catch (error) {
+                                              toast.error('Failed to update profile picture');
+                                            }
+                                          }}
+                                        >
+                                          <div className="space-y-4">
+                                            <div>
+                                              <Label htmlFor="profile_image">Select New Image</Label>
+                                              <Input
+                                                name="profile_image"
+                                                type="file"
+                                                accept="image/*"
+                                                required
+                                              />
+                                              <p className="text-xs text-muted-foreground mt-1">
+                                                Max size: 5MB. Supported formats: JPG, PNG, GIF
+                                              </p>
+                                            </div>
+                                            <div className="flex justify-end gap-2">
+                                              <DialogTrigger asChild>
+                                                <Button type="button" variant="outline">
+                                                  Cancel
+                                                </Button>
+                                              </DialogTrigger>
+                                              <Button type="submit">
+                                                Update Picture
+                                              </Button>
+                                            </div>
+                                          </div>
+                                        </form>
+                                      </DialogContent>
+                                    </Dialog>
 
                                     <Button
                                       variant={

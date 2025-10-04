@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { Lightbulb, Send } from 'lucide-react';
@@ -111,22 +111,23 @@ const Suggestions = () => {
 
                 <div>
                   <Label htmlFor="category">Category</Label>
-                  <Select value={formData.category} onValueChange={(value) => setFormData(prev => ({ ...prev, category: value }))}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="ui_ux">User Interface & Experience</SelectItem>
-                      <SelectItem value="features">New Features</SelectItem>
-                      <SelectItem value="performance">Performance</SelectItem>
-                      <SelectItem value="security">Security</SelectItem>
-                      <SelectItem value="mobile">Mobile App</SelectItem>
-                      <SelectItem value="search">Search & Discovery</SelectItem>
-                      <SelectItem value="messaging">Messaging</SelectItem>
-                      <SelectItem value="payments">Payments</SelectItem>
-                      <SelectItem value="other">Other</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <select
+                    id="category"
+                    value={formData.category}
+                    onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
+                    className="w-full h-10 px-3 text-sm border border-input bg-background rounded-md"
+                  >
+                    <option value="">Select a category</option>
+                    <option value="ui_ux">User Interface & Experience</option>
+                    <option value="features">New Features</option>
+                    <option value="performance">Performance</option>
+                    <option value="security">Security</option>
+                    <option value="mobile">Mobile App</option>
+                    <option value="search">Search & Discovery</option>
+                    <option value="messaging">Messaging</option>
+                    <option value="payments">Payments</option>
+                    <option value="other">Other</option>
+                  </select>
                 </div>
 
                 <div>
@@ -146,17 +147,17 @@ const Suggestions = () => {
 
                 <div>
                   <Label htmlFor="priority">Priority</Label>
-                  <Select value={formData.priority} onValueChange={(value) => setFormData(prev => ({ ...prev, priority: value }))}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="low">Low - Nice to have</SelectItem>
-                      <SelectItem value="medium">Medium - Would be helpful</SelectItem>
-                      <SelectItem value="high">High - Important improvement</SelectItem>
-                      <SelectItem value="critical">Critical - Major issue</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <select
+                    id="priority"
+                    value={formData.priority}
+                    onChange={(e) => setFormData(prev => ({ ...prev, priority: e.target.value }))}
+                    className="w-full h-10 px-3 text-sm border border-input bg-background rounded-md"
+                  >
+                    <option value="low">Low - Nice to have</option>
+                    <option value="medium">Medium - Would be helpful</option>
+                    <option value="high">High - Important improvement</option>
+                    <option value="critical">Critical - Major issue</option>
+                  </select>
                 </div>
 
                 <Button type="submit" disabled={loading} className="w-full">

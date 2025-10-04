@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/enhanced-button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
 import { useToast } from '@/hooks/use-toast';
 import { Download, FileText, Shield, FileSpreadsheet, FileImage } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
@@ -165,31 +165,15 @@ export const DataExportDialog = ({ children }: DataExportDialogProps) => {
         <div className="space-y-4">
           <div className="space-y-2">
             <label className="text-sm font-medium">Export Format</label>
-            <Select value={format} onValueChange={(value: 'json' | 'csv' | 'pdf') => setFormat(value)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="json">
-                  <div className="flex items-center gap-2">
-                    <FileText className="h-4 w-4" />
-                    JSON - Structured data
-                  </div>
-                </SelectItem>
-                <SelectItem value="csv">
-                  <div className="flex items-center gap-2">
-                    <FileSpreadsheet className="h-4 w-4" />
-                    CSV - Spreadsheet format
-                  </div>
-                </SelectItem>
-                <SelectItem value="pdf">
-                  <div className="flex items-center gap-2">
-                    <FileImage className="h-4 w-4" />
-                    TXT - Readable format
-                  </div>
-                </SelectItem>
-              </SelectContent>
-            </Select>
+            <select
+              value={format}
+              onChange={(e) => setFormat(e.target.value as 'json' | 'csv' | 'pdf')}
+              className="w-full h-10 px-3 text-sm border border-input bg-background rounded-md"
+            >
+              <option value="json">JSON - Structured data</option>
+              <option value="csv">CSV - Spreadsheet format</option>
+              <option value="pdf">TXT - Readable format</option>
+            </select>
           </div>
 
           <div className="flex items-center gap-3 p-4 bg-blue-50 rounded-lg">

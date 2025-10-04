@@ -227,6 +227,8 @@ const Header = () => {
       <SheetContent
         side="left"
         className="w-full sm:w-96 md:w-[28rem] lg:w-80 h-full flex flex-col overflow-hidden bg-background"
+        onInteractOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={(e) => e.preventDefault()}
       >
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
