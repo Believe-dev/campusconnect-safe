@@ -5,7 +5,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/enhanced-button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { useTheme } from "../theme/ThemeProvider";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -53,7 +52,6 @@ import { useOrdersCount } from "@/hooks/useOrdersCount";
 import { useMessagesCount } from "@/hooks/useMessagesCount";
 import { useProfile } from "@/contexts/ProfileContext";
 import { useRealTimeUpdates } from "@/hooks/useRealTimeUpdates";
-import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import SmartSearchInput from "@/components/search/SmartSearchInput";
 import MobileSearchDialog from "@/components/search/MobileSearchDialog";
 import { PremiumGameBadge } from "@/components/games/PremiumGameBadge";
@@ -84,8 +82,6 @@ const Header = () => {
   const [gameBadge, setGameBadge] = useState<GameBadgeData | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
-
-  const { theme, setTheme } = useTheme();
 
   // Enable real-time updates
   useRealTimeUpdates();
@@ -551,8 +547,6 @@ const Header = () => {
                 </Link>
               </Button>
 
-              <ThemeToggle />
-
               <div className="border-t my-2" />
 
               <Button
@@ -962,10 +956,6 @@ const Header = () => {
                           />
                           Learn More
                         </Link>
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator className="my-1" />
-                      <DropdownMenuItem asChild className="py-1.5">
-                        <ThemeToggle />
                       </DropdownMenuItem>
                       <DropdownMenuSeparator className="my-1" />
                       <DropdownMenuItem onClick={handleSignOut} className="py-1.5">

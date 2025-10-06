@@ -37,7 +37,6 @@ import {
 } from "@/utils/oneSignal";
 import { PWAInstallPrompt } from "@/components/common/PWAInstallPrompt";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
-import { ThemeDetectionModal } from "@/components/theme/ThemeDetectionModal";
 import { useLiteMode } from "@/hooks/useLiteMode";
 import { useOnboarding } from "@/hooks/useOnboarding";
 import { DevToolsProtection } from "@/components/security/DevToolsProtection";
@@ -358,7 +357,6 @@ const AppContent = () => {
       {/* <AIChatbot /> */}
       <FloatingBackButton />
       <PWAInstallPrompt />
-      <ThemeDetectionModal />
       <OnboardingModal open={showOnboarding} onClose={closeOnboarding} />
 
       <ProfileCompletionModal

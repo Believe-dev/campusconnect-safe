@@ -12,3 +12,8 @@ WHERE transfer_status IS NULL;
 -- Add index for transfer tracking
 CREATE INDEX IF NOT EXISTS idx_payout_requests_transfer_code ON payout_requests(transfer_code);
 CREATE INDEX IF NOT EXISTS idx_payout_requests_transfer_status ON payout_requests(transfer_status);
+
+-- Update the status check constraint to include 'approved' status
+ALTER TABLE payout_requests DROP CONSTRAINT IF EXISTS payout_requests_status_check;
+ALTER TABLE payout_requests ADD CONSTRAINT payout_requests_status_check 
+CHECK (status IN ('pending', 'processing', 'approved', 'completed', 'failed', 'cancelled', 'rejected'));
