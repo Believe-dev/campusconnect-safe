@@ -47,7 +47,10 @@ import { PerformanceMonitor } from "@/components/common/PerformanceMonitor";
 import { AccessibilityProvider } from "@/components/common/AccessibilityProvider";
 import { usePerformanceOptimization } from "@/hooks/usePerformanceOptimization";
 import { NavigationPreloader } from "@/components/common/NavigationPreloader";
+import PullToRefresh from "@/components/common/PullToRefresh";
+import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import "@/styles/mobile-fixes.css";
+import "@/styles/pull-to-refresh.css";
 
 // Lazy load pages for better performance with error boundaries
 const Index = React.lazy(() =>
@@ -261,6 +264,7 @@ const AppContent = () => {
     useProfileCompletion();
   const { isBanned, banReason, userEmail } = useBanCheck();
   const { showOnboarding, closeOnboarding } = useOnboarding();
+  const { handleRefresh } = usePullToRefresh();
 
   useEffect(() => {
     const setupNotifications = async () => {
@@ -294,12 +298,13 @@ const AppContent = () => {
     <>
       <PerformanceMonitor />
       <NetworkNotification />
-      <div className={`pb-24 lg:pb-0 layout-stable ${metrics.isLowEndDevice ? 'low-end-device' : ''}`}>
-        <AuthGuard>
-          <NavigationPreloader>
-            <Suspense fallback={<LoadingSkeleton />}>
-              <div className="page-transition student-focus">
-                <Routes>
+      <PullToRefresh onRefresh={handleRefresh} className="min-h-screen">
+        <div className={`pb-24 lg:pb-0 layout-stable ${metrics.isLowEndDevice ? 'low-end-device' : ''}`}>
+          <AuthGuard>
+            <NavigationPreloader>
+              <Suspense fallback={<LoadingSkeleton />}>
+                <div className="page-transition student-focus">
+                  <Routes>
                 <Route path={ROUTES.home} element={<Index />} />
                 <Route path={ROUTES.auth} element={<AuthPage />} />
                 <Route path="/learn-more" element={<LearnMore />} />
@@ -344,13 +349,14 @@ const AppContent = () => {
                 <Route path="/suggestions" element={<Suggestions />} />
                 <Route path="/live-feed" element={<LiveFeed />} />
                 <Route path="/games" element={<Games />} />
-                  <Route path="*" element={<NotFound />} />
-                </Routes>
-              </div>
-            </Suspense>
-          </NavigationPreloader>
-        </AuthGuard>
-      </div>
+                    <Route path="*" element={<NotFound />} />
+                  </Routes>
+                </div>
+              </Suspense>
+            </NavigationPreloader>
+          </AuthGuard>
+        </div>
+      </PullToRefresh>
       <BottomNav />
       <MessagePopup />
       <OfflineNotification />

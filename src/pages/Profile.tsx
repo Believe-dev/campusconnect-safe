@@ -67,7 +67,7 @@ interface WalletData {
 
 interface GameBadgeData {
   overall_level: number;
-  badge_type: 'bronze' | 'silver' | 'gold' | 'none';
+  badge_type: "bronze" | "silver" | "gold" | "none";
   is_premium: boolean;
 }
 
@@ -188,8 +188,8 @@ const Profile = () => {
       }
 
       // Fetch game badge
-      const { data: badgeData } = await supabase.rpc('get_user_game_badge', {
-        p_user_id: user.id
+      const { data: badgeData } = await supabase.rpc("get_user_game_badge", {
+        p_user_id: user.id,
       });
       if (badgeData && badgeData.length > 0) {
         setGameBadge(badgeData[0]);
@@ -512,7 +512,7 @@ const Profile = () => {
                             variant="ghost"
                             size="sm"
                             onClick={() => setShowUploadWarning(true)}
-                            className="mt-2 text-xs text-muted-foreground"
+                            className="mt-2 text-xs text-muted-foreground border-[1px] border-gray-500"
                           >
                             ⚠️ Read Warning First
                           </Button>
@@ -537,11 +537,11 @@ const Profile = () => {
                         </Badge>
                       )}
                       {gameBadge && gameBadge.is_premium && (
-                        <PremiumGameBadge 
-                          level={gameBadge.overall_level} 
+                        <PremiumGameBadge
+                          level={gameBadge.overall_level}
                           badgeType={gameBadge.badge_type}
                           isPremium={gameBadge.is_premium}
-                          size="sm" 
+                          size="sm"
                         />
                       )}
                     </div>
@@ -673,7 +673,8 @@ const Profile = () => {
                                     size="sm"
                                     className="w-full"
                                     onClick={() => {
-                                      window.location.href = "/verification-request";
+                                      window.location.href =
+                                        "/verification-request";
                                     }}
                                   >
                                     <Shield className="h-4 w-4 mr-2" />

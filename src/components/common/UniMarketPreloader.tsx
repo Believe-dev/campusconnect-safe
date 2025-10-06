@@ -23,11 +23,11 @@ export const UniMarketPreloader: React.FC<UniMarketPreloaderProps> = ({
 
   return (
     <div className={containerClasses}>
-      <div className="unimarket-preloader flex flex-col items-center space-y-4">
+      <div className="unimarket-preloader flex flex-col items-center justify-center min-h-[200px] w-full max-w-sm mx-auto px-4">
         {/* UniMarket Logo Animation */}
-        <div className="relative">
+        <div className="relative mb-6">
           {/* Outer rotating ring */}
-          <div className={`${sizeClasses[size]} relative`}>
+          <div className={`${sizeClasses[size]} relative mx-auto`}>
             <div className="absolute inset-0 rounded-full border-2 border-primary/20"></div>
             <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-primary unimarket-spinner"></div>
             
@@ -36,22 +36,22 @@ export const UniMarketPreloader: React.FC<UniMarketPreloaderProps> = ({
               <div className="w-2 h-2 bg-primary rounded-full unimarket-pulse"></div>
             </div>
           </div>
-          
-          {/* UniMarket text logo */}
-          <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 whitespace-nowrap">
-            <div className="text-lg font-bold bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">
-              UniMarket
-            </div>
+        </div>
+
+        {/* UniMarket text logo */}
+        <div className="mb-4">
+          <div className="text-lg font-bold bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent text-center">
+            UniMarket
           </div>
         </div>
 
         {/* Loading message */}
-        <div className="text-sm text-muted-foreground text-center mt-8">
+        <div className="text-sm text-muted-foreground text-center mb-4 px-2">
           {message}
         </div>
 
         {/* Loading dots animation */}
-        <div className="flex space-x-1">
+        <div className="flex items-center justify-center space-x-1">
           <div className="w-2 h-2 bg-primary rounded-full unimarket-bounce" style={{ animationDelay: '0ms' }}></div>
           <div className="w-2 h-2 bg-primary rounded-full unimarket-bounce" style={{ animationDelay: '150ms' }}></div>
           <div className="w-2 h-2 bg-primary rounded-full unimarket-bounce" style={{ animationDelay: '300ms' }}></div>
@@ -72,17 +72,17 @@ export const UniMarketPreloaderLite: React.FC<UniMarketPreloaderProps> = ({
 
   return (
     <div className={containerClasses}>
-      <div className="unimarket-preloader flex flex-col items-center space-y-3">
+      <div className="unimarket-preloader flex flex-col items-center justify-center min-h-[150px] w-full max-w-xs mx-auto px-4">
         {/* Simple spinner */}
-        <div className="w-8 h-8 border-2 border-primary/20 border-t-primary rounded-full unimarket-spinner"></div>
+        <div className="w-8 h-8 border-2 border-primary/20 border-t-primary rounded-full unimarket-spinner mb-4"></div>
         
         {/* UniMarket text */}
-        <div className="text-base font-semibold text-primary">
+        <div className="text-base font-semibold text-primary mb-3 text-center">
           UniMarket
         </div>
         
         {/* Simple message */}
-        <div className="text-sm text-muted-foreground">
+        <div className="text-sm text-muted-foreground text-center px-2">
           {message}
         </div>
       </div>
