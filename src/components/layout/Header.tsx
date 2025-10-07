@@ -741,7 +741,7 @@ const Header = () => {
                       >
                         <Link to="/cart">
                           <ShoppingCart className="h-4 w-4 sm:h-5 sm:w-5 transition-all duration-200" />
-                          {cartCount !== undefined && (
+                          {cartCount > 0 && (
                             <Badge
                               variant="destructive"
                               className="absolute -top-1 -right-1 sm:-top-2 sm:-right-2 h-4 w-4 sm:h-5 sm:w-5 flex items-center justify-center p-0 text-xs font-bold rounded-full bg-gradient-to-r from-red-500 to-red-600 text-white border-2 border-background shadow-sm"

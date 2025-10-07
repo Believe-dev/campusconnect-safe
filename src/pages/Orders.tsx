@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOptimizedQuery } from "@/hooks/useOptimizedQuery";
 import { useOfflineStorage } from "@/hooks/useOfflineStorage";
 import { useAuth } from "@/hooks/useAuth";
+import { useRealTimeOrders } from "@/hooks/useRealTimeOrders";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/enhanced-button";
 import { Badge } from "@/components/ui/badge";
@@ -76,6 +77,7 @@ const Orders = () => {
   const [activeTab, setActiveTab] = useState("buyer");
   const [profile, setProfile] = useState<any>(null);
   const { toast } = useToast();
+  useRealTimeOrders();
   const [offlineOrders, setOfflineOrders] = useOfflineStorage<Order[]>({
     key: `orders_${user?.id}`,
     defaultValue: [],

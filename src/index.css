@@ -4,6 +4,7 @@
 @import "./styles/mobile-upload.css";
 @import "./styles/ios-fixes.css";
 @import "./styles/accessibility.css";
+@import "./styles/mobile-no-hover.css";
 
 @tailwind base;
 @tailwind components;

@@ -780,6 +780,10 @@ const Checkout = () => {
                         <Info className="h-3 w-3" />
                         <span>No platform fees - Full amount goes to seller</span>
                       </div>
+                      <div className="flex items-center gap-1 text-xs text-orange-600 bg-orange-50 p-2 rounded">
+                        <Info className="h-3 w-3" />
+                        <span>You will pay your delivery fee to the driver on delivery</span>
+                      </div>
                     </div>
 
                     <Separator />

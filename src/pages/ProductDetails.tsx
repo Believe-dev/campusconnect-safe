@@ -888,16 +888,22 @@ const ProductDetails = () => {
                   </select>
                 </div>
 
-                <Button 
-                  onClick={handleAddToCart} 
-                  className="w-full" 
-                  size="lg" 
-                  variant={isInCart ? "outline" : "default"}
-                  disabled={isInCart}
-                >
-                  <ShoppingCart className="h-4 w-4 mr-2" />
-                  {isInCart ? "In Cart" : "Add to Cart"}
-                </Button>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-1 text-xs text-orange-600 bg-orange-50 p-2 rounded">
+                    <Package className="h-3 w-3" />
+                    <span>You will pay your delivery fee to the driver on delivery</span>
+                  </div>
+                  <Button 
+                    onClick={handleAddToCart} 
+                    className="w-full" 
+                    size="lg" 
+                    variant={isInCart ? "outline" : "default"}
+                    disabled={isInCart}
+                  >
+                    <ShoppingCart className="h-4 w-4 mr-2" />
+                    {isInCart ? "In Cart" : "Add to Cart"}
+                  </Button>
+                </div>
               </div>
             </div>
           </div>

@@ -5,6 +5,7 @@ import { useOptimizedQuery } from '@/hooks/useOptimizedQuery';
 import { useOfflineStorage } from '@/hooks/useOfflineStorage';
 import { useAuth } from '@/hooks/useAuth';
 import { useQueryClient } from '@tanstack/react-query';
+import { useRealTimeCart } from '@/hooks/useRealTimeCart';
 import { Button } from '@/components/ui/enhanced-button';
 import { SAFE_PROFILE_SELECT } from '@/lib/profileSecurity';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -72,6 +73,7 @@ const Cart = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  useRealTimeCart();
   const [offlineCartItems, setOfflineCartItems] = useOfflineStorage<CartItem[]>({
     key: `cart_${user?.id}`,
     defaultValue: [],
