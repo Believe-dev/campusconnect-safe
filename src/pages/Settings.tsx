@@ -18,6 +18,7 @@ import { HelpCenterDialog } from '@/components/settings/HelpCenterDialog';
 import { SecurityLogDialog } from '@/components/settings/SecurityLogDialog';
 import { PrivacySettingsDialog } from '@/components/settings/PrivacySettingsDialog';
 import { DataExportDialog } from '@/components/settings/DataExportDialog';
+import NotificationSettings from '@/components/notifications/NotificationSettings';
 
 interface NotificationSettings {
   email_notifications: boolean;
@@ -146,85 +147,8 @@ const Settings = () => {
             </CardContent>
           </Card>
 
-          {/* Notification Settings */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Bell className="h-5 w-5" />
-                Notifications
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label>Email Notifications</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Receive notifications via email
-                    </p>
-                  </div>
-                  <Switch
-                    checked={notifications.email_notifications}
-                    onCheckedChange={(checked) => updateNotificationSettings('email_notifications', checked)}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label>SMS Notifications</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Receive notifications via SMS
-                    </p>
-                  </div>
-                  <Switch
-                    checked={notifications.sms_notifications}
-                    onCheckedChange={(checked) => updateNotificationSettings('sms_notifications', checked)}
-                  />
-                </div>
-
-                <Separator />
-
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label>Order Updates</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Get notified about order status changes
-                    </p>
-                  </div>
-                  <Switch
-                    checked={notifications.order_updates}
-                    onCheckedChange={(checked) => updateNotificationSettings('order_updates', checked)}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label>Marketing Emails</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Receive promotional emails and offers
-                    </p>
-                  </div>
-                  <Switch
-                    checked={notifications.marketing_emails}
-                    onCheckedChange={(checked) => updateNotificationSettings('marketing_emails', checked)}
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label>Security Alerts</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Important security notifications (always enabled)
-                    </p>
-                  </div>
-                  <Switch
-                    checked={notifications.security_alerts}
-                    disabled
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          {/* Enhanced Notification Settings */}
+          <NotificationSettings />
 
           {/* Privacy & Security */}
           <Card>

@@ -86,18 +86,54 @@ self.addEventListener('fetch', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   
+  const action = event.action;
+  const notificationData = event.notification.data || {};
+  
+  let targetUrl = '/';
+  
+  // Determine target URL based on notification data
+  if (notificationData.url) {
+    targetUrl = notificationData.url;
+  } else if (notificationData.type) {
+    switch (notificationData.type) {
+      case 'message':
+        targetUrl = '/messages';
+        break;
+      case 'order':
+        targetUrl = '/orders';
+        break;
+      case 'payment':
+        targetUrl = '/wallet';
+        break;
+      case 'seller':
+        targetUrl = '/dashboard';
+        break;
+      default:
+        targetUrl = '/notifications';
+    }
+  } else {
+    targetUrl = '/notifications';
+  }
+  
   event.waitUntil(
-    clients.matchAll({ type: 'window' })
+    clients.matchAll({ type: 'window', includeUncontrolled: true })
       .then(clientList => {
-        // Focus existing window if available
+        // Check if app is already open
         for (const client of clientList) {
-          if (client.url === '/' && 'focus' in client) {
+          if (client.url.includes(self.location.origin)) {
+            // Navigate to target URL and focus
+            client.postMessage({
+              type: 'NOTIFICATION_CLICK',
+              url: targetUrl,
+              data: notificationData
+            });
             return client.focus();
           }
         }
-        // Open new window
+        
+        // Open new window with target URL
         if (clients.openWindow) {
-          return clients.openWindow('/');
+          return clients.openWindow(targetUrl);
         }
       })
   );
@@ -105,24 +141,55 @@ self.addEventListener('notificationclick', (event) => {
 
 // Push notification handler
 self.addEventListener('push', (event) => {
+  let notificationData = {};
+  let title = 'UniMarket';
+  let body = 'You have a new notification';
+  
+  if (event.data) {
+    try {
+      notificationData = event.data.json();
+      title = notificationData.title || title;
+      body = notificationData.body || notificationData.message || body;
+    } catch (e) {
+      body = event.data.text();
+    }
+  }
+  
   const options = {
-    body: event.data ? event.data.text() : 'New notification from UniMarket',
+    body: body,
     icon: '/logo.png',
     badge: '/logo.png',
     tag: 'unimarket-notification',
     vibrate: [200, 100, 200],
+    requireInteraction: false,
+    silent: false,
+    data: notificationData,
     actions: [
       {
         action: 'open',
-        title: 'Open App',
+        title: 'Open',
         icon: '/logo.png'
+      },
+      {
+        action: 'dismiss',
+        title: 'Dismiss'
       }
     ]
   };
 
   event.waitUntil(
-    self.registration.showNotification('UniMarket', options)
+    self.registration.showNotification(title, options)
   );
+});
+
+// Handle notification action clicks
+self.addEventListener('notificationclick', (event) => {
+  if (event.action === 'dismiss') {
+    event.notification.close();
+    return;
+  }
+  
+  // Handle 'open' action or notification click (handled above)
 });
 
 // Background sync for offline actions

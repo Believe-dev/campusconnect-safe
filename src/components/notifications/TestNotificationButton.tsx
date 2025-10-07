@@ -1,87 +1,47 @@
 import { Button } from '@/components/ui/button';
 import { Bell } from 'lucide-react';
+import { toast } from 'sonner';
 
 export const TestNotificationButton = () => {
-  const testNotification = async () => {
-
-    
-    // Request permission first
-    if ('Notification' in window) {
-
-      
-      if (Notification.permission === 'default') {
-        const permission = await Notification.requestPermission();
-
-      }
-      
-      if (Notification.permission === 'granted') {
-
+  const testBrowserNotification = async () => {
+    try {
+      // Request permission first
+      if ('Notification' in window) {
+        let permission = Notification.permission;
         
-        // Try service worker first
-        if ('serviceWorker' in navigator && 'showNotification' in ServiceWorkerRegistration.prototype) {
-          try {
-            const registration = await navigator.serviceWorker.ready;
-            await registration.showNotification('UniMarket Test', {
-              body: 'This is a test notification from service worker!',
-              icon: '/logo.png',
-              badge: '/logo.png',
-              tag: 'test',
-              requireInteraction: true,
-              actions: [
-                { action: 'open', title: 'Open App' }
-              ]
-            });
-
-          } catch (error) {
-            console.error('Service worker notification failed:', error);
-            // Fallback to regular notification
-            const notification = new Notification('UniMarket Test', {
-              body: 'This is a test notification!',
-              icon: '/logo.png',
-              tag: 'test',
-              requireInteraction: true
-            });
-            
-            notification.onclick = () => {
-              window.focus();
-              notification.close();
-            };
-          }
-        } else {
-          // Regular notification
-          const notification = new Notification('UniMarket Test', {
-            body: 'This is a test notification!',
-            icon: '/logo.png',
-            tag: 'test',
-            requireInteraction: true
-          });
-          
-          notification.onclick = () => {
-            window.focus();
-            notification.close();
-          };
+        if (permission === 'default') {
+          permission = await Notification.requestPermission();
         }
         
-
+        if (permission === 'granted') {
+          // Create notification
+          const notification = new Notification('UniMarket Test 🔔', {
+            body: 'This is a test notification! Your browser notifications are working.',
+            icon: '/logo.png',
+            badge: '/logo.png',
+            tag: 'test-notification'
+          });
+          
+          // Auto close after 5 seconds
+          setTimeout(() => notification.close(), 5000);
+          
+          toast.success('Test notification sent!');
+        } else {
+          toast.error('Notification permission denied. Please enable notifications in your browser settings.');
+        }
       } else {
-
-        alert('Please allow notifications in your browser settings');
+        toast.error('Your browser does not support notifications.');
       }
-    } else {
-
-      alert('Your browser does not support notifications');
+    } catch (error) {
+      console.error('Notification test failed:', error);
+      toast.error('Failed to send test notification.');
     }
   };
-  
+
   return (
-    <Button 
-      onClick={testNotification}
-      variant="outline"
-      size="sm"
-      className="gap-2"
-    >
-      <Bell className="h-4 w-4" />
-      Test Push Notification
+    <Button onClick={testBrowserNotification} variant="outline" size="sm">
+      <Bell className="h-4 w-4 mr-2" />
+      Test Browser Notification
     </Button>
   );
 };

@@ -140,7 +140,6 @@
 
     <!-- Load third-party scripts with performance optimization -->
     <script src="https://js.paystack.co/v1/inline.js" defer></script>
-    <script src="https://cdn.onesignal.com/sdks/OneSignalSDK.js" async></script>
     <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
     
     <!-- Skip to content link for accessibility -->
@@ -161,14 +160,9 @@
     </style>
     <script>
       window.OneSignalDeferred = window.OneSignalDeferred || [];
-      OneSignalDeferred.push(async function (OneSignal) {
+      OneSignalDeferred.push(async function(OneSignal) {
         await OneSignal.init({
           appId: "2c42e82a-a1c6-4bf8-bb8b-67106cf7d92c",
-          safari_web_id:
-            "web.onesignal.auto.1a908d8f-b1c2-454b-a8c2-6bb9d82d2555",
-          notifyButton: {
-            enable: true,
-          },
         });
       });
     </script>

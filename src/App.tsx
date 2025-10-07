@@ -34,6 +34,7 @@ import { useBanCheck } from "@/hooks/useBanCheck";
 import {
   initializeOneSignal,
   requestNotificationPermission,
+  setupNotificationClickHandler,
 } from "@/utils/oneSignal";
 import { PWAInstallPrompt } from "@/components/common/PWAInstallPrompt";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
@@ -278,6 +279,10 @@ const AppContent = () => {
         }
       }
 
+      // Setup notification click handlers
+      setupNotificationClickHandler();
+      
+      // Request permission and initialize OneSignal
       await requestNotificationPermission();
       await initializeOneSignal();
     };
