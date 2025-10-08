@@ -78,7 +78,7 @@ export const ErrorState: React.FC<ErrorStateProps> = ({ error, onRetry }) => (
         <p className="text-sm text-muted-foreground leading-relaxed">{error}</p>
       </div>
       {onRetry && (
-        <Button onClick={onRetry} variant="outline" className="hover-lift micro-bounce">
+        <Button onClick={onRetry} variant="outline" className="micro-bounce">
           <RefreshCw className="h-4 w-4 mr-2" />
           Try Again
         </Button>
@@ -94,9 +94,9 @@ export const EmptyState: React.FC<{
   icon?: React.ReactNode;
 }> = ({ title, description, action, icon }) => (
   <div className="text-center py-12 px-4 fade-in">
-    {icon && <div className="mb-4 hover-lift">{icon}</div>}
+    {icon && <div className="mb-4">{icon}</div>}
     <h3 className="text-lg font-semibold mb-2 bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">{title}</h3>
     <p className="text-muted-foreground mb-4 max-w-md mx-auto leading-relaxed">{description}</p>
-    {action && <div className="hover-lift">{action}</div>}
+    {action && <div className="">{action}</div>}
   </div>
 );

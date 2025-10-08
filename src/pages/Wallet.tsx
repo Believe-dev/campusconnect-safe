@@ -9,7 +9,6 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Wallet as WalletIcon, TrendingUp, TrendingDown, CreditCard } from 'lucide-react';
 import { toast } from 'sonner';
-import Header from '@/components/layout/Header';
 
 interface WalletTransaction {
   id: string;
@@ -133,7 +132,6 @@ const Wallet = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-background">
-        <Header />
         <main className="container mx-auto px-4 py-8">
           <div className="animate-pulse">
             <div className="h-8 bg-muted rounded mb-4"></div>
@@ -146,7 +144,6 @@ const Wallet = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header />
       <main className="container mx-auto px-4 py-8 pb-24 md:pb-8">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center gap-2 mb-6">

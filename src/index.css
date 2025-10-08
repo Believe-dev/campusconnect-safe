@@ -4,7 +4,17 @@
 @import "./styles/mobile-upload.css";
 @import "./styles/ios-fixes.css";
 @import "./styles/accessibility.css";
-@import "./styles/mobile-no-hover.css";
+
+/* Disable hover effects on mobile sheet buttons and links */
+@media (max-width: 1024px) {
+  .mobile-sheet button:hover,
+  .mobile-sheet a:hover {
+    background-color: inherit !important;
+    color: inherit !important;
+    transform: none !important;
+    text-decoration: none !important;
+  }
+}
 
 @tailwind base;
 @tailwind components;
@@ -14,6 +24,9 @@
 
 @layer base {
   :root {
+    /* Mobile viewport height handling */
+    --vh: 1vh;
+    
     /* Core Brand Colors - Nigerian Green & Academic Gold */
     --background: linear-gradient(135deg, hsl(140 45% 97%) 0%, hsl(45 60% 96%) 50%, hsl(140 35% 98%) 100%);
     --foreground: 120 15% 15%;
@@ -352,14 +365,7 @@
     }
   }
 
-  /* Gentle hover animations */
-  .hover-lift {
-    transition: var(--transition-gentle);
-  }
 
-  .hover-lift:hover {
-    transform: translateY(-1px);
-  }
 
   /* Micro interactions */
   .micro-bounce {
@@ -410,10 +416,6 @@
 
   /* Performance optimizations for low-end devices */
   @media (prefers-reduced-motion: reduce) {
-    .hover-lift:hover {
-      transform: none;
-    }
-
     .micro-bounce:active {
       transform: none;
     }
@@ -430,23 +432,13 @@
   }
 
   /* GPU acceleration for smooth animations */
-  .hover-lift,
   .micro-bounce,
   .student-card {
     will-change: transform;
     transform: translateZ(0);
   }
 
-  /* Optimize for touch devices */
-  @media (hover: none) and (pointer: coarse) {
-    .hover-lift:hover {
-      transform: none;
-    }
 
-    .hover-lift:active {
-      transform: translateY(-1px) scale(0.98);
-    }
-  }
 
   /* Student-friendly focus states */
   .student-focus {
@@ -495,34 +487,7 @@
     image-rendering: crisp-edges;
   }
 
-  /* Remove heavy CSS effects on mobile breakpoints */
-  @media (max-width: 600px) {
-    * {
-      box-shadow: none !important;
-      filter: none !important;
-      backdrop-filter: none !important;
-      transform: none !important;
-    }
 
-    /* Keep essential transforms for layout */
-    .verification-tick,
-    .verification-badge-inline {
-      transform: translateZ(0) !important;
-    }
-
-    /* Disable heavy animations on mobile */
-    .hover-lift:hover,
-    .micro-bounce:active {
-      transform: none !important;
-    }
-
-    /* Simplify gradients on mobile */
-    .gradient-brand,
-    .gradient-accent,
-    .gradient-hero {
-      background: hsl(var(--primary)) !important;
-    }
-  }
 
   /* Low-end device optimizations */
   @media (max-width: 480px) {
@@ -537,22 +502,7 @@
     }
   }
 
-  /* Ultra low memory optimizations */
-  @media (max-width: 480px) and (max-height: 800px) {
-    * {
-      animation: none !important;
-      transition: none !important;
-    }
 
-    .hover-lift:hover,
-    .micro-bounce:active {
-      transform: none !important;
-    }
-
-    img {
-      image-rendering: pixelated;
-    }
-  }
 
   /* Memory-efficient utilities */
   .low-memory {

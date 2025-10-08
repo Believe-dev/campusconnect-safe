@@ -16,6 +16,7 @@ interface RealTimeContextType {
   subscribeToNotifications: (callback: (notification: any) => void) => () => void;
   subscribeToOrders: (callback: (order: any) => void) => () => void;
   subscribeToProducts: (callback: (product: any) => void) => () => void;
+  subscribeToPresence: (callback: (presence: any) => void) => () => void;
   optimisticUpdate: (type: string, data: any) => void;
   broadcastPresence: (data: any) => void;
 }
@@ -239,6 +240,45 @@ export const RealTimeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }));
   }, []);
 
+  const subscribeToPresence = useCallback((callback: (presence: any) => void) => {
+    if (!user) return () => {};
+
+    const channelName = 'presence';
+    const channel = createChannel(channelName);
+
+    channel
+      .on('presence', { event: 'sync' }, () => {
+        const state = channel.presenceState();
+        Object.values(state).forEach((presences: any) => {
+          presences.forEach((presence: any) => {
+            if (presence.user_id !== user.id) {
+              callback(presence);
+            }
+          });
+        });
+      })
+      .on('presence', { event: 'join' }, ({ key, newPresences }) => {
+        newPresences.forEach((presence: any) => {
+          if (presence.user_id !== user.id) {
+            callback(presence);
+          }
+        });
+      })
+      .on('presence', { event: 'leave' }, ({ key, leftPresences }) => {
+        leftPresences.forEach((presence: any) => {
+          if (presence.user_id !== user.id) {
+            callback({ ...presence, _left: true });
+          }
+        });
+      })
+      .subscribe();
+
+    return () => {
+      channel.unsubscribe();
+      channelsRef.current.delete(channelName);
+    };
+  }, [user, createChannel]);
+
   const broadcastPresence = useCallback((data: any) => {
     if (!user) return;
 
@@ -294,6 +334,7 @@ export const RealTimeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     subscribeToNotifications,
     subscribeToOrders,
     subscribeToProducts,
+    subscribeToPresence,
     optimisticUpdate,
     broadcastPresence
   };

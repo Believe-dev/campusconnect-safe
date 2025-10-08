@@ -33,7 +33,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import Header from "@/components/layout/Header";
 import { User as SupabaseUser } from "@supabase/supabase-js";
 import { OnboardingModal } from "@/components/onboarding/OnboardingModal";
 import { SellerDocumentReminder } from "@/components/seller/SellerDocumentReminder";
@@ -411,7 +410,6 @@ const Profile = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-background">
-        <Header />
         <main className="container mx-auto px-4 py-8">
           <div className="max-w-4xl mx-auto">
             <div className="animate-pulse">
@@ -428,7 +426,6 @@ const Profile = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header />
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto space-y-6">
           <SellerDocumentReminder />

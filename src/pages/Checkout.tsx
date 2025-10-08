@@ -29,7 +29,6 @@ import {
   Shield,
   Info,
 } from "lucide-react";
-import Header from "@/components/layout/Header";
 import { User } from "@supabase/supabase-js";
 
 interface CartItem {
@@ -489,7 +488,6 @@ const Checkout = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-background">
-        <Header />
         <main className="container mx-auto px-4 py-8">
           <div className="animate-pulse space-y-4">
             <div className="h-8 bg-muted rounded w-1/4"></div>
@@ -502,7 +500,6 @@ const Checkout = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header />
       <main className="container mx-auto px-4 py-6 sm:py-8 pb-24 md:pb-8">
         <div className="max-w-6xl mx-auto">
           <div className="flex items-center gap-2 mb-6 sm:mb-8">

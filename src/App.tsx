@@ -16,9 +16,11 @@ import { ErrorBoundary } from "@/components/common/ErrorBoundary";
 import { LoadingSkeleton } from "@/components/common/LoadingState";
 import { ROUTES } from "@/lib/constants";
 import BottomNav from "@/components/layout/BottomNav";
+import Header from "@/components/layout/Header";
 import ProtectedSellerRoute from "./components/auth/ProtectedSellerRoute";
 import { ProfileProvider } from "@/contexts/ProfileContext";
 import { RealTimeProvider } from "@/contexts/RealTimeContext";
+import { MessageCountProvider } from "@/contexts/MessageCountContext";
 
 import { MessagePopup } from "@/components/notifications/MessagePopup";
 import { OfflineNotification } from "@/components/common/OfflineNotification";
@@ -27,7 +29,7 @@ import { OnboardingModal } from "@/components/onboarding/OnboardingModal";
 import { SecurityProvider } from "@/components/security/SecurityProvider";
 import { ProfileCompletionModal } from "@/components/profile/ProfileCompletionModal";
 import { useProfileCompletion } from "@/hooks/useProfileCompletion";
-import FloatingBackButton from "@/components/ui/back-button";
+
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { BannedUserModal } from "@/components/auth/BannedUserModal";
 import { useBanCheck } from "@/hooks/useBanCheck";
@@ -303,6 +305,7 @@ const AppContent = () => {
     <>
       <PerformanceMonitor />
       <NetworkNotification />
+      <Header />
       <PullToRefresh onRefresh={handleRefresh} className="min-h-screen">
         <div className={`pb-24 lg:pb-0 layout-stable ${metrics.isLowEndDevice ? 'low-end-device' : ''}`}>
           <AuthGuard>
@@ -366,7 +369,7 @@ const AppContent = () => {
       <MessagePopup />
       <OfflineNotification />
       {/* <AIChatbot /> */}
-      <FloatingBackButton />
+
       <PWAInstallPrompt />
       <OnboardingModal open={showOnboarding} onClose={closeOnboarding} />
 
@@ -393,7 +396,9 @@ const App = () => (
                 <Sonner />
                 <ProfileProvider>
                   <RealTimeProvider>
-                    <AppContent />
+                    <MessageCountProvider>
+                      <AppContent />
+                    </MessageCountProvider>
                   </RealTimeProvider>
                 </ProfileProvider>
               </TooltipProvider>

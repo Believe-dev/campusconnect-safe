@@ -9,7 +9,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { Upload, X } from 'lucide-react';
-import Header from '@/components/layout/Header';
 
 const categories = [
   'Books & Textbooks',
@@ -262,7 +261,6 @@ const Sell = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-background">
-        <Header />
         <main className="container mx-auto px-4 py-8">
           <div className="max-w-2xl mx-auto">
             <div className="animate-pulse">
@@ -278,7 +276,6 @@ const Sell = () => {
   if (accessDenied) {
     return (
       <div className="min-h-screen bg-background">
-        <Header />
         <main className="container mx-auto px-4 py-8">
           <Card className="max-w-2xl mx-auto">
             <CardContent className="pt-6 text-center">
@@ -301,7 +298,6 @@ const Sell = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header />
       <main className="container mx-auto px-4 py-8">
         <Card className="max-w-2xl mx-auto">
           <CardHeader>

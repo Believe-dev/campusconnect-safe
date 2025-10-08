@@ -29,7 +29,6 @@ import {
   MessageCircle,
   Phone,
 } from "lucide-react";
-import Header from "@/components/layout/Header";
 import { findOrCreateConversation } from "@/utils/conversationUtils";
 import { useNavigate } from "react-router-dom";
 import { ProfileReviewModal } from "@/components/reviews/ProfileReviewModal";
@@ -923,7 +922,6 @@ const Orders = () => {
   if (isLoading && orders.length === 0) {
     return (
       <div className="min-h-screen bg-background">
-        <Header />
         <main className="container mx-auto px-4 py-8">
           <div className="animate-pulse">
             <div className="h-8 bg-muted rounded mb-4"></div>
@@ -936,7 +934,6 @@ const Orders = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header />
       <main className="container mx-auto px-4 py-6 sm:py-8 pb-24 md:pb-8">
         <div className="max-w-4xl mx-auto">
           <h1 className="text-2xl sm:text-3xl font-bold text-primary mb-4 sm:mb-6">

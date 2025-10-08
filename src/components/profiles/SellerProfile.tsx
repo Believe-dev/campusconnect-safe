@@ -12,7 +12,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { Textarea } from '@/components/ui/textarea';
-import Header from '@/components/layout/Header';
 import BottomNav from '@/components/layout/BottomNav';
 
 interface SellerProfile {
@@ -286,7 +285,6 @@ const SellerProfile = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-background">
-        <Header />
         <div className="flex items-center justify-center min-h-[60vh]">
           <div className="text-center">
             <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-university-green"></div>
@@ -301,7 +299,6 @@ const SellerProfile = () => {
   if (!seller) {
     return (
       <div className="min-h-screen bg-background">
-        <Header />
         <div className="flex items-center justify-center min-h-[60vh]">
           <Card className="text-center p-8">
             <CardContent>
@@ -320,7 +317,6 @@ const SellerProfile = () => {
   if (seller.account_type === 'buyer' || seller.seller_status !== 'approved') {
     return (
       <div className="min-h-screen bg-background">
-        <Header />
         <div className="flex items-center justify-center min-h-[60vh]">
           <Card className="text-center p-8 max-w-md">
             <CardContent>
@@ -342,7 +338,6 @@ const SellerProfile = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header />
       <div className="py-8 pb-24 md:pb-8">
       <div className="max-w-4xl mx-auto px-4 space-y-6">
         {/* Seller Info Card */}

@@ -28,7 +28,6 @@ import {
 } from "lucide-react";
 import { PremiumGameBadge } from "@/components/games/PremiumGameBadge";
 import { toast } from "sonner";
-import Header from "@/components/layout/Header";
 import { TapGame } from "@/components/games/TapGame";
 import { QuizGame } from "@/components/games/QuizGame";
 import { MemoryGame } from "@/components/games/MemoryGame";
@@ -313,7 +312,6 @@ const Games = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-background">
-        <Header />
         <main className="container mx-auto px-4 py-8">
           <div className="animate-pulse">
             <div className="h-8 bg-muted rounded mb-4"></div>
@@ -329,7 +327,6 @@ const Games = () => {
     if (GameComponent) {
       return (
         <div className="min-h-screen bg-background">
-          <Header />
           <main className="container mx-auto px-4 py-8 pb-24 md:pb-8">
             <div className="max-w-4xl mx-auto">
               <div className="flex gap-2 mb-4">
@@ -377,7 +374,6 @@ const Games = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header />
       <main className="container mx-auto px-4 py-8 pb-24 md:pb-8">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center justify-between mb-6">

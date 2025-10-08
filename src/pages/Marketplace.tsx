@@ -17,7 +17,6 @@ import {
   Package,
   Shield
 } from 'lucide-react';
-import Header from '@/components/layout/Header';
 import { OfflineNotice } from '@/components/ui/offline-notice';
 import { User } from '@supabase/supabase-js';
 import { searchProducts } from '@/utils/searchUtils';
@@ -356,7 +355,6 @@ const Marketplace = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-background">
-        <Header />
         <main className="container mx-auto px-4 py-8">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {Array.from({ length: 8 }).map((_, i) => (
@@ -376,7 +374,6 @@ const Marketplace = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header />
       <main className="container mx-auto px-4 py-6 sm:py-8 pb-24 md:pb-8">
         <OfflineNotice />
         <div className="mb-6 sm:mb-8">

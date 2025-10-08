@@ -25,7 +25,6 @@ import {
   Check,
   Flag
 } from 'lucide-react';
-import Header from '@/components/layout/Header';
 import ProductCard from '@/components/marketplace/ProductCard';
 import { ProductReviews } from '@/components/reviews/ProductReviews';
 
@@ -558,7 +557,6 @@ const ProductDetails = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-background">
-        <Header />
         <main className="container mx-auto px-4 py-8">
           <div className="max-w-6xl mx-auto animate-pulse">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -581,7 +579,6 @@ const ProductDetails = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header />
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-6xl mx-auto">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">

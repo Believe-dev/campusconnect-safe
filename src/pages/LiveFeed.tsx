@@ -6,7 +6,6 @@ import { Plus, RefreshCw } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { LiveFeedCard } from "@/components/feed/LiveFeedCard";
 import { CreateLiveFeedDialog } from "@/components/feed/CreateLiveFeedDialog";
-import Header from "@/components/layout/Header";
 import "@/styles/mobile-fixes.css";
 
 interface LiveFeedItem {
@@ -202,8 +201,6 @@ const LiveFeed = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      <Header />
-
       <main className="max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 sm:mb-6 gap-3">
           <div className="text-center sm:text-left">

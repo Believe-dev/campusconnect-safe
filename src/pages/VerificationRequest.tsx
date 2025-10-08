@@ -9,7 +9,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { Shield, Upload, AlertCircle } from 'lucide-react';
-import Header from '@/components/layout/Header';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 const VerificationRequest = () => {
@@ -167,7 +166,6 @@ const VerificationRequest = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header />
       <main className="container mx-auto px-4 py-8">
         <Card className="max-w-2xl mx-auto">
           <CardHeader>

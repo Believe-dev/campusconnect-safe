@@ -55,16 +55,12 @@ const Chat = () => {
   }
 
   return (
-    <div className="h-screen bg-background flex flex-col overflow-hidden">
-      <main className="flex-1 overflow-hidden">
-        <OptimizedChat
-          conversationId={conversationId}
-          currentUserId={user.id}
-          otherUser={otherUser}
-          onClose={() => window.history.back()}
-        />
-      </main>
-    </div>
+    <OptimizedChat
+      conversationId={conversationId}
+      currentUserId={user.id}
+      otherUser={otherUser}
+      onClose={() => window.history.back()}
+    />
   );
 };
 

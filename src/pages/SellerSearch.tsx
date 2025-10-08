@@ -7,7 +7,6 @@ import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Search, Star, MapPin, ShieldCheck, User, Phone } from 'lucide-react';
-import Header from '@/components/layout/Header';
 
 interface Seller {
   user_id: string;
@@ -139,7 +138,6 @@ const SellerSearch = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-background">
-        <Header />
         <main className="container mx-auto px-4 py-8">
           <div className="animate-pulse space-y-4">
             <div className="h-8 bg-muted rounded w-1/4"></div>
@@ -156,7 +154,6 @@ const SellerSearch = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header />
       <main className="container mx-auto px-4 py-8 pb-24 md:pb-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-primary mb-2">Find Sellers</h1>

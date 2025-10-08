@@ -142,22 +142,7 @@
     <script src="https://js.paystack.co/v1/inline.js" defer></script>
     <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
     
-    <!-- Skip to content link for accessibility -->
-    <style>
-      .skip-link {
-        position: absolute;
-        top: -40px;
-        left: 6px;
-        background: #000;
-        color: #fff;
-        padding: 8px;
-        text-decoration: none;
-        z-index: 9999;
-      }
-      .skip-link:focus {
-        top: 6px;
-      }
-    </style>
+
     <script>
       window.OneSignalDeferred = window.OneSignalDeferred || [];
       OneSignalDeferred.push(async function(OneSignal) {
@@ -169,7 +154,6 @@
   </head>
 
   <body>
-    <a href="#main-content" class="skip-link">Skip to main content</a>
     <div id="root"></div>
     <script type="module" src="/src/index.tsx"></script>
     

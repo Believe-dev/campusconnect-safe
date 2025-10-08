@@ -221,7 +221,7 @@ const ProductCard = ({
   }
 
   return (
-    <Card className={`group student-card overflow-hidden cursor-pointer relative flex flex-col h-full ${isLowMemory ? 'low-memory' : 'hover-lift micro-bounce transition-all duration-200 hover:scale-[1.02] hover:shadow-lg'}`} onClick={() => onViewProduct(product.id)}>
+    <Card className={`group student-card overflow-hidden cursor-pointer relative flex flex-col h-full ${isLowMemory ? 'low-memory' : 'micro-bounce transition-all duration-200 hover:scale-[1.02] hover:shadow-lg'}`} onClick={() => onViewProduct(product.id)}>
       <div className="relative aspect-square overflow-hidden bg-muted stable-image">
         {product?.images?.[0] ? (
           <LowMemoryImage

@@ -88,7 +88,6 @@ import {
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "sonner";
-import Header from "@/components/layout/Header";
 import { triggerProfileUpdate } from "@/utils/realTimeEvents";
 import { emailService } from "@/utils/emailService";
 import { sanitizeInput, validateEmail, validateName } from "@/lib/security";
@@ -1679,7 +1678,6 @@ export default function Admin() {
   if (loading) {
     return (
       <div className="min-h-screen bg-background">
-        <Header />
         <div className="container mx-auto px-4 py-8">
           <div className="animate-pulse space-y-4">
             <div className="h-8 bg-muted rounded w-1/4"></div>
@@ -1701,7 +1699,6 @@ export default function Admin() {
   if (!isAdmin) {
     return (
       <div className="min-h-screen bg-background">
-        <Header />
         <div className="container mx-auto px-4 py-8">
           <Card>
             <CardContent className="pt-6">
@@ -1950,7 +1947,6 @@ export default function Admin() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header />
       <div className="container mx-auto px-4 py-8">
         <div className="mb-8 flex justify-between items-center">
           <div>

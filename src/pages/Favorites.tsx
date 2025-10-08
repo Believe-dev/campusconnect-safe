@@ -14,7 +14,6 @@ import {
   Trash2,
   Package
 } from 'lucide-react';
-import Header from '@/components/layout/Header';
 
 interface FavoriteProduct {
   id: string;
@@ -193,7 +192,6 @@ const Favorites = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-background">
-        <Header />
         <main className="container mx-auto px-4 py-8">
           <div className="animate-pulse space-y-6">
             <div className="space-y-2">
@@ -220,7 +218,6 @@ const Favorites = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header />
       <main className="container mx-auto px-4 py-8">
         <div className="mb-8">
           <div className="flex items-center justify-between">

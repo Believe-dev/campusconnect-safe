@@ -39,7 +39,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
               <Button
                 variant="secondary"
                 size="lg"
-                className="sm:size-xl hover-lift micro-bounce shadow-lg hover:shadow-xl"
+                className="sm:size-xl micro-bounce shadow-lg hover:shadow-xl"
                 asChild
               >
                 <Link to={ROUTES.marketplace}>
@@ -52,7 +52,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
                 <Button
                   variant="secondary"
                   size="lg"
-                  className="sm:size-xl hover-lift micro-bounce shadow-lg hover:shadow-xl"
+                  className="sm:size-xl micro-bounce shadow-lg hover:shadow-xl"
                   asChild
                 >
                   <Link to={ROUTES.auth}>
@@ -63,7 +63,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
                 <Button
                   variant="outline"
                   size="lg"
-                  className="sm:size-xl text-primary hover:opacity-90 border-white/80 hover:bg-white hover:text-primary hover-lift micro-bounce backdrop-blur-sm"
+                  className="sm:size-xl text-primary hover:opacity-90 border-white/80 hover:bg-white hover:text-primary micro-bounce backdrop-blur-sm"
                   asChild
                 >
                   <Link to="/learn-more">Learn More</Link>

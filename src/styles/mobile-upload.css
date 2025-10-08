@@ -68,13 +68,7 @@
   border-color: #adb5bd;
 }
 
-/* Prevent memory leaks from hover states */
-@media (hover: none) {
-  .upload-area:hover {
-    background: inherit;
-    border-color: inherit;
-  }
-}
+
 
 /* Optimize for slow connections */
 @media (connection: slow-2g), (connection: 2g) {

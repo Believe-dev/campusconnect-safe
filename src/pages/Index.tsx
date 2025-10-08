@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/enhanced-button';
-import Header from '@/components/layout/Header';
 import { OfflineNotice } from '@/components/ui/offline-notice';
 import { SellerDocumentReminder } from '@/components/seller/SellerDocumentReminder';
 import { HeroSection } from '@/components/home/HeroSection';
@@ -50,7 +49,6 @@ const Index = () => {
 
   return (
     <div className="min-h-screen beautiful-bg">
-      <Header />
       <div className="container mx-auto px-4">
         <OfflineNotice />
         <SellerDocumentReminder />

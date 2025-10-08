@@ -30,24 +30,45 @@ export const initializeOneSignal = async () => {
 export const sendTestNotification = async () => {
   try {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user) {
+      throw new Error('User not authenticated');
+    }
 
-    // Send browser notification directly
-    await sendBrowserNotification(
-      'Test Notification 🗏',
-      'This is a test notification from UniMarket! All systems are working correctly.'
-    );
-
-    // Also create in database
-    await supabase.from('notifications').insert({
+    // Check if we're on mobile
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    // Create database notification first
+    const { error: dbError } = await supabase.from('notifications').insert({
       user_id: user.id,
-      title: 'Test Notification 🗏',
-      message: 'This is a test notification from UniMarket! All systems are working correctly.',
+      title: `Test Notification ${isMobile ? '📱' : '🗏'}`,
+      message: `This is a test notification from UniMarket! ${isMobile ? 'Mobile' : 'Desktop'} notifications are working correctly.`,
       type: 'info'
     });
+    
+    if (dbError) {
+      throw new Error(`Database error: ${dbError.message}`);
+    }
 
+    // Try browser notification with mobile-friendly approach
+    if (isMobile) {
+      await sendMobileBrowserNotification(
+        'UniMarket Mobile Test 📱',
+        'Mobile test notification successful!'
+      );
+    } else {
+      await sendBrowserNotification(
+        'UniMarket Test 🗏',
+        'This is a test notification from UniMarket! All systems are working correctly.'
+      );
+    }
+    
+    // Trigger notification count update
+    window.dispatchEvent(new CustomEvent('notificationsUpdated'));
+    
+    return true;
   } catch (error) {
     console.error('Test notification failed:', error);
+    throw error;
   }
 };
 
@@ -65,8 +86,13 @@ export const sendBrowserNotification = async (title: string, message: string, op
           ...options
         });
         
-        // Auto-close after 5 seconds
-        setTimeout(() => notification.close(), 5000);
+        setTimeout(() => {
+          try {
+            notification.close();
+          } catch (e) {
+            // Ignore close errors
+          }
+        }, 5000);
         
         return notification;
       } else if (Notification.permission !== 'denied') {
@@ -82,28 +108,81 @@ export const sendBrowserNotification = async (title: string, message: string, op
             ...options
           });
           
-          setTimeout(() => notification.close(), 5000);
+          setTimeout(() => {
+            try {
+              notification.close();
+            } catch (e) {
+              // Ignore close errors
+            }
+          }, 5000);
           return notification;
         }
       }
     }
   } catch (error) {
     console.error('Error sending browser notification:', error);
+    throw error;
   }
   return null;
 };
 
-export const requestNotificationPermission = async () => {
-  if ('Notification' in window) {
-    if (Notification.permission === 'granted') {
-      return true;
+export const sendMobileBrowserNotification = async (title: string, message: string, options?: any) => {
+  try {
+    if ('Notification' in window) {
+      let permission = Notification.permission;
+      
+      if (permission === 'default') {
+        permission = await Notification.requestPermission();
+      }
+      
+      if (permission === 'granted') {
+        const notification = new Notification(title, {
+          body: message,
+          icon: '/logo.png',
+          tag: 'unimarket-mobile',
+          requireInteraction: false,
+          silent: false,
+          vibrate: [200, 100, 200],
+          ...options
+        });
+        
+        setTimeout(() => {
+          try {
+            notification.close();
+          } catch (e) {
+            // Mobile browsers sometimes throw errors when closing notifications
+          }
+        }, 4000);
+        
+        return notification;
+      } else {
+        throw new Error('Notification permission not granted');
+      }
+    } else {
+      throw new Error('Notifications not supported');
     }
-    if (Notification.permission !== 'denied') {
-      const permission = await Notification.requestPermission();
-      return permission === 'granted';
-    }
+  } catch (error) {
+    console.error('Error sending mobile browser notification:', error);
+    throw error;
   }
-  return false;
+};
+
+export const requestNotificationPermission = async () => {
+  try {
+    if ('Notification' in window) {
+      if (Notification.permission === 'granted') {
+        return true;
+      }
+      if (Notification.permission !== 'denied') {
+        const permission = await Notification.requestPermission();
+        return permission === 'granted';
+      }
+    }
+    return false;
+  } catch (error) {
+    console.error('Error requesting notification permission:', error);
+    return false;
+  }
 };
 
 export const setupNotificationClickHandler = () => {

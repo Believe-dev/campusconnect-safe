@@ -9,6 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { requestNotificationPermission, sendTestNotification } from '@/utils/oneSignal';
 import { TestNotificationButton } from './TestNotificationButton';
+import { MobileNotificationTest } from './MobileNotificationTest';
 
 interface NotificationPreferences {
   email_notifications: boolean;
@@ -173,19 +174,24 @@ export default function NotificationSettings() {
           </div>
 
           {/* Test Notifications */}
-          <div className="flex items-center justify-between p-4 border rounded-lg">
-            <div>
-              <p className="font-medium">Test Notifications</p>
-              <p className="text-sm text-muted-foreground">
-                Send a test notification to verify everything is working
-              </p>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between p-4 border rounded-lg">
+              <div>
+                <p className="font-medium">Test Notifications</p>
+                <p className="text-sm text-muted-foreground">
+                  Send a test notification to verify everything is working
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <TestNotificationButton />
+                <Button onClick={testNotifications} variant="outline" size="sm">
+                  Full Test
+                </Button>
+              </div>
             </div>
-            <div className="flex gap-2">
-              <TestNotificationButton />
-              <Button onClick={testNotifications} variant="outline" size="sm">
-                Full Test
-              </Button>
-            </div>
+            
+            {/* Mobile Test Component */}
+            <MobileNotificationTest />
           </div>
 
           {/* Notification Types */}

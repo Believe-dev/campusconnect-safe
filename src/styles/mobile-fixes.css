@@ -18,13 +18,3 @@ input, textarea, [contenteditable] {
   user-select: text;
 }
 
-/* Remove focus outlines on mobile */
-@media (max-width: 768px) {
-  button:focus,
-  a:focus,
-  input:focus,
-  textarea:focus {
-    outline: none;
-    box-shadow: none;
-  }
-}

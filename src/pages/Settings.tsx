@@ -11,7 +11,6 @@ import { useToast } from '@/hooks/use-toast';
 import { Shield, Bell, User, CreditCard, HelpCircle, LogOut, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import Header from '@/components/layout/Header';
 import { ChangePasswordDialog } from '@/components/settings/ChangePasswordDialog';
 import { TwoFactorAuthDialog } from '@/components/settings/TwoFactorAuthDialog';
 import { HelpCenterDialog } from '@/components/settings/HelpCenterDialog';
@@ -112,7 +111,6 @@ const Settings = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header />
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto space-y-6">
           <h1 className="text-3xl font-bold text-primary">Settings</h1>

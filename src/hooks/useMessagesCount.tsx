@@ -59,11 +59,14 @@ export const useMessagesCount = () => {
             table: 'messages'
           },
           (payload) => {
-            // Update when is_read changes for messages not from current user
+            // Update immediately when is_read changes for messages not from current user
             if (payload.new.sender_id !== user.id && payload.old?.is_read !== payload.new?.is_read) {
-
+              if (payload.new.is_read === true) {
+                // Immediately decrease count when message is marked as read
+                setMessagesCount(prev => Math.max(0, prev - 1));
+              }
               clearTimeout(updateTimeout);
-              updateTimeout = setTimeout(fetchMessagesCount, 500);
+              updateTimeout = setTimeout(fetchMessagesCount, 100);
             }
           }
         )

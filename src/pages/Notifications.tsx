@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Bell, Check, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import Header from '@/components/layout/Header';
 import { format } from 'date-fns';
 
 interface Notification {
@@ -210,7 +209,6 @@ export default function Notifications() {
   if (loading) {
     return (
       <div className="min-h-screen bg-background">
-        <Header />
         <div className="container mx-auto px-4 py-8">
           <div className="text-center">Loading...</div>
         </div>
@@ -235,8 +233,6 @@ export default function Notifications() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header />
-      
       <main className="container mx-auto px-4 py-8">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
           <div className="flex items-center gap-3">

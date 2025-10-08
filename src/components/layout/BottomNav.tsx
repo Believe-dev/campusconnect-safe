@@ -19,7 +19,8 @@ const BottomNav = () => {
   const location = useLocation();
   const { user } = useAuth();
   const { cartCount } = useCartCount();
-  const { goToMarketplace, goToOrders, goToLiveFeed, goToCart, goToProfile } = useUniMarketNavigation();
+  const { goToMarketplace, goToOrders, goToLiveFeed, goToCart, goToProfile } =
+    useUniMarketNavigation();
 
   // Hide bottom nav only on chat pages
   const isInChat = location.pathname.startsWith("/chat/");
@@ -43,17 +44,32 @@ const BottomNav = () => {
   );
 
   const navItems = [
-    { to: "/marketplace", icon: Store, label: "Shop", onClick: goToMarketplace },
+    {
+      to: "/marketplace",
+      icon: Store,
+      label: "Shop",
+      onClick: goToMarketplace,
+    },
     { to: "/orders", icon: Package, label: "Orders", onClick: goToOrders },
     { to: "/live-feed", icon: Zap, label: "Live", onClick: goToLiveFeed },
-    { to: "/cart", icon: ShoppingCart, label: "Cart", badge: cartCount, onClick: goToCart },
+    {
+      to: "/cart",
+      icon: ShoppingCart,
+      label: "Cart",
+      badge: cartCount,
+      onClick: goToCart,
+    },
     { to: "/profile", icon: User, label: "Profile", onClick: goToProfile },
   ];
 
   return (
     <nav
-      className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-background border-t border-primary/10 shadow-lg"
-      style={{ position: "fixed", bottom: 0 }}
+      className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-100 shadow-sm"
+      style={{
+        position: "fixed",
+        bottom: 0,
+        paddingBottom: "env(safe-area-inset-bottom)",
+      }}
     >
       <div className="flex justify-around items-center py-2 px-1 safe-area-pb">
         {navItems.map(({ to, icon: Icon, label, badge, onClick }) => {
@@ -67,24 +83,22 @@ const BottomNav = () => {
               key={to}
               onClick={onClick}
               className={cn(
-                "flex flex-col items-center gap-1 p-2 rounded-xl min-w-0 flex-1 relative micro-bounce hover-lift transition-all duration-200",
-                isActive
-                  ? "text-primary bg-gradient-to-br from-primary/15 to-primary/5 shadow-sm scale-105"
-                  : "text-muted-foreground hover:text-primary hover:bg-primary/5 hover:scale-105"
+                "flex flex-col items-center gap-1 p-2 rounded-lg min-w-0 flex-1 relative transition-all duration-200",
+                isActive ? "text-university-green" : "text-gray-500"
               )}
             >
               <div className="relative">
                 <Icon
                   className={cn(
                     "h-5 w-5 transition-all duration-200",
-                    isActive ? "drop-shadow-sm" : ""
+                    isActive ? "text-university-green" : "text-gray-500"
                   )}
                   style={{ WebkitAppearance: "none", appearance: "none" }}
                 />
                 {badge !== undefined && (
                   <Badge
                     variant="destructive"
-                    className="absolute -top-2 -right-2 h-4 w-4 flex items-center justify-center p-0 text-xs font-bold rounded-full bg-gradient-to-r from-red-500 to-red-600 text-white border-2 border-background shadow-sm notification-badge"
+                    className="absolute -top-1 -right-1 h-4 w-4 flex items-center justify-center p-0 text-xs font-bold rounded-full bg-red-500 text-white border border-white shadow-sm notification-badge"
                     style={{
                       WebkitAppearance: "none",
                       appearance: "none",
@@ -99,7 +113,9 @@ const BottomNav = () => {
               <span
                 className={cn(
                   "text-xs font-medium truncate w-full text-center transition-all duration-200",
-                  isActive ? "font-semibold" : ""
+                  isActive
+                    ? "text-university-green font-semibold"
+                    : "text-gray-500"
                 )}
               >
                 {label}

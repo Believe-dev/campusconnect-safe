@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { TestNotificationButton } from "@/components/notifications/TestNotificationButton";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/enhanced-button";
 import { Badge } from "@/components/ui/badge";
@@ -49,11 +49,11 @@ import { useCartCount } from "@/hooks/useCartCount";
 import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { useNotifications } from "@/hooks/useNotifications";
 import { useOrdersCount } from "@/hooks/useOrdersCount";
-import { useMessagesCount } from "@/hooks/useMessagesCount";
+import { useMessageCount } from "@/contexts/MessageCountContext";
 import { useProfile } from "@/contexts/ProfileContext";
 import { useRealTimeUpdates } from "@/hooks/useRealTimeUpdates";
 import SmartSearchInput from "@/components/search/SmartSearchInput";
-import MobileSearchDialog from "@/components/search/MobileSearchDialog";
+import MobileExpandableSearch from "@/components/search/MobileExpandableSearch";
 import { PremiumGameBadge } from "@/components/games/PremiumGameBadge";
 
 interface Profile {
@@ -66,38 +66,34 @@ interface Profile {
 
 interface GameBadgeData {
   overall_level: number;
-  badge_type: 'bronze' | 'silver' | 'gold' | 'none';
+  badge_type: "bronze" | "silver" | "gold" | "none";
   is_premium: boolean;
 }
 
 const Header = () => {
   const { user, isAdmin, loading } = useAuth();
   const { profile } = useProfile();
+  const location = useLocation();
   const { cartCount } = useCartCount();
   const { isOnline, isSlowConnection } = useNetworkStatus();
   const { unreadCount } = useNotifications();
   const { ordersCount } = useOrdersCount();
-  const { messagesCount } = useMessagesCount();
+  const { messagesCount } = useMessageCount();
   const [searchQuery, setSearchQuery] = useState("");
   const [gameBadge, setGameBadge] = useState<GameBadgeData | null>(null);
+  const [isScrolled, setIsScrolled] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
-
+  
   // Enable real-time updates
   useRealTimeUpdates();
-
-  useEffect(() => {
-    if (user) {
-      fetchGameBadge();
-    }
-  }, [user]);
-
+  
   const fetchGameBadge = async () => {
     if (!user) return;
 
     try {
-      const { data, error } = await supabase.rpc('get_user_game_badge', {
-        p_user_id: user.id
+      const { data, error } = await supabase.rpc("get_user_game_badge", {
+        p_user_id: user.id,
       });
 
       if (error) throw error;
@@ -105,9 +101,35 @@ const Header = () => {
         setGameBadge(data[0]);
       }
     } catch (error) {
-      console.error('Error fetching game badge:', error);
+      console.error("Error fetching game badge:", error);
     }
   };
+  
+  useEffect(() => {
+    if (user) {
+      fetchGameBadge();
+    }
+  }, [user]);
+
+  useEffect(() => {
+    let ticking = false;
+    const handleScroll = () => {
+      if (!ticking) {
+        requestAnimationFrame(() => {
+          setIsScrolled(window.scrollY > 10);
+          ticking = false;
+        });
+        ticking = true;
+      }
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+  
+  // Hide header on chat pages
+  if (location.pathname.startsWith('/chat/')) {
+    return null;
+  }
 
   const NetworkIndicator = () => {
     const [connectionStrength, setConnectionStrength] = useState(5);
@@ -222,9 +244,7 @@ const Header = () => {
       </SheetTrigger>
       <SheetContent
         side="left"
-        className="w-full sm:w-96 md:w-[28rem] lg:w-80 h-full flex flex-col overflow-hidden bg-background"
-        onInteractOutside={(e) => e.preventDefault()}
-        onEscapeKeyDown={(e) => e.preventDefault()}
+        className="mobile-sheet w-full sm:w-96 md:w-[28rem] lg:w-80 h-full flex flex-col overflow-hidden bg-white"
       >
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
@@ -240,6 +260,12 @@ const Header = () => {
         </SheetHeader>
 
         <div className="flex flex-col gap-4 mt-6 flex-1 overflow-y-auto scrollbar-thin pb-4">
+          {/* Network Status */}
+          <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+            <span className="text-sm font-medium text-muted-foreground">Connection</span>
+            <NetworkIndicator />
+          </div>
+
           {/* User Profile Section */}
           {user && profile && (
             <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
@@ -273,7 +299,6 @@ const Header = () => {
                       <span className="text-xs font-medium">Verified</span>
                     </div>
                   )}
-
                 </div>
               </div>
             </div>
@@ -353,8 +378,18 @@ const Header = () => {
                 className="justify-start"
               >
                 <Link to="/games">
-                  <svg className="mr-3 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                  <svg
+                    className="mr-3 h-5 w-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
+                    />
                   </svg>
                   UniGames
                 </Link>
@@ -553,7 +588,7 @@ const Header = () => {
                 variant="ghost"
                 size="lg"
                 onClick={handleSignOut}
-                className="justify-start text-destructive hover:text-destructive"
+                className="justify-start text-destructive"
               >
                 <LogOut className="mr-3 h-5 w-5" />
                 Sign Out
@@ -575,8 +610,15 @@ const Header = () => {
   );
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-primary/10 bg-background/95 backdrop-blur-sm shadow-sm">
-      <div className="container mx-auto px-4">
+    <header className="sticky top-0 z-50 px-2 pt-2 transition-all duration-300 ease-out">
+      <div
+        className={`transition-all duration-300 ease-out ${
+          isScrolled
+            ? "bg-white/90 backdrop-blur-md border border-primary/20 rounded-xl shadow-lg"
+            : "bg-white border-b border-primary/10"
+        }`}
+      >
+        <div className="container mx-auto px-1">
         <div className="flex h-16 items-center justify-between">
           {/* Mobile Menu */}
           <MobileNav />
@@ -584,17 +626,17 @@ const Header = () => {
           {/* Logo */}
           <Link
             to="/"
-            className="flex items-center gap-2 flex-shrink-0 hover-lift micro-bounce transition-all duration-200 hover:scale-105"
+            className="flex items-center gap-1.5 flex-shrink-0 micro-bounce transition-all duration-200"
           >
             <div className="relative">
               <img
                 src="/logo.png"
                 alt="UniMarket Logo"
-                className="h-7 w-7 sm:h-8 sm:w-8 drop-shadow-sm object-contain"
+                className="h-6 w-6 sm:h-7 sm:w-7 drop-shadow-sm object-contain"
               />
-              <div className="absolute inset-0 bg-university-green/20 rounded-full blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+              <div className="absolute inset-0 bg-university-green/20 rounded-full blur-lg opacity-0 transition-opacity duration-300"></div>
             </div>
-            <span className="text-sm sm:text-lg md:text-xl font-bold bg-gradient-to-r from-university-green to-university-green/80 bg-clip-text text-transparent">
+            <span className="text-sm sm:text-base font-bold bg-gradient-to-r from-university-green to-university-green/80 bg-clip-text text-transparent">
               UniMarket
             </span>
           </Link>
@@ -612,19 +654,32 @@ const Header = () => {
 
           {/* Mobile Actions - Only show essential items */}
           <div className="flex items-center gap-1 sm:gap-2">
-            {/* Network Status */}
-            <NetworkIndicator />
-
-            {/* Theme Toggle - Desktop only */}
-
-            {/* Mobile Search Dialog */}
+            {/* Mobile Search */}
             <div className="lg:hidden">
-              <MobileSearchDialog />
+              <MobileExpandableSearch />
             </div>
 
             {/* Mobile Cart and Message Icons */}
             {user && (
-              <div className="lg:hidden flex items-center gap-1">
+              <div className="lg:hidden flex items-center gap-0.5">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  asChild
+                  className="relative h-9 w-9 sm:h-10 sm:w-10"
+                >
+                  <Link to="/notifications">
+                    <Bell className="h-4 w-4 sm:h-5 sm:w-5" />
+                    {unreadCount > 0 && (
+                      <Badge
+                        variant="destructive"
+                        className="absolute -top-1 -right-1 sm:-top-2 sm:-right-2 h-5 w-5 sm:h-6 sm:w-6 flex items-center justify-center p-0 text-xs font-bold rounded-full bg-red-500 text-white border-2 border-background"
+                      >
+                        {unreadCount > 99 ? "99+" : unreadCount}
+                      </Badge>
+                    )}
+                  </Link>
+                </Button>
                 <Button
                   variant="ghost"
                   size="icon"
@@ -691,8 +746,6 @@ const Header = () => {
                     </TooltipContent>
                   </Tooltip>
 
-
-
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <Button
@@ -737,7 +790,7 @@ const Header = () => {
                         variant="ghost"
                         size="icon"
                         asChild
-                        className="relative h-9 w-9 sm:h-10 sm:w-10 hover-lift micro-bounce"
+                        className="relative h-9 w-9 sm:h-10 sm:w-10 micro-bounce"
                       >
                         <Link to="/cart">
                           <ShoppingCart className="h-4 w-4 sm:h-5 sm:w-5 transition-all duration-200" />
@@ -906,8 +959,18 @@ const Header = () => {
                       </DropdownMenuItem>
                       <DropdownMenuItem asChild className="py-1.5">
                         <Link to="/games">
-                          <svg className="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                          <svg
+                            className="mr-2 h-4 w-4"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
+                            />
                           </svg>
                           UniGames
                         </Link>
@@ -958,7 +1021,10 @@ const Header = () => {
                         </Link>
                       </DropdownMenuItem>
                       <DropdownMenuSeparator className="my-1" />
-                      <DropdownMenuItem onClick={handleSignOut} className="py-1.5">
+                      <DropdownMenuItem
+                        onClick={handleSignOut}
+                        className="py-1.5"
+                      >
                         <LogOut className="mr-2 h-4 w-4" />
                         Sign Out
                       </DropdownMenuItem>
@@ -972,7 +1038,7 @@ const Header = () => {
                   variant="outline"
                   size="sm"
                   asChild
-                  className="h-9 text-xs sm:h-10 sm:text-sm px-2 sm:px-4 hover-lift micro-bounce"
+                  className="h-9 text-xs sm:h-10 sm:text-sm px-2 sm:px-4 micro-bounce"
                 >
                   <Link to="/auth">Sign In</Link>
                 </Button>
@@ -980,13 +1046,14 @@ const Header = () => {
                   variant="default"
                   size="sm"
                   asChild
-                  className="h-9 text-xs sm:h-10 sm:text-sm px-2 sm:px-4 hover-lift micro-bounce shadow-sm hover:shadow-md"
+                  className="h-9 text-xs sm:h-10 sm:text-sm px-2 sm:px-4 micro-bounce shadow-sm"
                 >
                   <Link to="/auth">Join</Link>
                 </Button>
               </div>
             )}
           </div>
+        </div>
         </div>
       </div>
     </header>

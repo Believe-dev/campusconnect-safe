@@ -43,7 +43,7 @@ export const ProductFilters: React.FC<ProductFiltersProps> = ({
                 variant={isActive ? "default" : "outline"}
                 size="sm"
                 onClick={() => onCategoryChange(category.id)}
-                className={`gap-2 flex-shrink-0 micro-bounce hover-lift transition-all duration-200 hover:scale-105 ${
+                className={`gap-2 flex-shrink-0 micro-bounce transition-all duration-200 hover:scale-105 ${
                   isActive 
                     ? 'bg-gradient-to-r from-primary to-primary/90 text-primary-foreground shadow-md' 
                     : 'hover:bg-primary/5 hover:text-primary hover:border-primary/30'

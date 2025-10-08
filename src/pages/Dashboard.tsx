@@ -29,7 +29,6 @@ import {
   Plus,
   Wallet,
 } from "lucide-react";
-import Header from "@/components/layout/Header";
 import WalletDashboard from "@/components/wallet/WalletDashboard";
 
 interface Product {
@@ -411,7 +410,6 @@ const Dashboard = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-background">
-        <Header />
         <main className="container mx-auto px-4 py-8">
           <div className="animate-pulse space-y-4">
             <div className="h-8 bg-muted rounded w-1/4"></div>
@@ -429,7 +427,6 @@ const Dashboard = () => {
   if (accessDenied) {
     return (
       <div className="min-h-screen bg-background">
-        <Header />
         <main className="container mx-auto px-4 py-8">
           <Card className="max-w-2xl mx-auto">
             <CardContent className="pt-6 text-center">
@@ -454,7 +451,6 @@ const Dashboard = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header />
       <main className="container mx-auto px-4 py-4 sm:py-8">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8">
           <div>

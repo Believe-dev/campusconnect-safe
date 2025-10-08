@@ -39,7 +39,7 @@ export const FeaturesSection: React.FC = () => {
           {features.map((feature, index) => (
             <Card 
               key={feature.title} 
-              className="text-center student-card hover-lift micro-bounce group animate-in slide-in-from-bottom-4 duration-500"
+              className="text-center student-card micro-bounce group animate-in slide-in-from-bottom-4 duration-500"
               style={{ animationDelay: `${index * 150}ms` }}
             >
               <CardHeader className="pb-4">

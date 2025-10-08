@@ -72,10 +72,31 @@ export const PWAInstallPrompt: React.FC = () => {
           <h3 className="font-semibold text-sm text-black">
             Install UniMarket
           </h3>
-          <p className="text-xs text-black mt-1">
-            {isIOS
-              ? "Tap Share → Add to Home Screen for the best experience"
-              : "Install our app for faster access and offline features"}
+          <p className="text-xs text-black mt-1 leading-relaxed">
+            {isIOS ? (
+              <span className="flex items-center flex-wrap gap-1">
+                <span>Tap</span>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  width="16"
+                  height="16"
+                  fill="none"
+                  stroke="#555"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="inline-block flex-shrink-0"
+                >
+                  <path d="M12 16V4" />
+                  <path d="M8 8l4-4 4 4" />
+                  <path d="M4 12v6a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6" />
+                </svg>
+                <span>then scroll and choose 'Add to Home Screen'</span>
+              </span>
+            ) : (
+              "Install our app for faster access and offline features"
+            )}
           </p>
           <div className="flex gap-2 mt-3">
             {!isIOS && (

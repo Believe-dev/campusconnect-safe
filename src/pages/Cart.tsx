@@ -21,7 +21,6 @@ import {
   Heart,
   MessageCircle
 } from 'lucide-react';
-import Header from '@/components/layout/Header';
 import ProductCard from '@/components/marketplace/ProductCard';
 import { User } from '@supabase/supabase-js';
 
@@ -353,7 +352,6 @@ const Cart = () => {
   if (!user) {
     return (
       <div className="min-h-screen bg-background">
-        <Header />
         <main className="container mx-auto px-4 py-8">
           <Card>
             <CardContent className="p-8 text-center">
@@ -373,7 +371,6 @@ const Cart = () => {
   if (isLoading && cartItems.length === 0) {
     return (
       <div className="min-h-screen bg-background">
-        <Header />
         <main className="container mx-auto px-4 py-8">
           <div className="animate-pulse space-y-4">
             <div className="h-8 bg-muted rounded w-1/4"></div>
@@ -386,7 +383,6 @@ const Cart = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header />
       <main className="container mx-auto px-4 py-6 sm:py-8 pb-24 md:pb-8">
         <div className="max-w-4xl mx-auto">
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mb-6 sm:mb-8">

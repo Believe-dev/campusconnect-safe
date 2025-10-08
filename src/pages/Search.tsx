@@ -7,7 +7,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Search as SearchIcon, Filter, SlidersHorizontal, ShoppingCart, MessageCircle, MapPin, Star } from 'lucide-react';
-import Header from '@/components/layout/Header';
 
 import { expandSearchTerms } from '@/utils/searchUtils';
 
@@ -285,7 +284,6 @@ const Search = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header />
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-7xl mx-auto">
           {/* Search Header */}

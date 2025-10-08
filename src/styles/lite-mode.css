@@ -26,7 +26,6 @@
   }
 
   /* Remove GPU transforms */
-  .hover-lift:hover,
   .micro-bounce:active,
   .verification-tick,
   .verification-badge-inline {
