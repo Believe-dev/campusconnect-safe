@@ -89,7 +89,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "sonner";
 import { triggerProfileUpdate } from "@/utils/realTimeEvents";
-import { emailService } from "@/utils/emailService";
+import { sendEmailNotification } from "@/utils/emailService";
 import { sanitizeInput, validateEmail, validateName } from "@/lib/security";
 import { AdminWallet } from "@/components/admin/AdminWallet";
 
@@ -3997,12 +3997,13 @@ export default function Admin() {
 
                                               // Send secure email notification
                                               try {
-                                                await emailService.sendBanApprovalEmail(
-                                                  appeal.user_email,
-                                                  appeal.full_name,
-                                                  response ||
-                                                    "Your appeal was approved and your account has been restored."
-                                                );
+                                                await sendEmailNotification({
+                                                  to_email: appeal.user_email,
+                                                  to_name: appeal.full_name,
+                                                  subject: 'Ban Appeal Approved - Account Restored',
+                                                  message: response || "Your appeal was approved and your account has been restored.",
+                                                  notification_type: 'ban_approval'
+                                                });
                                               } catch (emailError) {
                                                 // Email notification failed silently
                                               }
@@ -4088,11 +4089,13 @@ export default function Admin() {
 
                                             // Send rejection email
                                             try {
-                                              await emailService.sendBanRejectionEmail(
-                                                appeal.user_email,
-                                                appeal.full_name,
-                                                response
-                                              );
+                                              await sendEmailNotification({
+                                                to_email: appeal.user_email,
+                                                to_name: appeal.full_name,
+                                                subject: 'Ban Appeal Rejected',
+                                                message: response,
+                                                notification_type: 'ban_rejection'
+                                              });
                                             } catch (emailError) {
                                               // Email notification failed silently
                                             }

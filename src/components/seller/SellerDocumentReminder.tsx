@@ -7,7 +7,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { AlertTriangle, Camera, IdCard, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
-import { emailService } from '@/utils/emailService';
+import { sendEmailNotification } from '@/utils/emailService';
 
 interface Profile {
   avatar_url: string | null;
@@ -152,12 +152,15 @@ export const SellerDocumentReminder = () => {
                       });
                       
                       // Email notification
-                      emailService.sendNotificationEmail(
-                        (profile as any).email,
-                        (profile as any).full_name,
-                        notificationTitle,
-                        notificationMessage
-                      );
+                      if ((profile as any).email) {
+                        sendEmailNotification({
+                          to_email: (profile as any).email,
+                          to_name: (profile as any).full_name || 'User',
+                          subject: notificationTitle,
+                          message: notificationMessage,
+                          notification_type: 'warning'
+                        });
+                      }
                     }
                     
                     toast({
