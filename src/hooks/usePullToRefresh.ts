@@ -21,26 +21,37 @@ export const usePullToRefresh = () => {
     }
 
     try {
-      // Add a small delay for better UX (mimics Snapchat)
-      await new Promise(resolve => setTimeout(resolve, 800));
+      // Add delay for UniMarket loader animation
+      await new Promise(resolve => setTimeout(resolve, 1200));
       
-      // Invalidate all queries to trigger refetch
-      await queryClient.invalidateQueries();
-      
-      // Clear any cached data for fresh content
+      // Clear all caches like browser refresh
       queryClient.clear();
       
-      // Show success feedback
-      toast({
-        title: "✨ Refreshed",
-        description: "Your content is now up to date",
-        duration: 2000,
-      });
+      // Clear service worker caches
+      if ('caches' in window) {
+        const cacheNames = await caches.keys();
+        await Promise.all(cacheNames.map(name => caches.delete(name)));
+      }
+      
+      // Clear localStorage (except essential data)
+      const essentialKeys = ['auth-token', 'user-preferences', 'theme'];
+      const keysToRemove = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && !essentialKeys.some(essential => key.includes(essential))) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach(key => localStorage.removeItem(key));
+      
+      // Force reload the entire app (like browser refresh)
+      window.location.reload();
+      
     } catch (error) {
       console.error('Refresh failed:', error);
       toast({
         title: "Refresh Failed",
-        description: "Unable to refresh content. Please try again.",
+        description: "Unable to refresh UniMarket. Please try again.",
         variant: "destructive",
         duration: 3000,
       });

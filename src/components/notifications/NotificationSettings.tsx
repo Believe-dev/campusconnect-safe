@@ -10,6 +10,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { requestNotificationPermission, sendTestNotification } from '@/utils/oneSignal';
 import { TestNotificationButton } from './TestNotificationButton';
 import { MobileNotificationTest } from './MobileNotificationTest';
+import { ComprehensiveNotificationTest } from './ComprehensiveNotificationTest';
 
 interface NotificationPreferences {
   email_notifications: boolean;
@@ -192,6 +193,9 @@ export default function NotificationSettings() {
             
             {/* Mobile Test Component */}
             <MobileNotificationTest />
+            
+            {/* Comprehensive Test Component */}
+            <ComprehensiveNotificationTest />
           </div>
 
           {/* Notification Types */}

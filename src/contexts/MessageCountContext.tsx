@@ -31,19 +31,37 @@ export const MessageCountProvider: React.FC<{ children: React.ReactNode }> = ({ 
         return;
       }
 
-      let count = 0;
-      for (const conv of conversations) {
-        const { data } = await supabase
-          .from('messages')
-          .select('id')
-          .eq('conversation_id', conv.id)
-          .neq('sender_id', user.id)
-          .eq('is_read', false);
+      const convIds = conversations.map(c => c.id);
+      
+      // Batch fetch all read timestamps
+      const { data: readData } = await supabase
+        .from('conversation_reads')
+        .select('conversation_id, last_read_at')
+        .eq('user_id', user.id)
+        .in('conversation_id', convIds);
+      
+      // Create lookup map for read timestamps
+      const readTimestamps = {};
+      readData?.forEach(read => {
+        readTimestamps[read.conversation_id] = read.last_read_at;
+      });
+      
+      let totalCount = 0;
+      // Count unread messages for each conversation
+      for (const convId of convIds) {
+        const lastReadAt = readTimestamps[convId] || '1970-01-01T00:00:00Z';
         
-        count += data?.length || 0;
+        const { count } = await supabase
+          .from('messages')
+          .select('*', { count: 'exact', head: true })
+          .eq('conversation_id', convId)
+          .neq('sender_id', user.id)
+          .gt('created_at', lastReadAt);
+        
+        totalCount += count || 0;
       }
 
-      setMessagesCount(Math.min(count, 99));
+      setMessagesCount(Math.min(totalCount, 99));
     } catch (error) {
       console.error('Error fetching message count:', error);
     }
@@ -60,6 +78,29 @@ export const MessageCountProvider: React.FC<{ children: React.ReactNode }> = ({ 
   useEffect(() => {
     if (user) {
       fetchCount();
+      
+      // Set up real-time subscription for new messages only
+      const channel = supabase
+        .channel(`message_count_${user.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'messages'
+          },
+          (payload) => {
+            // Only increment if it's a message for this user from someone else
+            if (payload.new.sender_id !== user.id) {
+              setMessagesCount(prev => prev + 1);
+            }
+          }
+        )
+        .subscribe();
+      
+      return () => {
+        channel.unsubscribe();
+      };
     }
   }, [user]);
 

@@ -2,6 +2,8 @@ import { Button } from '@/components/ui/button';
 import { Bell } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
+import { testPushNotification } from '@/utils/pushNotifications';
+import { sendTestNotification } from '@/utils/oneSignal';
 
 export const TestNotificationButton = () => {
   const testBrowserNotification = async () => {
@@ -55,48 +57,17 @@ export const TestNotificationButton = () => {
         return;
       }
       
-      // Create a database notification first
-      const { error: dbError } = await supabase
-        .from('notifications')
-        .insert({
-          user_id: user.id,
-          title: 'Mobile Test Notification 📱',
-          message: 'This is a test notification for mobile devices. If you can see this, your notification system is working!',
-          type: 'info'
-        });
-        
-      if (dbError) {
-        throw new Error(`Database error: ${dbError.message}`);
+      // Test push notification first
+      const pushSuccess = await testPushNotification();
+      
+      // Also test OneSignal
+      await sendTestNotification();
+      
+      if (pushSuccess) {
+        toast.success('Push notification sent! Check your phone\'s notification panel.');
+      } else {
+        toast.success('Database notification created! Check your notifications page.');
       }
-      
-      // Try browser notification with mobile-friendly options
-      if ('Notification' in window && Notification.permission === 'granted') {
-        try {
-          const notification = new Notification('UniMarket Mobile Test 📱', {
-            body: 'Mobile notification test successful!',
-            icon: '/logo.png',
-            tag: 'mobile-test',
-            requireInteraction: false,
-            silent: false,
-            vibrate: [200, 100, 200] // Mobile vibration pattern
-          });
-          
-          setTimeout(() => {
-            try {
-              notification.close();
-            } catch (e) {
-              // Ignore close errors on mobile
-            }
-          }, 4000);
-        } catch (notifError) {
-          console.warn('Browser notification failed on mobile:', notifError);
-        }
-      }
-      
-      toast.success('Mobile test notification created! Check your notifications page.');
-      
-      // Trigger a custom event to update notification count
-      window.dispatchEvent(new CustomEvent('notificationsUpdated'));
       
     } catch (error) {
       console.error('Mobile notification test failed:', error);

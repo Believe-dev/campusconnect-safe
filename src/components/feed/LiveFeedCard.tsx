@@ -352,15 +352,8 @@ export const LiveFeedCard = ({
         return;
       }
 
-      // Navigate to messages with draft
-      const draftMessage = `Hi! I'm interested in your ${
-        item.title
-      } listed for ₦${item.price.toLocaleString()}. Is it still available?`;
-      navigate(
-        `/messages?conversation=${conversationId}&draft=${encodeURIComponent(
-          draftMessage
-        )}`
-      );
+      // Navigate directly to chat page
+      navigate(`/chat/${conversationId}`);
     } catch (error) {
       console.error("Error starting conversation:", error);
       toast({

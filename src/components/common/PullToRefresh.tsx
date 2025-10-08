@@ -103,7 +103,7 @@ const PullToRefresh: React.FC<PullToRefreshProps> = ({
         className
       )}
     >
-      {/* Snapchat-style loader */}
+      {/* UniMarket custom loader */}
       <div 
         className="pull-to-refresh-loader"
         style={{
@@ -112,47 +112,74 @@ const PullToRefresh: React.FC<PullToRefreshProps> = ({
           scale: getLoaderScale()
         }}
       >
-        <div className="snapchat-loader">
-          {/* Outer ring */}
+        <div className="unimarket-loader">
+          {/* Outer rotating ring */}
           <div className={cn(
-            "snapchat-loader-ring",
+            "unimarket-loader-ring",
             isRefreshing && "active"
           )} />
           
-          {/* Inner Snapchat ghost icon */}
+          {/* Inner UniMarket logo */}
           <div className={cn(
-            "snapchat-loader-icon",
+            "unimarket-loader-icon",
             isRefreshing && "refreshing"
           )}>
             <svg 
-              width="20" 
-              height="20" 
+              width="24" 
+              height="24" 
               viewBox="0 0 24 24" 
-              fill="currentColor"
+              fill="none"
+              className="unimarket-logo"
             >
-              {/* Snapchat ghost shape */}
-              <path d="M12 2.5c-4.5 0-8 3.5-8 8 0 2.5 1 4.5 2.5 6l-1 3.5c-.2.7.3 1.4 1 1.4.3 0 .6-.1.8-.3L9 19.5c.9.3 1.9.5 3 .5s2.1-.2 3-.5l1.7 1.6c.2.2.5.3.8.3.7 0 1.2-.7 1-1.4l-1-3.5c1.5-1.5 2.5-3.5 2.5-6 0-4.5-3.5-8-8-8z" />
-              {/* Eyes */}
-              <circle cx="9.5" cy="9" r="1" fill="white" />
-              <circle cx="14.5" cy="9" r="1" fill="white" />
-              {/* Mouth */}
-              <ellipse cx="12" cy="13" rx="2" ry="1" fill="white" />
+              {/* University building icon with market elements */}
+              <path 
+                d="M12 2L2 7v10c0 5.55 3.84 10 9 11 5.16-1 9-5.45 9-11V7l-10-5z" 
+                fill="currentColor" 
+                className="logo-shield"
+              />
+              <path 
+                d="M8 10h8M8 13h6M8 16h4" 
+                stroke="white" 
+                strokeWidth="1.5" 
+                strokeLinecap="round"
+                className="logo-lines"
+              />
+              <circle 
+                cx="12" 
+                cy="8" 
+                r="2" 
+                fill="white"
+                className="logo-dot"
+              />
             </svg>
+          </div>
+          
+          {/* Floating particles */}
+          <div className="unimarket-particles">
+            <div className="particle particle-1"></div>
+            <div className="particle particle-2"></div>
+            <div className="particle particle-3"></div>
           </div>
         </div>
         
         {/* Status text */}
         <div className={cn(
-          "pull-to-refresh-text",
+          "pull-to-refresh-text unimarket-text",
           canRefresh && "can-refresh",
           isRefreshing && "refreshing"
         )}>
           {isRefreshing ? (
-            "Refreshing..."
+            <span className="refreshing-text">
+              <span className="text-gradient">UniMarket</span> Refreshing...
+            </span>
           ) : canRefresh ? (
-            "Release to refresh"
+            <span className="release-text">
+              Release to refresh <span className="text-gradient">UniMarket</span>
+            </span>
           ) : (
-            "Pull to refresh"
+            <span className="pull-text">
+              Pull to refresh
+            </span>
           )}
         </div>
       </div>

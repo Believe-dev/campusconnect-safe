@@ -195,7 +195,7 @@ export const useOptimisticMessages = ({ conversationId, currentUserId }: UseOpti
     }
   }, [conversationId, currentUserId]);
 
-  // Mark messages as read
+  // Mark messages as read using conversation_reads table
   const markAsRead = useCallback(async (messageIds: string[]) => {
     if (messageIds.length === 0) return;
 
@@ -205,21 +205,28 @@ export const useOptimisticMessages = ({ conversationId, currentUserId }: UseOpti
     ));
 
     try {
+      // Update last read timestamp in conversation_reads table
       const { error } = await supabase
-        .from('messages')
-        .update({ is_read: true })
-        .in('id', messageIds)
-        .neq('sender_id', currentUserId);
+        .from('conversation_reads')
+        .upsert({
+          conversation_id: conversationId,
+          user_id: currentUserId,
+          last_read_at: new Date().toISOString()
+        }, {
+          onConflict: 'conversation_id,user_id'
+        });
 
       if (error) throw error;
     } catch (error) {
       console.error('Failed to mark messages as read:', error);
-      // Revert optimistic update
-      setMessages(prev => prev.map(msg => 
-        messageIds.includes(msg.id) ? { ...msg, is_read: false } : msg
-      ));
+      // Don't revert optimistic update for constraint violations
+      if (error.code !== '23505') {
+        setMessages(prev => prev.map(msg => 
+          messageIds.includes(msg.id) ? { ...msg, is_read: false } : msg
+        ));
+      }
     }
-  }, [currentUserId]);
+  }, [currentUserId, conversationId]);
 
   // Delete message
   const deleteMessage = useCallback(async (messageId: string) => {

@@ -7,8 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { useMessagesCount } from "@/hooks/useMessagesCount";
 import { useRealTime } from "@/contexts/RealTimeContext";
+import { useMessageCount } from "@/contexts/MessageCountContext";
 import { MessageCircle, Plus, Shield, Trash2 } from "lucide-react";
 import BottomNav from "@/components/layout/BottomNav";
 import SecureChat from "@/components/chat/SecureChat";
@@ -48,7 +48,7 @@ export default function Messages() {
   const [selectedConversationForAction, setSelectedConversationForAction] =
     useState<string | null>(null);
   const { toast } = useToast();
-  const { messagesCount } = useMessagesCount();
+  const { messagesCount } = useMessageCount();
   const { subscribeToPresence } = useRealTime();
 
 
@@ -79,9 +79,11 @@ export default function Messages() {
           conversation_id: conversationId,
           user_id: user.id,
           last_read_at: new Date().toISOString()
+        }, {
+          onConflict: 'conversation_id,user_id'
         });
         
-      if (error) {
+      if (error && error.code !== '23505') {
         console.error('Error updating conversation_reads:', error);
         return;
       }
@@ -112,128 +114,102 @@ export default function Messages() {
     navigate(`/chat/${conversationId}`);
   };
 
-  // Listen for chat opened events
+  // Listen for chat opened events and refresh on focus
   useEffect(() => {
     const handleChatOpened = async (event: CustomEvent) => {
       const conversationId = event.detail.conversationId;
-      // Mark messages as read in database and persist cleared state
       await markMessagesAsRead(conversationId);
     };
 
+    const handleFocus = () => {
+      fetchConversations();
+    };
+
     window.addEventListener("chatOpened", handleChatOpened as EventListener);
-    return () =>
-      window.removeEventListener(
-        "chatOpened",
-        handleChatOpened as EventListener
-      );
+    window.addEventListener("focus", handleFocus);
+    
+    return () => {
+      window.removeEventListener("chatOpened", handleChatOpened as EventListener);
+      window.removeEventListener("focus", handleFocus);
+    };
   }, [user]);
 
 
 
   useEffect(() => {
     if (user) {
-      // Only fetch conversations on initial load
-      if (conversations.length === 0) {
-        fetchConversations();
-      }
+      fetchConversations();
 
-      // Optimized real-time subscription for high concurrent users
+      // Real-time subscription using RealTime context pattern
+      const unsubscribeMessages = subscribeToPresence((data) => {
+        // Handle real-time message updates
+        if (data.conversation_id) {
+          setConversations(prev => prev.map(conv => {
+            if (conv.id === data.conversation_id) {
+              return {
+                ...conv,
+                last_message: {
+                  content: data.content || conv.last_message?.content || '',
+                  created_at: data.created_at || new Date().toISOString(),
+                  sender_id: data.sender_id || ''
+                },
+                unread_count: data.sender_id !== user.id 
+                  ? (conv.unread_count || 0) + 1 
+                  : conv.unread_count
+              };
+            }
+            return conv;
+          }));
+        }
+      });
+
+      // Direct Supabase subscription for immediate updates
       const channel = supabase
-        .channel(`messages_user_${user.id}`, {
-          config: {
-            broadcast: { self: false },
-            presence: { key: user.id },
-          },
-        })
+        .channel(`messages_list_${user.id}`)
         .on(
-          "postgres_changes",
+          'postgres_changes',
           {
-            event: "INSERT",
-            schema: "public",
-            table: "messages",
-            filter: `conversation_id=in.(${conversations
-              .map((c) => c.id)
-              .join(",")})`,
+            event: 'INSERT',
+            schema: 'public',
+            table: 'messages'
           },
-          async (payload) => {
+          (payload) => {
             const newMessage = payload.new;
-            // Only update if message affects this user's conversations
-            setConversations((prev) =>
-              prev.map((conv) => {
-                if (conv.id === newMessage.conversation_id) {
-                  return {
-                    ...conv,
-                    last_message: {
-                      content: newMessage.content,
-                      created_at: newMessage.created_at,
-                      sender_id: newMessage.sender_id,
-                    },
-                    unread_count:
-                      newMessage.sender_id !== user.id
-                        ? (conv.unread_count || 0) + 1
-                        : conv.unread_count,
-                  };
-                }
-                return conv;
-              })
-            );
+            setConversations(prev => prev.map(conv => {
+              if (conv.id === newMessage.conversation_id) {
+                return {
+                  ...conv,
+                  last_message: {
+                    content: newMessage.content,
+                    created_at: newMessage.created_at,
+                    sender_id: newMessage.sender_id
+                  },
+                  unread_count: newMessage.sender_id !== user.id 
+                    ? (conv.unread_count || 0) + 1 
+                    : conv.unread_count
+                };
+              }
+              return conv;
+            }));
           }
         )
         .on(
-          "postgres_changes",
+          'postgres_changes',
           {
-            event: "INSERT",
-            schema: "public",
-            table: "conversation_reads",
+            event: 'INSERT',
+            schema: 'public',
+            table: 'conversations'
           },
-          (payload) => {
-            // When conversation_reads is updated, clear unread count
-            if (payload.new.user_id === user.id) {
-              setConversations((prev) =>
-                prev.map((conv) => {
-                  if (conv.id === payload.new.conversation_id) {
-                    return {
-                      ...conv,
-                      unread_count: 0,
-                    };
-                  }
-                  return conv;
-                })
-              );
-            }
-          }
-        )
-        .on(
-          "postgres_changes",
-          {
-            event: "UPDATE",
-            schema: "public",
-            table: "conversation_reads",
-          },
-          (payload) => {
-            // When conversation_reads is updated, clear unread count
-            if (payload.new.user_id === user.id) {
-              setConversations((prev) =>
-                prev.map((conv) => {
-                  if (conv.id === payload.new.conversation_id) {
-                    return {
-                      ...conv,
-                      unread_count: 0,
-                    };
-                  }
-                  return conv;
-                })
-              );
-            }
-          }
+          () => fetchConversations()
         )
         .subscribe();
 
       return () => {
+        unsubscribeMessages();
         channel.unsubscribe();
       };
     }
-  }, [user, conversations.length]); // Add conversations.length to dependency
+  }, [user, subscribeToPresence]);
 
   const fetchConversations = async () => {
     if (!user?.id) {

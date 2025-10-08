@@ -1,4 +1,4 @@
-import { useParams, Navigate } from "react-router-dom";
+import { useParams, Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import OptimizedChat from "@/components/chat/OptimizedChat";
 import { useState, useEffect } from "react";
@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 const Chat = () => {
   const { conversationId } = useParams();
   const { user, loading } = useAuth();
+  const navigate = useNavigate();
   const [otherUser, setOtherUser] = useState(null);
 
   // Fetch conversation details to get other user info
@@ -59,7 +60,7 @@ const Chat = () => {
       conversationId={conversationId}
       currentUserId={user.id}
       otherUser={otherUser}
-      onClose={() => window.history.back()}
+      onClose={() => navigate('/messages')}
     />
   );
 };

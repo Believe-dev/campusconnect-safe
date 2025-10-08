@@ -279,11 +279,20 @@ export const RealTimeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     };
   }, [user, createChannel]);
 
-  const broadcastPresence = useCallback((data: any) => {
+  const broadcastPresence = useCallback(async (data: any) => {
     if (!user) return;
 
-    const channel = channelsRef.current.get('presence') || createChannel('presence');
-    channel.track({ user_id: user.id, ...data });
+    let channel = channelsRef.current.get('presence');
+    if (!channel) {
+      channel = createChannel('presence');
+      await channel.subscribe();
+    }
+    
+    try {
+      await channel.track({ user_id: user.id, ...data });
+    } catch (error) {
+      console.error('Failed to broadcast presence:', error);
+    }
   }, [user, createChannel]);
 
   // Initialize connection on mount

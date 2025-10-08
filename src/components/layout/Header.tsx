@@ -238,7 +238,7 @@ const Header = () => {
   const MobileNav = () => (
     <Sheet>
       <SheetTrigger asChild>
-        <Button variant="ghost" size="icon" className="lg:hidden h-10 w-10">
+        <Button variant="ghost" size="icon" className="lg:hidden h-6 w-6 sm:h-7 sm:w-7 p-0 gap-0 rounded-md">
           <Menu className="h-5 w-5" />
         </Button>
       </SheetTrigger>
@@ -653,7 +653,7 @@ const Header = () => {
           </div>
 
           {/* Mobile Actions - Only show essential items */}
-          <div className="flex items-center gap-1 sm:gap-2">
+          <div className="flex items-center gap-0 sm:gap-0.5 md:gap-1">
             {/* Mobile Search */}
             <div className="lg:hidden">
               <MobileExpandableSearch />
@@ -661,19 +661,19 @@ const Header = () => {
 
             {/* Mobile Cart and Message Icons */}
             {user && (
-              <div className="lg:hidden flex items-center gap-0.5">
+              <div className="lg:hidden flex items-center -space-x-2 sm:-space-x-1">
                 <Button
                   variant="ghost"
                   size="icon"
                   asChild
-                  className="relative h-9 w-9 sm:h-10 sm:w-10"
+                  className="relative h-6 w-6 sm:h-7 sm:w-7 md:h-8 md:w-8 p-0 gap-0 rounded-md"
                 >
                   <Link to="/notifications">
-                    <Bell className="h-4 w-4 sm:h-5 sm:w-5" />
+                    <Bell className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4" />
                     {unreadCount > 0 && (
                       <Badge
                         variant="destructive"
-                        className="absolute -top-1 -right-1 sm:-top-2 sm:-right-2 h-5 w-5 sm:h-6 sm:w-6 flex items-center justify-center p-0 text-xs font-bold rounded-full bg-red-500 text-white border-2 border-background"
+                        className="absolute -top-0.5 -right-0.5 sm:-top-1 sm:-right-1 h-4 w-4 sm:h-5 sm:w-5 flex items-center justify-center p-0 text-[10px] font-bold rounded-full bg-red-500 text-white border border-background"
                       >
                         {unreadCount > 99 ? "99+" : unreadCount}
                       </Badge>
@@ -684,24 +684,24 @@ const Header = () => {
                   variant="ghost"
                   size="icon"
                   asChild
-                  className="relative h-9 w-9 sm:h-10 sm:w-10"
+                  className="relative h-6 w-6 sm:h-7 sm:w-7 md:h-8 md:w-8 p-0 gap-0 rounded-md"
                 >
                   <Link to="/favorites">
-                    <Heart className="h-4 w-4 sm:h-5 sm:w-5" />
+                    <Heart className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4" />
                   </Link>
                 </Button>
                 <Button
                   variant="ghost"
                   size="icon"
                   asChild
-                  className="relative h-9 w-9 sm:h-10 sm:w-10"
+                  className="relative h-6 w-6 sm:h-7 sm:w-7 md:h-8 md:w-8 p-0 gap-0 rounded-md"
                 >
                   <Link to="/messages">
-                    <MessageCircle className="h-4 w-4 sm:h-5 sm:w-5" />
+                    <MessageCircle className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4" />
                     {messagesCount > 0 && (
                       <Badge
                         variant="destructive"
-                        className="absolute -top-1 -right-1 sm:-top-2 sm:-right-2 h-4 w-4 sm:h-5 sm:w-5 flex items-center justify-center p-0 text-xs font-bold rounded-full bg-red-500 text-white border-2 border-background"
+                        className="absolute -top-0.5 -right-0.5 sm:-top-1 sm:-right-1 h-4 w-4 sm:h-5 sm:w-5 flex items-center justify-center p-0 text-[10px] font-bold rounded-full bg-red-500 text-white border border-background"
                       >
                         {messagesCount > 99 ? "99+" : messagesCount}
                       </Badge>
@@ -790,14 +790,14 @@ const Header = () => {
                         variant="ghost"
                         size="icon"
                         asChild
-                        className="relative h-9 w-9 sm:h-10 sm:w-10 micro-bounce"
+                        className="relative h-7 w-7 sm:h-8 sm:w-8 p-0.5 micro-bounce"
                       >
                         <Link to="/cart">
-                          <ShoppingCart className="h-4 w-4 sm:h-5 sm:w-5 transition-all duration-200" />
+                          <ShoppingCart className="h-3.5 w-3.5 sm:h-4 sm:w-4 transition-all duration-200" />
                           {cartCount > 0 && (
                             <Badge
                               variant="destructive"
-                              className="absolute -top-1 -right-1 sm:-top-2 sm:-right-2 h-4 w-4 sm:h-5 sm:w-5 flex items-center justify-center p-0 text-xs font-bold rounded-full bg-gradient-to-r from-red-500 to-red-600 text-white border-2 border-background shadow-sm"
+                              className="absolute -top-0.5 -right-0.5 sm:-top-1 sm:-right-1 h-4 w-4 sm:h-5 sm:w-5 flex items-center justify-center p-0 text-[10px] font-bold rounded-full bg-gradient-to-r from-red-500 to-red-600 text-white border border-background shadow-sm"
                             >
                               {cartCount > 99 ? "99+" : cartCount}
                             </Badge>

@@ -200,8 +200,8 @@ const SellerProfile = () => {
 
       if (error) throw error;
 
-      const draftMessage = `Hi! I'm interested in your products. Can you tell me more about what you have available?`;
-      navigate(`/messages?conversation=${conversationId}&draft=${encodeURIComponent(draftMessage)}`);
+      // Navigate directly to chat page
+      navigate(`/chat/${conversationId}`);
     } catch (error) {
       console.error('Error starting conversation:', error);
       toast({

@@ -83,7 +83,7 @@ const OptimizedChat: React.FC<OptimizedChatProps> = ({
       if (unreadMessages.length > 0) {
         // Mark as read immediately when chat opens
         markAsRead(unreadMessages);
-        // Immediately decrease the count in the header
+        // Decrease the count in the header
         decreaseCount(unreadMessages.length);
       }
     }
@@ -99,9 +99,10 @@ const OptimizedChat: React.FC<OptimizedChatProps> = ({
       !latestMessage._isOptimistic
     ) {
       markAsRead([latestMessage.id]);
-      // Don't decrease count here as new messages weren't counted yet
+      // Decrease count by 1 for the new message that was just read
+      decreaseCount(1);
     }
-  }, [messages, currentUserId, markAsRead]);
+  }, [messages, currentUserId, markAsRead, decreaseCount]);
 
   // Handle typing indicators
   const handleTyping = useCallback(

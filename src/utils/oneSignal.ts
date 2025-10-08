@@ -5,25 +5,46 @@ const ONESIGNAL_APP_ID = '2c42e82a-a1c6-4bf8-bb8b-67106cf7d92c';
 
 export const initializeOneSignal = async () => {
   try {
+    // Skip OneSignal on localhost to avoid domain errors
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      console.log('OneSignal skipped on localhost');
+      return;
+    }
+    
     await OneSignal.init({
       appId: ONESIGNAL_APP_ID,
       allowLocalhostAsSecureOrigin: true,
+      serviceWorkerPath: '/sw.js',
+      serviceWorkerUpdaterPath: '/sw.js',
+      notifyButton: {
+        enable: false
+      }
     });
 
-    const isSubscribed = await OneSignal.Notifications.permission;
+    // Request permission
+    const permission = await OneSignal.Notifications.requestPermission();
+    console.log('OneSignal permission:', permission);
     
-    if (isSubscribed !== true) {
-      await OneSignal.Slidedown.promptPush();
-    }
-
     // Set external user ID for targeted notifications
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
-      await OneSignal.User.addAlias('user_id', user.id);
+      await OneSignal.login(user.id);
       await OneSignal.User.addTag('user_type', 'authenticated');
+      
+      // Get player ID and store it
+      const playerId = await OneSignal.User.PushSubscription.id;
+      if (playerId) {
+        await supabase
+          .from('profiles')
+          .update({ onesignal_player_id: playerId })
+          .eq('id', user.id);
+      }
     }
+    
+    console.log('OneSignal initialized successfully');
+    return true;
   } catch (error) {
-    // OneSignal initialization failed silently
+    console.error('OneSignal initialization failed:', error);
   }
 };
 
@@ -34,7 +55,6 @@ export const sendTestNotification = async () => {
       throw new Error('User not authenticated');
     }
 
-    // Check if we're on mobile
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     
     // Create database notification first
@@ -49,7 +69,27 @@ export const sendTestNotification = async () => {
       throw new Error(`Database error: ${dbError.message}`);
     }
 
-    // Try browser notification with mobile-friendly approach
+    // Send push notification via server (skip on localhost)
+    if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+      try {
+        const { error: pushError } = await supabase.functions.invoke('send-push-notification', {
+          body: {
+            user_id: user.id,
+            title: `UniMarket Test ${isMobile ? '📱' : '🗏'}`,
+            message: 'This test notification should appear in your phone\'s notification panel!',
+            data: { type: 'test', url: '/notifications' }
+          }
+        });
+        
+        if (pushError) {
+          console.warn('Server push notification failed:', pushError);
+        }
+      } catch (pushError) {
+        console.warn('Push notification error:', pushError);
+      }
+    }
+
+    // Fallback browser notification
     if (isMobile) {
       await sendMobileBrowserNotification(
         'UniMarket Mobile Test 📱',

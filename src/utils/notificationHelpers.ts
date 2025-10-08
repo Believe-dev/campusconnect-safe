@@ -1,5 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
-import { emailService } from './emailService';
+import { sendEmailNotification } from './emailService';
+import { sendServerPushNotification } from './pushNotifications';
 
 interface NotificationOptions {
   sendEmail?: boolean;
@@ -44,12 +45,12 @@ export const createNotification = async (
 
     // 3. Send push notification
     if (options.sendPush) {
-      await sendPushNotification(title, message);
+      await sendPushNotification(userId, title, message, { type: type, url: '/notifications' });
     }
 
     // 4. Send email notification
     if (options.sendEmail && profile.email) {
-      await sendEmailNotification(
+      await sendEmail(
         profile.email,
         profile.full_name || 'User',
         title,
@@ -65,37 +66,29 @@ export const createNotification = async (
   }
 };
 
-const sendPushNotification = async (title: string, message: string) => {
+const sendPushNotification = async (userId: string, title: string, message: string, data?: any) => {
   try {
-    // Browser push notification
-    if ('Notification' in window) {
-      if (Notification.permission === 'granted') {
-        new Notification(title, {
-          body: message,
-          icon: '/logo.png',
-          badge: '/logo.png',
-          tag: 'unimarket-notification',
-          requireInteraction: false
-        });
-      } else if (Notification.permission !== 'denied') {
-        const permission = await Notification.requestPermission();
-        if (permission === 'granted') {
-          new Notification(title, {
-            body: message,
-            icon: '/logo.png',
-            badge: '/logo.png',
-            tag: 'unimarket-notification',
-            requireInteraction: false
-          });
-        }
-      }
+    // Send server push notification via OneSignal
+    await sendServerPushNotification(userId, title, message, data);
+    
+    // Also try browser notification as fallback
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification(title, {
+        body: message,
+        icon: '/logo.png',
+        badge: '/logo.png',
+        tag: 'unimarket-notification',
+        requireInteraction: false,
+        vibrate: [200, 100, 200],
+        data: data || {}
+      });
     }
   } catch (error) {
     console.error('Error sending push notification:', error);
   }
 };
 
-const sendEmailNotification = async (
+const sendEmail = async (
   email: string,
   name: string,
   title: string,
@@ -103,27 +96,13 @@ const sendEmailNotification = async (
   options: NotificationOptions
 ) => {
   try {
-    switch (options.emailTemplate) {
-      case 'seller_approval':
-        await emailService.sendSellerApprovalEmail(email, name);
-        break;
-      case 'verification_approval':
-        await emailService.sendVerificationApprovalEmail(email, name);
-        break;
-      case 'ban_approval':
-        if (options.adminResponse) {
-          await emailService.sendBanApprovalEmail(email, name, options.adminResponse);
-        }
-        break;
-      case 'ban_rejection':
-        if (options.rejectionReason) {
-          await emailService.sendBanRejectionEmail(email, name, options.rejectionReason);
-        }
-        break;
-      default:
-        await emailService.sendNotificationEmail(email, name, title, message);
-        break;
-    }
+    await sendEmailNotification({
+      to_email: email,
+      to_name: name,
+      subject: title,
+      message: message,
+      notification_type: options.emailTemplate || 'default'
+    });
   } catch (error) {
     console.error('Error sending email notification:', error);
   }

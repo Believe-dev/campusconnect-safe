@@ -38,6 +38,7 @@ import {
   requestNotificationPermission,
   setupNotificationClickHandler,
 } from "@/utils/oneSignal";
+import { initializePushNotifications } from "@/utils/pushNotifications";
 import { PWAInstallPrompt } from "@/components/common/PWAInstallPrompt";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import { useLiteMode } from "@/hooks/useLiteMode";
@@ -284,9 +285,14 @@ const AppContent = () => {
       // Setup notification click handlers
       setupNotificationClickHandler();
       
-      // Request permission and initialize OneSignal
-      await requestNotificationPermission();
-      await initializeOneSignal();
+      // Initialize push notifications (skip on localhost)
+      if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+        await initializePushNotifications();
+        await requestNotificationPermission();
+        await initializeOneSignal();
+      } else {
+        console.log('Push notifications skipped on localhost');
+      }
     };
     setupNotifications();
   }, []);
