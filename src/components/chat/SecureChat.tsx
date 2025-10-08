@@ -1148,12 +1148,14 @@ const SecureChat = ({
           content.length > 100 ? "..." : ""
         }"\nTime: ${new Date().toLocaleString()}`;
 
+        const { sendNotification } = await import('@/utils/notificationService');
         for (const admin of admins) {
-          await supabase.from("notifications").insert({
-            user_id: admin.user_id,
+          await sendNotification({
+            userId: admin.user_id,
             title: notificationTitle,
             message: notificationMessage,
             type: severity === "high" ? "error" : "warning",
+            url: "/admin"
           });
         }
       }

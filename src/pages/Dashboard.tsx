@@ -77,6 +77,8 @@ const Dashboard = () => {
     analytics: Analytics;
   } | null>(null);
   const [accessDenied, setAccessDenied] = useState(false);
+  const [isRealTimeConnected, setIsRealTimeConnected] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -85,14 +87,14 @@ const Dashboard = () => {
     fetchProducts();
     fetchAnalytics();
 
-    // Set up real-time subscription for analytics
+    // Set up comprehensive real-time subscriptions
     const setupRealTime = async () => {
       const {
         data: { user },
       } = await supabase.auth.getUser();
       if (user) {
         const channel = supabase
-          .channel("analytics-changes")
+          .channel(`dashboard-realtime-${user.id}`)
           .on(
             "postgres_changes",
             {
@@ -100,12 +102,60 @@ const Dashboard = () => {
               schema: "public",
               table: "product_analytics",
             },
-            (payload) => {
-              // Refetch analytics when changes occur
+            () => {
               fetchAnalytics();
+              setLastUpdated(new Date());
             }
           )
-          .subscribe();
+          .on(
+            "postgres_changes",
+            {
+              event: "*",
+              schema: "public",
+              table: "products",
+            },
+            (payload) => {
+              const productData = payload.new as any;
+              if (productData?.seller_id === user.id) {
+                fetchProducts();
+                setLastUpdated(new Date());
+              }
+            }
+          )
+          .on(
+            "postgres_changes",
+            {
+              event: "*",
+              schema: "public",
+              table: "orders",
+            },
+            (payload) => {
+              const orderData = payload.new as any;
+              if (orderData?.seller_id === user.id) {
+                fetchAnalytics(); // Refresh analytics for new orders
+                setLastUpdated(new Date());
+              }
+            }
+          )
+          .on(
+            "postgres_changes",
+            {
+              event: "*",
+              schema: "public",
+              table: "wallets",
+            },
+            (payload) => {
+              const walletData = payload.new as any;
+              if (walletData?.user_id === user.id) {
+                // Wallet updated, could affect dashboard stats
+                fetchAnalytics();
+                setLastUpdated(new Date());
+              }
+            }
+          )
+          .subscribe((status) => {
+            setIsRealTimeConnected(status === 'SUBSCRIBED');
+          });
 
         return () => {
           supabase.removeChannel(channel);
@@ -453,13 +503,35 @@ const Dashboard = () => {
     <div className="min-h-screen bg-background">
       <main className="container mx-auto px-4 py-4 sm:py-8">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-primary">
-              Seller Dashboard
-            </h1>
-            <p className="text-sm sm:text-base text-muted-foreground">
-              Manage your products and view analytics
-            </p>
+          <div className="flex-1">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-2xl sm:text-3xl font-bold text-primary">
+                  Seller Dashboard
+                </h1>
+                <p className="text-sm sm:text-base text-muted-foreground">
+                  Manage your products and view analytics
+                </p>
+              </div>
+              <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground sm:hidden">
+                <div className={`w-2 h-2 rounded-full ${
+                  isRealTimeConnected ? 'bg-green-500' : 'bg-gray-400'
+                }`} />
+                <span>
+                  {isRealTimeConnected ? 'Live' : 'Offline'}
+                </span>
+              </div>
+            </div>
+            <div className="hidden sm:flex items-center gap-2 text-xs text-muted-foreground mt-1">
+              <div className={`w-2 h-2 rounded-full ${
+                isRealTimeConnected ? 'bg-green-500' : 'bg-gray-400'
+              }`} />
+              <span>
+                {isRealTimeConnected ? 'Live updates' : 'Connecting...'}
+              </span>
+              <span>•</span>
+              <span>Updated {lastUpdated.toLocaleTimeString()}</span>
+            </div>
           </div>
           <Button variant="brand" asChild className="w-full sm:w-auto">
             <a href="/sell">

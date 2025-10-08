@@ -75,6 +75,9 @@ const Orders = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("buyer");
   const [profile, setProfile] = useState<any>(null);
+  const [isRealTimeConnected, setIsRealTimeConnected] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+  const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
   const { toast } = useToast();
   useRealTimeOrders();
   const [offlineOrders, setOfflineOrders] = useOfflineStorage<Order[]>({
@@ -144,14 +147,17 @@ const Orders = () => {
     queryFn: fetchOrders,
     enabled: !!user,
     placeholderData: offlineOrders,
+    refetchInterval: 30000, // Refetch every 30 seconds for real-time updates
+    refetchIntervalInBackground: true, // Continue refetching when tab is not active
+    refetchOnWindowFocus: true, // Refetch when window gains focus
   });
 
-  // Real-time order updates
+  // Real-time order updates with automatic background refresh
   useEffect(() => {
     if (!user) return;
 
     const channel = supabase
-      .channel("orders-realtime")
+      .channel(`orders-realtime-${user.id}`)
       .on(
         "postgres_changes",
         {
@@ -169,14 +175,60 @@ const Orders = () => {
             oldOrder?.buyer_id === user.id ||
             oldOrder?.seller_id === user.id
           ) {
+            // Show visual feedback for the updated order
+            const orderId = newOrder?.id || oldOrder?.id;
+            if (orderId) {
+              setUpdatingOrderId(orderId);
+              setTimeout(() => setUpdatingOrderId(null), 2000);
+            }
+            
+            // Silently refetch in background
             refetch();
+            setLastUpdated(new Date());
           }
         }
       )
-      .subscribe();
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "escrow_transactions",
+        },
+        (payload) => {
+          // Refetch when escrow status changes
+          refetch();
+          setLastUpdated(new Date());
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "disputes",
+        },
+        (payload) => {
+          // Refetch when disputes are created/updated
+          refetch();
+          setLastUpdated(new Date());
+        }
+      )
+      .subscribe((status) => {
+        setIsRealTimeConnected(status === 'SUBSCRIBED');
+      });
+
+    // Also listen for window focus to refresh data
+    const handleFocus = () => {
+      refetch();
+      setLastUpdated(new Date());
+    };
+
+    window.addEventListener('focus', handleFocus);
 
     return () => {
       supabase.removeChannel(channel);
+      window.removeEventListener('focus', handleFocus);
     };
   }, [user, refetch]);
 
@@ -196,6 +248,19 @@ const Orders = () => {
     trackingInfo?: string
   ) => {
     try {
+      // Optimistic update - immediately update UI
+      setOfflineOrders(prevOrders => 
+        prevOrders.map(order => 
+          order.id === orderId 
+            ? { 
+                ...order, 
+                status, 
+                ...(trackingInfo && { tracking_info: trackingInfo })
+              }
+            : order
+        )
+      );
+
       const updateData: any = { status };
       if (trackingInfo) updateData.tracking_info = trackingInfo;
 
@@ -204,7 +269,11 @@ const Orders = () => {
         .update(updateData)
         .eq("id", orderId);
 
-      if (error) throw error;
+      if (error) {
+        // Revert optimistic update on error
+        refetch();
+        throw error;
+      }
 
       // Handle escrow release for confirmed orders
       if (status === "confirmed") {
@@ -214,6 +283,19 @@ const Orders = () => {
           const escrowId = order?.escrow_transactions?.[0]?.id;
 
           if (escrowId) {
+            // Ensure seller has a wallet first
+            const { error: walletError } = await supabase
+              .from("wallets")
+              .upsert(
+                { user_id: order.seller_id },
+                { onConflict: "user_id", ignoreDuplicates: true }
+              );
+
+            if (walletError) {
+              console.error("Wallet creation error:", walletError);
+            }
+
+            // Now release escrow funds
             const { error: escrowError } = await supabase.rpc(
               "release_escrow_funds",
               {
@@ -222,10 +304,16 @@ const Orders = () => {
             );
 
             if (escrowError) {
-              // Error handled silently
+              console.error("Escrow release error:", escrowError);
+              toast({
+                title: "Payment Processing",
+                description: "Order confirmed. Payment processing may take a few minutes.",
+                variant: "default",
+              });
             }
           }
         } catch (escrowError) {
+          console.error("Escrow handling error:", escrowError);
           // Continue with order confirmation even if escrow fails
         }
       }
@@ -252,14 +340,15 @@ const Orders = () => {
                 : "Order Delivered - CampusConnect";
 
             // Create notification
-            await supabase.from("notifications").insert({
-              user_id: order.buyer_id,
-              title: statusMessage,
-              message: `Order for ${order.product?.title} has been ${status}. ${
+            const { sendOrderNotification } = await import('@/utils/notificationService');
+            await sendOrderNotification(
+              order.buyer_id,
+              statusMessage,
+              `Order for ${order.product?.title} has been ${status}. ${
                 trackingInfo || ""
               }`,
-              type: "success",
-            });
+              orderId
+            );
 
             // Send email
             try {
@@ -299,9 +388,10 @@ const Orders = () => {
         description: `Order status updated to ${status}`,
       });
 
-      // Immediately refetch to update UI
-      refetch();
+      // Real-time subscription will handle UI updates automatically
     } catch (error) {
+      // Revert optimistic update on error
+      refetch();
       toast({
         title: "Error",
         description: error?.message || "Failed to update order",
@@ -515,6 +605,23 @@ const Orders = () => {
     sellerName: string;
   } | null>(null);
 
+  // Count unattended orders
+  const getUnattendedBuyerCount = () => {
+    return orders.filter(
+      (order) => 
+        order.buyer_id === user?.id && 
+        order.status === "delivered"
+    ).length;
+  };
+
+  const getUnattendedSellerCount = () => {
+    return orders.filter(
+      (order) => 
+        order.seller_id === user?.id && 
+        (order.status === "paid" || order.status === "shipped")
+    ).length;
+  };
+
   const handleChat = async (order: Order, isSeller: boolean) => {
     if (!user) return;
 
@@ -588,7 +695,14 @@ const Orders = () => {
       : null;
 
     return (
-      <Card key={order.id} className="mb-3 sm:mb-4">
+      <Card 
+        key={order.id} 
+        className={`mb-3 sm:mb-4 transition-all duration-500 ${
+          updatingOrderId === order.id 
+            ? 'ring-2 ring-blue-500 ring-opacity-50 bg-blue-50/50' 
+            : ''
+        }`}
+      >
         <CardContent className="p-4 sm:pt-6">
           <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
             <div className="flex-1 min-w-0">
@@ -936,9 +1050,22 @@ const Orders = () => {
     <div className="min-h-screen bg-background">
       <main className="container mx-auto px-4 py-6 sm:py-8 pb-24 md:pb-8">
         <div className="max-w-4xl mx-auto">
-          <h1 className="text-2xl sm:text-3xl font-bold text-primary mb-4 sm:mb-6">
-            My Orders
-          </h1>
+          <div className="flex items-center justify-between mb-4 sm:mb-6">
+            <h1 className="text-2xl sm:text-3xl font-bold text-primary">
+              My Orders
+            </h1>
+            <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground">
+              <div className={`w-2 h-2 rounded-full ${
+                isRealTimeConnected ? 'bg-green-500' : 'bg-gray-400'
+              }`} />
+              <span className="hidden sm:inline">
+                {isRealTimeConnected ? 'Live updates' : 'Connecting...'}
+              </span>
+              <span className="text-xs">
+                Updated {lastUpdated.toLocaleTimeString()}
+              </span>
+            </div>
+          </div>
 
           {profile?.account_type === "buyer" ? (
             // Buyer-only view
@@ -966,8 +1093,28 @@ const Orders = () => {
             // Seller view with tabs
             <Tabs value={activeTab} onValueChange={setActiveTab}>
               <TabsList className="grid w-full grid-cols-2 h-fit">
-                <TabsTrigger value="buyer">As Buyer</TabsTrigger>
-                <TabsTrigger value="seller">As Seller</TabsTrigger>
+                <TabsTrigger value="buyer" className="relative">
+                  As Buyer
+                  {getUnattendedBuyerCount() > 0 && (
+                    <Badge
+                      variant="destructive"
+                      className="absolute -top-2 -right-2 h-5 w-5 p-0 text-xs flex items-center justify-center"
+                    >
+                      {getUnattendedBuyerCount()}
+                    </Badge>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="seller" className="relative">
+                  As Seller
+                  {getUnattendedSellerCount() > 0 && (
+                    <Badge
+                      variant="destructive"
+                      className="absolute -top-2 -right-2 h-5 w-5 p-0 text-xs flex items-center justify-center"
+                    >
+                      {getUnattendedSellerCount()}
+                    </Badge>
+                  )}
+                </TabsTrigger>
               </TabsList>
 
               <TabsContent value="buyer" className="mt-6">

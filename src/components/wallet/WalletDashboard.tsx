@@ -44,6 +44,27 @@ interface WalletData {
   total_commission_paid: number;
 }
 
+interface EscrowData {
+  total_escrow_amount: number;
+  escrow_count: number;
+}
+
+interface EscrowTransaction {
+  id: string;
+  order_id: string;
+  seller_amount: number;
+  created_at: string;
+  orders: {
+    id: string;
+    buyer_profile: {
+      full_name: string;
+    };
+    products: {
+      title: string;
+    };
+  };
+}
+
 interface ProductAnalytics {
   product_id: string;
   product_title: string;
@@ -86,6 +107,8 @@ interface PayoutRequest {
 
 const WalletDashboard = () => {
   const [wallet, setWallet] = useState<WalletData | null>(null);
+  const [escrowData, setEscrowData] = useState<EscrowData>({ total_escrow_amount: 0, escrow_count: 0 });
+  const [escrowTransactions, setEscrowTransactions] = useState<EscrowTransaction[]>([]);
   const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
   const [payoutRequests, setPayoutRequests] = useState<PayoutRequest[]>([]);
   const [productAnalytics, setProductAnalytics] = useState<ProductAnalytics[]>(
@@ -96,6 +119,7 @@ const WalletDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [showPayoutDialog, setShowPayoutDialog] = useState(false);
   const [showBankDetailsDialog, setShowBankDetailsDialog] = useState(false);
+  const [showEscrowModal, setShowEscrowModal] = useState(false);
   const [analyticsFilter, setAnalyticsFilter] = useState("best_selling");
   const [emailVerification, setEmailVerification] = useState("");
   const [passwordVerification, setPasswordVerification] = useState("");
@@ -103,9 +127,6 @@ const WalletDashboard = () => {
 
   const [payoutForm, setPayoutForm] = useState({
     amount: "",
-    bank_account_name: "",
-    bank_account_number: "",
-    bank_name: "",
   });
 
   const [bankDetailsForm, setBankDetailsForm] = useState({
@@ -116,9 +137,108 @@ const WalletDashboard = () => {
 
   useEffect(() => {
     fetchWalletData();
+    fetchEscrowData();
     fetchProductAnalytics();
     fetchUserProfile();
     fetchBankDetails();
+  }, []);
+
+  // Real-time updates for wallet, orders, and transactions
+  useEffect(() => {
+    const setupRealTime = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const channel = supabase
+        .channel(`wallet-realtime-${user.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'wallets',
+          },
+          (payload) => {
+            const walletData = payload.new as any;
+            if (walletData?.user_id === user.id) {
+              fetchWalletData();
+            }
+          }
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'wallet_transactions',
+          },
+          (payload) => {
+            const transactionData = payload.new as any;
+            if (transactionData?.user_id === user.id) {
+              fetchWalletData();
+            }
+          }
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'escrow_transactions',
+          },
+          (payload) => {
+            const escrowData = payload.new as any;
+            if (escrowData?.seller_id === user.id) {
+              fetchEscrowData();
+              fetchWalletData(); // Refresh wallet when escrow changes
+            }
+          }
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'orders',
+          },
+          (payload) => {
+            const orderData = payload.new as any;
+            if (orderData?.seller_id === user.id) {
+              fetchEscrowData(); // New orders affect escrow
+              fetchProductAnalytics(); // Orders affect analytics
+            }
+          }
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'payout_requests',
+          },
+          (payload) => {
+            const payoutData = payload.new as any;
+            if (payoutData?.user_id === user.id) {
+              fetchWalletData(); // Refresh to show updated payout requests
+            }
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    };
+
+    const cleanup = setupRealTime();
+
+    return () => {
+      if (cleanup) {
+        cleanup.then((fn) => fn && fn());
+      }
+    };
   }, []);
 
   const fetchWalletData = async () => {
@@ -171,6 +291,48 @@ const WalletDashboard = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchEscrowData = async () => {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Fetch detailed escrow transactions for this seller
+      const { data: escrowTransactionsData, error } = await supabase
+        .from("escrow_transactions")
+        .select(`
+          id,
+          order_id,
+          seller_amount,
+          created_at,
+          orders(
+            id,
+            buyer_profile:profiles!orders_buyer_id_fkey(full_name),
+            products(title)
+          )
+        `)
+        .eq("seller_id", user.id)
+        .eq("status", "held")
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      const totalEscrowAmount = (escrowTransactionsData || []).reduce(
+        (sum, transaction) => sum + (transaction.seller_amount || 0),
+        0
+      );
+
+      setEscrowTransactions(escrowTransactionsData || []);
+      setEscrowData({
+        total_escrow_amount: totalEscrowAmount,
+        escrow_count: escrowTransactionsData?.length || 0,
+      });
+    } catch (error) {
+      console.error("Error fetching escrow data:", error);
     }
   };
 
@@ -280,27 +442,21 @@ const WalletDashboard = () => {
         return;
       }
 
-      // Use saved bank details if available, otherwise use payout form
-      const bankDetailsToUse = {
-        bank_account_name:
-          bankDetails?.bank_account_name || payoutForm.bank_account_name,
-        bank_account_number:
-          bankDetails?.bank_account_number || payoutForm.bank_account_number,
-        bank_name: bankDetails?.bank_name || payoutForm.bank_name,
-      };
-
-      if (
-        !bankDetailsToUse.bank_account_name ||
-        !bankDetailsToUse.bank_account_number ||
-        !bankDetailsToUse.bank_name
-      ) {
+      // Require saved bank details
+      if (!bankDetails) {
         toast({
           title: "Missing Bank Details",
-          description: "Please add your bank details first",
+          description: "Please add your bank details first using the Bank Details button",
           variant: "destructive",
         });
         return;
       }
+
+      const bankDetailsToUse = {
+        bank_account_name: bankDetails.bank_account_name,
+        bank_account_number: bankDetails.bank_account_number,
+        bank_name: bankDetails.bank_name,
+      };
 
       // Create payout request
       const { data: payoutData, error: insertError } = await supabase.from("payout_requests").insert({
@@ -320,11 +476,9 @@ const WalletDashboard = () => {
       setShowPayoutDialog(false);
       setPayoutForm({
         amount: "",
-        bank_account_name: "",
-        bank_account_number: "",
-        bank_name: "",
       });
       fetchWalletData();
+      fetchEscrowData();
     } catch (error) {
       console.error("Error requesting payout:", error);
       toast({
@@ -668,16 +822,37 @@ const WalletDashboard = () => {
               </div>
             </DialogContent>
           </Dialog>
-          <Dialog open={showPayoutDialog} onOpenChange={setShowPayoutDialog}>
-            <DialogTrigger asChild>
-              <Button
-                disabled={!wallet || wallet.available_balance < 100}
-                className="w-full sm:w-auto"
-              >
-                <CreditCard className="h-4 w-4 mr-2" />
-                Request Payout
-              </Button>
-            </DialogTrigger>
+          {(!wallet || wallet.available_balance < 100 || !bankDetails) ? (
+            <Button
+              disabled
+              className="w-full sm:w-auto"
+              onClick={() => {
+                if (!bankDetails) {
+                  toast({
+                    title: "Bank Details Required",
+                    description: "Please add your bank details first using the 'Bank Details' button above.",
+                    variant: "destructive",
+                  });
+                } else if (!wallet || wallet.available_balance < 100) {
+                  toast({
+                    title: "Insufficient Balance",
+                    description: "Minimum payout amount is ₦100",
+                    variant: "destructive",
+                  });
+                }
+              }}
+            >
+              <CreditCard className="h-4 w-4 mr-2" />
+              Request Payout
+            </Button>
+          ) : (
+            <Dialog open={showPayoutDialog} onOpenChange={setShowPayoutDialog}>
+              <DialogTrigger asChild>
+                <Button className="w-full sm:w-auto">
+                  <CreditCard className="h-4 w-4 mr-2" />
+                  Request Payout
+                </Button>
+              </DialogTrigger>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Request Payout</DialogTitle>
@@ -714,101 +889,23 @@ const WalletDashboard = () => {
                     </p>
                   </div>
                 ) : (
-                  <>
-                    <div>
-                      <Label htmlFor="bank_account_name">Account Name</Label>
-                      <Input
-                        id="bank_account_name"
-                        placeholder="Full name on account"
-                        value={payoutForm.bank_account_name}
-                        onChange={(e) =>
-                          setPayoutForm({
-                            ...payoutForm,
-                            bank_account_name: e.target.value,
-                          })
-                        }
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="bank_account_number">
-                        Account Number
-                      </Label>
-                      <Input
-                        id="bank_account_number"
-                        placeholder="Bank account number"
-                        value={payoutForm.bank_account_number}
-                        onChange={(e) =>
-                          setPayoutForm({
-                            ...payoutForm,
-                            bank_account_number: e.target.value,
-                          })
-                        }
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="bank_name">Bank Name</Label>
-                      <Select
-                        value={payoutForm.bank_name}
-                        onValueChange={(value) =>
-                          setPayoutForm({
-                            ...payoutForm,
-                            bank_name: value,
-                          })
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select your bank" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Access Bank">Access Bank</SelectItem>
-                          <SelectItem value="Citibank Nigeria">Citibank Nigeria</SelectItem>
-                          <SelectItem value="Diamond Bank">Diamond Bank</SelectItem>
-                          <SelectItem value="Ecobank Nigeria">Ecobank Nigeria</SelectItem>
-                          <SelectItem value="Fidelity Bank">Fidelity Bank</SelectItem>
-                          <SelectItem value="First Bank of Nigeria">First Bank of Nigeria</SelectItem>
-                          <SelectItem value="First City Monument Bank">First City Monument Bank</SelectItem>
-                          <SelectItem value="Guaranty Trust Bank">Guaranty Trust Bank</SelectItem>
-                          <SelectItem value="Heritage Bank">Heritage Bank</SelectItem>
-                          <SelectItem value="Keystone Bank">Keystone Bank</SelectItem>
-                          <SelectItem value="Polaris Bank">Polaris Bank</SelectItem>
-                          <SelectItem value="Providus Bank">Providus Bank</SelectItem>
-                          <SelectItem value="Stanbic IBTC Bank">Stanbic IBTC Bank</SelectItem>
-                          <SelectItem value="Standard Chartered Bank">Standard Chartered Bank</SelectItem>
-                          <SelectItem value="Sterling Bank">Sterling Bank</SelectItem>
-                          <SelectItem value="Union Bank of Nigeria">Union Bank of Nigeria</SelectItem>
-                          <SelectItem value="United Bank For Africa">United Bank For Africa</SelectItem>
-                          <SelectItem value="Unity Bank">Unity Bank</SelectItem>
-                          <SelectItem value="Wema Bank">Wema Bank</SelectItem>
-                          <SelectItem value="Zenith Bank">Zenith Bank</SelectItem>
-                          <SelectItem value="Kuda Bank">Kuda Bank</SelectItem>
-                          <SelectItem value="Opay">Opay</SelectItem>
-                          <SelectItem value="PalmPay">PalmPay</SelectItem>
-                          <SelectItem value="Moniepoint">Moniepoint</SelectItem>
-                          <SelectItem value="Carbon">Carbon</SelectItem>
-                          <SelectItem value="Rubies Bank">Rubies Bank</SelectItem>
-                          <SelectItem value="VFD Microfinance Bank">VFD Microfinance Bank</SelectItem>
-                          <SelectItem value="Jaiz Bank">Jaiz Bank</SelectItem>
-                          <SelectItem value="TAJ Bank">TAJ Bank</SelectItem>
-                          <SelectItem value="Lotus Bank">Lotus Bank</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </>
-                )}
-                {!bankDetails && (
                   <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                     <p className="text-sm text-yellow-800">
-                      Please add your bank details first using the "Bank
-                      Details" button above.
+                      Please add your bank details first using the "Bank Details" button above.
                     </p>
                   </div>
                 )}
-                <Button onClick={handlePayoutRequest} className="w-full">
-                  Request Payout
+                <Button 
+                  onClick={handlePayoutRequest} 
+                  className="w-full"
+                  disabled={!bankDetails}
+                >
+                  {bankDetails ? 'Request Payout' : 'Add Bank Details First'}
                 </Button>
               </div>
             </DialogContent>
-          </Dialog>
+            </Dialog>
+          )}
         </div>
       </div>
 
@@ -846,7 +943,10 @@ const WalletDashboard = () => {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card 
+          className="cursor-pointer hover:bg-muted/50 transition-colors"
+          onClick={() => setShowEscrowModal(true)}
+        >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-3 sm:p-6">
             <CardTitle className="text-xs sm:text-sm font-medium">
               Pending Balance
@@ -855,9 +955,14 @@ const WalletDashboard = () => {
           </CardHeader>
           <CardContent className="p-3 sm:p-6 pt-0">
             <div className="text-lg sm:text-2xl font-bold">
-              ₦{wallet?.pending_balance.toLocaleString() || 0}
+              ₦{escrowData.total_escrow_amount.toLocaleString()}
             </div>
-            <p className="text-xs text-muted-foreground">In escrow</p>
+            <p className="text-xs text-muted-foreground">
+              {escrowData.escrow_count} orders in escrow
+            </p>
+            <p className="text-xs text-blue-600 mt-1">
+              Click to view details
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -991,6 +1096,72 @@ const WalletDashboard = () => {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Escrow Details Modal */}
+      <Dialog open={showEscrowModal} onOpenChange={setShowEscrowModal}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Escrow Details</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="p-4 bg-muted/50 rounded-lg">
+              <div className="flex justify-between items-center">
+                <span className="font-medium">Total Amount in Escrow:</span>
+                <span className="text-lg font-bold">
+                  ₦{escrowData.total_escrow_amount.toLocaleString()}
+                </span>
+              </div>
+              <p className="text-sm text-muted-foreground mt-1">
+                {escrowData.escrow_count} orders pending buyer confirmation
+              </p>
+            </div>
+            
+            {escrowTransactions.length === 0 ? (
+              <div className="text-center py-8">
+                <Clock className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                <p className="text-lg font-medium">No funds in escrow</p>
+                <p className="text-muted-foreground">All your orders have been confirmed</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <h3 className="font-medium">Orders in Escrow:</h3>
+                {escrowTransactions.map((transaction) => (
+                  <div key={transaction.id} className="p-3 border rounded-lg">
+                    <div className="flex justify-between items-start mb-2">
+                      <div className="flex-1">
+                        <p className="font-medium">
+                          {transaction.orders?.products?.title || "Unknown Product"}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          Buyer: {transaction.orders?.buyer_profile?.full_name || "Unknown"}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Order #{transaction.order_id.slice(-8)}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-green-600">
+                          ₦{transaction.seller_amount.toLocaleString()}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(transaction.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm text-blue-800">
+                💡 <strong>Note:</strong> Funds are automatically released when buyers confirm receipt, 
+                or after 2 days if no action is taken.
+              </p>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

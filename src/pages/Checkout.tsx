@@ -326,13 +326,13 @@ const Checkout = () => {
 
           if (sellerProfile) {
             // Create in-app notification for seller
-            const { data: sellerNotification, error: sellerNotifError } =
-              await supabase.from("notifications").insert({
-                user_id: sellerId,
-                title: "New Order Received! 🎉",
-                message: `You have a new order for ${productTitles}. Total: ₦${orderTotal.toLocaleString()}`,
-                type: "success",
-              });
+            const { sendOrderNotification } = await import('@/utils/notificationService');
+            await sendOrderNotification(
+              sellerId,
+              "New Order Received! 🎉",
+              `You have a new order for ${productTitles}. Total: ₦${orderTotal.toLocaleString()}`,
+              order.id
+            );
 
             if (sellerNotifError) {
               // Error handled silently
@@ -368,13 +368,13 @@ const Checkout = () => {
           }
 
           // Create in-app notification for buyer
-          const { data: buyerNotification, error: buyerNotifError } =
-            await supabase.from("notifications").insert({
-              user_id: user!.id,
-              title: "Order Placed Successfully! ✅",
-              message: `Your order for ${productTitles} has been placed. Total: ₦${orderTotal.toLocaleString()}`,
-              type: "success",
-            });
+          const { sendOrderNotification } = await import('@/utils/notificationService');
+          await sendOrderNotification(
+            user!.id,
+            "Order Placed Successfully! ✅",
+            `Your order for ${productTitles} has been placed. Total: ₦${orderTotal.toLocaleString()}`,
+            order.id
+          );
 
           if (buyerNotifError) {
             // Error handled silently

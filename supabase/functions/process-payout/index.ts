@@ -33,7 +33,8 @@ serve(async (req) => {
     }
 
     console.log('Processing payout request:', payoutId)
-    console.log('Paystack key configured:', paystackKey ? 'Yes' : 'No')
+    console.log('Paystack key configured:', paystackKey ? `Yes (${paystackKey.substring(0, 10)}...)` : 'No')
+    console.log('Environment check - PAYSTACK_SECRET_KEY exists:', !!paystackKey)
 
     const supabaseClient = createClient(supabaseUrl, supabaseKey)
 
@@ -79,8 +80,15 @@ serve(async (req) => {
     let transferCode: string
     let isRealTransfer = false
     
-    if (paystackKey && paystackKey !== 'your_paystack_secret_key_here' && paystackKey !== 'sk_live_your_live_secret_key') {
-      console.log('Attempting real Paystack transfer...')
+    // Check if we have a valid Paystack key (not placeholder values)
+    const isValidPaystackKey = paystackKey && 
+      paystackKey !== 'your_paystack_secret_key_here' && 
+      paystackKey !== 'sk_live_your_live_secret_key' &&
+      paystackKey !== 'sk_test_your_test_secret_key' &&
+      paystackKey.startsWith('sk_')
+    
+    if (isValidPaystackKey) {
+      console.log('Attempting real Paystack transfer with key:', paystackKey.substring(0, 10) + '...')
       
       try {
         // Create transfer recipient
@@ -203,17 +211,39 @@ serve(async (req) => {
     }
 
     // Create notification for user
+    const notificationTitle = 'Payout Processed! 💰'
+    const notificationMessage = `Your payout request of ₦${payout.amount.toLocaleString()} has been approved and processed. ${isRealTransfer ? 'The funds have been transferred to your bank account' : 'This was processed in development mode'} (${payout.bank_name}).`
+    
     const { error: notificationError } = await supabaseClient
       .from('notifications')
       .insert({
         user_id: payout.user_id,
-        title: 'Payout Processed! 💰',
-        message: `Your payout request of ₦${payout.amount.toLocaleString()} has been approved and processed. ${isRealTransfer ? 'The funds have been transferred to your bank account' : 'This was processed in development mode'} (${payout.bank_name}).`,
+        title: notificationTitle,
+        message: notificationMessage,
         type: 'success'
       })
 
     if (notificationError) {
       console.error('Notification error:', notificationError)
+      // Don't throw here as the main operation succeeded
+    }
+
+    // Send push notification
+    try {
+      await supabaseClient.functions.invoke('send-push-notification', {
+        body: {
+          user_id: payout.user_id,
+          title: notificationTitle,
+          message: notificationMessage,
+          data: {
+            type: 'payout',
+            url: '/wallet',
+            transfer_code: transferCode
+          }
+        }
+      })
+    } catch (pushError) {
+      console.error('Push notification error:', pushError)
       // Don't throw here as the main operation succeeded
     }
 

@@ -69,6 +69,8 @@ const Cart = () => {
   const { user } = useAuth();
   const [recommendedProducts, setRecommendedProducts] = useState<CartProduct[]>([]);
   const [loadingRecommended, setLoadingRecommended] = useState(false);
+  const [isRealTimeConnected, setIsRealTimeConnected] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const navigate = useNavigate();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -107,11 +109,14 @@ const Cart = () => {
     return allItems;
   };
 
-  const { data: cartItems = offlineCartItems, isLoading, error } = useOptimizedQuery({
+  const { data: cartItems = offlineCartItems, isLoading, error, refetch } = useOptimizedQuery({
     queryKey: ['cart', user?.id],
     queryFn: fetchCartItems,
     enabled: !!user,
-    placeholderData: offlineCartItems
+    placeholderData: offlineCartItems,
+    refetchInterval: 30000, // Refetch every 30 seconds
+    refetchIntervalInBackground: true,
+    refetchOnWindowFocus: true,
   });
 
   useEffect(() => {
@@ -119,6 +124,68 @@ const Cart = () => {
       fetchRecommendedProducts(cartItems);
     }
   }, [cartItems]);
+
+  // Real-time updates for cart and orders
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel(`cart-realtime-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'cart',
+        },
+        (payload) => {
+          const cartData = payload.new as any;
+          if (cartData?.user_id === user.id) {
+            refetch();
+            setLastUpdated(new Date());
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'orders',
+        },
+        (payload) => {
+          const orderData = payload.new as any;
+          if (orderData?.buyer_id === user.id) {
+            // Order created, refresh cart to show updated stock
+            refetch();
+            setLastUpdated(new Date());
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'products',
+        },
+        () => {
+          // Product updated, refresh cart and recommendations
+          refetch();
+          setLastUpdated(new Date());
+          if (cartItems.length > 0) {
+            fetchRecommendedProducts(cartItems);
+          }
+        }
+      )
+      .subscribe((status) => {
+        setIsRealTimeConnected(status === 'SUBSCRIBED');
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user, refetch, cartItems]);
 
   useEffect(() => {
     if (error) {
@@ -386,13 +453,26 @@ const Cart = () => {
       <main className="container mx-auto px-4 py-6 sm:py-8 pb-24 md:pb-8">
         <div className="max-w-4xl mx-auto">
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mb-6 sm:mb-8">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-1">
               <ShoppingCart className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
               <h1 className="text-2xl sm:text-3xl font-bold text-primary">Shopping Cart</h1>
             </div>
-            <Badge variant="secondary" className="w-fit">
-              {getTotalItems()} {getTotalItems() === 1 ? 'item' : 'items'}
-            </Badge>
+            <div className="flex items-center gap-2 sm:gap-4">
+              <Badge variant="secondary" className="w-fit">
+                {getTotalItems()} {getTotalItems() === 1 ? 'item' : 'items'}
+              </Badge>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <div className={`w-2 h-2 rounded-full ${
+                  isRealTimeConnected ? 'bg-green-500' : 'bg-gray-400'
+                }`} />
+                <span className="hidden sm:inline">
+                  {isRealTimeConnected ? 'Live' : 'Offline'}
+                </span>
+                <span className="text-xs">
+                  {lastUpdated.toLocaleTimeString()}
+                </span>
+              </div>
+            </div>
           </div>
 
           {cartItems.length === 0 ? (

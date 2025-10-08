@@ -99,6 +99,75 @@ const Profile = () => {
     fetchProfile();
   }, []);
 
+  // Real-time updates for profile, wallet, and orders
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel(`profile-realtime-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'profiles',
+        },
+        (payload) => {
+          const profileData = payload.new as any;
+          if (profileData?.user_id === user.id) {
+            fetchProfile();
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'wallets',
+        },
+        (payload) => {
+          const walletData = payload.new as any;
+          if (walletData?.user_id === user.id) {
+            fetchProfile(); // Refresh to get updated wallet data
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'orders',
+        },
+        (payload) => {
+          const orderData = payload.new as any;
+          if (orderData?.seller_id === user.id || orderData?.buyer_id === user.id) {
+            fetchProfile(); // Refresh to get updated stats
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'reviews',
+        },
+        (payload) => {
+          const reviewData = payload.new as any;
+          if (reviewData?.reviewed_id === user.id) {
+            fetchProfile(); // Refresh to get updated rating
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
+
   const fetchProfile = async () => {
     try {
       const {

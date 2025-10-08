@@ -591,15 +591,15 @@ export default function Admin() {
       }
 
       // Create in-app notification
-      const { error: notifError } = await supabase
-        .from("notifications")
-        .insert({
-          user_id: userId,
-          title: "Seller Account Approved! 🎉",
-          message:
-            "Congratulations! Your seller verification has been approved. You can now start listing items on UniMarket.",
-          type: "success",
-        });
+      const { sendNotification } = await import('@/utils/notificationService');
+      await sendNotification({
+        userId: userId,
+        title: "Seller Account Approved! 🎉",
+        message:
+          "Congratulations! Your seller verification has been approved. You can now start listing items on UniMarket.",
+        type: "success",
+        url: "/dashboard"
+      });
 
       if (notifError) {
         // Notification creation failed silently
@@ -612,12 +612,14 @@ export default function Admin() {
         .eq("role", "admin");
 
       if (admins) {
+        const { sendNotification } = await import('@/utils/notificationService');
         for (const admin of admins) {
-          await supabase.from("notifications").insert({
-            user_id: admin.user_id,
+          await sendNotification({
+            userId: admin.user_id,
             title: "Seller Approved",
             message: `${fullName} has been approved as a seller`,
             type: "info",
+            url: "/admin"
           });
         }
       }
@@ -676,15 +678,15 @@ export default function Admin() {
         .eq("role", "seller");
 
       // Create in-app notification
-      const { error: notifError } = await supabase
-        .from("notifications")
-        .insert({
-          user_id: userId,
-          title: "Seller Application Update",
-          message:
-            "Your seller application was not approved at this time. Your account has been converted to buyer-only. You can still browse and purchase items.",
-          type: "warning",
-        });
+      const { sendNotification } = await import('@/utils/notificationService');
+      await sendNotification({
+        userId: userId,
+        title: "Seller Application Update",
+        message:
+          "Your seller application was not approved at this time. Your account has been converted to buyer-only. You can still browse and purchase items.",
+        type: "warning",
+        url: "/profile"
+      });
 
       if (notifError) {
         // Notification creation failed silently
@@ -697,12 +699,14 @@ export default function Admin() {
         .eq("role", "admin");
 
       if (admins) {
+        const { sendNotification } = await import('@/utils/notificationService');
         for (const admin of admins) {
-          await supabase.from("notifications").insert({
-            user_id: admin.user_id,
+          await sendNotification({
+            userId: admin.user_id,
             title: "Seller Rejected",
             message: `${fullName}'s seller application has been rejected`,
             type: "warning",
+            url: "/admin"
           });
         }
       }
@@ -1267,12 +1271,14 @@ export default function Admin() {
 
       // Send notification if user is being unbanned
       if (isBanned) {
-        await supabase.from("notifications").insert({
-          user_id: userId,
+        const { sendNotification } = await import('@/utils/notificationService');
+        await sendNotification({
+          userId: userId,
           title: "Account Restored! 🎉",
           message:
             "Your account has been restored by an administrator. Welcome back to UniMarket!",
           type: "success",
+          url: "/"
         });
       }
 
@@ -1407,12 +1413,14 @@ export default function Admin() {
         .update({ is_verified: true })
         .eq("user_id", userId);
 
-      await supabase.from("notifications").insert({
-        user_id: userId,
+      const { sendNotification } = await import('@/utils/notificationService');
+      await sendNotification({
+        userId: userId,
         title: "Account Verified! ✅",
         message:
           "Congratulations! Your account has been verified. You now have a verified badge on your profile.",
         type: "success",
+        url: "/profile"
       });
 
       toast.success("User verification approved");
@@ -1439,11 +1447,13 @@ export default function Admin() {
         })
         .eq("id", requestId);
 
-      await supabase.from("notifications").insert({
-        user_id: userId,
+      const { sendNotification } = await import('@/utils/notificationService');
+      await sendNotification({
+        userId: userId,
         title: "Verification Request Rejected",
         message: `Your verification request was rejected. Reason: ${rejectionReason}. You can submit a new request.`,
         type: "warning",
+        url: "/profile"
       });
 
       toast.success("Verification request rejected");
@@ -1470,12 +1480,14 @@ export default function Admin() {
 
       // Send notification if user is being verified
       if (!isVerified) {
-        await supabase.from("notifications").insert({
-          user_id: userId,
+        const { sendNotification } = await import('@/utils/notificationService');
+        await sendNotification({
+          userId: userId,
           title: "Account Verified! ✅",
           message:
             "Congratulations! Your account has been verified. You now have a verified badge on your profile.",
           type: "success",
+          url: "/profile"
         });
 
         // Send email notification
@@ -2019,21 +2031,21 @@ export default function Admin() {
         </div>
 
         {/* Tabs for different management areas */}
-        <Tabs defaultValue="users" className="space-y-6 ">
-          <div className="overflow-x-auto w-fit h-[150px]">
-            <TabsList className="grid w-full min-w-max grid-cols-12 md:grid-cols-12 h-fit py-[15px]">
-              <TabsTrigger value="users" className="text-xs md:text-sm">
+        <Tabs defaultValue="users" className="space-y-6">
+          <div className="overflow-x-auto">
+            <TabsList className="flex w-max min-w-full h-fit py-2 px-1">
+              <TabsTrigger value="users" className="text-xs md:text-sm whitespace-nowrap px-3 py-2">
                 Users
               </TabsTrigger>
               <TabsTrigger
                 value="sellers"
-                className="text-xs md:text-sm relative"
+                className="text-xs md:text-sm relative whitespace-nowrap px-3 py-2"
               >
                 Sellers
                 {pendingSellers.length > 0 && (
                   <Badge
                     variant="destructive"
-                    className="absolute -top-2 -right-2 h-5 w-5 p-0 text-xs flex items-center justify-center"
+                    className="absolute -top-1 -right-1 h-4 w-4 p-0 text-xs flex items-center justify-center"
                   >
                     {pendingSellers.length}
                   </Badge>
@@ -2041,13 +2053,13 @@ export default function Admin() {
               </TabsTrigger>
               <TabsTrigger
                 value="verification"
-                className="text-xs md:text-sm relative"
+                className="text-xs md:text-sm relative whitespace-nowrap px-3 py-2"
               >
                 Verify
                 {verificationRequests.length > 0 && (
                   <Badge
                     variant="destructive"
-                    className="absolute -top-2 -right-2 h-5 w-5 p-0 text-xs flex items-center justify-center"
+                    className="absolute -top-1 -right-1 h-4 w-4 p-0 text-xs flex items-center justify-center"
                   >
                     {verificationRequests.length}
                   </Badge>
@@ -2055,14 +2067,14 @@ export default function Admin() {
               </TabsTrigger>
               <TabsTrigger
                 value="appeals"
-                className="text-xs md:text-sm relative"
+                className="text-xs md:text-sm relative whitespace-nowrap px-3 py-2"
               >
                 Appeals
                 {banAppeals.filter((a) => a.status === "pending").length >
                   0 && (
                   <Badge
                     variant="destructive"
-                    className="absolute -top-2 -right-2 h-5 w-5 p-0 text-xs flex items-center justify-center"
+                    className="absolute -top-1 -right-1 h-4 w-4 p-0 text-xs flex items-center justify-center"
                   >
                     {banAppeals.filter((a) => a.status === "pending").length}
                   </Badge>
@@ -2070,14 +2082,14 @@ export default function Admin() {
               </TabsTrigger>
               <TabsTrigger
                 value="reports"
-                className="text-xs md:text-sm relative"
+                className="text-xs md:text-sm relative whitespace-nowrap px-3 py-2"
               >
                 Reports
                 {productReports.filter((r) => r.status === "pending").length >
                   0 && (
                   <Badge
                     variant="destructive"
-                    className="absolute -top-2 -right-2 h-5 w-5 p-0 text-xs flex items-center justify-center"
+                    className="absolute -top-1 -right-1 h-4 w-4 p-0 text-xs flex items-center justify-center"
                   >
                     {
                       productReports.filter((r) => r.status === "pending")
@@ -2088,7 +2100,7 @@ export default function Admin() {
               </TabsTrigger>
               <TabsTrigger
                 value="escrow"
-                className="text-xs md:text-sm relative"
+                className="text-xs md:text-sm relative whitespace-nowrap px-3 py-2"
               >
                 Escrow
                 {escrowTransactions.filter((e) => e.status === "held").length +
@@ -2097,7 +2109,7 @@ export default function Admin() {
                   0 && (
                   <Badge
                     variant="destructive"
-                    className="absolute -top-2 -right-2 h-5 w-5 p-0 text-xs flex items-center justify-center"
+                    className="absolute -top-1 -right-1 h-4 w-4 p-0 text-xs flex items-center justify-center"
                   >
                     {escrowTransactions.filter((e) => e.status === "held")
                       .length +
@@ -2107,28 +2119,28 @@ export default function Admin() {
                   </Badge>
                 )}
               </TabsTrigger>
-              <TabsTrigger value="products" className="text-xs md:text-sm">
+              <TabsTrigger value="products" className="text-xs md:text-sm whitespace-nowrap px-3 py-2">
                 Products
               </TabsTrigger>
-              <TabsTrigger value="messages" className="text-xs md:text-sm">
+              <TabsTrigger value="messages" className="text-xs md:text-sm whitespace-nowrap px-3 py-2">
                 Messages
               </TabsTrigger>
-              <TabsTrigger value="emails" className="text-xs md:text-sm">
+              <TabsTrigger value="emails" className="text-xs md:text-sm whitespace-nowrap px-3 py-2">
                 Emails
               </TabsTrigger>
-              <TabsTrigger value="templates" className="text-xs md:text-sm">
+              <TabsTrigger value="templates" className="text-xs md:text-sm whitespace-nowrap px-3 py-2">
                 Templates
               </TabsTrigger>
-              <TabsTrigger value="analytics" className="text-xs md:text-sm">
+              <TabsTrigger value="analytics" className="text-xs md:text-sm whitespace-nowrap px-3 py-2">
                 Analytics
               </TabsTrigger>
-              <TabsTrigger value="suggestions" className="text-xs md:text-sm">
+              <TabsTrigger value="suggestions" className="text-xs md:text-sm whitespace-nowrap px-3 py-2">
                 Suggestions
               </TabsTrigger>
-              <TabsTrigger value="wallet" className="text-xs md:text-sm">
+              <TabsTrigger value="wallet" className="text-xs md:text-sm whitespace-nowrap px-3 py-2">
                 Admin Wallet
               </TabsTrigger>
-              <TabsTrigger value="settings" className="text-xs md:text-sm">
+              <TabsTrigger value="settings" className="text-xs md:text-sm whitespace-nowrap px-3 py-2">
                 Settings
               </TabsTrigger>
             </TabsList>
@@ -2590,11 +2602,13 @@ export default function Admin() {
                                               toast.success('Password updated successfully via Edge Function');
                                               
                                               // Send notification to user
-                                              await supabase.from('notifications').insert({
-                                                user_id: user.user_id,
+                                              const { sendNotification } = await import('@/utils/notificationService');
+                                              await sendNotification({
+                                                userId: user.user_id,
                                                 title: 'Password Changed',
                                                 message: 'Your password has been reset by an administrator. Please log in with your new password.',
-                                                type: 'info'
+                                                type: 'info',
+                                                url: '/auth'
                                               });
                                             } catch (error: any) {
                                               console.error('Password reset error:', error);
@@ -2706,11 +2720,13 @@ export default function Admin() {
                                               fetchUsers();
                                               
                                               // Send notification to user
-                                              await supabase.from('notifications').insert({
-                                                user_id: user.user_id,
+                                              const { sendNotification } = await import('@/utils/notificationService');
+                                              await sendNotification({
+                                                userId: user.user_id,
                                                 title: 'Profile Updated',
                                                 message: 'Your profile picture has been updated by an administrator.',
-                                                type: 'info'
+                                                type: 'info',
+                                                url: '/profile'
                                               });
                                             } catch (error) {
                                               toast.error('Failed to update profile picture');
@@ -3984,16 +4000,16 @@ export default function Admin() {
                                                 .eq("user_id", user.user_id);
 
                                               // Send notification to unbanned user
-                                              await supabase
-                                                .from("notifications")
-                                                .insert({
-                                                  user_id: user.user_id,
-                                                  title: "Account Restored! 🎉",
-                                                  message:
-                                                    response ||
-                                                    "Your ban appeal has been approved and your account has been restored. Welcome back to UniMarket!",
-                                                  type: "success",
-                                                });
+                                              const { sendNotification } = await import('@/utils/notificationService');
+                                              await sendNotification({
+                                                userId: user.user_id,
+                                                title: "Account Restored! 🎉",
+                                                message:
+                                                  response ||
+                                                  "Your ban appeal has been approved and your account has been restored. Welcome back to UniMarket!",
+                                                type: "success",
+                                                url: "/"
+                                              });
 
                                               // Send secure email notification
                                               try {

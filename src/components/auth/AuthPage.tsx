@@ -169,11 +169,13 @@ const AuthPage = () => {
         }).eq("user_id", data.user.id);
 
         // Create notification for sellers to upload documents
-        await supabase.from("notifications").insert({
-          user_id: data.user.id,
+        const { sendNotification } = await import('@/utils/notificationService');
+        await sendNotification({
+          userId: data.user.id,
           title: "Complete Your Seller Profile",
           message: "Upload your profile picture and student ID card to get approved as a seller.",
-          type: "seller_setup",
+          type: "info",
+          url: "/profile"
         });
       } catch (paymentError) {
         console.error("Error recording payment:", paymentError);
