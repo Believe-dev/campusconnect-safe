@@ -28,6 +28,7 @@ import {
   Timer,
   MessageCircle,
   Phone,
+  RefreshCw,
 } from "lucide-react";
 import { findOrCreateConversation } from "@/utils/conversationUtils";
 import { useNavigate } from "react-router-dom";
@@ -1056,16 +1057,31 @@ const Orders = () => {
             <h1 className="text-2xl sm:text-3xl font-bold text-primary">
               My Orders
             </h1>
-            <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground">
-              <div className={`w-2 h-2 rounded-full ${
-                isRealTimeConnected ? 'bg-green-500' : 'bg-gray-400'
-              }`} />
-              <span className="hidden sm:inline">
-                {isRealTimeConnected ? 'Live updates' : 'Connecting...'}
-              </span>
-              <span className="text-xs">
-                Updated {lastUpdated.toLocaleTimeString()}
-              </span>
+            <div className="flex items-center gap-3">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  refetch();
+                  setLastUpdated(new Date());
+                }}
+                disabled={isLoading}
+                className="flex items-center gap-2"
+              >
+                <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+                <span className="hidden sm:inline">Reload</span>
+              </Button>
+              <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground">
+                <div className={`w-2 h-2 rounded-full ${
+                  isRealTimeConnected ? 'bg-green-500' : 'bg-gray-400'
+                }`} />
+                <span className="hidden sm:inline">
+                  {isRealTimeConnected ? 'Live updates' : 'Connecting...'}
+                </span>
+                <span className="text-xs">
+                  Updated {lastUpdated.toLocaleTimeString()}
+                </span>
+              </div>
             </div>
           </div>
 
