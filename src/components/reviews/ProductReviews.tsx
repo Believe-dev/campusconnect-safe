@@ -22,9 +22,10 @@ interface Review {
 
 interface ProductReviewsProps {
   productId: string;
+  sellerId?: string;
 }
 
-export const ProductReviews = ({ productId }: ProductReviewsProps) => {
+export const ProductReviews = ({ productId, sellerId }: ProductReviewsProps) => {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
   const [averageRating, setAverageRating] = useState(0);
@@ -48,16 +49,21 @@ export const ProductReviews = ({ productId }: ProductReviewsProps) => {
         return;
       }
 
-      // Check if user has ordered this product (any status)
+      // Don't allow sellers to review their own products
+      if (sellerId && user.id === sellerId) {
+        setCanReview(false);
+        return;
+      }
+
+      // Check if user has a completed order with this product
       const { data, error } = await supabase
         .from('orders')
         .select('id, status')
         .eq('product_id', productId)
         .eq('buyer_id', user.id)
+        .eq('status', 'completed')
         .limit(1);
       
-      console.log('Order check for product', productId, ':', data);
-
       if (error) throw error;
       setCanReview(data && data.length > 0);
     } catch (error) {
@@ -240,15 +246,23 @@ export const ProductReviews = ({ productId }: ProductReviewsProps) => {
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="text-lg">Reviews</CardTitle>
-            {canReview && (
-              <Button 
-                onClick={() => setShowReviewForm(!showReviewForm)}
-                variant="outline"
-                size="sm"
-              >
-                {showReviewForm ? 'Cancel' : 'Write Review'}
-              </Button>
-            )}
+            <Button 
+              onClick={() => {
+                if (!canReview) {
+                  toast({
+                    title: "Cannot Review",
+                    description: "You must have purchased this product before leaving a review.",
+                    variant: "destructive",
+                  });
+                  return;
+                }
+                setShowReviewForm(!showReviewForm);
+              }}
+              variant={canReview ? "outline" : "secondary"}
+              size="sm"
+            >
+              {showReviewForm ? 'Cancel' : 'Review'}
+            </Button>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -325,15 +339,23 @@ export const ProductReviews = ({ productId }: ProductReviewsProps) => {
               </div>
             )}
           </CardTitle>
-          {canReview && (
-            <Button 
-              onClick={() => setShowReviewForm(!showReviewForm)}
-              variant="outline"
-              size="sm"
-            >
-              {showReviewForm ? 'Cancel' : 'Write Review'}
-            </Button>
-          )}
+          <Button 
+            onClick={() => {
+              if (!canReview) {
+                toast({
+                  title: "Cannot Review",
+                  description: "You must have purchased this product before leaving a review.",
+                  variant: "destructive",
+                });
+                return;
+              }
+              setShowReviewForm(!showReviewForm);
+            }}
+            variant={canReview ? "outline" : "secondary"}
+            size="sm"
+          >
+            {showReviewForm ? 'Cancel' : 'Review'}
+          </Button>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">

@@ -30,6 +30,7 @@ import {
   Wallet,
 } from "lucide-react";
 import WalletDashboard from "@/components/wallet/WalletDashboard";
+import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 
 interface Product {
   id: string;
@@ -81,6 +82,7 @@ const Dashboard = () => {
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const navigate = useNavigate();
   const { toast } = useToast();
+  usePullToRefresh(); // Enable pull-to-refresh
 
   useEffect(() => {
     loadUserProfile();

@@ -97,7 +97,6 @@ export const OnboardingModal = ({ open, onClose }: OnboardingModalProps) => {
   };
 
   const handleFinish = () => {
-    localStorage.setItem('unimarket_onboarding_completed', 'true');
     onClose();
   };
 

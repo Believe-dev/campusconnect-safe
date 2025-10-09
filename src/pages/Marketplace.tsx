@@ -20,6 +20,7 @@ import {
 import { OfflineNotice } from '@/components/ui/offline-notice';
 import { User } from '@supabase/supabase-js';
 import { searchProducts } from '@/utils/searchUtils';
+import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 
 interface Product {
   id: string;
@@ -68,6 +69,7 @@ const Marketplace = () => {
   const [cart, setCart] = useState<Set<string>>(new Set());
   const navigate = useNavigate();
   const { toast } = useToast();
+  usePullToRefresh(); // Enable pull-to-refresh
 
   useEffect(() => {
     // Check authentication

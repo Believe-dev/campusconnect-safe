@@ -1,4 +1,5 @@
 import { useLocation } from "react-router-dom";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import {
   Home,
@@ -21,9 +22,25 @@ const BottomNav = () => {
   const { cartCount } = useCartCount();
   const { goToMarketplace, goToOrders, goToLiveFeed, goToCart, goToProfile } =
     useUniMarketNavigation();
+  const [isScrolled, setIsScrolled] = useState(false);
 
   // Hide bottom nav only on chat pages
   const isInChat = location.pathname.startsWith("/chat/");
+
+  useEffect(() => {
+    let ticking = false;
+    const handleScroll = () => {
+      if (!ticking) {
+        requestAnimationFrame(() => {
+          setIsScrolled(window.scrollY > 10);
+          ticking = false;
+        });
+        ticking = true;
+      }
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   if (!user || isInChat) return null;
 
@@ -63,66 +80,70 @@ const BottomNav = () => {
   ];
 
   return (
-    <nav
-      className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-100 shadow-sm"
-      style={{
-        position: "fixed",
-        bottom: 0,
-        paddingBottom: "env(safe-area-inset-bottom)",
-      }}
-    >
-      <div className="flex justify-around items-center py-2 px-1 safe-area-pb">
-        {navItems.map(({ to, icon: Icon, label, badge, onClick }) => {
-          const isActive =
-            location.pathname === to ||
-            (to === "/marketplace" &&
-              location.pathname.startsWith("/marketplace"));
+    <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 px-2 pb-2 transition-all duration-300 ease-out">
+      <div
+        className={`transition-all duration-300 ease-out ${
+          isScrolled
+            ? "bg-white/90 backdrop-blur-md border border-primary/20 rounded-xl shadow-lg mx-1"
+            : "bg-white border-t border-gray-100 shadow-sm"
+        }`}
+        style={{
+          paddingBottom: isScrolled ? "8px" : "env(safe-area-inset-bottom)",
+        }}
+      >
+        <div className="flex justify-around items-center py-2 px-1 safe-area-pb">
+          {navItems.map(({ to, icon: Icon, label, badge, onClick }) => {
+            const isActive =
+              location.pathname === to ||
+              (to === "/marketplace" &&
+                location.pathname.startsWith("/marketplace"));
 
-          return (
-            <button
-              key={to}
-              onClick={onClick}
-              className={cn(
-                "flex flex-col items-center gap-1 p-2 rounded-lg min-w-0 flex-1 relative transition-all duration-200",
-                isActive ? "text-university-green" : "text-gray-500"
-              )}
-            >
-              <div className="relative">
-                <Icon
-                  className={cn(
-                    "h-5 w-5 transition-all duration-200",
-                    isActive ? "text-university-green" : "text-gray-500"
-                  )}
-                  style={{ WebkitAppearance: "none", appearance: "none" }}
-                />
-                {badge !== undefined && (
-                  <Badge
-                    variant="destructive"
-                    className="absolute -top-1 -right-1 h-4 w-4 flex items-center justify-center p-0 text-xs font-bold rounded-full bg-red-500 text-white border border-white shadow-sm notification-badge"
-                    style={{
-                      WebkitAppearance: "none",
-                      appearance: "none",
-                      minWidth: "16px",
-                      minHeight: "16px",
-                    }}
-                  >
-                    {badge > 99 ? "99+" : badge}
-                  </Badge>
-                )}
-              </div>
-              <span
+            return (
+              <button
+                key={to}
+                onClick={onClick}
                 className={cn(
-                  "text-xs font-medium truncate w-full text-center transition-all duration-200",
-                  isActive
-                    ? "text-university-green font-semibold"
-                    : "text-gray-500"
+                  "flex flex-col items-center gap-1 p-2 rounded-lg min-w-0 flex-1 relative transition-all duration-200",
+                  isActive ? "text-university-green" : "text-gray-500"
                 )}
               >
-                {label}
-              </span>
-            </button>
-          );
-        })}
+                <div className="relative">
+                  <Icon
+                    className={cn(
+                      "h-5 w-5 transition-all duration-200",
+                      isActive ? "text-university-green" : "text-gray-500"
+                    )}
+                    style={{ WebkitAppearance: "none", appearance: "none" }}
+                  />
+                  {badge !== undefined && (
+                    <Badge
+                      variant="destructive"
+                      className="absolute -top-1 -right-1 h-4 w-4 flex items-center justify-center p-0 text-xs font-bold rounded-full bg-red-500 text-white border border-white shadow-sm notification-badge"
+                      style={{
+                        WebkitAppearance: "none",
+                        appearance: "none",
+                        minWidth: "16px",
+                        minHeight: "16px",
+                      }}
+                    >
+                      {badge > 99 ? "99+" : badge}
+                    </Badge>
+                  )}
+                </div>
+                <span
+                  className={cn(
+                    "text-xs font-medium truncate w-full text-center transition-all duration-200",
+                    isActive
+                      ? "text-university-green font-semibold"
+                      : "text-gray-500"
+                  )}
+                >
+                  {label}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </div>
     </nav>
   );

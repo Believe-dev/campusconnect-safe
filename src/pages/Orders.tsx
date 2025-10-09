@@ -32,6 +32,7 @@ import {
 import { findOrCreateConversation } from "@/utils/conversationUtils";
 import { useNavigate } from "react-router-dom";
 import { ProfileReviewModal } from "@/components/reviews/ProfileReviewModal";
+import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 
 interface Order {
   id: string;
@@ -80,6 +81,7 @@ const Orders = () => {
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
   const { toast } = useToast();
   useRealTimeOrders();
+  usePullToRefresh(); // Enable pull-to-refresh
   const [offlineOrders, setOfflineOrders] = useOfflineStorage<Order[]>({
     key: `orders_${user?.id}`,
     defaultValue: [],

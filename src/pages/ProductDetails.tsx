@@ -77,6 +77,47 @@ const ProductDetails = () => {
     }
   }, [id]);
 
+  // Update Open Graph metadata for product sharing
+  useEffect(() => {
+    if (product) {
+      const ogTitle = document.getElementById('og-title');
+      const ogDescription = document.getElementById('og-description');
+      const ogImage = document.getElementById('og-image');
+      
+      if (ogTitle) {
+        ogTitle.setAttribute('content', `${product.title} - ₦${product.price.toLocaleString()} | UniMarket`);
+      }
+      if (ogDescription) {
+        ogDescription.setAttribute('content', `${product.description || product.title} - Available on UniMarket, Nigeria's trusted university marketplace.`);
+      }
+      if (ogImage && product.images && product.images[0]) {
+        ogImage.setAttribute('content', product.images[0]);
+      }
+      
+      // Update page title for better SEO
+      document.title = `${product.title} - ₦${product.price.toLocaleString()} | UniMarket`;
+    }
+    
+    return () => {
+      // Reset to default when leaving page
+      const ogTitle = document.getElementById('og-title');
+      const ogDescription = document.getElementById('og-description');
+      const ogImage = document.getElementById('og-image');
+      
+      if (ogTitle) {
+        ogTitle.setAttribute('content', 'UniMarket - Nigeria\'s #1 Trusted University Marketplace');
+      }
+      if (ogDescription) {
+        ogDescription.setAttribute('content', 'Join 10,000+ Nigerian university students buying and selling safely. Verified sellers, secure payments, escrow protection for textbooks, electronics, fashion & more.');
+      }
+      if (ogImage) {
+        ogImage.setAttribute('content', 'https://unimarket.com.ng/logo.png');
+      }
+      
+      document.title = 'UniMarket - Nigeria\'s #1 Trusted University Marketplace | Buy & Sell Safely';
+    };
+  }, [product]);
+
   useEffect(() => {
     if (product) {
       fetchSimilarProducts();
@@ -907,7 +948,7 @@ const ProductDetails = () => {
 
           {/* Product Reviews Section */}
           <div className="mt-12">
-            <ProductReviews productId={product.id} />
+            <ProductReviews productId={product.id} sellerId={product.seller_id} />
           </div>
 
           {/* Similar Products Section */}

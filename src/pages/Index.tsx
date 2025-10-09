@@ -11,6 +11,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useFeaturedProducts } from '@/hooks/useProducts';
 import { ROUTES, CATEGORIES } from '@/lib/constants';
 import { Filter } from 'lucide-react';
+import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 
 
 
@@ -19,6 +20,7 @@ const Index = () => {
   const { user } = useAuth();
   const { products, loading } = useFeaturedProducts();
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  usePullToRefresh(); // Enable pull-to-refresh
 
 
 

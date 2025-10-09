@@ -25,6 +25,7 @@ import {
   ArrowUpRight,
   Trash2,
   Play,
+  Eye,
 } from "lucide-react";
 import {
   Dialog,
@@ -41,6 +42,7 @@ import { useMemoryOptimization } from "@/hooks/useMemoryOptimization";
 import { PremiumGameBadge } from "@/components/games/PremiumGameBadge";
 import { SellerRegistrationCard } from "@/components/seller/SellerRegistrationCard";
 import { SellerSubscriptionCard } from "@/components/seller/SellerSubscriptionCard";
+import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 
 interface Profile {
   full_name: string;
@@ -94,6 +96,8 @@ const Profile = () => {
   const [showUploadWarning, setShowUploadWarning] = useState(false);
   const [verificationRequest, setVerificationRequest] = useState<any>(null);
   const [gameBadge, setGameBadge] = useState<GameBadgeData | null>(null);
+  const [walletBalanceVisible, setWalletBalanceVisible] = useState(false);
+  usePullToRefresh(); // Enable pull-to-refresh
 
   useEffect(() => {
     fetchProfile();
@@ -502,12 +506,50 @@ const Profile = () => {
           <SellerSubscriptionCard />
           <div className="flex items-center justify-between">
             <h1 className="text-3xl font-bold text-primary">Profile</h1>
-            <Button
-              variant={editing ? "outline" : "brand"}
-              onClick={() => (editing ? setEditing(false) : setEditing(true))}
-            >
-              {editing ? "Cancel" : "Edit Profile"}
-            </Button>
+            <Dialog open={editing} onOpenChange={setEditing}>
+              <DialogTrigger asChild>
+                <Button variant="brand">
+                  Edit Profile
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Edit Profile</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="edit_full_name">Full Name *</Label>
+                    <Input
+                      id="edit_full_name"
+                      value={profile?.full_name || ''}
+                      onChange={(e) =>
+                        setProfile(profile ? { ...profile, full_name: e.target.value } : null)
+                      }
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="edit_bio">Bio</Label>
+                    <Textarea
+                      id="edit_bio"
+                      value={profile?.bio || ""}
+                      onChange={(e) =>
+                        setProfile(profile ? { ...profile, bio: e.target.value } : null)
+                      }
+                      placeholder="Tell others about yourself..."
+                      rows={3}
+                    />
+                  </div>
+                  <div className="flex gap-2 pt-4">
+                    <Button onClick={handleSave} disabled={saving} className="flex-1">
+                      {saving ? "Saving..." : "Save Changes"}
+                    </Button>
+                    <Button variant="outline" onClick={() => setEditing(false)} className="flex-1">
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -641,11 +683,21 @@ const Profile = () => {
                               <Wallet className="h-4 w-4" />
                               Wallet
                             </span>
-                            <Button variant="ghost" size="sm" asChild>
-                              <a href="/dashboard">
-                                <ArrowUpRight className="h-3 w-3" />
-                              </a>
-                            </Button>
+                            <div className="flex items-center gap-1">
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                onClick={() => setWalletBalanceVisible(!walletBalanceVisible)}
+                                title={walletBalanceVisible ? "Hide Balance" : "Show Balance"}
+                              >
+                                <Eye className={`h-3 w-3 ${walletBalanceVisible ? '' : 'opacity-50'}`} />
+                              </Button>
+                              <Button variant="ghost" size="sm" asChild>
+                                <a href="/dashboard">
+                                  <ArrowUpRight className="h-3 w-3" />
+                                </a>
+                              </Button>
+                            </div>
                           </div>
                           <div className="space-y-1 text-sm">
                             <div className="flex justify-between">
@@ -653,7 +705,7 @@ const Profile = () => {
                                 Available:
                               </span>
                               <span className="font-medium">
-                                ₦{wallet.available_balance.toLocaleString()}
+                                {walletBalanceVisible ? `₦${wallet.available_balance.toLocaleString()}` : '••••••'}
                               </span>
                             </div>
                             <div className="flex justify-between">
@@ -661,7 +713,7 @@ const Profile = () => {
                                 Total Earned:
                               </span>
                               <span className="font-medium">
-                                ₦{wallet.total_earnings.toLocaleString()}
+                                {walletBalanceVisible ? `₦${wallet.total_earnings.toLocaleString()}` : '••••••'}
                               </span>
                             </div>
                           </div>
@@ -817,10 +869,8 @@ const Profile = () => {
                     <Input
                       id="full_name"
                       value={profile.full_name}
-                      onChange={(e) =>
-                        setProfile({ ...profile, full_name: e.target.value })
-                      }
-                      disabled={!editing}
+                      disabled
+                      className="bg-muted text-muted-foreground cursor-not-allowed"
                     />
                   </div>
 
@@ -889,10 +939,8 @@ const Profile = () => {
                   <Textarea
                     id="bio"
                     value={profile.bio || ""}
-                    onChange={(e) =>
-                      setProfile({ ...profile, bio: e.target.value })
-                    }
-                    disabled={!editing}
+                    disabled
+                    className="bg-muted text-muted-foreground cursor-not-allowed"
                     placeholder="Tell others about yourself..."
                     rows={3}
                   />
@@ -971,16 +1019,7 @@ const Profile = () => {
                   </div>
                 )}
 
-                {editing && (
-                  <div className="flex gap-2 pt-4">
-                    <Button onClick={handleSave} disabled={saving}>
-                      {saving ? "Saving..." : "Save Changes"}
-                    </Button>
-                    <Button variant="outline" onClick={() => setEditing(false)}>
-                      Cancel
-                    </Button>
-                  </div>
-                )}
+
 
                 {/* Account Deletion Section */}
                 <div className="border-t pt-6 mt-6">

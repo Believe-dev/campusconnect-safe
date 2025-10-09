@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import ProductCard from '@/components/marketplace/ProductCard';
 import { User } from '@supabase/supabase-js';
+import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 
 interface CartItem {
   id: string;
@@ -75,6 +76,7 @@ const Cart = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   useRealTimeCart();
+  usePullToRefresh(); // Enable pull-to-refresh
   const [offlineCartItems, setOfflineCartItems] = useOfflineStorage<CartItem[]>({
     key: `cart_${user?.id}`,
     defaultValue: [],
@@ -461,6 +463,21 @@ const Cart = () => {
               <Badge variant="secondary" className="w-fit">
                 {getTotalItems()} {getTotalItems() === 1 ? 'item' : 'items'}
               </Badge>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  refetch();
+                  setLastUpdated(new Date());
+                  toast({
+                    title: "Cart Refreshed",
+                    description: "Your cart has been updated",
+                  });
+                }}
+                className="h-8 px-3 text-xs"
+              >
+                Reload Cart
+              </Button>
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <div className={`w-2 h-2 rounded-full ${
                   isRealTimeConnected ? 'bg-green-500' : 'bg-gray-400'

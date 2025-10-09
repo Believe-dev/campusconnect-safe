@@ -80,14 +80,14 @@ serve(async (req) => {
     let transferCode: string
     let isRealTransfer = false
     
-    // Check if we have a valid Paystack key (not placeholder values)
-    const isValidPaystackKey = paystackKey && 
+    // Ensure we only use live Paystack keys - no test/simulation modes
+    const isValidLivePaystackKey = paystackKey && 
       paystackKey !== 'your_paystack_secret_key_here' && 
       paystackKey !== 'sk_live_your_live_secret_key' &&
       paystackKey !== 'sk_test_your_test_secret_key' &&
-      paystackKey.startsWith('sk_')
+      paystackKey.startsWith('sk_live_') // Only accept live keys
     
-    if (isValidPaystackKey) {
+    if (isValidLivePaystackKey) {
       console.log('Attempting real Paystack transfer with key:', paystackKey.substring(0, 10) + '...')
       
       try {
@@ -143,16 +143,12 @@ serve(async (req) => {
         
       } catch (paystackError) {
         console.error('Paystack API error:', paystackError)
-        // Fall back to simulation mode if Paystack fails
-        transferCode = `SIM_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-        isRealTransfer = false
-        console.log('Falling back to simulation mode due to Paystack error:', paystackError.message)
+        // No fallback to simulation - throw error for production
+        throw new Error(`Paystack transfer failed: ${paystackError.message}`)
       }
     } else {
-      // Simulation mode for development/testing
-      transferCode = `SIM_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-      isRealTransfer = false
-      console.log('Using simulation mode - transfer code:', transferCode)
+      // No simulation mode in production - require valid live key
+      throw new Error('Live Paystack secret key required for payout processing. Contact administrator.')
     }
 
     // Update database regardless of real or simulated transfer
@@ -164,9 +160,7 @@ serve(async (req) => {
       .update({
         status: 'completed',
         processed_at: new Date().toISOString(),
-        admin_notes: isRealTransfer 
-          ? `Real transfer completed: ${transferCode}` 
-          : `Simulated transfer (dev mode): ${transferCode}`,
+        admin_notes: `Live transfer completed: ${transferCode}`,
         transfer_code: transferCode,
         transfer_status: 'success'
       })
@@ -201,7 +195,7 @@ serve(async (req) => {
         amount: -payout.amount, // Negative for debit
         description: `Payout to ${payout.bank_account_name} (${payout.bank_name}) - ${payout.bank_account_number}`,
         reference_id: transferCode,
-        reference_type: isRealTransfer ? 'paystack_transfer' : 'simulated_transfer',
+        reference_type: 'paystack_transfer',
         status: 'completed'
       })
 
@@ -212,7 +206,7 @@ serve(async (req) => {
 
     // Create notification for user
     const notificationTitle = 'Payout Processed! 💰'
-    const notificationMessage = `Your payout request of ₦${payout.amount.toLocaleString()} has been approved and processed. ${isRealTransfer ? 'The funds have been transferred to your bank account' : 'This was processed in development mode'} (${payout.bank_name}).`
+    const notificationMessage = `Your payout request of ₦${payout.amount.toLocaleString()} has been approved and processed. The funds have been transferred to your bank account (${payout.bank_name}).`
     
     const { error: notificationError } = await supabaseClient
       .from('notifications')
@@ -253,10 +247,8 @@ serve(async (req) => {
       JSON.stringify({ 
         success: true, 
         transfer_code: transferCode,
-        is_real_transfer: isRealTransfer,
-        message: isRealTransfer 
-          ? 'Real bank transfer completed successfully' 
-          : 'Payout processed in simulation mode (development)'
+        is_real_transfer: true,
+        message: 'Live bank transfer completed successfully'
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )

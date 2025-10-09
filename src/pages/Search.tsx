@@ -108,23 +108,25 @@ const Search = () => {
   const searchProducts = async () => {
     setLoading(true);
     try {
-      let query = supabase
-        .from('products')
-        .select(`
-          *,
-          profiles!products_seller_id_fkey (
-            full_name,
-            avatar_url,
-            is_verified,
-            rating
-          )
-        `)
-        .eq('is_active', true);
-      
       const searchTerm = searchParams.get('q') || searchQuery;
+      let searchResults = [];
+      let otherProducts = [];
 
-      // Apply enhanced search query with synonyms
       if (searchTerm && searchTerm.trim()) {
+        // First, get products matching the search term
+        let searchQuery = supabase
+          .from('products')
+          .select(`
+            *,
+            profiles!products_seller_id_fkey (
+              full_name,
+              avatar_url,
+              is_verified,
+              rating
+            )
+          `)
+          .eq('is_active', true);
+
         const expandedTerms = expandSearchTerms(searchTerm.trim());
         const conditions = [];
         expandedTerms.forEach(term => {
@@ -134,49 +136,124 @@ const Search = () => {
           conditions.push(`category.ilike.%${escapedTerm}%`);
         });
         if (conditions.length > 0) {
-          query = query.or(conditions.join(','));
+          searchQuery = searchQuery.or(conditions.join(','));
         }
+
+        // Apply filters to search results
+        if (selectedCategory !== 'All Categories') {
+          searchQuery = searchQuery.eq('category', selectedCategory);
+        }
+        if (selectedCampus !== 'All Campuses') {
+          searchQuery = searchQuery.eq('campus', selectedCampus);
+        }
+        if (priceRange.min) {
+          searchQuery = searchQuery.gte('price', parseFloat(priceRange.min));
+        }
+        if (priceRange.max) {
+          searchQuery = searchQuery.lte('price', parseFloat(priceRange.max));
+        }
+
+        const { data: searchData } = await searchQuery;
+        searchResults = searchData || [];
+
+        // Then get other products (excluding search results)
+        const searchResultIds = searchResults.map(item => item.id);
+        let otherQuery = supabase
+          .from('products')
+          .select(`
+            *,
+            profiles!products_seller_id_fkey (
+              full_name,
+              avatar_url,
+              is_verified,
+              rating
+            )
+          `)
+          .eq('is_active', true)
+          .limit(20);
+
+        if (searchResultIds.length > 0) {
+          otherQuery = otherQuery.not('id', 'in', `(${searchResultIds.join(',')})`);
+        }
+
+        // Apply same filters to other products
+        if (selectedCategory !== 'All Categories') {
+          otherQuery = otherQuery.eq('category', selectedCategory);
+        }
+        if (selectedCampus !== 'All Campuses') {
+          otherQuery = otherQuery.eq('campus', selectedCampus);
+        }
+        if (priceRange.min) {
+          otherQuery = otherQuery.gte('price', parseFloat(priceRange.min));
+        }
+        if (priceRange.max) {
+          otherQuery = otherQuery.lte('price', parseFloat(priceRange.max));
+        }
+
+        const { data: otherData } = await otherQuery;
+        otherProducts = otherData || [];
+      } else {
+        // No search term, get all products
+        let query = supabase
+          .from('products')
+          .select(`
+            *,
+            profiles!products_seller_id_fkey (
+              full_name,
+              avatar_url,
+              is_verified,
+              rating
+            )
+          `)
+          .eq('is_active', true);
+
+        // Apply filters
+        if (selectedCategory !== 'All Categories') {
+          query = query.eq('category', selectedCategory);
+        }
+        if (selectedCampus !== 'All Campuses') {
+          query = query.eq('campus', selectedCampus);
+        }
+        if (priceRange.min) {
+          query = query.gte('price', parseFloat(priceRange.min));
+        }
+        if (priceRange.max) {
+          query = query.lte('price', parseFloat(priceRange.max));
+        }
+
+        const { data } = await query;
+        searchResults = data || [];
       }
 
-      // Apply category filter
-      if (selectedCategory !== 'All Categories') {
-        query = query.eq('category', selectedCategory);
-      }
+      // Combine results: search results first, then other products
+      const allProducts = [...searchResults, ...otherProducts];
 
-      // Apply campus filter
-      if (selectedCampus !== 'All Campuses') {
-        query = query.eq('campus', selectedCampus);
-      }
+      // Apply sorting to the combined results
+      const sortedProducts = allProducts.sort((a, b) => {
+        // If there's a search term, prioritize search results
+        if (searchTerm && searchTerm.trim()) {
+          const aIsSearchResult = searchResults.some(item => item.id === a.id);
+          const bIsSearchResult = searchResults.some(item => item.id === b.id);
+          
+          if (aIsSearchResult && !bIsSearchResult) return -1;
+          if (!aIsSearchResult && bIsSearchResult) return 1;
+        }
 
-      // Apply price range filter
-      if (priceRange.min) {
-        query = query.gte('price', parseFloat(priceRange.min));
-      }
-      if (priceRange.max) {
-        query = query.lte('price', parseFloat(priceRange.max));
-      }
-
-      // Apply sorting
-      switch (sortBy) {
-        case 'price-low':
-          query = query.order('price', { ascending: true });
-          break;
-        case 'price-high':
-          query = query.order('price', { ascending: false });
-          break;
-        case 'oldest':
-          query = query.order('created_at', { ascending: true });
-          break;
-        default:
-          query = query.order('created_at', { ascending: false });
-      }
-
-      const { data, error } = await query;
-      
-      if (error) throw error;
+        // Then apply regular sorting
+        switch (sortBy) {
+          case 'price-low':
+            return a.price - b.price;
+          case 'price-high':
+            return b.price - a.price;
+          case 'oldest':
+            return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+          default:
+            return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        }
+      });
       
       // Transform the data to match our Product interface
-      const transformedData = (data || []).map(item => ({
+      const transformedData = sortedProducts.map(item => ({
         id: item.id,
         title: item.title,
         description: item.description || '',
@@ -323,6 +400,10 @@ const Search = () => {
                 {!loading && (
                   <span> • {products.length} product{products.length !== 1 ? 's' : ''} found</span>
                 )}
+                <br />
+                <span className="text-xs text-muted-foreground mt-1 block">
+                  Showing matching results first, followed by other products
+                </span>
               </p>
             )}
             <div className="mt-2 text-xs text-muted-foreground bg-muted/30 p-2 rounded border">
