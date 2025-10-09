@@ -498,17 +498,17 @@ const Profile = () => {
   if (!profile) return null;
 
   return (
-    <div className="min-h-screen bg-background">
-      <main className="container mx-auto px-4 py-8">
-        <div className="max-w-4xl mx-auto space-y-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50">
+      <main className="container mx-auto px-4 py-6 sm:py-8 pb-24 md:pb-8">
+        <div className="max-w-6xl mx-auto space-y-6">
           <SellerDocumentReminder />
           <SellerRegistrationCard />
           <SellerSubscriptionCard />
           <div className="flex items-center justify-between">
-            <h1 className="text-3xl font-bold text-primary">Profile</h1>
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900">Profile</h1>
             <Dialog open={editing} onOpenChange={setEditing}>
               <DialogTrigger asChild>
-                <Button variant="brand">
+                <Button className="bg-university-green hover:bg-university-green/90">
                   Edit Profile
                 </Button>
               </DialogTrigger>
@@ -554,7 +554,7 @@ const Profile = () => {
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Profile Card */}
-            <Card className="lg:col-span-1">
+            <Card className="lg:col-span-1 border-0 shadow-lg">
               <CardContent className="pt-6">
                 <div className="flex flex-col items-center space-y-4">
                   <div className="relative group">
@@ -572,9 +572,9 @@ const Profile = () => {
                       </AvatarFallback>
                     </Avatar>
                     {profile.is_verified && (
-                      <div className="absolute -bottom-0.5 -right-0.5 bg-blue-500 rounded-full p-1">
+                      <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
                         <svg
-                          className="h-3 w-3 text-white"
+                          className="h-4 w-4 text-white"
                           fill="currentColor"
                           viewBox="0 0 20 20"
                         >
@@ -858,9 +858,9 @@ const Profile = () => {
             </Card>
 
             {/* Profile Details */}
-            <Card className="lg:col-span-2">
+            <Card className="lg:col-span-2 border-0 shadow-lg">
               <CardHeader>
-                <CardTitle>Profile Information</CardTitle>
+                <CardTitle className="text-gray-900">Profile Information</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

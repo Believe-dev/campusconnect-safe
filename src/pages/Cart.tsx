@@ -451,16 +451,16 @@ const Cart = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50">
       <main className="container mx-auto px-4 py-6 sm:py-8 pb-24 md:pb-8">
-        <div className="max-w-4xl mx-auto">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mb-6 sm:mb-8">
-            <div className="flex items-center gap-2 flex-1">
-              <ShoppingCart className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
-              <h1 className="text-2xl sm:text-3xl font-bold text-primary">Shopping Cart</h1>
+        <div className="max-w-6xl mx-auto">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 mb-6 sm:mb-8">
+            <div className="flex items-center gap-3 flex-1">
+              <ShoppingCart className="h-6 w-6 sm:h-7 sm:w-7 text-university-green" />
+              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900">Shopping Cart</h1>
             </div>
-            <div className="flex items-center gap-2 sm:gap-4">
-              <Badge variant="secondary" className="w-fit">
+            <div className="flex items-center gap-3">
+              <Badge className="bg-university-green/10 text-university-green border-university-green/20">
                 {getTotalItems()} {getTotalItems() === 1 ? 'item' : 'items'}
               </Badge>
               <Button
@@ -474,11 +474,11 @@ const Cart = () => {
                     description: "Your cart has been updated",
                   });
                 }}
-                className="h-8 px-3 text-xs"
+                className="h-9 px-4 text-sm border-2 border-gray-200 hover:border-university-green rounded-lg"
               >
                 Reload Cart
               </Button>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <div className="flex items-center gap-2 text-xs text-gray-500">
                 <div className={`w-2 h-2 rounded-full ${
                   isRealTimeConnected ? 'bg-green-500' : 'bg-gray-400'
                 }`} />
@@ -494,14 +494,14 @@ const Cart = () => {
 
           {cartItems.length === 0 ? (
             <>
-              <Card>
+              <Card className="border-0 shadow-lg">
                 <CardContent className="p-8 sm:p-12 text-center">
-                  <Package className="h-12 w-12 sm:h-16 sm:w-16 text-muted-foreground mx-auto mb-3 sm:mb-4" />
-                  <h3 className="text-lg sm:text-xl font-semibold mb-2">Your cart is empty</h3>
-                  <p className="text-sm sm:text-base text-muted-foreground mb-4 sm:mb-6">
+                  <Package className="h-16 w-16 sm:h-20 sm:w-20 text-gray-400 mx-auto mb-4 sm:mb-6" />
+                  <h3 className="text-xl sm:text-2xl font-semibold text-gray-900 mb-3">Your cart is empty</h3>
+                  <p className="text-sm sm:text-base text-gray-600 mb-6 sm:mb-8">
                     Browse our marketplace to find products you love
                   </p>
-                  <Button variant="brand" size="sm" className="sm:size-default" asChild>
+                  <Button className="bg-university-green hover:bg-university-green/90 px-8 py-3" asChild>
                     <a href="/marketplace">Browse Products</a>
                   </Button>
                 </CardContent>
@@ -510,27 +510,124 @@ const Cart = () => {
               {/* Recommended Products for Empty Cart */}
               {recommendedProducts.length > 0 && (
                 <div className="mt-8 sm:mt-12">
-                  <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6">Recommended for You</h2>
-                  <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
-                     {recommendedProducts.slice(0, 4).map((product) => (
-                       <ProductCard
-                         key={product.id}
-                         product={product}
-                         onViewProduct={handleViewProduct}
-                         isAuthenticated={!!user}
-                         showHoverActions={false}
-                       />
-                    ))}
-                  </div>
+                  <Card className="border-0 shadow-lg">
+                    <CardContent className="p-6">
+                      <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-6">Recommended for You</h2>
+                      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+                        {recommendedProducts.slice(0, 4).map((product) => (
+                          <Card
+                            key={product.id}
+                            className="group hover:shadow-lg transition-shadow duration-200 cursor-pointer overflow-hidden border-0 shadow-sm bg-white"
+                            onClick={() => handleViewProduct(product.id)}
+                          >
+                            <div className="relative">
+                              {product.images && product.images[0] ? (
+                                <img
+                                  src={product.images[0]}
+                                  alt={product.title}
+                                  className="w-full h-32 sm:h-36 lg:h-40 object-cover"
+                                  onError={(e) => {
+                                    e.currentTarget.src = "/placeholder.svg";
+                                  }}
+                                />
+                              ) : (
+                                <div className="w-full h-32 sm:h-36 lg:h-40 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
+                                  <Package className="h-8 w-8 text-gray-400" />
+                                </div>
+                              )}
+                              
+                              {/* Condition Badge */}
+                              <div className="absolute top-2 left-2">
+                                <Badge
+                                  className={`text-xs px-1.5 py-0.5 font-medium ${
+                                    product.condition === "new"
+                                      ? "bg-green-500 text-white border-0"
+                                      : "bg-blue-500 text-white border-0"
+                                  }`}
+                                >
+                                  {product.condition.charAt(0).toUpperCase() +
+                                    product.condition.slice(1)}
+                                </Badge>
+                              </div>
+                              
+                              {/* Verified Seller Badge */}
+                              {product.seller?.is_verified && (
+                                <div className="absolute bottom-2 left-2">
+                                  <div className="w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center shadow-sm">
+                                    <svg
+                                      className="h-3 w-3 text-white"
+                                      fill="currentColor"
+                                      viewBox="0 0 20 20"
+                                    >
+                                      <path
+                                        fillRule="evenodd"
+                                        d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                        clipRule="evenodd"
+                                      />
+                                    </svg>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+
+                            <CardContent className="p-3">
+                              <div className="space-y-2">
+                                <h3 className="font-semibold text-sm line-clamp-2 text-gray-900 leading-tight">
+                                  {product.title}
+                                </h3>
+                                
+                                <Badge variant="outline" className="text-xs bg-gray-50 border-gray-200 w-fit">
+                                  {product.category}
+                                </Badge>
+                                
+                                <div
+                                  className="flex items-center gap-1.5 p-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    navigate(`/seller/${product.seller_id}`);
+                                  }}
+                                >
+                                  <div className="w-4 h-4 bg-university-green/10 rounded-full flex items-center justify-center flex-shrink-0">
+                                    <span className="text-xs font-medium text-university-green">
+                                      {product.seller?.full_name?.charAt(0) || "U"}
+                                    </span>
+                                  </div>
+                                  <span className="text-xs font-medium text-university-green hover:underline truncate flex-1">
+                                    {product.seller?.full_name || "Unknown"}
+                                  </span>
+                                </div>
+
+                                <div className="flex items-center justify-between">
+                                  <div className="text-base font-bold text-university-green">
+                                    ₦{product.price.toLocaleString()}
+                                  </div>
+                                  <Button
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      addToCart(product.id);
+                                    }}
+                                    className="text-xs px-2 py-1 bg-university-green hover:bg-university-green/90"
+                                  >
+                                    Add
+                                  </Button>
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
                 </div>
               )}
             </>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
               {/* Cart Items */}
-              <div className="lg:col-span-2 space-y-3 sm:space-y-4">
+              <div className="lg:col-span-2 space-y-4">
                 {cartItems.map((item) => (
-                  <Card key={item.id}>
+                  <Card key={item.id} className="border-0 shadow-lg">
                     <CardContent className="p-4 sm:p-6">
                       {!item.products ? (
                         <div className="flex items-center gap-3 p-4 bg-muted rounded">
@@ -633,9 +730,9 @@ const Cart = () => {
 
               {/* Order Summary */}
               <div className="lg:col-span-1">
-                <Card className="lg:sticky lg:top-4">
+                <Card className="lg:sticky lg:top-4 border-0 shadow-lg">
                   <CardHeader className="pb-4">
-                    <CardTitle className="text-lg sm:text-xl">Order Summary</CardTitle>
+                    <CardTitle className="text-lg sm:text-xl text-gray-900">Order Summary</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3 sm:space-y-4">
                     <div className="flex justify-between text-sm">
@@ -656,15 +753,14 @@ const Cart = () => {
                     </div>
 
                     <Button 
-                      variant="brand" 
-                      className="w-full"
+                      className="w-full bg-university-green hover:bg-university-green/90 py-3"
                       onClick={proceedToCheckout}
                     >
                       Proceed to Checkout
                       <ArrowRight className="h-4 w-4 ml-2" />
                     </Button>
 
-                    <Button variant="outline" className="w-full" asChild>
+                    <Button variant="outline" className="w-full border-2 border-gray-200 hover:border-university-green" asChild>
                       <a href="/marketplace">Continue Shopping</a>
                     </Button>
                   </CardContent>
@@ -676,18 +772,115 @@ const Cart = () => {
           {/* You Might Also Like - Only show when cart has items */}
           {cartItems.length > 0 && recommendedProducts.length > 0 && (
             <div className="mt-8 sm:mt-12">
-              <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6">You Might Also Like</h2>
-              <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
-                {recommendedProducts.slice(0, 4).map((product) => (
-                  <ProductCard
-                    key={product.id}
-                    product={product}
-                    onViewProduct={handleViewProduct}
-                    isAuthenticated={!!user}
-                    showHoverActions={false}
-                  />
-                ))}
-              </div>
+              <Card className="border-0 shadow-lg">
+                <CardContent className="p-6">
+                  <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-6">You Might Also Like</h2>
+                  <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+                    {recommendedProducts.slice(0, 4).map((product) => (
+                      <Card
+                        key={product.id}
+                        className="group hover:shadow-lg transition-shadow duration-200 cursor-pointer overflow-hidden border-0 shadow-sm bg-white"
+                        onClick={() => handleViewProduct(product.id)}
+                      >
+                        <div className="relative">
+                          {product.images && product.images[0] ? (
+                            <img
+                              src={product.images[0]}
+                              alt={product.title}
+                              className="w-full h-32 sm:h-36 lg:h-40 object-cover"
+                              onError={(e) => {
+                                e.currentTarget.src = "/placeholder.svg";
+                              }}
+                            />
+                          ) : (
+                            <div className="w-full h-32 sm:h-36 lg:h-40 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
+                              <Package className="h-8 w-8 text-gray-400" />
+                            </div>
+                          )}
+                          
+                          {/* Condition Badge */}
+                          <div className="absolute top-2 left-2">
+                            <Badge
+                              className={`text-xs px-1.5 py-0.5 font-medium ${
+                                product.condition === "new"
+                                  ? "bg-green-500 text-white border-0"
+                                  : "bg-blue-500 text-white border-0"
+                              }`}
+                            >
+                              {product.condition.charAt(0).toUpperCase() +
+                                product.condition.slice(1)}
+                            </Badge>
+                          </div>
+                          
+                          {/* Verified Seller Badge */}
+                          {product.seller?.is_verified && (
+                            <div className="absolute bottom-2 left-2">
+                              <div className="w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center shadow-sm">
+                                <svg
+                                  className="h-3 w-3 text-white"
+                                  fill="currentColor"
+                                  viewBox="0 0 20 20"
+                                >
+                                  <path
+                                    fillRule="evenodd"
+                                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                    clipRule="evenodd"
+                                  />
+                                </svg>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        <CardContent className="p-3">
+                          <div className="space-y-2">
+                            <h3 className="font-semibold text-sm line-clamp-2 text-gray-900 leading-tight">
+                              {product.title}
+                            </h3>
+                            
+                            <Badge variant="outline" className="text-xs bg-gray-50 border-gray-200 w-fit">
+                              {product.category}
+                            </Badge>
+                            
+                            <div
+                              className="flex items-center gap-1.5 p-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/seller/${product.seller_id}`);
+                              }}
+                            >
+                              <div className="w-4 h-4 bg-university-green/10 rounded-full flex items-center justify-center flex-shrink-0">
+                                <span className="text-xs font-medium text-university-green">
+                                  {product.seller?.full_name?.charAt(0) || "U"}
+                                </span>
+                              </div>
+                              <span className="text-xs font-medium text-university-green hover:underline truncate flex-1">
+                                {product.seller?.full_name || "Unknown"}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center justify-between">
+                              <div className="text-base font-bold text-university-green">
+                                ₦{product.price.toLocaleString()}
+                              </div>
+                              <Button
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  addToCart(product.id);
+                                }}
+                                className="text-xs px-2 py-1 bg-university-green hover:bg-university-green/90"
+                              >
+                                Add
+                              </Button>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
             </div>
           )}
         </div>
