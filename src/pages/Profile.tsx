@@ -500,18 +500,26 @@ const Profile = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50">
       <main className="container mx-auto px-4 py-6 sm:py-8 pb-24 md:pb-8">
-        <div className="max-w-6xl mx-auto space-y-6">
+        <div className="max-w-6xl mx-auto space-y-8">
           <SellerDocumentReminder />
           <SellerRegistrationCard />
           <SellerSubscriptionCard />
-          <div className="flex items-center justify-between">
-            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900">Profile</h1>
-            <Dialog open={editing} onOpenChange={setEditing}>
-              <DialogTrigger asChild>
-                <Button className="bg-university-green hover:bg-university-green/90">
-                  Edit Profile
-                </Button>
-              </DialogTrigger>
+          
+          {/* Modern Header Section */}
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-university-green to-emerald-600 p-8 text-white">
+            <div className="absolute inset-0 bg-black/10"></div>
+            <div className="relative z-10">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div>
+                  <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-2">My Profile</h1>
+                  <p className="text-white/90 text-lg">Manage your UniMarket account</p>
+                </div>
+                <Dialog open={editing} onOpenChange={setEditing}>
+                  <DialogTrigger asChild>
+                    <Button className="bg-white text-university-green hover:bg-white/90 font-semibold px-6 py-3 rounded-xl shadow-lg">
+                      Edit Profile
+                    </Button>
+                  </DialogTrigger>
               <DialogContent className="max-w-md">
                 <DialogHeader>
                   <DialogTitle>Edit Profile</DialogTitle>
@@ -550,47 +558,51 @@ const Profile = () => {
                 </div>
               </DialogContent>
             </Dialog>
+              </div>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Profile Card */}
-            <Card className="lg:col-span-1 border-0 shadow-lg">
-              <CardContent className="pt-6">
+            <Card className="lg:col-span-1 border-0 shadow-xl bg-white/80 backdrop-blur-sm">
+              <CardContent className="pt-8">
                 <div className="flex flex-col items-center space-y-4">
                   <div className="relative group">
-                    <Avatar
-                      className="h-24 w-24 cursor-pointer hover:opacity-80 transition-opacity"
-                      onClick={() => setShowAvatarModal(true)}
-                    >
-                      <AvatarImage
-                        src={profile.avatar_url || undefined}
-                        alt={profile.full_name}
-                        className="object-cover"
-                      />
-                      <AvatarFallback className="bg-university-green text-white text-lg">
-                        {getInitials(profile.full_name || "User")}
-                      </AvatarFallback>
-                    </Avatar>
-                    {profile.is_verified && (
-                      <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
-                        <svg
-                          className="h-4 w-4 text-white"
-                          fill="currentColor"
-                          viewBox="0 0 20 20"
-                        >
-                          <path
-                            fillRule="evenodd"
-                            d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                            clipRule="evenodd"
-                          />
-                        </svg>
-                      </div>
-                    )}
+                    <div className="relative">
+                      <Avatar
+                        className="h-32 w-32 cursor-pointer hover:opacity-80 transition-all duration-300 hover:scale-105 ring-4 ring-white shadow-2xl"
+                        onClick={() => setShowAvatarModal(true)}
+                      >
+                        <AvatarImage
+                          src={profile.avatar_url || undefined}
+                          alt={profile.full_name}
+                          className="object-cover"
+                        />
+                        <AvatarFallback className="bg-gradient-to-br from-university-green to-emerald-600 text-white text-2xl font-bold">
+                          {getInitials(profile.full_name || "User")}
+                        </AvatarFallback>
+                      </Avatar>
+                      {profile.is_verified && (
+                        <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center ring-4 ring-white shadow-lg">
+                          <svg
+                            className="h-5 w-5 text-white"
+                            fill="currentColor"
+                            viewBox="0 0 20 20"
+                          >
+                            <path
+                              fillRule="evenodd"
+                              d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   <div className="w-full">
-                    <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-4 text-center">
-                      <div className="text-sm font-medium mb-2">
+                    <div className="border-2 border-dashed border-gray-200 rounded-xl p-6 text-center bg-gray-50/50 hover:bg-gray-50 transition-colors">
+                      <div className="text-sm font-semibold mb-3 text-gray-700">
                         Profile Photo
                       </div>
                       {profile.avatar_url ? (
@@ -632,18 +644,20 @@ const Profile = () => {
                   </div>
 
                   <div className="text-center">
-                    <h2 className="text-xl font-semibold">
+                    <h2 className="text-2xl font-bold text-gray-900 mb-1">
                       {profile.full_name || "User"}
                     </h2>
-                    <p className="text-muted-foreground">
+                    <p className="text-gray-600 mb-4">
                       {profile.email || user?.email || "No email"}
                     </p>
 
-                    <div className="flex items-center justify-center gap-2 mt-2 flex-wrap">
-                      <Badge variant="outline">{profile.account_type}</Badge>
+                    <div className="flex items-center justify-center gap-3 mt-2 flex-wrap">
+                      <Badge className="bg-university-green/10 text-university-green border-university-green/20 px-3 py-1 font-medium">
+                        {profile.account_type}
+                      </Badge>
                       {profile.is_verified && (
-                        <Badge variant="outline" className="text-verified-blue">
-                          Verified
+                        <Badge className="bg-blue-50 text-blue-700 border-blue-200 px-3 py-1 font-medium">
+                          ✓ Verified
                         </Badge>
                       )}
                       {gameBadge && gameBadge.is_premium && (
@@ -656,20 +670,20 @@ const Profile = () => {
                       )}
                     </div>
 
-                    <div className="flex items-center justify-center gap-4 mt-4 text-sm text-muted-foreground">
-                      <div className="flex items-center gap-1">
-                        <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                        <span>{(profile.rating || 0).toFixed(1)}</span>
+                    <div className="flex items-center justify-center gap-6 mt-6">
+                      <div className="flex items-center gap-2 bg-yellow-50 px-4 py-2 rounded-full">
+                        <Star className="h-5 w-5 fill-yellow-400 text-yellow-400" />
+                        <span className="font-semibold text-gray-700">{(profile.rating || 0).toFixed(1)}</span>
                       </div>
                       <button
-                        className="flex items-center gap-1 hover:text-foreground transition-colors"
+                        className="flex items-center gap-2 bg-gray-50 hover:bg-gray-100 px-4 py-2 rounded-full transition-colors"
                         onClick={() => {
                           setReviewsOpen(true);
                           fetchReviews();
                         }}
                       >
-                        <MessageCircle className="h-4 w-4" />
-                        <span>{profile.total_reviews || 0} reviews</span>
+                        <MessageCircle className="h-5 w-5 text-gray-600" />
+                        <span className="font-semibold text-gray-700">{profile.total_reviews || 0} reviews</span>
                       </button>
                     </div>
 
@@ -677,10 +691,10 @@ const Profile = () => {
                     {wallet &&
                       (profile.account_type === "seller" ||
                         profile.account_type === "both") && (
-                        <div className="mt-4 p-3 bg-muted rounded-lg">
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-sm font-medium flex items-center gap-1">
-                              <Wallet className="h-4 w-4" />
+                        <div className="mt-6 p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-100">
+                          <div className="flex items-center justify-between mb-3">
+                            <span className="text-sm font-semibold flex items-center gap-2 text-green-800">
+                              <Wallet className="h-5 w-5" />
                               Wallet
                             </span>
                             <div className="flex items-center gap-1">
@@ -699,20 +713,20 @@ const Profile = () => {
                               </Button>
                             </div>
                           </div>
-                          <div className="space-y-1 text-sm">
-                            <div className="flex justify-between">
-                              <span className="text-muted-foreground">
+                          <div className="space-y-2 text-sm">
+                            <div className="flex justify-between items-center">
+                              <span className="text-green-700">
                                 Available:
                               </span>
-                              <span className="font-medium">
+                              <span className="font-bold text-green-800">
                                 {walletBalanceVisible ? `₦${wallet.available_balance.toLocaleString()}` : '••••••'}
                               </span>
                             </div>
-                            <div className="flex justify-between">
-                              <span className="text-muted-foreground">
+                            <div className="flex justify-between items-center">
+                              <span className="text-green-700">
                                 Total Earned:
                               </span>
-                              <span className="font-medium">
+                              <span className="font-bold text-green-800">
                                 {walletBalanceVisible ? `₦${wallet.total_earnings.toLocaleString()}` : '••••••'}
                               </span>
                             </div>
@@ -723,9 +737,9 @@ const Profile = () => {
                     {/* Seller Status Display */}
                     {(profile.account_type === "seller" ||
                       profile.account_type === "both") && (
-                      <div className="mt-4 p-3 bg-muted rounded-lg">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-sm font-medium">
+                      <div className="mt-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-100">
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-sm font-semibold text-blue-800">
                             Seller Status
                           </span>
                         </div>
@@ -840,7 +854,7 @@ const Profile = () => {
                     <Button
                       variant="outline"
                       size="sm"
-                      className="mt-2 w-full"
+                      className="mt-4 w-full bg-gradient-to-r from-purple-50 to-pink-50 border-purple-200 text-purple-700 hover:bg-purple-100 font-medium"
                       onClick={() => setShowOnboarding(true)}
                     >
                       <Play className="h-4 w-4 mr-2" />
@@ -858,75 +872,82 @@ const Profile = () => {
             </Card>
 
             {/* Profile Details */}
-            <Card className="lg:col-span-2 border-0 shadow-lg">
-              <CardHeader>
-                <CardTitle className="text-gray-900">Profile Information</CardTitle>
+            <Card className="lg:col-span-2 border-0 shadow-xl bg-white/80 backdrop-blur-sm">
+              <CardHeader className="pb-6">
+                <CardTitle className="text-2xl font-bold text-gray-900 flex items-center gap-3">
+                  <div className="w-8 h-8 bg-gradient-to-r from-university-green to-emerald-600 rounded-lg flex items-center justify-center">
+                    <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  Profile Information
+                </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="full_name">Full Name *</Label>
+              <CardContent className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="full_name" className="text-sm font-semibold text-gray-700">Full Name *</Label>
                     <Input
                       id="full_name"
                       value={profile.full_name}
                       disabled
-                      className="bg-muted text-muted-foreground cursor-not-allowed"
+                      className="bg-gray-50 text-gray-700 cursor-not-allowed border-gray-200 rounded-lg"
                     />
                   </div>
 
-                  <div>
-                    <Label htmlFor="email">Email</Label>
+                  <div className="space-y-2">
+                    <Label htmlFor="email" className="text-sm font-semibold text-gray-700">Email</Label>
                     <Input
                       id="email"
                       value={profile.email}
                       disabled
-                      className="bg-muted text-muted-foreground cursor-not-allowed"
+                      className="bg-gray-50 text-gray-700 cursor-not-allowed border-gray-200 rounded-lg"
                     />
-                    <p className="text-xs text-muted-foreground mt-1">
+                    <p className="text-xs text-gray-500 mt-1">
                       Email cannot be changed
                     </p>
                   </div>
 
-                  <div>
-                    <Label htmlFor="university">University</Label>
+                  <div className="space-y-2">
+                    <Label htmlFor="university" className="text-sm font-semibold text-gray-700">University</Label>
                     <Input
                       id="university"
                       value={profile.university_name || ""}
                       disabled
-                      className="bg-muted text-muted-foreground cursor-not-allowed"
+                      className="bg-gray-50 text-gray-700 cursor-not-allowed border-gray-200 rounded-lg"
                       placeholder="Not set"
                     />
-                    <p className="text-xs text-muted-foreground mt-1">
+                    <p className="text-xs text-gray-500 mt-1">
                       University cannot be changed after registration
                     </p>
                   </div>
 
                   {profile.account_type === "seller" && (
                     <>
-                      <div>
-                        <Label htmlFor="student_id">Student ID</Label>
+                      <div className="space-y-2">
+                        <Label htmlFor="student_id" className="text-sm font-semibold text-gray-700">Student ID</Label>
                         <Input
                           id="student_id"
                           value={profile.student_id || ""}
                           disabled
-                          className="bg-muted text-muted-foreground cursor-not-allowed"
+                          className="bg-gray-50 text-gray-700 cursor-not-allowed border-gray-200 rounded-lg"
                           placeholder="Not set"
                         />
-                        <p className="text-xs text-muted-foreground mt-1">
+                        <p className="text-xs text-gray-500 mt-1">
                           Student ID cannot be changed after registration
                         </p>
                       </div>
 
-                      <div>
-                        <Label htmlFor="phone">Phone Number</Label>
+                      <div className="space-y-2">
+                        <Label htmlFor="phone" className="text-sm font-semibold text-gray-700">Phone Number</Label>
                         <Input
                           id="phone"
                           value={profile.phone_number || ""}
                           disabled
-                          className="bg-muted text-muted-foreground cursor-not-allowed"
+                          className="bg-gray-50 text-gray-700 cursor-not-allowed border-gray-200 rounded-lg"
                           placeholder="Not set"
                         />
-                        <p className="text-xs text-muted-foreground mt-1">
+                        <p className="text-xs text-gray-500 mt-1">
                           Phone number cannot be changed for security reasons
                         </p>
                       </div>
@@ -934,22 +955,22 @@ const Profile = () => {
                   )}
                 </div>
 
-                <div>
-                  <Label htmlFor="bio">Bio</Label>
+                <div className="space-y-2">
+                  <Label htmlFor="bio" className="text-sm font-semibold text-gray-700">Bio</Label>
                   <Textarea
                     id="bio"
                     value={profile.bio || ""}
                     disabled
-                    className="bg-muted text-muted-foreground cursor-not-allowed"
+                    className="bg-gray-50 text-gray-700 cursor-not-allowed border-gray-200 rounded-lg"
                     placeholder="Tell others about yourself..."
                     rows={3}
                   />
                 </div>
 
-                <div>
-                  <Label htmlFor="account_type">Account Type</Label>
+                <div className="space-y-2">
+                  <Label htmlFor="account_type" className="text-sm font-semibold text-gray-700">Account Type</Label>
                   <Select value={profile.account_type} disabled={true}>
-                    <SelectTrigger>
+                    <SelectTrigger className="bg-gray-50 border-gray-200 rounded-lg">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -958,7 +979,7 @@ const Profile = () => {
                       <SelectItem value="both">Both Buyer & Seller</SelectItem>
                     </SelectContent>
                   </Select>
-                  <p className="text-xs text-muted-foreground mt-1">
+                  <p className="text-xs text-gray-500 mt-1">
                     Account type cannot be changed. Contact support if you need
                     assistance.
                   </p>
@@ -967,10 +988,10 @@ const Profile = () => {
                 {/* Student ID Photo Section */}
                 {(profile.account_type === "seller" ||
                   profile.account_type === "both") && (
-                  <div>
-                    <Label>Student ID Card</Label>
+                  <div className="space-y-3">
+                    <Label className="text-sm font-semibold text-gray-700">Student ID Card</Label>
                     {profile.student_id_photo_url ? (
-                      <div className="mt-2 p-4 border rounded-lg bg-muted/50">
+                      <div className="mt-3 p-6 border border-gray-200 rounded-xl bg-gray-50/50">
                         <img
                           src={
                             profile.student_id_photo_url.startsWith("http")
@@ -987,18 +1008,18 @@ const Profile = () => {
                             e.currentTarget.style.display = "none";
                           }}
                         />
-                        <p className="text-xs text-muted-foreground mt-2">
+                        <p className="text-xs text-gray-500 mt-3">
                           Student ID card uploaded during registration
                         </p>
                       </div>
                     ) : (
-                      <div className="mt-2 p-4 border-2 border-dashed border-muted-foreground/25 rounded-lg bg-muted/50">
+                      <div className="mt-3 p-6 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50/50">
                         <div className="text-center">
-                          <p className="text-sm text-muted-foreground mb-3">
+                          <p className="text-sm text-gray-600 mb-4">
                             No student ID card uploaded yet
                           </p>
-                          <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-4 text-center">
-                            <div className="text-sm font-medium mb-2">
+                          <div className="border-2 border-dashed border-gray-200 rounded-xl p-6 text-center bg-white/50">
+                            <div className="text-sm font-semibold mb-3 text-gray-700">
                               Student ID Card
                             </div>
                             <CompressedImageUpload
@@ -1010,7 +1031,7 @@ const Profile = () => {
                               label="Take/Upload ID"
                             />
                           </div>
-                          <p className="text-xs text-muted-foreground mt-2">
+                          <p className="text-xs text-gray-500 mt-3">
                             Required for seller verification
                           </p>
                         </div>
@@ -1022,14 +1043,18 @@ const Profile = () => {
 
 
                 {/* Account Deletion Section */}
-                <div className="border-t pt-6 mt-6">
-                  <h3 className="text-lg font-semibold text-destructive mb-2">
-                    Danger Zone
-                  </h3>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Once you delete your account, there is no going back. Please
-                    be certain.
-                  </p>
+                <div className="border-t border-gray-200 pt-8 mt-8">
+                  <div className="bg-red-50 border border-red-200 rounded-xl p-6">
+                    <h3 className="text-xl font-bold text-red-700 mb-3 flex items-center gap-2">
+                      <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                      </svg>
+                      Danger Zone
+                    </h3>
+                    <p className="text-sm text-red-600 mb-6">
+                      Once you delete your account, there is no going back. Please
+                      be certain.
+                    </p>
                   <Dialog
                     open={deleteModalOpen}
                     onOpenChange={setDeleteModalOpen}
@@ -1037,9 +1062,9 @@ const Profile = () => {
                     <DialogTrigger asChild>
                       <Button
                         variant="destructive"
-                        className="w-full sm:w-auto"
+                        className="w-full sm:w-auto bg-red-600 hover:bg-red-700 font-semibold px-6 py-3 rounded-xl shadow-lg"
                       >
-                        <Trash2 className="h-4 w-4 mr-2" />
+                        <Trash2 className="h-5 w-5 mr-2" />
                         Delete Account
                       </Button>
                     </DialogTrigger>
@@ -1106,6 +1131,7 @@ const Profile = () => {
                       </div>
                     </DialogContent>
                   </Dialog>
+                  </div>
                 </div>
               </CardContent>
             </Card>
