@@ -2,6 +2,7 @@ import React, { Suspense } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { HelmetProvider } from "react-helmet-async";
 import {
   QueryClient,
   QueryClientProvider,
@@ -55,6 +56,8 @@ import PullToRefresh from "@/components/common/PullToRefresh";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import "@/styles/mobile-fixes.css";
 import "@/styles/pull-to-refresh.css";
+import "@/styles/scroll-optimization.css";
+import "@/styles/bottom-nav.css";
 
 // Lazy load pages for better performance with error boundaries
 const Index = React.lazy(() =>
@@ -312,8 +315,9 @@ const AppContent = () => {
       <PerformanceMonitor />
       <NetworkNotification />
       <Header />
-      <PullToRefresh onRefresh={handleRefresh} className="min-h-screen">
-        <div className={`pb-24 lg:pb-0 layout-stable ${metrics.isLowEndDevice ? 'low-end-device' : ''}`}>
+      <PullToRefresh onRefresh={handleRefresh} className="min-h-screen scroll-container">
+        {/* Content container with proper layout structure */}
+        <div className={`${metrics.isLowEndDevice ? 'low-end-device' : ''}`}>
           <AuthGuard>
             <NavigationPreloader>
               <Suspense fallback={<LoadingSkeleton />}>
@@ -392,27 +396,29 @@ const AppContent = () => {
 
 const App = () => (
   <ErrorBoundary>
-    <BrowserRouter>
-      <AccessibilityProvider>
-        <ThemeProvider defaultTheme="light">
-          <SecurityProvider>
-            <QueryClientProvider client={queryClient}>
-              <TooltipProvider>
-                <Toaster />
-                <Sonner />
-                <ProfileProvider>
-                  <RealTimeProvider>
-                    <MessageCountProvider>
-                      <AppContent />
-                    </MessageCountProvider>
-                  </RealTimeProvider>
-                </ProfileProvider>
-              </TooltipProvider>
-            </QueryClientProvider>
-          </SecurityProvider>
-        </ThemeProvider>
-      </AccessibilityProvider>
-    </BrowserRouter>
+    <HelmetProvider>
+      <BrowserRouter>
+        <AccessibilityProvider>
+          <ThemeProvider defaultTheme="light">
+            <SecurityProvider>
+              <QueryClientProvider client={queryClient}>
+                <TooltipProvider>
+                  <Toaster />
+                  <Sonner />
+                  <ProfileProvider>
+                    <RealTimeProvider>
+                      <MessageCountProvider>
+                        <AppContent />
+                      </MessageCountProvider>
+                    </RealTimeProvider>
+                  </ProfileProvider>
+                </TooltipProvider>
+              </QueryClientProvider>
+            </SecurityProvider>
+          </ThemeProvider>
+        </AccessibilityProvider>
+      </BrowserRouter>
+    </HelmetProvider>
   </ErrorBoundary>
 );
 

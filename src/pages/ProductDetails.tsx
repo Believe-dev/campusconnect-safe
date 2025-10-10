@@ -27,6 +27,8 @@ import {
 } from 'lucide-react';
 import ProductCard from '@/components/marketplace/ProductCard';
 import { ProductReviews } from '@/components/reviews/ProductReviews';
+import { ProductSEO } from '@/components/common/ProductSEO';
+import { SEODebugger } from '@/components/common/SEODebugger';
 
 interface Product {
   id: string;
@@ -77,46 +79,7 @@ const ProductDetails = () => {
     }
   }, [id]);
 
-  // Update Open Graph metadata for product sharing
-  useEffect(() => {
-    if (product) {
-      const ogTitle = document.getElementById('og-title');
-      const ogDescription = document.getElementById('og-description');
-      const ogImage = document.getElementById('og-image');
-      
-      if (ogTitle) {
-        ogTitle.setAttribute('content', `${product.title} - ₦${product.price.toLocaleString()} | UniMarket`);
-      }
-      if (ogDescription) {
-        ogDescription.setAttribute('content', `${product.description || product.title} - Available on UniMarket, Nigeria's trusted university marketplace.`);
-      }
-      if (ogImage && product.images && product.images[0]) {
-        ogImage.setAttribute('content', product.images[0]);
-      }
-      
-      // Update page title for better SEO
-      document.title = `${product.title} - ₦${product.price.toLocaleString()} | UniMarket`;
-    }
-    
-    return () => {
-      // Reset to default when leaving page
-      const ogTitle = document.getElementById('og-title');
-      const ogDescription = document.getElementById('og-description');
-      const ogImage = document.getElementById('og-image');
-      
-      if (ogTitle) {
-        ogTitle.setAttribute('content', 'UniMarket - Nigeria\'s #1 Trusted University Marketplace');
-      }
-      if (ogDescription) {
-        ogDescription.setAttribute('content', 'Join 10,000+ Nigerian university students buying and selling safely. Verified sellers, secure payments, escrow protection for textbooks, electronics, fashion & more.');
-      }
-      if (ogImage) {
-        ogImage.setAttribute('content', 'https://unimarket.com.ng/logo.png');
-      }
-      
-      document.title = 'UniMarket - Nigeria\'s #1 Trusted University Marketplace | Buy & Sell Safely';
-    };
-  }, [product]);
+
 
   useEffect(() => {
     if (product) {
@@ -620,6 +583,9 @@ const ProductDetails = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50">
+      {/* Dynamic SEO Meta Tags */}
+      {product && <ProductSEO product={product} />}
+      
       <main className="container mx-auto px-4 py-6 sm:py-8 pb-24 md:pb-8">
         <div className="max-w-6xl mx-auto">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
@@ -1073,6 +1039,9 @@ const ProductDetails = () => {
           )}
         </div>
       </main>
+      
+      {/* SEO Debugger - Only visible in development */}
+      <SEODebugger />
     </div>
   );
 };

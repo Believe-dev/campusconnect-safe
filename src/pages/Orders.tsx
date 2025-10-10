@@ -1051,7 +1051,7 @@ const Orders = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <main className="container mx-auto px-4 py-6 sm:py-8 pb-24 md:pb-8">
+      <main className="container mx-auto px-4 py-6 sm:py-8">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center justify-between mb-4 sm:mb-6">
             <h1 className="text-2xl sm:text-3xl font-bold text-primary">

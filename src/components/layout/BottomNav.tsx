@@ -80,18 +80,30 @@ const BottomNav = () => {
   ];
 
   return (
-    <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 px-2 pb-2 transition-all duration-300 ease-out">
+    /*
+     * Fixed bottom navigation - always visible at bottom of viewport
+     * Uses position: fixed with bottom: 0 to stay at screen bottom
+     * z-index: 1050 ensures it appears above other content
+     * Content padding prevents overlap with scrollable content
+     */
+    <nav className="force-fixed-bottom px-2 transition-all duration-300 ease-out">
       <div
         className={`transition-all duration-300 ease-out ${
           isScrolled
-            ? "bg-white/90 backdrop-blur-md border border-primary/20 rounded-xl shadow-lg mx-1"
-            : "bg-white border-t border-gray-100 shadow-sm"
+            ? "bg-white/90 backdrop-blur-md border border-primary/20 rounded-xl shadow-lg mx-1 mb-2"
+            : "bg-white border-t border-gray-200 shadow-sm "
         }`}
         style={{
-          paddingBottom: isScrolled ? "8px" : "env(safe-area-inset-bottom)",
+          /* Add safe area padding for devices with home indicators */
+          paddingBottom: isScrolled
+            ? "8px"
+            : "max(8px, env(safe-area-inset-bottom))",
+          /* Ensure minimum height for touch targets */
+          minHeight: "64px",
         }}
       >
-        <div className="flex justify-around items-center py-2 px-1 safe-area-pb">
+        {/* Navigation items container with proper spacing */}
+        <div className="flex justify-around items-center py-2 px-1">
           {navItems.map(({ to, icon: Icon, label, badge, onClick }) => {
             const isActive =
               location.pathname === to ||

@@ -499,7 +499,7 @@ const Profile = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50">
-      <main className="container mx-auto px-4 py-6 sm:py-8 pb-24 md:pb-8">
+      <main className="container mx-auto px-4 py-6 sm:py-8">
         <div className="max-w-6xl mx-auto space-y-8">
           <SellerDocumentReminder />
           <SellerRegistrationCard />

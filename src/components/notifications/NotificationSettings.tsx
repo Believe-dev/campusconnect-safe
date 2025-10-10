@@ -7,10 +7,8 @@ import { Bell, Mail, Smartphone, Settings } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { requestNotificationPermission, sendTestNotification } from '@/utils/oneSignal';
-import { TestNotificationButton } from './TestNotificationButton';
-import { MobileNotificationTest } from './MobileNotificationTest';
-import { ComprehensiveNotificationTest } from './ComprehensiveNotificationTest';
+import { requestNotificationPermission } from '@/utils/oneSignal';
+
 
 interface NotificationPreferences {
   email_notifications: boolean;
@@ -115,10 +113,7 @@ export default function NotificationSettings() {
     }
   };
 
-  const testNotifications = async () => {
-    await sendTestNotification();
-    toast.success('Test notification sent!');
-  };
+
 
   if (loading) {
     return (
@@ -174,29 +169,7 @@ export default function NotificationSettings() {
             </div>
           </div>
 
-          {/* Test Notifications */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between p-4 border rounded-lg">
-              <div>
-                <p className="font-medium">Test Notifications</p>
-                <p className="text-sm text-muted-foreground">
-                  Send a test notification to verify everything is working
-                </p>
-              </div>
-              <div className="flex gap-2">
-                <TestNotificationButton />
-                <Button onClick={testNotifications} variant="outline" size="sm">
-                  Full Test
-                </Button>
-              </div>
-            </div>
-            
-            {/* Mobile Test Component */}
-            <MobileNotificationTest />
-            
-            {/* Comprehensive Test Component */}
-            <ComprehensiveNotificationTest />
-          </div>
+
 
           {/* Notification Types */}
           <div className="space-y-4">

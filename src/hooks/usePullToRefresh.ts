@@ -10,6 +10,10 @@ export const usePullToRefresh = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [pullDistance, setPullDistance] = useState(0);
   const [startY, setStartY] = useState(0);
+  
+  // Increased threshold for more natural feel (like Chrome mobile)
+  const PULL_THRESHOLD = 120; // Increased from 100px
+  const PULL_RESISTANCE = 0.6; // Add resistance to make it feel more natural
 
   const showRefreshLoader = useCallback(() => {
     // Create and show pull-to-refresh loader
@@ -104,8 +108,15 @@ export const usePullToRefresh = () => {
         await Promise.all(cacheNames.map(name => caches.delete(name)));
       }
       
-      // Clear localStorage (except essential data)
-      const essentialKeys = ['auth-token', 'user-preferences', 'theme'];
+      // Clear localStorage (except essential data including onboarding state)
+      const essentialKeys = [
+        'auth-token', 
+        'user-preferences', 
+        'theme',
+        'unimarket_onboarding_completed', // Preserve global onboarding state
+        'unimarket_onboarding_completed_', // Preserve user-specific onboarding state
+        'user_signup_' // Preserve user signup timestamps
+      ];
       const keysToRemove = [];
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i);
@@ -135,24 +146,75 @@ export const usePullToRefresh = () => {
     }
   }, [queryClient, toast, isOnline, isRefreshing, showRefreshLoader, hideRefreshLoader]);
 
-  // Touch event handlers for pull-to-refresh gesture
+  // Enhanced touch event handlers for pull-to-refresh gesture
   useEffect(() => {
     let touchStartY = 0;
     let touchCurrentY = 0;
     let isAtTop = false;
+    let isPulling = false;
+    
+    // Helper function to check if element is interactive
+    const isInteractiveElement = (element: Element): boolean => {
+      const interactiveTags = ['BUTTON', 'A', 'INPUT', 'SELECT', 'TEXTAREA'];
+      const interactiveRoles = ['button', 'link', 'menuitem', 'tab'];
+      const interactiveClasses = ['btn', 'button', 'clickable', 'interactive'];
+      
+      // Check tag name
+      if (interactiveTags.includes(element.tagName)) return true;
+      
+      // Check role attribute
+      const role = element.getAttribute('role');
+      if (role && interactiveRoles.includes(role)) return true;
+      
+      // Check for click handlers or interactive classes
+      if (element.getAttribute('onclick') || 
+          element.classList.contains('cursor-pointer') ||
+          interactiveClasses.some(cls => element.classList.contains(cls))) {
+        return true;
+      }
+      
+      // Check parent elements (up to 3 levels)
+      let parent = element.parentElement;
+      let level = 0;
+      while (parent && level < 3) {
+        if (interactiveTags.includes(parent.tagName) || 
+            parent.getAttribute('role') === 'button' ||
+            parent.classList.contains('cursor-pointer')) {
+          return true;
+        }
+        parent = parent.parentElement;
+        level++;
+      }
+      
+      return false;
+    };
     
     const handleTouchStart = (e: TouchEvent) => {
+      // Ignore touches on interactive elements
+      const target = e.target as Element;
+      if (isInteractiveElement(target)) {
+        isPulling = false;
+        return;
+      }
+      
       touchStartY = e.touches[0].clientY;
       isAtTop = window.scrollY === 0;
+      isPulling = isAtTop; // Only start pulling if at top
     };
     
     const handleTouchMove = (e: TouchEvent) => {
-      if (!isAtTop || isRefreshing) return;
+      if (!isPulling || !isAtTop || isRefreshing) return;
       
       touchCurrentY = e.touches[0].clientY;
-      const pullDistance = Math.max(0, touchCurrentY - touchStartY);
+      const rawDistance = Math.max(0, touchCurrentY - touchStartY);
       
-      if (pullDistance > 50) {
+      // Apply resistance for more natural feel
+      const pullDistance = rawDistance * PULL_RESISTANCE;
+      
+      if (pullDistance > 30) { // Lower threshold for showing indicator
+        // Prevent default scroll behavior when pulling
+        e.preventDefault();
+        
         // Show pull indicator
         const indicator = document.getElementById('pull-indicator');
         if (!indicator) {
@@ -161,27 +223,36 @@ export const usePullToRefresh = () => {
           pullIndicator.innerHTML = `
             <div style="
               position: fixed;
-              top: ${Math.min(pullDistance - 50, 60)}px;
+              top: ${Math.min(pullDistance - 30, 80)}px;
               left: 50%;
               transform: translateX(-50%);
               z-index: 9998;
               background: rgba(22, 163, 74, 0.9);
               color: white;
-              padding: 8px 16px;
-              border-radius: 20px;
-              font-size: 12px;
+              padding: 10px 20px;
+              border-radius: 25px;
+              font-size: 13px;
               font-weight: 500;
               backdrop-filter: blur(10px);
               transition: all 0.2s ease;
+              box-shadow: 0 4px 12px rgba(0,0,0,0.15);
             ">
-              ${pullDistance > 100 ? '↓ Release to refresh' : '↓ Pull to refresh'}
+              ${pullDistance > PULL_THRESHOLD ? '↓ Release to refresh UniMarket' : '↓ Pull down to refresh'}
             </div>
           `;
           document.body.appendChild(pullIndicator);
         } else {
           const indicatorEl = indicator.firstElementChild as HTMLElement;
-          indicatorEl.style.top = `${Math.min(pullDistance - 50, 60)}px`;
-          indicatorEl.textContent = pullDistance > 100 ? '↓ Release to refresh' : '↓ Pull to refresh';
+          indicatorEl.style.top = `${Math.min(pullDistance - 30, 80)}px`;
+          indicatorEl.textContent = pullDistance > PULL_THRESHOLD ? 
+            '↓ Release to refresh UniMarket' : '↓ Pull down to refresh';
+          
+          // Change color when ready to refresh
+          if (pullDistance > PULL_THRESHOLD) {
+            indicatorEl.style.background = 'rgba(34, 197, 94, 0.95)';
+          } else {
+            indicatorEl.style.background = 'rgba(22, 163, 74, 0.9)';
+          }
         }
       }
     };
@@ -192,16 +263,24 @@ export const usePullToRefresh = () => {
         indicator.remove();
       }
       
-      if (!isAtTop || isRefreshing) return;
+      if (!isPulling || !isAtTop || isRefreshing) {
+        isPulling = false;
+        return;
+      }
       
-      const pullDistance = Math.max(0, touchCurrentY - touchStartY);
-      if (pullDistance > 100) {
+      const rawDistance = Math.max(0, touchCurrentY - touchStartY);
+      const pullDistance = rawDistance * PULL_RESISTANCE;
+      
+      if (pullDistance > PULL_THRESHOLD) {
         handleRefresh();
       }
+      
+      isPulling = false;
     };
     
+    // Use passive: false for touchmove to allow preventDefault
     document.addEventListener('touchstart', handleTouchStart, { passive: true });
-    document.addEventListener('touchmove', handleTouchMove, { passive: true });
+    document.addEventListener('touchmove', handleTouchMove, { passive: false });
     document.addEventListener('touchend', handleTouchEnd, { passive: true });
     
     return () => {
@@ -209,7 +288,7 @@ export const usePullToRefresh = () => {
       document.removeEventListener('touchmove', handleTouchMove);
       document.removeEventListener('touchend', handleTouchEnd);
     };
-  }, [handleRefresh, isRefreshing]);
+  }, [handleRefresh, isRefreshing, PULL_THRESHOLD, PULL_RESISTANCE]);
 
   return { handleRefresh, isRefreshing };
 };

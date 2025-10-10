@@ -63,7 +63,7 @@ export const PWAInstallPrompt: React.FC = () => {
   if (!showPrompt) return null;
 
   return (
-    <div className="fixed bottom-4 left-4 right-4 z-50 bg-white border border-gray-200 rounded-lg shadow-lg p-4 max-w-sm mx-auto">
+    <div className="force-fixed-pwa bg-white border border-gray-200 rounded-lg shadow-lg p-4 max-w-sm mx-auto">
       <div className="flex items-start gap-3">
         <div className="bg-primary/10 p-2 rounded-full">
           <Smartphone className="h-5 w-5 text-primary" />

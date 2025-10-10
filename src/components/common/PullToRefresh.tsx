@@ -98,7 +98,7 @@ const PullToRefresh: React.FC<PullToRefreshProps> = ({
     <div 
       ref={containerRef}
       className={cn(
-        "pull-to-refresh-container relative overflow-hidden",
+        "pull-to-refresh-container relative",
         canRefresh && "can-refresh",
         className
       )}

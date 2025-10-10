@@ -398,7 +398,7 @@ const Marketplace = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50">
-      <main className="container mx-auto px-4 py-6 sm:py-8 pb-24 md:pb-8">
+      <main className="container mx-auto px-4 py-6 sm:py-8">
         <OfflineNotice />
 
         {/* Enhanced Search & Filters */}
@@ -417,7 +417,7 @@ const Marketplace = () => {
                   <div className="relative">
                     <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
                     <Input
-                      placeholder="Search for textbooks, electronics, fashion..."
+                      placeholder="Search for anything..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       className="pl-12 pr-24 h-14 text-lg border-2 border-gray-200 focus:border-university-green rounded-xl"
@@ -514,7 +514,7 @@ const Marketplace = () => {
             <p className="text-sm text-gray-600 mt-1">
               🏆 Verified sellers shown first • 🔒 All transactions protected
             </p>
-            <p className="text-sm text-gray-600 mt-1 flex gap-1 items-center">
+            <div className="text-sm text-gray-600 mt-1 flex gap-1 items-center">
               Products with{" "}
               <div className="w-4 h-4 sm:w-5 sm:h-5 bg-blue-500 rounded-full flex items-center justify-center shadow-sm">
                 <svg
@@ -530,7 +530,7 @@ const Marketplace = () => {
                 </svg>
               </div>{" "}
               are verified sellers{" "}
-            </p>
+            </div>
           </div>
           <Badge
             variant="outline"

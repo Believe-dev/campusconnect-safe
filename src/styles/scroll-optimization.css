@@ -1,0 +1,114 @@
+/* Scroll Performance Optimizations */
+
+/* Enable hardware acceleration for smooth scrolling */
+* {
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+
+/* Optimize main scrollable containers */
+html, body {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+/* Optimize scrollable areas */
+.scroll-container,
+[data-scroll-container],
+.overflow-y-auto,
+.overflow-auto {
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+  will-change: scroll-position;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/* Reduce paint operations during scroll */
+.scroll-optimized {
+  contain: layout style paint;
+  will-change: transform;
+  transform: translateZ(0);
+}
+
+/* Optimize images for scroll performance */
+img {
+  will-change: auto;
+  backface-visibility: hidden;
+  transform: translateZ(0);
+}
+
+/* Optimize transitions during scroll */
+.transition-transform,
+.transition-all {
+  will-change: transform;
+}
+
+/* Remove scroll momentum delay on iOS */
+body {
+  -webkit-overflow-scrolling: touch;
+  -webkit-transform: translate3d(0, 0, 0);
+  transform: translate3d(0, 0, 0);
+}
+
+/* Optimize backdrop blur for better performance */
+.backdrop-blur-sm,
+.backdrop-blur {
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+  will-change: backdrop-filter;
+}
+
+/* Mobile-specific scroll optimizations */
+@media (max-width: 768px) {
+  body {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+  }
+  
+  /* Reduce motion for better performance on mobile */
+  .transition-all,
+  .transition-transform {
+    transition-duration: 0.15s;
+  }
+  
+  /* Optimize mobile scrollable areas */
+  .overflow-y-auto,
+  .overflow-auto {
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: y proximity;
+  }
+}
+
+/* Disable smooth scrolling on low-end devices */
+@media (max-width: 768px) and (prefers-reduced-motion: reduce) {
+  * {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* GPU acceleration for key elements */
+.card,
+.button,
+[role="button"],
+.avatar {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/* Optimize list rendering */
+.grid,
+.flex {
+  contain: layout;
+}
+
+/* Reduce repaints during scroll */
+.fixed,
+.sticky {
+  will-change: transform;
+  contain: layout style paint;
+}

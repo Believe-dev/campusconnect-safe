@@ -4,6 +4,8 @@
 @import "./styles/mobile-upload.css";
 @import "./styles/ios-fixes.css";
 @import "./styles/accessibility.css";
+@import "./styles/bottom-nav.css";
+@import "./styles/force-fixed.css";
 
 /* Disable hover effects on mobile sheet buttons and links */
 @media (max-width: 1024px) {
@@ -127,15 +129,28 @@
     @apply border-border;
   }
 
+  html, body {
+    position: static !important;
+    transform: none !important;
+    contain: none !important;
+  }
+  
   body {
     background: var(--gradient-background);
     background-attachment: fixed;
     color: hsl(var(--foreground));
     font-feature-settings: "rlig" 1, "calt" 1;
-    /* Prevent flash of unstyled content */
     opacity: 1;
     transition: opacity 0.1s ease-in-out;
     min-height: 100vh;
+    padding-top: 80px;
+    padding-bottom: 80px;
+  }
+  
+  @media (min-width: 1024px) {
+    body {
+      padding-bottom: 0;
+    }
   }
 
   /* Prevent layout shifts */
@@ -402,7 +417,6 @@
   /* Prevent layout shift during navigation */
   .layout-stable {
     min-height: 100vh;
-    contain: layout;
   }
 
   /* Avatar transition */
