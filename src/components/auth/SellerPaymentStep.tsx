@@ -5,6 +5,7 @@ import { usePaystack } from "@/hooks/usePaystack";
 import { useToast } from "@/hooks/use-toast";
 import { BUSINESS_RULES } from "@/lib/constants";
 import { CreditCard, Shield, CheckCircle, ArrowLeft } from "lucide-react";
+import { WhatsAppSupport } from "@/components/ui/WhatsAppSupport";
 
 interface SellerPaymentStepProps {
   email: string;
@@ -137,9 +138,15 @@ export const SellerPaymentStep = ({
           </Button>
         </div>
 
-        <p className="text-xs text-muted-foreground text-center">
-          Secure payment powered by Paystack. Payment required before account creation.
-        </p>
+        <div className="text-center space-y-2">
+          <p className="text-xs text-muted-foreground">
+            Secure payment powered by Paystack. Payment required before account creation.
+          </p>
+          <WhatsAppSupport 
+            message="Hi! I need help with seller registration payment on UniMarket. Can you assist me?"
+            className="w-full"
+          />
+        </div>
       </CardContent>
     </Card>
   );

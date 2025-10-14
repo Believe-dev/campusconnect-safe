@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/enhanced-button";
 import { useRealTimeProfile } from "@/hooks/useRealTimeProfile";
@@ -97,7 +97,11 @@ const Profile = () => {
   const [verificationRequest, setVerificationRequest] = useState<any>(null);
   const [gameBadge, setGameBadge] = useState<GameBadgeData | null>(null);
   const [walletBalanceVisible, setWalletBalanceVisible] = useState(false);
-  usePullToRefresh(); // Enable pull-to-refresh
+  const handleRefresh = useCallback(async () => {
+    await fetchProfile();
+  }, []);
+
+  usePullToRefresh({ onRefresh: handleRefresh }); // Enable pull-to-refresh
 
   useEffect(() => {
     fetchProfile();
@@ -110,11 +114,11 @@ const Profile = () => {
     const channel = supabase
       .channel(`profile-realtime-${user.id}`)
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: '*',
-          schema: 'public',
-          table: 'profiles',
+          event: "*",
+          schema: "public",
+          table: "profiles",
         },
         (payload) => {
           const profileData = payload.new as any;
@@ -124,11 +128,11 @@ const Profile = () => {
         }
       )
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: '*',
-          schema: 'public',
-          table: 'wallets',
+          event: "*",
+          schema: "public",
+          table: "wallets",
         },
         (payload) => {
           const walletData = payload.new as any;
@@ -138,25 +142,28 @@ const Profile = () => {
         }
       )
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: '*',
-          schema: 'public',
-          table: 'orders',
+          event: "*",
+          schema: "public",
+          table: "orders",
         },
         (payload) => {
           const orderData = payload.new as any;
-          if (orderData?.seller_id === user.id || orderData?.buyer_id === user.id) {
+          if (
+            orderData?.seller_id === user.id ||
+            orderData?.buyer_id === user.id
+          ) {
             fetchProfile(); // Refresh to get updated stats
           }
         }
       )
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: '*',
-          schema: 'public',
-          table: 'reviews',
+          event: "*",
+          schema: "public",
+          table: "reviews",
         },
         (payload) => {
           const reviewData = payload.new as any;
@@ -504,15 +511,19 @@ const Profile = () => {
           <SellerDocumentReminder />
           <SellerRegistrationCard />
           <SellerSubscriptionCard />
-          
+
           {/* Modern Header Section */}
           <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-university-green to-emerald-600 p-8 text-white">
             <div className="absolute inset-0 bg-black/10"></div>
             <div className="relative z-10">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div>
-                  <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-2">My Profile</h1>
-                  <p className="text-white/90 text-lg">Manage your UniMarket account</p>
+                  <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-2">
+                    My Profile
+                  </h1>
+                  <p className="text-white/90 text-lg">
+                    Manage your UniMarket account
+                  </p>
                 </div>
                 <Dialog open={editing} onOpenChange={setEditing}>
                   <DialogTrigger asChild>
@@ -520,44 +531,60 @@ const Profile = () => {
                       Edit Profile
                     </Button>
                   </DialogTrigger>
-              <DialogContent className="max-w-md">
-                <DialogHeader>
-                  <DialogTitle>Edit Profile</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="edit_full_name">Full Name *</Label>
-                    <Input
-                      id="edit_full_name"
-                      value={profile?.full_name || ''}
-                      onChange={(e) =>
-                        setProfile(profile ? { ...profile, full_name: e.target.value } : null)
-                      }
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="edit_bio">Bio</Label>
-                    <Textarea
-                      id="edit_bio"
-                      value={profile?.bio || ""}
-                      onChange={(e) =>
-                        setProfile(profile ? { ...profile, bio: e.target.value } : null)
-                      }
-                      placeholder="Tell others about yourself..."
-                      rows={3}
-                    />
-                  </div>
-                  <div className="flex gap-2 pt-4">
-                    <Button onClick={handleSave} disabled={saving} className="flex-1">
-                      {saving ? "Saving..." : "Save Changes"}
-                    </Button>
-                    <Button variant="outline" onClick={() => setEditing(false)} className="flex-1">
-                      Cancel
-                    </Button>
-                  </div>
-                </div>
-              </DialogContent>
-            </Dialog>
+                  <DialogContent className="max-w-md">
+                    <DialogHeader>
+                      <DialogTitle>Edit Profile</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div>
+                        <Label htmlFor="edit_full_name">Full Name *</Label>
+                        <Input
+                          id="edit_full_name"
+                          value={profile?.full_name || ""}
+                          onChange={(e) =>
+                            setProfile(
+                              profile
+                                ? { ...profile, full_name: e.target.value }
+                                : null
+                            )
+                          }
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="edit_bio">Bio</Label>
+                        <Textarea
+                          id="edit_bio"
+                          value={profile?.bio || ""}
+                          onChange={(e) =>
+                            setProfile(
+                              profile
+                                ? { ...profile, bio: e.target.value }
+                                : null
+                            )
+                          }
+                          placeholder="Tell others about yourself..."
+                          rows={3}
+                        />
+                      </div>
+                      <div className="flex gap-2 pt-4">
+                        <Button
+                          onClick={handleSave}
+                          disabled={saving}
+                          className="flex-1"
+                        >
+                          {saving ? "Saving..." : "Save Changes"}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => setEditing(false)}
+                          className="flex-1"
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
               </div>
             </div>
           </div>
@@ -650,6 +677,11 @@ const Profile = () => {
                     <p className="text-gray-600 mb-4">
                       {profile.email || user?.email || "No email"}
                     </p>
+                    {profile.bio && (
+                      <p className="text-center text-sm text-muted-foreground">
+                        {profile.bio}
+                      </p>
+                    )}
 
                     <div className="flex items-center justify-center gap-3 mt-2 flex-wrap">
                       <Badge className="bg-university-green/10 text-university-green border-university-green/20 px-3 py-1 font-medium">
@@ -673,7 +705,9 @@ const Profile = () => {
                     <div className="flex items-center justify-center gap-6 mt-6">
                       <div className="flex items-center gap-2 bg-yellow-50 px-4 py-2 rounded-full">
                         <Star className="h-5 w-5 fill-yellow-400 text-yellow-400" />
-                        <span className="font-semibold text-gray-700">{(profile.rating || 0).toFixed(1)}</span>
+                        <span className="font-semibold text-gray-700">
+                          {(profile.rating || 0).toFixed(1)}
+                        </span>
                       </div>
                       <button
                         className="flex items-center gap-2 bg-gray-50 hover:bg-gray-100 px-4 py-2 rounded-full transition-colors"
@@ -683,7 +717,9 @@ const Profile = () => {
                         }}
                       >
                         <MessageCircle className="h-5 w-5 text-gray-600" />
-                        <span className="font-semibold text-gray-700">{profile.total_reviews || 0} reviews</span>
+                        <span className="font-semibold text-gray-700">
+                          {profile.total_reviews || 0} reviews
+                        </span>
                       </button>
                     </div>
 
@@ -698,13 +734,23 @@ const Profile = () => {
                               Wallet
                             </span>
                             <div className="flex items-center gap-1">
-                              <Button 
-                                variant="ghost" 
+                              <Button
+                                variant="ghost"
                                 size="sm"
-                                onClick={() => setWalletBalanceVisible(!walletBalanceVisible)}
-                                title={walletBalanceVisible ? "Hide Balance" : "Show Balance"}
+                                onClick={() =>
+                                  setWalletBalanceVisible(!walletBalanceVisible)
+                                }
+                                title={
+                                  walletBalanceVisible
+                                    ? "Hide Balance"
+                                    : "Show Balance"
+                                }
                               >
-                                <Eye className={`h-3 w-3 ${walletBalanceVisible ? '' : 'opacity-50'}`} />
+                                <Eye
+                                  className={`h-3 w-3 ${
+                                    walletBalanceVisible ? "" : "opacity-50"
+                                  }`}
+                                />
                               </Button>
                               <Button variant="ghost" size="sm" asChild>
                                 <a href="/dashboard">
@@ -715,11 +761,11 @@ const Profile = () => {
                           </div>
                           <div className="space-y-2 text-sm">
                             <div className="flex justify-between items-center">
-                              <span className="text-green-700">
-                                Available:
-                              </span>
+                              <span className="text-green-700">Available:</span>
                               <span className="font-bold text-green-800">
-                                {walletBalanceVisible ? `₦${wallet.available_balance.toLocaleString()}` : '••••••'}
+                                {walletBalanceVisible
+                                  ? `₦${wallet.available_balance.toLocaleString()}`
+                                  : "••••••"}
                               </span>
                             </div>
                             <div className="flex justify-between items-center">
@@ -727,7 +773,9 @@ const Profile = () => {
                                 Total Earned:
                               </span>
                               <span className="font-bold text-green-800">
-                                {walletBalanceVisible ? `₦${wallet.total_earnings.toLocaleString()}` : '••••••'}
+                                {walletBalanceVisible
+                                  ? `₦${wallet.total_earnings.toLocaleString()}`
+                                  : "••••••"}
                               </span>
                             </div>
                           </div>
@@ -861,12 +909,6 @@ const Profile = () => {
                       How UniMarket Works
                     </Button>
                   </div>
-
-                  {profile.bio && (
-                    <p className="text-center text-sm text-muted-foreground">
-                      {profile.bio}
-                    </p>
-                  )}
                 </div>
               </CardContent>
             </Card>
@@ -876,8 +918,16 @@ const Profile = () => {
               <CardHeader className="pb-6">
                 <CardTitle className="text-2xl font-bold text-gray-900 flex items-center gap-3">
                   <div className="w-8 h-8 bg-gradient-to-r from-university-green to-emerald-600 rounded-lg flex items-center justify-center">
-                    <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+                    <svg
+                      className="w-5 h-5 text-white"
+                      fill="currentColor"
+                      viewBox="0 0 20 20"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z"
+                        clipRule="evenodd"
+                      />
                     </svg>
                   </div>
                   Profile Information
@@ -886,7 +936,12 @@ const Profile = () => {
               <CardContent className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
-                    <Label htmlFor="full_name" className="text-sm font-semibold text-gray-700">Full Name *</Label>
+                    <Label
+                      htmlFor="full_name"
+                      className="text-sm font-semibold text-gray-700"
+                    >
+                      Full Name *
+                    </Label>
                     <Input
                       id="full_name"
                       value={profile.full_name}
@@ -896,7 +951,12 @@ const Profile = () => {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="email" className="text-sm font-semibold text-gray-700">Email</Label>
+                    <Label
+                      htmlFor="email"
+                      className="text-sm font-semibold text-gray-700"
+                    >
+                      Email
+                    </Label>
                     <Input
                       id="email"
                       value={profile.email}
@@ -909,7 +969,12 @@ const Profile = () => {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="university" className="text-sm font-semibold text-gray-700">University</Label>
+                    <Label
+                      htmlFor="university"
+                      className="text-sm font-semibold text-gray-700"
+                    >
+                      University
+                    </Label>
                     <Input
                       id="university"
                       value={profile.university_name || ""}
@@ -925,7 +990,12 @@ const Profile = () => {
                   {profile.account_type === "seller" && (
                     <>
                       <div className="space-y-2">
-                        <Label htmlFor="student_id" className="text-sm font-semibold text-gray-700">Student ID</Label>
+                        <Label
+                          htmlFor="student_id"
+                          className="text-sm font-semibold text-gray-700"
+                        >
+                          Student ID
+                        </Label>
                         <Input
                           id="student_id"
                           value={profile.student_id || ""}
@@ -939,7 +1009,12 @@ const Profile = () => {
                       </div>
 
                       <div className="space-y-2">
-                        <Label htmlFor="phone" className="text-sm font-semibold text-gray-700">Phone Number</Label>
+                        <Label
+                          htmlFor="phone"
+                          className="text-sm font-semibold text-gray-700"
+                        >
+                          Phone Number
+                        </Label>
                         <Input
                           id="phone"
                           value={profile.phone_number || ""}
@@ -956,7 +1031,12 @@ const Profile = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="bio" className="text-sm font-semibold text-gray-700">Bio</Label>
+                  <Label
+                    htmlFor="bio"
+                    className="text-sm font-semibold text-gray-700"
+                  >
+                    Bio
+                  </Label>
                   <Textarea
                     id="bio"
                     value={profile.bio || ""}
@@ -968,7 +1048,12 @@ const Profile = () => {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="account_type" className="text-sm font-semibold text-gray-700">Account Type</Label>
+                  <Label
+                    htmlFor="account_type"
+                    className="text-sm font-semibold text-gray-700"
+                  >
+                    Account Type
+                  </Label>
                   <Select value={profile.account_type} disabled={true}>
                     <SelectTrigger className="bg-gray-50 border-gray-200 rounded-lg">
                       <SelectValue />
@@ -989,7 +1074,9 @@ const Profile = () => {
                 {(profile.account_type === "seller" ||
                   profile.account_type === "both") && (
                   <div className="space-y-3">
-                    <Label className="text-sm font-semibold text-gray-700">Student ID Card</Label>
+                    <Label className="text-sm font-semibold text-gray-700">
+                      Student ID Card
+                    </Label>
                     {profile.student_id_photo_url ? (
                       <div className="mt-3 p-6 border border-gray-200 rounded-xl bg-gray-50/50">
                         <img
@@ -1040,97 +1127,103 @@ const Profile = () => {
                   </div>
                 )}
 
-
-
                 {/* Account Deletion Section */}
                 <div className="border-t border-gray-200 pt-8 mt-8">
                   <div className="bg-red-50 border border-red-200 rounded-xl p-6">
                     <h3 className="text-xl font-bold text-red-700 mb-3 flex items-center gap-2">
-                      <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                      <svg
+                        className="w-6 h-6"
+                        fill="currentColor"
+                        viewBox="0 0 20 20"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+                          clipRule="evenodd"
+                        />
                       </svg>
                       Danger Zone
                     </h3>
                     <p className="text-sm text-red-600 mb-6">
-                      Once you delete your account, there is no going back. Please
-                      be certain.
+                      Once you delete your account, there is no going back.
+                      Please be certain.
                     </p>
-                  <Dialog
-                    open={deleteModalOpen}
-                    onOpenChange={setDeleteModalOpen}
-                  >
-                    <DialogTrigger asChild>
-                      <Button
-                        variant="destructive"
-                        className="w-full sm:w-auto bg-red-600 hover:bg-red-700 font-semibold px-6 py-3 rounded-xl shadow-lg"
-                      >
-                        <Trash2 className="h-5 w-5 mr-2" />
-                        Delete Account
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Delete Account</DialogTitle>
-                      </DialogHeader>
-                      <div className="space-y-4">
-                        <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4">
-                          <p className="text-sm text-destructive font-medium mb-2">
-                            ⚠️ This action cannot be undone!
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            This will permanently delete your account and all
-                            associated data including:
-                          </p>
-                          <ul className="text-sm text-muted-foreground mt-2 list-disc list-inside">
-                            <li>All your products and listings</li>
-                            <li>Order history and transactions</li>
-                            <li>Messages and conversations</li>
-                            <li>Reviews and ratings</li>
-                            <li>Wallet and payout history</li>
-                          </ul>
-                        </div>
+                    <Dialog
+                      open={deleteModalOpen}
+                      onOpenChange={setDeleteModalOpen}
+                    >
+                      <DialogTrigger asChild>
+                        <Button
+                          variant="destructive"
+                          className="w-full sm:w-auto bg-red-600 hover:bg-red-700 font-semibold px-6 py-3 rounded-xl shadow-lg"
+                        >
+                          <Trash2 className="h-5 w-5 mr-2" />
+                          Delete Account
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Delete Account</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4">
+                          <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4">
+                            <p className="text-sm text-destructive font-medium mb-2">
+                              ⚠️ This action cannot be undone!
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              This will permanently delete your account and all
+                              associated data including:
+                            </p>
+                            <ul className="text-sm text-muted-foreground mt-2 list-disc list-inside">
+                              <li>All your products and listings</li>
+                              <li>Order history and transactions</li>
+                              <li>Messages and conversations</li>
+                              <li>Reviews and ratings</li>
+                              <li>Wallet and payout history</li>
+                            </ul>
+                          </div>
 
-                        <div className="space-y-2">
-                          <Label htmlFor="confirm-name">
-                            Type your full name{" "}
-                            <strong>"{profile.full_name}"</strong> to confirm:
-                          </Label>
-                          <Input
-                            id="confirm-name"
-                            value={deleteConfirmName}
-                            onChange={(e) =>
-                              setDeleteConfirmName(e.target.value)
-                            }
-                            placeholder="Enter your full name"
-                          />
-                        </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="confirm-name">
+                              Type your full name{" "}
+                              <strong>"{profile.full_name}"</strong> to confirm:
+                            </Label>
+                            <Input
+                              id="confirm-name"
+                              value={deleteConfirmName}
+                              onChange={(e) =>
+                                setDeleteConfirmName(e.target.value)
+                              }
+                              placeholder="Enter your full name"
+                            />
+                          </div>
 
-                        <div className="flex gap-2 pt-4">
-                          <Button
-                            variant="outline"
-                            onClick={() => {
-                              setDeleteModalOpen(false);
-                              setDeleteConfirmName("");
-                            }}
-                            className="flex-1"
-                          >
-                            Cancel
-                          </Button>
-                          <Button
-                            variant="destructive"
-                            onClick={handleDeleteAccount}
-                            disabled={
-                              deleting ||
-                              deleteConfirmName !== profile.full_name
-                            }
-                            className="flex-1"
-                          >
-                            {deleting ? "Deleting..." : "Delete Account"}
-                          </Button>
+                          <div className="flex gap-2 pt-4">
+                            <Button
+                              variant="outline"
+                              onClick={() => {
+                                setDeleteModalOpen(false);
+                                setDeleteConfirmName("");
+                              }}
+                              className="flex-1"
+                            >
+                              Cancel
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              onClick={handleDeleteAccount}
+                              disabled={
+                                deleting ||
+                                deleteConfirmName !== profile.full_name
+                              }
+                              className="flex-1"
+                            >
+                              {deleting ? "Deleting..." : "Delete Account"}
+                            </Button>
+                          </div>
                         </div>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
+                      </DialogContent>
+                    </Dialog>
                   </div>
                 </div>
               </CardContent>

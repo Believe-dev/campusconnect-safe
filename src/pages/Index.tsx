@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/enhanced-button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -24,30 +24,43 @@ import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import "@/styles/animations.css";
 
 // Animated Counter Component
-const AnimatedCounter = ({ end, duration = 2000, suffix = "" }: { end: number; duration?: number; suffix?: string }) => {
+const AnimatedCounter = ({
+  end,
+  duration = 2000,
+  suffix = "",
+}: {
+  end: number;
+  duration?: number;
+  suffix?: string;
+}) => {
   const [count, setCount] = useState(0);
-  
+
   useEffect(() => {
     let startTime: number;
     let animationFrame: number;
-    
+
     const animate = (timestamp: number) => {
       if (!startTime) startTime = timestamp;
       const progress = Math.min((timestamp - startTime) / duration, 1);
-      
+
       setCount(Math.floor(progress * end));
-      
+
       if (progress < 1) {
         animationFrame = requestAnimationFrame(animate);
       }
     };
-    
+
     animationFrame = requestAnimationFrame(animate);
-    
+
     return () => cancelAnimationFrame(animationFrame);
   }, [end, duration]);
-  
-  return <span>{count.toLocaleString()}{suffix}</span>;
+
+  return (
+    <span>
+      {count.toLocaleString()}
+      {suffix}
+    </span>
+  );
 };
 
 const Index = () => {
@@ -55,7 +68,11 @@ const Index = () => {
   const { user } = useAuth();
   const { products, loading } = useFeaturedProducts();
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
-  usePullToRefresh(); // Enable pull-to-refresh
+  const handleRefresh = useCallback(async () => {
+    window.location.reload();
+  }, []);
+
+  usePullToRefresh({ onRefresh: handleRefresh }); // Enable pull-to-refresh
 
   const handleViewProduct = (productId: string) => {
     navigate(`/product/${productId}`);
@@ -95,7 +112,7 @@ const Index = () => {
       <section className="relative py-20 lg:py-32 overflow-hidden">
         <div className="absolute inset-0">
           <img
-            src="/src/assets/unimarket.jpg"
+            src="/UniMarket.jpg"
             alt="UniMarket Background"
             className="w-full h-full object-cover opacity-10"
           />

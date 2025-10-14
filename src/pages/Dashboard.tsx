@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -82,7 +82,13 @@ const Dashboard = () => {
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const navigate = useNavigate();
   const { toast } = useToast();
-  usePullToRefresh(); // Enable pull-to-refresh
+  const handleRefresh = useCallback(async () => {
+    await fetchProducts();
+    await fetchAnalytics();
+    setLastUpdated(new Date());
+  }, []);
+
+  usePullToRefresh({ onRefresh: handleRefresh }); // Enable pull-to-refresh
 
   useEffect(() => {
     loadUserProfile();

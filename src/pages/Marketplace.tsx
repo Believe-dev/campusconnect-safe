@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
@@ -79,7 +79,14 @@ const Marketplace = () => {
   const [cart, setCart] = useState<Set<string>>(new Set());
   const navigate = useNavigate();
   const { toast } = useToast();
-  usePullToRefresh(); // Enable pull-to-refresh
+  const handleRefresh = useCallback(async () => {
+    await fetchProducts();
+    if (user) {
+      await fetchUserData(user.id);
+    }
+  }, [user]);
+
+  usePullToRefresh({ onRefresh: handleRefresh }); // Enable pull-to-refresh
 
   useEffect(() => {
     // Check authentication
@@ -516,7 +523,7 @@ const Marketplace = () => {
             </p>
             <div className="text-sm text-gray-600 mt-1 flex gap-1 items-center">
               Products with{" "}
-              <div className="w-4 h-4 sm:w-5 sm:h-5 bg-blue-500 rounded-full flex items-center justify-center shadow-sm">
+              <span className="w-4 h-4 sm:w-5 sm:h-5 bg-blue-500 rounded-full flex items-center justify-center shadow-sm">
                 <svg
                   className="h-3 w-3 sm:h-4 sm:w-4 text-white"
                   fill="currentColor"
@@ -528,7 +535,7 @@ const Marketplace = () => {
                     clipRule="evenodd"
                   />
                 </svg>
-              </div>{" "}
+              </span>{" "}
               are verified sellers{" "}
             </div>
           </div>

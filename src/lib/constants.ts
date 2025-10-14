@@ -27,18 +27,18 @@ export const API_CONFIG = {
 
 export const BUSINESS_RULES = {
   commission: {
-    rate: 0.00, // 0% - No commission, sellers pay registration fee instead
+    rate: 0.0, // 0% - No commission, sellers pay registration fee instead
     minAmount: 100, // ₦100
   },
   sellerRegistration: {
-    fee: 2000, // ₦2,000 one-time registration fee for sellers
+    fee: 100, // ₦100 one-time registration fee for sellers
   },
   escrow: {
-    autoReleaseDays: 7,
+    autoReleaseDays: 2,
     disputeWindowDays: 14,
   },
   delivery: {
-    flatRate: 2000, // ₦2,000
+    flatRate: 0, // ₦2,000
   },
   pagination: {
     defaultLimit: (navigator as any).deviceMemory < 2 ? 10 : 20,

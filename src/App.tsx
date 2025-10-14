@@ -22,6 +22,7 @@ import ProtectedSellerRoute from "./components/auth/ProtectedSellerRoute";
 import { ProfileProvider } from "@/contexts/ProfileContext";
 import { RealTimeProvider } from "@/contexts/RealTimeContext";
 import { MessageCountProvider } from "@/contexts/MessageCountContext";
+import { WelcomeModalProvider } from "@/contexts/WelcomeModalContext";
 
 import { MessagePopup } from "@/components/notifications/MessagePopup";
 import { OfflineNotification } from "@/components/common/OfflineNotification";
@@ -45,7 +46,7 @@ import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import { useLiteMode } from "@/hooks/useLiteMode";
 import { useOnboarding } from "@/hooks/useOnboarding";
 import { DevToolsProtection } from "@/components/security/DevToolsProtection";
-import { useEffect } from "react";
+import { useEffect, useCallback } from "react";
 import { NetworkNotification } from "@/components/notifications/NetworkNotification";
 import { useAutoReload } from "@/hooks/useAutoReload";
 import { PerformanceMonitor } from "@/components/common/PerformanceMonitor";
@@ -271,7 +272,13 @@ const AppContent = () => {
     useProfileCompletion();
   const { isBanned, banReason, userEmail } = useBanCheck();
   const { showOnboarding, closeOnboarding } = useOnboarding();
-  const { handleRefresh } = usePullToRefresh();
+  const handleRefresh = useCallback(async () => {
+    // Refresh the current page data
+    await queryClient.invalidateQueries();
+    window.location.reload();
+  }, []);
+
+  const pullToRefreshState = usePullToRefresh({ onRefresh: handleRefresh });
 
   useEffect(() => {
     const setupNotifications = async () => {
@@ -315,7 +322,7 @@ const AppContent = () => {
       <PerformanceMonitor />
       <NetworkNotification />
       <Header />
-      <PullToRefresh onRefresh={handleRefresh} className="min-h-screen scroll-container">
+      <PullToRefresh onRefresh={handleRefresh} className="chrome-pull-refresh min-h-screen scroll-container">
         {/* Content container with proper layout structure */}
         <div className={`${metrics.isLowEndDevice ? 'low-end-device' : ''}`}>
           <AuthGuard>
@@ -405,13 +412,15 @@ const App = () => (
                 <TooltipProvider>
                   <Toaster />
                   <Sonner />
-                  <ProfileProvider>
-                    <RealTimeProvider>
-                      <MessageCountProvider>
-                        <AppContent />
-                      </MessageCountProvider>
-                    </RealTimeProvider>
-                  </ProfileProvider>
+                  <WelcomeModalProvider>
+                    <ProfileProvider>
+                      <RealTimeProvider>
+                        <MessageCountProvider>
+                          <AppContent />
+                        </MessageCountProvider>
+                      </RealTimeProvider>
+                    </ProfileProvider>
+                  </WelcomeModalProvider>
                 </TooltipProvider>
               </QueryClientProvider>
             </SecurityProvider>

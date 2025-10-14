@@ -90,7 +90,7 @@ export const SellerRegistrationCard = () => {
 
         <div className="space-y-3">
           <p className="text-sm text-orange-800">
-            <strong>Ready to start your campus business?</strong> Pay the one-time ₦2,000 registration fee and unlock unlimited earning potential.
+            <strong>Ready to start your campus business?</strong> Pay the one-time ₦100 registration fee and unlock unlimited earning potential.
           </p>
           <div className="bg-gradient-to-r from-green-50 to-orange-50 border border-green-200 rounded-lg p-3">
             <p className="text-sm font-medium text-green-800 mb-1">
@@ -123,7 +123,7 @@ export const SellerRegistrationCard = () => {
           variant="brand"
         >
           <CreditCard className="h-4 w-4 mr-2" />
-          Pay Registration Fee (₦2,000)
+          Pay Registration Fee (₦100)
         </Button>
 
         <p className="text-xs text-orange-600 text-center">

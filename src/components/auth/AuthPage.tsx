@@ -54,6 +54,8 @@ import { BannedUserModal } from "@/components/auth/BannedUserModal";
 import { ForgotPasswordDialog } from "@/components/auth/ForgotPasswordDialog";
 import { TwoFactorVerification } from "@/components/auth/TwoFactorVerification";
 import { logSecurityEvent } from '@/utils/securityLogger';
+import { WhatsAppSupport } from "@/components/ui/WhatsAppSupport";
+import { BUSINESS_RULES } from "@/lib/constants";
 
 const AuthPage = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -129,61 +131,88 @@ const AuthPage = () => {
       throw new Error("Payment required for seller registration");
     }
 
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: redirectUrl,
-        data: {
-          full_name: fullName.trim(),
-          university_name: university,
-          student_id: studentId.trim(),
-          phone_number: phoneNumber.trim(),
-          account_type: accountType,
-          payment_reference: paymentRef,
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: redirectUrl,
+          data: {
+            full_name: fullName.trim(),
+            university_name: university,
+            student_id: studentId.trim(),
+            phone_number: phoneNumber.trim(),
+            account_type: accountType,
+            payment_reference: paymentRef,
+          },
         },
-      },
-    });
+      });
 
-    // Record payment and mark as paid for sellers
-    if (!error && data.user && accountType === "seller" && paymentRef) {
-      try {
-        // Record the payment
-        await supabase.from("seller_registration_payments").insert({
-          user_id: data.user.id,
-          amount: 2000,
-          payment_reference: paymentRef,
-          payment_method: "paystack",
-          status: "completed",
-        });
-
-        // Set up 2-month subscription
-        const expiryDate = new Date();
-        expiryDate.setMonth(expiryDate.getMonth() + 2);
-
-        await supabase.from("profiles").update({
-          seller_registration_paid: true,
-          seller_registration_paid_at: new Date().toISOString(),
-          seller_subscription_expires_at: expiryDate.toISOString(),
-          seller_features_active: true,
-        }).eq("user_id", data.user.id);
-
-        // Create notification for sellers to upload documents
-        const { sendNotification } = await import('@/utils/notificationService');
-        await sendNotification({
-          userId: data.user.id,
-          title: "Complete Your Seller Profile",
-          message: "Upload your profile picture and student ID card to get approved as a seller.",
-          type: "info",
-          url: "/profile"
-        });
-      } catch (paymentError) {
-        console.error("Error recording payment:", paymentError);
-        // Continue with signup even if payment recording fails
+      if (error) {
+        // Handle specific Supabase errors
+        if (error.message.includes('User already registered')) {
+          throw new Error('An account with this email already exists. Please sign in instead.');
+        } else if (error.message.includes('Invalid email')) {
+          throw new Error('Please enter a valid email address.');
+        } else if (error.message.includes('Password')) {
+          throw new Error('Password must be at least 6 characters long.');
+        } else if (error.message.includes('database')) {
+          throw new Error('Database error during signup. Please try again or contact support.');
+        }
+        throw error;
       }
-    }
 
-    return { error };
+      // Record payment and mark as paid for sellers
+      if (data.user && accountType === "seller" && paymentRef) {
+        try {
+          // Wait a moment for the profile to be created by the trigger
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          // Record the payment
+          await supabase.from("seller_registration_payments").insert({
+            user_id: data.user.id,
+            amount: BUSINESS_RULES.sellerRegistration.fee,
+            payment_reference: paymentRef,
+            payment_method: "paystack",
+            status: "completed",
+          });
+
+          // Set up 2-month subscription
+          const expiryDate = new Date();
+          expiryDate.setMonth(expiryDate.getMonth() + 2);
+
+          await supabase.from("profiles").update({
+            seller_registration_paid: true,
+            seller_registration_paid_at: new Date().toISOString(),
+            seller_subscription_expires_at: expiryDate.toISOString(),
+            seller_features_active: true,
+          }).eq("user_id", data.user.id);
+
+          // Create notification for sellers to upload documents
+          try {
+            const { sendNotification } = await import('@/utils/notificationService');
+            await sendNotification({
+              userId: data.user.id,
+              title: "Complete Your Seller Profile",
+              message: "Upload your profile picture and student ID card to get approved as a seller.",
+              type: "info",
+              url: "/profile"
+            });
+          } catch (notificationError) {
+            console.warn("Failed to send notification:", notificationError);
+            // Don't fail signup for notification errors
+          }
+        } catch (paymentError) {
+          console.error("Error recording payment:", paymentError);
+          // Continue with signup even if payment recording fails
+        }
+      }
+
+      return { error: null };
+    } catch (error: any) {
+      console.error('Signup error:', error);
+      return { error };
+    }
   };
 
   const signIn = async (email: string, password: string) => {
@@ -333,9 +362,24 @@ const AuthPage = () => {
       }
 
       if (error) {
+        // Provide user-friendly error messages
+        let errorMessage = error.message;
+        
+        if (error.message.includes('User already registered')) {
+          errorMessage = 'An account with this email already exists. Please sign in instead.';
+        } else if (error.message.includes('Invalid email')) {
+          errorMessage = 'Please enter a valid email address.';
+        } else if (error.message.includes('Password')) {
+          errorMessage = 'Password must be at least 6 characters long.';
+        } else if (error.message.includes('database') || error.message.includes('Database')) {
+          errorMessage = 'There was a database error during signup. Please try again in a moment or contact support if the issue persists.';
+        } else if (error.message.includes('network') || error.message.includes('fetch')) {
+          errorMessage = 'Network error. Please check your internet connection and try again.';
+        }
+        
         toast({
           title: "Authentication Error",
-          description: error.message,
+          description: errorMessage,
           variant: "destructive",
         });
       } else if (isSignUp) {
@@ -493,12 +537,16 @@ const AuthPage = () => {
                   <Mail className="h-4 w-4" />
                   {loading ? "Signing In..." : "Sign In"}
                 </Button>
-                <div className="text-center">
+                <div className="text-center space-y-2">
                   <ForgotPasswordDialog>
                     <Button variant="link" className="text-sm">
                       Forgot your password?
                     </Button>
                   </ForgotPasswordDialog>
+                  <WhatsAppSupport 
+                    message="Hi! I'm having trouble signing into my UniMarket account. Can you help me?"
+                    className="w-full"
+                  />
                 </div>
               </form>
             </TabsContent>
@@ -896,7 +944,7 @@ const AuthPage = () => {
                         Seller Registration Requirements:
                       </p>
                       <ul className="text-xs text-amber-700 space-y-1">
-                        <li>• ₦2,000 per 2 months subscription (required before signup)</li>
+                        <li>• ₦100 per 2 months subscription (required before signup)</li>
                         <li>• Profile picture & student ID upload</li>
                         <li>• Quick admin approval (24-48 hours)</li>
                         <li>• Keep 100% of sales - No commission ever</li>
@@ -918,9 +966,15 @@ const AuthPage = () => {
                   {loading ? "Creating Account..." : 
                    accountType === "seller" ? "Continue to Payment" : "Create Account"}
                 </Button>
-                <div className="text-xs text-muted-foreground text-center">
-                  <Shield className="h-3 w-3 inline mr-1" />
-                  By signing up, you agree to keep all transactions on UniMarket
+                <div className="text-center space-y-2">
+                  <div className="text-xs text-muted-foreground">
+                    <Shield className="h-3 w-3 inline mr-1" />
+                    By signing up, you agree to keep all transactions on UniMarket
+                  </div>
+                  <WhatsAppSupport 
+                    message="Hi! I need help creating my UniMarket account. Can you assist me with the signup process?"
+                    className="w-full"
+                  />
                 </div>
               </form>
             </TabsContent>
@@ -955,10 +1009,37 @@ const AuthPage = () => {
             onPaymentSuccess={(paymentRef) => {
               setPaymentReference(paymentRef);
               setShowSellerPayment(false);
-              // Automatically proceed with signup after payment
-              setTimeout(() => {
-                handleAuth(true);
-              }, 500);
+              // Directly call signup with payment reference
+              setLoading(true);
+              const sanitizedEmail = email.trim().toLowerCase();
+              signUp(sanitizedEmail, password, paymentRef).then(({ error }) => {
+                if (error) {
+                  toast({
+                    title: "Authentication Error",
+                    description: error.message,
+                    variant: "destructive",
+                  });
+                } else {
+                  toast({
+                    title: "Account Created!",
+                    description: "Account created! Please check your email to verify. Your seller account will be reviewed by admin for approval.",
+                  });
+                  // Reset states
+                  setPaymentReference(null);
+                  // Show seller setup modal
+                  setTimeout(() => {
+                    setShowSellerSetup(true);
+                  }, 1000);
+                }
+                setLoading(false);
+              }).catch((error) => {
+                toast({
+                  title: "Error",
+                  description: error.message || "An error occurred",
+                  variant: "destructive",
+                });
+                setLoading(false);
+              });
             }}
             onBack={() => {
               setShowSellerPayment(false);

@@ -6,6 +6,7 @@
 @import "./styles/accessibility.css";
 @import "./styles/bottom-nav.css";
 @import "./styles/force-fixed.css";
+@import "./styles/pull-to-refresh-chrome.css";
 
 /* Disable hover effects on mobile sheet buttons and links */
 @media (max-width: 1024px) {

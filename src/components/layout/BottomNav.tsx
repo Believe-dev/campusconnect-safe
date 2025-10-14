@@ -86,7 +86,18 @@ const BottomNav = () => {
      * z-index: 1050 ensures it appears above other content
      * Content padding prevents overlap with scrollable content
      */
-    <nav className="force-fixed-bottom px-2 transition-all duration-300 ease-out">
+    <nav
+      className="force-fixed-bottom px-2 transition-all duration-300 ease-out"
+      style={{
+        position: "fixed",
+        bottom: 0,
+        left: 0,
+        right: 0,
+        width: "100%",
+        zIndex: 9997,
+        pointerEvents: "auto",
+      }}
+    >
       <div
         className={`transition-all duration-300 ease-out ${
           isScrolled

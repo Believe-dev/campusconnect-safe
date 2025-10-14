@@ -162,7 +162,7 @@ export const SellerApprovalsTab: React.FC<SellerApprovalsTabProps> = ({
                               Approve
                             </Button>
                           </AlertDialogTrigger>
-                          <AlertDialogContent>
+                          <AlertDialogContent className="bg-white">
                             <AlertDialogHeader>
                               <AlertDialogTitle>Approve Seller Application</AlertDialogTitle>
                               <AlertDialogDescription>
@@ -189,7 +189,7 @@ export const SellerApprovalsTab: React.FC<SellerApprovalsTabProps> = ({
                               Reject
                             </Button>
                           </AlertDialogTrigger>
-                          <AlertDialogContent>
+                          <AlertDialogContent className="bg-white">
                             <AlertDialogHeader>
                               <AlertDialogTitle>Reject Seller Application</AlertDialogTitle>
                               <AlertDialogDescription>

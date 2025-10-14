@@ -1,0 +1,35 @@
+/* Chrome-like pull-to-refresh animations */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Disable animations for reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .chrome-pull-refresh * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* Ensure smooth touch interactions */
+.chrome-pull-refresh {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: none; /* Prevent browser's native pull-to-refresh */
+}
+
+/* Interactive elements that should not trigger pull-to-refresh */
+.no-pull,
+[data-no-pull] {
+  touch-action: manipulation;
+}
+
+/* Ensure proper stacking for the indicator */
+.chrome-pull-indicator {
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+}

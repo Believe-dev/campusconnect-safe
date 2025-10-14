@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useOptimizedQuery } from '@/hooks/useOptimizedQuery';
@@ -76,7 +76,6 @@ const Cart = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   useRealTimeCart();
-  usePullToRefresh(); // Enable pull-to-refresh
   const [offlineCartItems, setOfflineCartItems] = useOfflineStorage<CartItem[]>({
     key: `cart_${user?.id}`,
     defaultValue: [],
@@ -120,6 +119,13 @@ const Cart = () => {
     refetchIntervalInBackground: true,
     refetchOnWindowFocus: true,
   });
+
+  const handleRefresh = useCallback(async () => {
+    await refetch();
+    setLastUpdated(new Date());
+  }, [refetch]);
+
+  usePullToRefresh({ onRefresh: handleRefresh }); // Enable pull-to-refresh
 
   useEffect(() => {
     if (cartItems.length > 0) {

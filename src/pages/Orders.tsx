@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOptimizedQuery } from "@/hooks/useOptimizedQuery";
 import { useOfflineStorage } from "@/hooks/useOfflineStorage";
@@ -82,7 +82,7 @@ const Orders = () => {
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
   const { toast } = useToast();
   useRealTimeOrders();
-  usePullToRefresh(); // Enable pull-to-refresh
+  
   const [offlineOrders, setOfflineOrders] = useOfflineStorage<Order[]>({
     key: `orders_${user?.id}`,
     defaultValue: [],
@@ -154,6 +154,13 @@ const Orders = () => {
     refetchIntervalInBackground: true, // Continue refetching when tab is not active
     refetchOnWindowFocus: true, // Refetch when window gains focus
   });
+
+  const handleRefresh = useCallback(async () => {
+    await refetch();
+    setLastUpdated(new Date());
+  }, [refetch]);
+
+  usePullToRefresh({ onRefresh: handleRefresh }); // Enable pull-to-refresh
 
   // Real-time order updates with automatic background refresh
   useEffect(() => {
