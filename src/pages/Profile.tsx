@@ -60,6 +60,7 @@ interface Profile {
   total_reviews: number;
   seller_status?: string;
   student_id_photo_url?: string;
+  business_name?: string;
 }
 
 interface WalletData {
@@ -195,6 +196,7 @@ const Profile = () => {
         .single();
 
       if (error) {
+        console.error('Profile fetch error:', error);
         // If profile doesn't exist, create it with signup data
         if (error.code === "PGRST116") {
           const { data: newProfile, error: createError } = await supabase
@@ -211,6 +213,10 @@ const Profile = () => {
               campus: user.user_metadata?.university_name || "",
               student_id: user.user_metadata?.student_id || "",
               phone_number: user.user_metadata?.phone_number || "",
+              business_name: user.user_metadata?.business_name || null,
+              avatar_url: user.user_metadata?.avatar_url || null,
+              student_id_photo_url: user.user_metadata?.student_id_photo_url || null,
+              bio: user.user_metadata?.bio || null,
               seller_status:
                 user.user_metadata?.account_type === "seller"
                   ? "pending"
@@ -238,8 +244,12 @@ const Profile = () => {
         rating: data.rating || 0.0,
         total_reviews: data.total_reviews || 0,
         is_verified: data.is_verified || false,
+        business_name: data.business_name || null,
+        avatar_url: data.avatar_url || null,
+        student_id_photo_url: data.student_id_photo_url || null,
       };
 
+      console.log('Profile data loaded:', fixedData);
       setProfile(fixedData);
 
       // Fetch wallet data if user is a seller
@@ -671,9 +681,20 @@ const Profile = () => {
                   </div>
 
                   <div className="text-center">
-                    <h2 className="text-2xl font-bold text-gray-900 mb-1">
-                      {profile.full_name || "User"}
-                    </h2>
+                    {profile.business_name ? (
+                      <>
+                        <h2 className="text-2xl font-bold text-gray-900 mb-1">
+                          {profile.business_name}
+                        </h2>
+                        <p className="text-sm text-muted-foreground mb-2">
+                          Owner: {profile.full_name}
+                        </p>
+                      </>
+                    ) : (
+                      <h2 className="text-2xl font-bold text-gray-900 mb-1">
+                        {profile.full_name || "User"}
+                      </h2>
+                    )}
                     <p className="text-gray-600 mb-4">
                       {profile.email || user?.email || "No email"}
                     </p>
@@ -687,6 +708,7 @@ const Profile = () => {
                       <Badge className="bg-university-green/10 text-university-green border-university-green/20 px-3 py-1 font-medium">
                         {profile.account_type}
                       </Badge>
+
                       {profile.is_verified && (
                         <Badge className="bg-blue-50 text-blue-700 border-blue-200 px-3 py-1 font-medium">
                           ✓ Verified
@@ -1026,6 +1048,27 @@ const Profile = () => {
                           Phone number cannot be changed for security reasons
                         </p>
                       </div>
+
+                      <div className="space-y-2">
+                        <Label
+                          htmlFor="business_name"
+                          className="text-sm font-semibold text-gray-700"
+                        >
+                          Business Name
+                        </Label>
+                        <Input
+                          id="business_name"
+                          value={profile.business_name || ""}
+                          disabled
+                          className="bg-gray-50 text-gray-700 cursor-not-allowed border-gray-200 rounded-lg"
+                          placeholder="Not set"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">
+                          Business name set during registration
+                        </p>
+                      </div>
+
+
                     </>
                   )}
                 </div>
@@ -1080,18 +1123,12 @@ const Profile = () => {
                     {profile.student_id_photo_url ? (
                       <div className="mt-3 p-6 border border-gray-200 rounded-xl bg-gray-50/50">
                         <img
-                          src={
-                            profile.student_id_photo_url.startsWith("http")
-                              ? profile.student_id_photo_url
-                              : supabase.storage
-                                  .from("verification-photos")
-                                  .getPublicUrl(profile.student_id_photo_url)
-                                  .data.publicUrl
-                          }
+                          src={profile.student_id_photo_url}
                           alt="Student ID Card"
                           className="max-w-full h-auto rounded border"
                           style={{ maxHeight: "200px" }}
                           onError={(e) => {
+                            console.error('Failed to load student ID photo:', profile.student_id_photo_url);
                             e.currentTarget.style.display = "none";
                           }}
                         />

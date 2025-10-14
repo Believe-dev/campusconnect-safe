@@ -41,6 +41,7 @@ export function useProducts(options: UseProductsOptions = {}): UseProductsReturn
           *,
           profiles!seller_id (
             full_name,
+            business_name,
             rating,
             is_verified
           )
@@ -75,7 +76,7 @@ export function useProducts(options: UseProductsOptions = {}): UseProductsReturn
 
       const transformedProducts = (data || []).map(product => ({
         ...product,
-        seller: product.profiles || { full_name: 'Unknown Seller', rating: 0, is_verified: false },
+        seller: product.profiles || { full_name: 'Unknown Seller', business_name: null, rating: 0, is_verified: false },
       })) as unknown as Product[];
       
       console.log('useProducts transformed:', transformedProducts.length, 'products');

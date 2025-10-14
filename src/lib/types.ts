@@ -24,6 +24,8 @@ export interface Profile {
   total_reviews: number;
   face_photo_url?: string;
   student_id_photo_url?: string;
+  department?: string;
+  business_name?: string;
   created_at: string;
   updated_at: string;
 }

@@ -146,6 +146,16 @@ const AuthPage = React.lazy(() =>
     default: () => <div>Error loading page</div>,
   }))
 );
+const SignupPage = React.lazy(() =>
+  import("./components/auth/SignupPage").catch(() => ({
+    default: () => <div>Error loading page</div>,
+  }))
+);
+const TestSignup = React.lazy(() =>
+  import("./pages/TestSignup").catch(() => ({
+    default: () => <div>Error loading page</div>,
+  }))
+);
 const Admin = React.lazy(() =>
   import("./pages/Admin").catch(() => ({
     default: () => <div>Error loading page</div>,
@@ -331,7 +341,9 @@ const AppContent = () => {
                 <div className="page-transition student-focus">
                   <Routes>
                 <Route path={ROUTES.home} element={<Index />} />
-                <Route path={ROUTES.auth} element={<AuthPage />} />
+                <Route path={ROUTES.auth} element={<SignupPage />} />
+                <Route path="/old-auth" element={<AuthPage />} />
+                <Route path="/test-signup" element={<TestSignup />} />
                 <Route path="/learn-more" element={<LearnMore />} />
                 <Route path="/notifications" element={<Notifications />} />
                 <Route path={ROUTES.marketplace} element={<Marketplace />} />

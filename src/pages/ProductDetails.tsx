@@ -28,7 +28,7 @@ import {
 import ProductCard from '@/components/marketplace/ProductCard';
 import { ProductReviews } from '@/components/reviews/ProductReviews';
 import { ProductSEO } from '@/components/common/ProductSEO';
-import { SEODebugger } from '@/components/common/SEODebugger';
+
 
 interface Product {
   id: string;
@@ -1040,8 +1040,7 @@ const ProductDetails = () => {
         </div>
       </main>
       
-      {/* SEO Debugger - Only visible in development */}
-      <SEODebugger />
+
     </div>
   );
 };

@@ -23,6 +23,7 @@ interface Product {
   stock_quantity: number;
   seller: {
     full_name: string;
+    business_name?: string;
     rating: number;
     is_verified: boolean;
     campus?: string;
@@ -297,7 +298,7 @@ const ProductCard = ({
             }}
           >
             <span className="font-medium truncate max-w-[60px] sm:max-w-[80px] underline hover:no-underline text-primary">
-              {sanitizeInput(product.seller?.full_name || 'Unknown Seller')}
+              {sanitizeInput(product.seller?.business_name || product.seller?.full_name || 'Unknown Seller')}
             </span>
             {product.seller?.is_verified && (
               <>

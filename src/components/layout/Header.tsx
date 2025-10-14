@@ -896,45 +896,67 @@ const Header = () => {
                       <DropdownMenuTrigger asChild>
                         <Button
                           variant="ghost"
-                          className="relative h-10 w-10 rounded-full"
+                          className="relative h-12 w-auto min-w-12 rounded-full px-2 hover:bg-primary/5 transition-all duration-200 focus:ring-2 focus:ring-primary/20 focus:ring-offset-2"
                         >
-                          <Avatar className="h-10 w-10 avatar-stable">
+                          <div className="flex items-center gap-2">
+                            <Avatar className="h-10 w-10 avatar-stable ring-2 ring-primary/10 hover:ring-primary/20 transition-all duration-200">
+                              <AvatarImage
+                                src={profile?.avatar_url}
+                                alt={profile?.full_name}
+                              />
+                              <AvatarFallback className="bg-university-green text-white font-semibold">
+                                {profile?.full_name
+                                  ? getInitials(profile.full_name)
+                                  : "U"}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="hidden xl:flex flex-col items-start text-left">
+                              <span className="text-sm font-medium text-foreground truncate max-w-24">
+                                {profile?.full_name?.split(' ')[0] || 'User'}
+                              </span>
+                              <span className="text-xs text-muted-foreground">
+                                {profile?.account_type}
+                              </span>
+                            </div>
+                            {profile?.is_verified && (
+                              <div className="verification-tick">
+                                <svg fill="currentColor" viewBox="0 0 20 20">
+                                  <path
+                                    fillRule="evenodd"
+                                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                    clipRule="evenodd"
+                                  />
+                                </svg>
+                              </div>
+                            )}
+                          </div>
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent
+                        className="w-64 py-2 shadow-lg border border-primary/10"
+                        align="end"
+                        sideOffset={8}
+                        forceMount
+                      >
+                        <div className="flex items-center justify-start gap-3 p-3 bg-gradient-to-r from-primary/5 to-primary/10 rounded-lg mx-2 mb-2">
+                          <Avatar className="h-12 w-12 avatar-stable ring-2 ring-primary/20">
                             <AvatarImage
                               src={profile?.avatar_url}
                               alt={profile?.full_name}
                             />
-                            <AvatarFallback className="bg-university-green text-white">
+                            <AvatarFallback className="bg-university-green text-white font-semibold">
                               {profile?.full_name
                                 ? getInitials(profile.full_name)
                                 : "U"}
                             </AvatarFallback>
                           </Avatar>
-                          {profile?.is_verified && (
-                            <div className="verification-tick">
-                              <svg fill="currentColor" viewBox="0 0 20 20">
-                                <path
-                                  fillRule="evenodd"
-                                  d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                                  clipRule="evenodd"
-                                />
-                              </svg>
-                            </div>
-                          )}
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent
-                        className="w-56 py-1"
-                        align="end"
-                        forceMount
-                      >
-                        <div className="flex items-center justify-start gap-2 p-2">
-                          <div className="flex flex-col space-y-0.5 leading-none">
-                            <p className="font-medium">{profile?.full_name}</p>
-                            <p className="text-xs text-muted-foreground">
+                          <div className="flex flex-col space-y-1 leading-none flex-1 min-w-0">
+                            <p className="font-semibold text-foreground truncate">{profile?.full_name}</p>
+                            <p className="text-xs text-muted-foreground truncate">
                               {user.email}
                             </p>
-                            <div className="flex items-center gap-1 mt-1">
-                              <Badge variant="outline" className="text-xs">
+                            <div className="flex items-center gap-2 mt-1">
+                              <Badge variant="outline" className="text-xs px-2 py-0.5 bg-white/50">
                                 {profile?.account_type}
                               </Badge>
                               {profile?.is_verified && (
@@ -960,16 +982,16 @@ const Header = () => {
                           </div>
                         </div>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem asChild className="py-1.5">
-                          <Link to="/profile">
-                            <User className="mr-2 h-4 w-4" />
-                            Profile
+                        <DropdownMenuItem asChild className="py-2.5 px-3 hover:bg-primary/5 transition-colors">
+                          <Link to="/profile" className="flex items-center gap-3">
+                            <User className="h-4 w-4 text-primary" />
+                            <span className="font-medium">Profile</span>
                           </Link>
                         </DropdownMenuItem>
-                        <DropdownMenuItem asChild className="py-1.5">
-                          <Link to="/games">
+                        <DropdownMenuItem asChild className="py-2.5 px-3 hover:bg-primary/5 transition-colors">
+                          <Link to="/games" className="flex items-center gap-3">
                             <svg
-                              className="mr-2 h-4 w-4"
+                              className="h-4 w-4 text-primary"
                               fill="none"
                               stroke="currentColor"
                               viewBox="0 0 24 24"
@@ -981,61 +1003,63 @@ const Header = () => {
                                 d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
                               />
                             </svg>
-                            UniGames
+                            <span className="font-medium">UniGames</span>
                           </Link>
                         </DropdownMenuItem>
                         {profile?.account_type !== "buyer" && (
-                          <DropdownMenuItem asChild className="py-1.5">
-                            <Link to="/dashboard">
-                              <Shield className="mr-2 h-4 w-4" />
-                              Dashboard
+                          <DropdownMenuItem asChild className="py-2.5 px-3 hover:bg-primary/5 transition-colors">
+                            <Link to="/dashboard" className="flex items-center gap-3">
+                              <Shield className="h-4 w-4 text-primary" />
+                              <span className="font-medium">Dashboard</span>
                             </Link>
                           </DropdownMenuItem>
                         )}
                         {isAdmin && (
-                          <DropdownMenuItem asChild className="py-1.5">
-                            <Link to="/admin">
-                              <Shield className="mr-2 h-4 w-4" />
-                              Admin Panel
+                          <DropdownMenuItem asChild className="py-2.5 px-3 hover:bg-primary/5 transition-colors">
+                            <Link to="/admin" className="flex items-center gap-3">
+                              <Shield className="h-4 w-4 text-primary" />
+                              <span className="font-medium">Admin Panel</span>
                             </Link>
                           </DropdownMenuItem>
                         )}
-                        <DropdownMenuItem asChild className="py-1.5">
-                          <Link to="/settings">
-                            <Settings className="mr-2 h-4 w-4" />
-                            Settings
+                        <DropdownMenuItem asChild className="py-2.5 px-3 hover:bg-primary/5 transition-colors">
+                          <Link to="/settings" className="flex items-center gap-3">
+                            <Settings className="h-4 w-4 text-primary" />
+                            <span className="font-medium">Settings</span>
                           </Link>
                         </DropdownMenuItem>
-                        <DropdownMenuSeparator className="my-1" />
-                        <DropdownMenuItem asChild className="py-1.5">
-                          <Link to="/suggestions">
-                            <Lightbulb className="mr-2 h-4 w-4" />
-                            Suggestions
+                        <DropdownMenuSeparator className="my-2 mx-2" />
+                        <DropdownMenuItem asChild className="py-2.5 px-3 hover:bg-primary/5 transition-colors">
+                          <Link to="/suggestions" className="flex items-center gap-3">
+                            <Lightbulb className="h-4 w-4 text-primary" />
+                            <span className="font-medium">Suggestions</span>
                           </Link>
                         </DropdownMenuItem>
-                        <DropdownMenuItem asChild className="py-1.5">
-                          <Link to="/sellers">
-                            <User className="mr-1 h-4 w-4" />
-                            Sellers
+                        <DropdownMenuItem asChild className="py-2.5 px-3 hover:bg-primary/5 transition-colors">
+                          <Link to="/sellers" className="flex items-center gap-3">
+                            <User className="h-4 w-4 text-primary" />
+                            <span className="font-medium">Find Sellers</span>
                           </Link>
                         </DropdownMenuItem>
-                        <DropdownMenuItem asChild className="py-1.5">
-                          <Link to="/learn-more">
+                        <DropdownMenuItem asChild className="py-2.5 px-3 hover:bg-primary/5 transition-colors">
+                          <Link to="/learn-more" className="flex items-center gap-3">
                             <img
                               src="/logo.png"
                               alt="UniMarket Logo"
-                              className="mr-2 h-4 w-4 object-contain"
+                              className="h-4 w-4 object-contain"
                             />
-                            Learn More
+                            <span className="font-medium">Learn More</span>
                           </Link>
                         </DropdownMenuItem>
-                        <DropdownMenuSeparator className="my-1" />
+                        <DropdownMenuSeparator className="my-2 mx-2" />
                         <DropdownMenuItem
                           onClick={handleSignOut}
-                          className="py-1.5"
+                          className="py-2.5 px-3 hover:bg-destructive/10 text-destructive hover:text-destructive transition-colors"
                         >
-                          <LogOut className="mr-2 h-4 w-4" />
-                          Sign Out
+                          <div className="flex items-center gap-3">
+                            <LogOut className="h-4 w-4" />
+                            <span className="font-medium">Sign Out</span>
+                          </div>
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>

@@ -46,6 +46,7 @@ interface Product {
   created_at: string;
   profiles: {
     full_name: string;
+    business_name?: string;
     rating: number;
     is_verified: boolean;
   };
@@ -125,6 +126,7 @@ const Marketplace = () => {
           created_at,
           profiles!products_seller_id_fkey (
             full_name,
+            business_name,
             rating,
             is_verified,
             campus
@@ -697,7 +699,7 @@ const Marketplace = () => {
                           </span>
                         </div>
                         <span className="text-xs sm:text-sm font-medium text-university-green hover:underline truncate">
-                          {product.profiles?.full_name || "Unknown"}
+                          {product.profiles?.business_name || product.profiles?.full_name || "Unknown"}
                         </span>
                       </div>
                       <div className="flex items-center gap-1 flex-shrink-0">

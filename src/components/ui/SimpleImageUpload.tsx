@@ -1,61 +1,42 @@
-import { useRef } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
-import { Button } from '@/components/ui/button';
-import { Upload } from 'lucide-react';
+import { useRef, useState } from "react";
+import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
+import { Upload, Image as ImageIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface SimpleImageUploadProps {
-  onUpload: (url: string) => void;
-  bucket: string;
-  path: string;
-  uploading: boolean;
-  setUploading: (uploading: boolean) => void;
+  onImageSelect?: (file: File) => void;
+  onUpload?: (url: string) => void;
+  bucket?: string;
+  path?: string;
+  uploading?: boolean;
+  setUploading?: (uploading: boolean) => void;
+  accept?: string;
+  className?: string;
 }
 
-export const SimpleImageUpload = ({ onUpload, bucket, path, uploading, setUploading }: SimpleImageUploadProps) => {
+export const SimpleImageUpload = ({
+  onImageSelect,
+  onUpload,
+  bucket,
+  path,
+  uploading,
+  setUploading,
+  accept = "image/*",
+  className,
+}: SimpleImageUploadProps) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
   const { toast } = useToast();
 
-  const compressImage = (file: File): Promise<Blob> => {
-    return new Promise((resolve) => {
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      const img = new Image();
-      
-      img.onload = () => {
-        const maxSize = 400; // Very small for low-end phones
-        let { width, height } = img;
-        
-        if (width > height) {
-          if (width > maxSize) {
-            height = (height * maxSize) / width;
-            width = maxSize;
-          }
-        } else {
-          if (height > maxSize) {
-            width = (width * maxSize) / height;
-            height = maxSize;
-          }
-        }
-        
-        canvas.width = width;
-        canvas.height = height;
-        ctx?.drawImage(img, 0, 0, width, height);
-        
-        canvas.toBlob((blob) => {
-          resolve(blob || file);
-        }, 'image/jpeg', 0.5); // Very low quality for compatibility
-      };
-      
-      img.src = URL.createObjectURL(file);
-    });
-  };
-
-  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    if (!file.type.startsWith('image/')) {
+    if (!file.type.startsWith("image/")) {
       toast({
         title: "Invalid File",
         description: "Please select an image file",
@@ -64,65 +45,80 @@ export const SimpleImageUpload = ({ onUpload, bucket, path, uploading, setUpload
       return;
     }
 
-    setUploading(true);
-    
-    try {
-      // Compress image for low-end phones
-      const compressedBlob = await compressImage(file);
-      const compressedFile = new File([compressedBlob], 'image.jpg', { type: 'image/jpeg' });
-      
-      // Upload to Supabase
-      const { data, error } = await supabase.storage
-        .from(bucket)
-        .upload(path, compressedFile, { upsert: true });
+    // Create preview
+    const previewUrl = URL.createObjectURL(file);
+    setPreview(previewUrl);
+    setSelectedFile(file);
 
-      if (error) throw error;
+    // Call the callback with the file
+    onImageSelect?.(file);
 
-      const { data: urlData } = supabase.storage
-        .from(bucket)
-        .getPublicUrl(path);
-
-      onUpload(urlData.publicUrl);
-      
-      toast({
-        title: "Upload Successful",
-        description: "Your image has been uploaded.",
-      });
-    } catch (error) {
-      toast({
-        title: "Upload Failed",
-        description: "Please try again with a smaller image.",
-        variant: "destructive",
-      });
-    } finally {
-      setUploading(false);
-    }
-    
     // Reset input
-    event.target.value = '';
+    event.target.value = "";
   };
 
   return (
-    <>
+    <div className={cn("space-y-2", className)}>
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/*"
+        accept={accept}
         onChange={handleFileSelect}
         className="hidden"
         disabled={uploading}
       />
-      
-      <Button
-        type="button"
-        variant="outline"
+
+      <div
         onClick={() => fileInputRef.current?.click()}
-        disabled={uploading}
-        className="w-full"
+        className={cn(
+          "border-2 border-dashed border-border rounded-xl p-6 cursor-pointer transition-all hover:border-primary/50 hover:bg-primary/5 min-h-[140px] flex items-center justify-center bg-gradient-to-br from-muted/30 to-muted/10",
+          className
+        )}
       >
-        <Upload className="h-4 w-4 mr-2" />
-        {uploading ? 'Uploading...' : 'Upload Photo'}
-      </Button>
-    </>
+        {preview ? (
+          <div className="flex items-center space-y-4 w-full">
+            <div className="relative w-24 h-24 rounded-xl overflow-hidden bg-muted border-2 border-border shadow-sm">
+              <img
+                src={preview}
+                alt="Preview"
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
+            </div>
+            <div className="text-center space-y-2">
+              <p className="text-xs text-muted-foreground font-medium truncate max-w-[180px]">
+                {selectedFile?.name}
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  fileInputRef.current?.click();
+                }}
+                className="h-8 px-4 text-xs bg-white/80 hover:bg-white border-border hover:border-primary/50 transition-all"
+              >
+                Change Image
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center space-y-4 text-muted-foreground">
+            <div className="p-4 bg-primary/10 rounded-xl border border-primary/20">
+              <ImageIcon className="h-8 w-8 text-primary" />
+            </div>
+            <div className="text-center space-y-1">
+              <p className="text-sm font-medium text-foreground">
+                Click to upload image
+              </p>
+              <p className="text-xs text-muted-foreground">
+                PNG, JPG up to 10MB
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   );
 };

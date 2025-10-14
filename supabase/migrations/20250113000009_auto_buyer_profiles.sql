@@ -24,6 +24,8 @@ BEGIN
         university_name,
         student_id,
         phone_number,
+        department,
+        business_name,
         seller_status
     )
     VALUES (
@@ -34,6 +36,8 @@ BEGIN
         university_val,
         student_id_val,
         phone_number_val,
+        NEW.raw_user_meta_data->>'department',
+        NEW.raw_user_meta_data->>'business_name',
         CASE 
             WHEN account_type_val = 'seller' THEN 'pending'
             ELSE NULL  -- Buyers don't need seller approval

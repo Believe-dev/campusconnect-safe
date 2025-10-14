@@ -27,6 +27,7 @@ interface SellerProfile {
   is_verified: boolean;
   seller_status: string;
   phone_number?: string;
+  business_name?: string;
   created_at: string;
 }
 
@@ -117,6 +118,8 @@ const SellerProfile = () => {
           seller_status,
           account_type,
           phone_number,
+          department,
+          business_name,
           created_at
         `)
         .eq('user_id', sellerId)
@@ -348,15 +351,24 @@ const SellerProfile = () => {
                 className="h-20 w-20 sm:h-24 sm:w-24 mx-auto sm:mx-0 cursor-pointer hover:opacity-80 transition-opacity" 
                 onClick={() => setShowAvatarModal(true)}
               >
-                <AvatarImage src={seller.avatar_url} alt={seller.full_name} className="object-cover" />
+                <AvatarImage src={seller.avatar_url} alt={seller.business_name || seller.full_name} className="object-cover" />
                 <AvatarFallback className="text-base sm:text-lg">
-                  {getInitials(seller.full_name)}
+                  {getInitials(seller.business_name || seller.full_name)}
                 </AvatarFallback>
               </Avatar>
               
               <div className="flex-1 text-center sm:text-left w-full">
                 <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-3">
-                  <h1 className="text-xl sm:text-2xl md:text-3xl font-bold break-words">{seller.full_name}</h1>
+                  <div className="text-center sm:text-left">
+                    <h1 className="text-xl sm:text-2xl md:text-3xl font-bold break-words">
+                      {seller.business_name || seller.full_name}
+                    </h1>
+                    {seller.business_name && (
+                      <p className="text-sm text-muted-foreground mt-1">
+                        By: {seller.full_name}
+                      </p>
+                    )}
+                  </div>
                   <div className="flex items-center gap-2 justify-center sm:justify-start">
                     {seller.is_verified && (
                       <div className="trust-badge">
@@ -386,6 +398,12 @@ const SellerProfile = () => {
                       <span className="text-sm sm:text-base truncate">{seller.university_name || seller.campus}</span>
                     </div>
                   )}
+
+
+                  <div className="flex items-center gap-1 justify-center sm:justify-start">
+                    <GraduationCap className="h-4 w-4 flex-shrink-0" />
+                    <span className="text-sm sm:text-base">{seller.university_name}</span>
+                  </div>
                   {seller.phone_number && (
                     <div className="flex items-center gap-1 justify-center sm:justify-start">
                       <Phone className="h-4 w-4 flex-shrink-0" />
