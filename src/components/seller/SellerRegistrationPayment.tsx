@@ -29,7 +29,9 @@ export const SellerRegistrationPayment = ({
 
     try {
       const amount = BUSINESS_RULES.sellerRegistration.fee * 100; // Convert to kobo
-      const paymentRef = `SELLER_REG_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const paymentRef = `SELLER_REG_${Date.now()}_${Math.random()
+        .toString(36)
+        .substr(2, 9)}`;
 
       initializePayment({
         email: userEmail,
@@ -70,7 +72,8 @@ export const SellerRegistrationPayment = ({
 
             toast({
               title: "Payment Successful!",
-              description: "Your seller registration fee has been paid. You can now start selling on the platform.",
+              description:
+                "Your seller registration fee has been paid. You can now start selling on the platform.",
             });
 
             onPaymentSuccess();
@@ -78,7 +81,8 @@ export const SellerRegistrationPayment = ({
             console.error("Error processing payment success:", error);
             toast({
               title: "Payment Processing Error",
-              description: "Payment was successful but there was an error updating your account. Please contact support.",
+              description:
+                "Payment was successful but there was an error updating your account. Please contact support.",
               variant: "destructive",
             });
           }
@@ -112,7 +116,7 @@ export const SellerRegistrationPayment = ({
             ₦{BUSINESS_RULES.sellerRegistration.fee.toLocaleString()}
           </div>
           <p className="text-sm text-muted-foreground">
-            One-time registration fee to start selling
+            2-month Registration fee to start selling
           </p>
         </div>
 
@@ -120,20 +124,56 @@ export const SellerRegistrationPayment = ({
           <div className="flex items-start gap-3">
             <Shield className="h-5 w-5 text-blue-600 mt-0.5" />
             <div className="text-sm">
-              <p className="font-medium text-blue-900 mb-2">What you get with CampusConnect:</p>
+              <p className="font-medium text-blue-900 mb-2">
+                What you get with CampusConnect:
+              </p>
               <ul className="text-blue-800 space-y-1">
-                <li>• <strong>Keep 100% of sales</strong> - No commission fees ever</li>
-                <li>• <strong>Live feed bidding</strong> - Post requests & receive competitive bids</li>
-                <li>• <strong>Secure escrow system</strong> - Payment guaranteed on delivery</li>
-                <li>• <strong>Built-in chat system</strong> - Direct WhatsApp & in-app messaging</li>
-                <li>• <strong>Sales dashboard</strong> - Track earnings, orders & analytics</li>
-                <li>• <strong>Gamified experience</strong> - Earn coins, badges & rewards</li>
-                <li>• <strong>Marketing tools</strong> - Boost visibility with featured listings</li>
-                <li>• <strong>University-focused</strong> - Reach your exact target market</li>
-                <li>• <strong>Instant notifications</strong> - Never miss an order or message</li>
-                <li>• <strong>Dispute protection</strong> - Fair resolution system</li>
-                <li>• <strong>Multiple payment options</strong> - Cards, transfers, USSD</li>
-                <li>• <strong>Mobile optimized</strong> - Sell anywhere, anytime</li>
+                <li>
+                  • <strong>Keep 100% of sales</strong> - No commission fees
+                  ever
+                </li>
+                <li>
+                  • <strong>Live feed bidding</strong> - Post requests & receive
+                  competitive bids
+                </li>
+                <li>
+                  • <strong>Secure escrow system</strong> - Payment guaranteed
+                  on delivery
+                </li>
+                <li>
+                  • <strong>Built-in chat system</strong> - Direct WhatsApp &
+                  in-app messaging
+                </li>
+                <li>
+                  • <strong>Sales dashboard</strong> - Track earnings, orders &
+                  analytics
+                </li>
+                <li>
+                  • <strong>Gamified experience</strong> - Earn coins, badges &
+                  rewards
+                </li>
+                <li>
+                  • <strong>Marketing tools</strong> - Boost visibility with
+                  featured listings
+                </li>
+                <li>
+                  • <strong>University-focused</strong> - Reach your exact
+                  target market
+                </li>
+                <li>
+                  • <strong>Instant notifications</strong> - Never miss an order
+                  or message
+                </li>
+                <li>
+                  • <strong>Dispute protection</strong> - Fair resolution system
+                </li>
+                <li>
+                  • <strong>Multiple payment options</strong> - Cards,
+                  transfers, USSD
+                </li>
+                <li>
+                  • <strong>Mobile optimized</strong> - Sell anywhere, anytime
+                </li>
               </ul>
             </div>
           </div>
@@ -160,7 +200,8 @@ export const SellerRegistrationPayment = ({
             ) : (
               <>
                 <CreditCard className="h-4 w-4 mr-2" />
-                Pay ₦{BUSINESS_RULES.sellerRegistration.fee.toLocaleString()} with Paystack
+                Pay ₦{BUSINESS_RULES.sellerRegistration.fee.toLocaleString()}{" "}
+                with Paystack
               </>
             )}
           </Button>
@@ -176,7 +217,8 @@ export const SellerRegistrationPayment = ({
         </div>
 
         <p className="text-xs text-muted-foreground text-center">
-          Secure payment powered by Paystack. Your payment information is encrypted and secure.
+          Secure payment powered by Paystack. Your payment information is
+          encrypted and secure.
         </p>
       </CardContent>
     </Card>

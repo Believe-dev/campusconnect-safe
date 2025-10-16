@@ -19,12 +19,61 @@
 /* Ensure smooth touch interactions */
 .chrome-pull-refresh {
   -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain; /* Contain overscroll to this element */
+}
+
+/* Global overscroll behavior */
+body {
   overscroll-behavior-y: none; /* Prevent browser's native pull-to-refresh */
+}
+
+/* Main content areas should allow normal scrolling */
+.page-content,
+.main-content,
+.content-area {
+  overscroll-behavior-y: auto;
 }
 
 /* Interactive elements that should not trigger pull-to-refresh */
 .no-pull,
-[data-no-pull] {
+[data-no-pull],
+.overflow-auto,
+.overflow-y-auto,
+.overflow-scroll,
+.overflow-y-scroll,
+[data-scrollable] {
+  touch-action: manipulation;
+}
+
+/* Prevent pull-to-refresh on scrollable containers */
+.scroll-container {
+  overscroll-behavior-y: contain;
+}
+
+/* Specific areas where pull-to-refresh should be disabled */
+.chat-messages,
+.product-list,
+.message-list,
+.order-list,
+.notification-list,
+form,
+.form-container,
+.signup-form,
+.auth-form,
+.modal-content,
+.dialog-content {
+  touch-action: pan-y;
+  overscroll-behavior-y: contain;
+}
+
+/* Prevent pull-to-refresh on form inputs and interactive elements */
+input,
+textarea,
+select,
+button,
+[role="button"],
+[role="tab"],
+[role="dialog"] {
   touch-action: manipulation;
 }
 

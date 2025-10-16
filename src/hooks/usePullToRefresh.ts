@@ -37,6 +37,7 @@ export const usePullToRefresh = ({
 
   const touchStartY = useRef(0);
   const touchCurrentY = useRef(0);
+  const touchStartTime = useRef(0);
   const isDragging = useRef(false);
   const startedAtTop = useRef(false);
   const interactiveElement = useRef(false);
@@ -63,7 +64,10 @@ export const usePullToRefresh = ({
     const interactiveSelectors = [
       'a', 'button', 'input', 'textarea', 'select',
       '[role="button"]', '[role="link"]', '[role="tab"]',
-      '[data-no-pull]', '.no-pull'
+      '[data-no-pull]', '.no-pull',
+      '.overflow-auto', '.overflow-y-auto', '.overflow-scroll', '.overflow-y-scroll',
+      '[data-scrollable]', '.chat-messages', '.product-list', '.message-list',
+      '.order-list', '.notification-list', '.scroll-area', '.scrollable'
     ];
     
     return interactiveSelectors.some(selector => 
@@ -74,9 +78,14 @@ export const usePullToRefresh = ({
   // Check if we're at the top of the scroll container
   const isAtTop = useCallback((): boolean => {
     if (containerRef?.current) {
-      return containerRef.current.scrollTop === 0;
+      return containerRef.current.scrollTop <= 1; // Allow for small rounding errors
     }
-    return window.scrollY === 0 || document.documentElement.scrollTop === 0;
+    
+    // Check both window and document scroll positions
+    const windowScrollY = window.scrollY || window.pageYOffset || 0;
+    const documentScrollTop = document.documentElement.scrollTop || document.body.scrollTop || 0;
+    
+    return windowScrollY <= 1 && documentScrollTop <= 1; // Allow for small rounding errors
   }, [containerRef]);
 
   const handleTouchStart = useCallback((e: TouchEvent) => {
@@ -85,17 +94,25 @@ export const usePullToRefresh = ({
     // Only single finger touches
     if (e.touches.length !== 1) return;
 
-    // Check if we're at the top
-    startedAtTop.current = isAtTop();
-    if (!startedAtTop.current) return;
+    // Check if we're at the very top - be more strict
+    const atTop = isAtTop();
+    startedAtTop.current = atTop;
+    if (!atTop) return;
 
     // Check if touching an interactive element
     const target = e.target as Element;
     interactiveElement.current = isInteractiveElement(target);
     if (interactiveElement.current) return;
 
+    // Additional check: make sure we're not in a scrollable area that's not at the top
+    let scrollableParent = target.closest('[data-scrollable], .overflow-auto, .overflow-y-auto, .overflow-scroll, .overflow-y-scroll');
+    if (scrollableParent && scrollableParent.scrollTop > 0) {
+      return;
+    }
+
     touchStartY.current = e.touches[0].clientY;
     touchCurrentY.current = touchStartY.current;
+    touchStartTime.current = Date.now();
     isDragging.current = false; // Will be set to true on first move
   }, [disabled, state.isRefreshing, isAtTop, isInteractiveElement]);
 
@@ -105,6 +122,14 @@ export const usePullToRefresh = ({
     }
 
     if (e.touches.length !== 1) return;
+
+    // Double-check we're still at the top during the move
+    if (!isAtTop()) {
+      if (state.isPulling) {
+        setState(prev => ({ ...prev, isPulling: false, pullDistance: 0, canRefresh: false }));
+      }
+      return;
+    }
 
     touchCurrentY.current = e.touches[0].clientY;
     const deltaY = touchCurrentY.current - touchStartY.current;
@@ -117,27 +142,35 @@ export const usePullToRefresh = ({
       return;
     }
 
-    // Prevent default scrolling when pulling
-    if (deltaY > 10) { // Small threshold to avoid interfering with normal scrolling
+    // Only prevent default and start pulling if we have a significant downward movement
+    // and we're definitely at the top
+    if (deltaY > 30 && isAtTop()) { // Further increased threshold to avoid interfering with normal scrolling
+      // Additional check: ensure we're not in the middle of a scroll gesture
+      const timeDiff = Date.now() - touchStartTime.current;
+      const scrollVelocity = timeDiff > 0 ? Math.abs(deltaY / timeDiff) : 0;
+      if (scrollVelocity > 1.5) { // If moving too fast, it's likely a scroll gesture
+        return;
+      }
+      
       e.preventDefault();
       isDragging.current = true;
+      
+      const easedDistance = easeRubber(deltaY - 30); // Subtract the threshold from the distance
+      const canRefresh = easedDistance >= threshold * RESISTANCE;
+
+      // Haptic feedback when crossing threshold
+      if (canRefresh && !state.canRefresh && 'vibrate' in navigator) {
+        navigator.vibrate(50);
+      }
+
+      setState(prev => ({
+        ...prev,
+        isPulling: true,
+        pullDistance: easedDistance,
+        canRefresh
+      }));
     }
-
-    const easedDistance = easeRubber(deltaY);
-    const canRefresh = easedDistance >= threshold * RESISTANCE;
-
-    // Haptic feedback when crossing threshold
-    if (canRefresh && !state.canRefresh && 'vibrate' in navigator) {
-      navigator.vibrate(50);
-    }
-
-    setState(prev => ({
-      ...prev,
-      isPulling: true,
-      pullDistance: easedDistance,
-      canRefresh
-    }));
-  }, [disabled, state.isRefreshing, state.isPulling, state.canRefresh, easeRubber, threshold]);
+  }, [disabled, state.isRefreshing, state.isPulling, state.canRefresh, easeRubber, threshold, isAtTop]);
 
   const handleTouchEnd = useCallback(async () => {
     if (disabled || !isDragging.current) return;

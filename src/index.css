@@ -29,9 +29,14 @@
   :root {
     /* Mobile viewport height handling */
     --vh: 1vh;
-    
+
     /* Core Brand Colors - Nigerian Green & Academic Gold */
-    --background: linear-gradient(135deg, hsl(140 45% 97%) 0%, hsl(45 60% 96%) 50%, hsl(140 35% 98%) 100%);
+    --background: linear-gradient(
+      135deg,
+      hsl(140 45% 97%) 0%,
+      hsl(45 60% 96%) 50%,
+      hsl(140 35% 98%) 100%
+    );
     --foreground: 120 15% 15%;
 
     --card: 0 0% 100%;
@@ -130,12 +135,13 @@
     @apply border-border;
   }
 
-  html, body {
+  html,
+  body {
     position: static !important;
     transform: none !important;
     contain: none !important;
   }
-  
+
   body {
     background: var(--gradient-background);
     background-attachment: fixed;
@@ -147,7 +153,7 @@
     padding-top: 80px;
     padding-bottom: 80px;
   }
-  
+
   @media (min-width: 1024px) {
     body {
       padding-bottom: 0;
@@ -213,38 +219,42 @@
   /* 3D Verification Badges */
   .verified-badge {
     @apply inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-verified-blue/10 text-verified-blue border border-verified-blue/20;
-    box-shadow: 
-      0 2px 4px rgba(59, 130, 246, 0.15),
+    box-shadow: 0 2px 4px rgba(59, 130, 246, 0.15),
       inset 0 1px 0 rgba(255, 255, 255, 0.2),
       inset 0 -1px 0 rgba(59, 130, 246, 0.1);
-    background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(59, 130, 246, 0.05));
+    background: linear-gradient(
+      135deg,
+      rgba(59, 130, 246, 0.1),
+      rgba(59, 130, 246, 0.05)
+    );
     transform: translateZ(0);
     transition: all 0.2s ease;
   }
 
   .verified-badge:hover {
     transform: translateY(-1px) translateZ(0);
-    box-shadow: 
-      0 4px 8px rgba(59, 130, 246, 0.2),
+    box-shadow: 0 4px 8px rgba(59, 130, 246, 0.2),
       inset 0 1px 0 rgba(255, 255, 255, 0.3),
       inset 0 -1px 0 rgba(59, 130, 246, 0.15);
   }
 
   .trust-badge {
     @apply inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-verified-blue/10 text-verified-blue border border-verified-blue/20;
-    box-shadow: 
-      0 2px 4px rgba(59, 130, 246, 0.15),
+    box-shadow: 0 2px 4px rgba(59, 130, 246, 0.15),
       inset 0 1px 0 rgba(255, 255, 255, 0.2),
       inset 0 -1px 0 rgba(59, 130, 246, 0.1);
-    background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(59, 130, 246, 0.05));
+    background: linear-gradient(
+      135deg,
+      rgba(59, 130, 246, 0.1),
+      rgba(59, 130, 246, 0.05)
+    );
     transform: translateZ(0);
     transition: all 0.2s ease;
   }
 
   .trust-badge:hover {
     transform: translateY(-1px) translateZ(0);
-    box-shadow: 
-      0 4px 8px rgba(59, 130, 246, 0.2),
+    box-shadow: 0 4px 8px rgba(59, 130, 246, 0.2),
       inset 0 1px 0 rgba(255, 255, 255, 0.3),
       inset 0 -1px 0 rgba(59, 130, 246, 0.15);
   }
@@ -252,8 +262,8 @@
   /* Small 3D Verification Tick for Profile Pictures - Blue Theme */
   .verification-tick {
     position: absolute;
-    bottom: -2px;
-    right: -2px;
+    bottom: 7px;
+    right: -22px;
     width: 16px;
     height: 16px;
     background: linear-gradient(135deg, #3b82f6, #2563eb);
@@ -261,8 +271,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 
-      0 2px 6px rgba(59, 130, 246, 0.4),
+    box-shadow: 0 2px 6px rgba(59, 130, 246, 0.4),
       inset 0 1px 0 rgba(255, 255, 255, 0.3),
       inset 0 -1px 0 rgba(37, 99, 235, 0.2);
     transform: translateZ(0);
@@ -271,8 +280,7 @@
 
   .verification-tick:hover {
     transform: translateY(-1px) scale(1.05) translateZ(0);
-    box-shadow: 
-      0 4px 10px rgba(59, 130, 246, 0.5),
+    box-shadow: 0 4px 10px rgba(59, 130, 246, 0.5),
       inset 0 1px 0 rgba(255, 255, 255, 0.4),
       inset 0 -1px 0 rgba(37, 99, 235, 0.3);
   }
@@ -293,8 +301,7 @@
     height: 14px;
     background: linear-gradient(135deg, #3b82f6, #2563eb);
     border-radius: 50%;
-    box-shadow: 
-      0 1px 3px rgba(59, 130, 246, 0.3),
+    box-shadow: 0 1px 3px rgba(59, 130, 246, 0.3),
       inset 0 1px 0 rgba(255, 255, 255, 0.2);
     transform: translateZ(0);
     transition: all 0.2s ease;
@@ -302,8 +309,7 @@
 
   .verification-badge-inline:hover {
     transform: translateY(-1px) scale(1.05) translateZ(0);
-    box-shadow: 
-      0 2px 6px rgba(59, 130, 246, 0.4),
+    box-shadow: 0 2px 6px rgba(59, 130, 246, 0.4),
       inset 0 1px 0 rgba(255, 255, 255, 0.3);
   }
 
@@ -381,8 +387,6 @@
     }
   }
 
-
-
   /* Micro interactions */
   .micro-bounce {
     transition: var(--transition-micro);
@@ -453,7 +457,148 @@
     transform: translateZ(0);
   }
 
+  /* Auth Page Optimized Animations - Low-end device friendly */
+  .auth-card {
+    animation: authSlideIn 0.3s ease-out;
+    transform: translateZ(0);
+    backface-visibility: hidden;
+  }
 
+  @keyframes authSlideIn {
+    from {
+      opacity: 0;
+      transform: translateY(20px) translateZ(0);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) translateZ(0);
+    }
+  }
+
+  .auth-input {
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    transform: translateZ(0);
+  }
+
+  .auth-input:focus {
+    border-color: hsl(var(--primary));
+    box-shadow: 0 0 0 2px hsl(var(--primary) / 0.1);
+  }
+
+  .auth-button {
+    transition: transform 0.1s ease, box-shadow 0.15s ease;
+    transform: translateZ(0);
+  }
+
+  .auth-button:hover:not(:disabled) {
+    transform: translateY(-1px) translateZ(0);
+    box-shadow: 0 4px 12px hsl(var(--primary) / 0.2);
+  }
+
+  .auth-button:active {
+    transform: translateY(0) translateZ(0);
+  }
+
+  .auth-tab {
+    transition: color 0.15s ease, background-color 0.15s ease;
+    transform: translateZ(0);
+  }
+
+  .auth-dropdown {
+    animation: authDropdownSlide 0.2s ease-out;
+    transform: translateZ(0);
+  }
+
+  @keyframes authDropdownSlide {
+    from {
+      opacity: 0;
+      transform: translateY(-8px) translateZ(0);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) translateZ(0);
+    }
+  }
+
+  .auth-form-field {
+    animation: authFieldFadeIn 0.2s ease-out;
+    animation-fill-mode: both;
+  }
+
+  @keyframes authFieldFadeIn {
+    from {
+      opacity: 0;
+      transform: translateX(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  /* Stagger animation delays for form fields */
+  .auth-form-field:nth-child(1) { animation-delay: 0.05s; }
+  .auth-form-field:nth-child(2) { animation-delay: 0.1s; }
+  .auth-form-field:nth-child(3) { animation-delay: 0.15s; }
+  .auth-form-field:nth-child(4) { animation-delay: 0.2s; }
+  .auth-form-field:nth-child(5) { animation-delay: 0.25s; }
+  .auth-form-field:nth-child(6) { animation-delay: 0.3s; }
+
+  .auth-loading {
+    animation: authPulse 1.5s ease-in-out infinite;
+  }
+
+  @keyframes authPulse {
+    0%, 100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.6;
+    }
+  }
+
+  /* Low-end device optimizations for auth */
+  @media (max-width: 480px), (max-height: 600px) {
+    .auth-card {
+      animation: authFadeIn 0.2s ease-out;
+    }
+
+    @keyframes authFadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    .auth-button:hover:not(:disabled) {
+      transform: none;
+      box-shadow: 0 2px 8px hsl(var(--primary) / 0.15);
+    }
+
+    .auth-form-field {
+      animation: none;
+    }
+
+    .auth-dropdown {
+      animation: authFadeIn 0.15s ease-out;
+    }
+  }
+
+  /* Reduced motion support for auth */
+  @media (prefers-reduced-motion: reduce) {
+    .auth-card,
+    .auth-form-field,
+    .auth-dropdown {
+      animation: none !important;
+    }
+
+    .auth-button:hover:not(:disabled) {
+      transform: none;
+    }
+
+    .auth-loading {
+      animation: none;
+      opacity: 0.8;
+    }
+  }
 
   /* Student-friendly focus states */
   .student-focus {
@@ -502,8 +647,6 @@
     image-rendering: crisp-edges;
   }
 
-
-
   /* Low-end device optimizations */
   @media (max-width: 480px) {
     .student-card {
@@ -516,8 +659,6 @@
       background: rgba(0, 0, 0, 0.05) !important;
     }
   }
-
-
 
   /* Memory-efficient utilities */
   .low-memory {
@@ -628,7 +769,9 @@
 
   /* Optimized bounce animation */
   @keyframes unimarket-bounce {
-    0%, 80%, 100% {
+    0%,
+    80%,
+    100% {
       transform: scale(0);
     }
     40% {
@@ -662,7 +805,7 @@
     .unimarket-spinner {
       animation: none !important;
     }
-    
+
     .unimarket-bounce {
       animation: unimarket-pulse 2s infinite !important;
     }
@@ -693,7 +836,7 @@
     .unimarket-bounce {
       animation: none !important;
     }
-    
+
     .unimarket-pulse {
       animation: none !important;
       opacity: 0.8;

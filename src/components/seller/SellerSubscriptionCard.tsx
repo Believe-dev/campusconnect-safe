@@ -27,7 +27,7 @@ export const SellerSubscriptionCard = () => {
     try {
       const { data, error } = await supabase
         .from("profiles")
-        .select("account_type, seller_subscription_expires_at, seller_features_active")
+        .select("account_type, seller_subscription_expires_at, seller_features_active, seller_subscription_type")
         .eq("user_id", user.id)
         .single();
 
@@ -40,13 +40,19 @@ export const SellerSubscriptionCard = () => {
     }
   };
 
-  const getDaysUntilExpiry = () => {
+  const getTimeUntilExpiry = () => {
     if (!profile?.seller_subscription_expires_at) return null;
     const expiryDate = new Date(profile.seller_subscription_expires_at);
     const now = new Date();
     const diffTime = expiryDate.getTime() - now.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays;
+    
+    if (profile.seller_subscription_type === 'daily') {
+      const diffHours = Math.ceil(diffTime / (1000 * 60 * 60));
+      return { hours: diffHours, type: 'hours' };
+    } else {
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      return { days: diffDays, type: 'days' };
+    }
   };
 
   const handleRenewal = async (paymentReference: string) => {
@@ -58,9 +64,10 @@ export const SellerSubscriptionCard = () => {
 
       if (error) throw error;
 
+      const renewalPeriod = profile?.seller_subscription_type === 'daily' ? '1 day' : '1 month';
       toast({
         title: "Subscription Renewed!",
-        description: "Your seller subscription has been renewed for 2 months.",
+        description: `Your seller subscription has been renewed for ${renewalPeriod}.`,
       });
 
       setShowPayment(false);
@@ -93,9 +100,12 @@ export const SellerSubscriptionCard = () => {
     return null;
   }
 
-  const daysUntilExpiry = getDaysUntilExpiry();
+  const timeUntilExpiry = getTimeUntilExpiry();
   const isExpired = !profile.seller_features_active;
-  const isExpiringSoon = daysUntilExpiry !== null && daysUntilExpiry <= 7 && daysUntilExpiry > 0;
+  const isExpiringSoon = timeUntilExpiry !== null && (
+    (timeUntilExpiry.type === 'hours' && timeUntilExpiry.hours <= 6 && timeUntilExpiry.hours > 0) ||
+    (timeUntilExpiry.type === 'days' && timeUntilExpiry.days <= 7 && timeUntilExpiry.days > 0)
+  );
 
   // Don't show if subscription is active and not expiring soon
   if (profile.seller_features_active && !isExpiringSoon) {
@@ -138,7 +148,7 @@ export const SellerSubscriptionCard = () => {
             ) : (
               <>
                 <Clock className="h-3 w-3 mr-1" />
-                Expires in {daysUntilExpiry} days
+                Expires in {timeUntilExpiry?.type === 'hours' ? `${timeUntilExpiry.hours} hours` : `${timeUntilExpiry?.days} days`}
               </>
             )}
           </Badge>
@@ -161,7 +171,7 @@ export const SellerSubscriptionCard = () => {
           </div>
         ) : (
           <p className="text-sm text-orange-800">
-            <strong>Renew now to avoid interruption.</strong> Your seller subscription expires in {daysUntilExpiry} days. Renew to continue accessing all premium features.
+            <strong>Renew now to avoid interruption.</strong> Your seller subscription expires in {timeUntilExpiry?.type === 'hours' ? `${timeUntilExpiry.hours} hours` : `${timeUntilExpiry?.days} days`}. Renew to continue accessing all premium features.
           </p>
         )}
 
@@ -171,7 +181,7 @@ export const SellerSubscriptionCard = () => {
           variant={isExpired ? "destructive" : "default"}
         >
           <CreditCard className="h-4 w-4 mr-2" />
-          Renew Subscription (₦2,000 for 2 months)
+          Renew Subscription (₦{profile?.seller_subscription_type === 'daily' ? '100 for 1 day' : '2,000 for 1 month'})
         </Button>
 
         <p className="text-xs text-muted-foreground text-center">

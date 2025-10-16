@@ -27,7 +27,7 @@ const ChromeLikePullToRefresh: React.FC<ChromeLikePullToRefreshProps> = ({
   } = usePullToRefresh({
     onRefresh,
     containerRef,
-    disabled
+    disabled: disabled || false // Ensure we pass a boolean
   });
 
   // Respect prefers-reduced-motion
@@ -46,10 +46,12 @@ const ChromeLikePullToRefresh: React.FC<ChromeLikePullToRefreshProps> = ({
     <div 
       ref={containerRef}
       className={cn("relative overflow-hidden", className)}
+      data-pull-to-refresh-container
       style={{ 
         // Prevent content jump during refresh
         paddingTop: isRefreshing ? indicatorHeight : 0,
-        transition: prefersReducedMotion ? 'none' : `padding-top ${animationDuration}ms ease-out`
+        transition: prefersReducedMotion ? 'none' : `padding-top ${animationDuration}ms ease-out`,
+        overscrollBehaviorY: 'contain'
       }}
     >
       {/* Pull-to-refresh indicator */}

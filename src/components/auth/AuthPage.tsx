@@ -460,7 +460,7 @@ const AuthPage = () => {
 
   return (
     <div className="min-h-screen gradient-hero flex items-center justify-center p-4">
-      <Card className="w-full max-w-md shadow-brand">
+      <Card className="w-full max-w-md shadow-brand auth-card">
         <CardHeader className="text-center space-y-2">
           <div className="flex items-center justify-center gap-2 mb-2">
             <img
@@ -480,8 +480,8 @@ const AuthPage = () => {
         <CardContent>
           <Tabs defaultValue="signin" className="space-y-4">
             <TabsList className="grid w-full grid-cols-2 h-fit">
-              <TabsTrigger value="signin">Sign In</TabsTrigger>
-              <TabsTrigger value="signup">Sign Up</TabsTrigger>
+              <TabsTrigger value="signin" className="auth-tab">Sign In</TabsTrigger>
+              <TabsTrigger value="signup" className="auth-tab">Sign Up</TabsTrigger>
             </TabsList>
 
             <TabsContent value="signin" className="space-y-4">
@@ -492,7 +492,7 @@ const AuthPage = () => {
                 }}
                 className="space-y-4"
               >
-                <div className="space-y-2">
+                <div className="space-y-2 auth-form-field">
                   <Label htmlFor="signin-email">Email</Label>
                   <Input
                     id="signin-email"
@@ -502,9 +502,10 @@ const AuthPage = () => {
                     onChange={(e) => setEmail(e.target.value)}
                     maxLength={100}
                     autoComplete="email"
+                    className="auth-input"
                   />
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-2 auth-form-field">
                   <Label htmlFor="signin-password">Password</Label>
                   <div className="relative">
                     <Input
@@ -513,12 +514,12 @@ const AuthPage = () => {
                       placeholder="Enter your password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="pr-10"
+                      className="pr-10 auth-input"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 transition-colors duration-150"
                     >
                       {showPassword ? (
                         <EyeOff className="h-4 w-4" />
@@ -531,7 +532,7 @@ const AuthPage = () => {
                 <Button
                   type="submit"
                   variant="brand"
-                  className="w-full"
+                  className={`w-full auth-button ${loading ? 'auth-loading' : ''}`}
                   disabled={loading}
                 >
                   <Mail className="h-4 w-4" />
@@ -559,7 +560,7 @@ const AuthPage = () => {
                 }}
                 className="space-y-4"
               >
-                <div className="space-y-2">
+                <div className="space-y-2 auth-form-field">
                   <Label>Account Type</Label>
                   <div className="relative">
                     <select
@@ -567,7 +568,7 @@ const AuthPage = () => {
                       onChange={(e) =>
                         setAccountType(e.target.value as "buyer" | "seller")
                       }
-                      className="w-full h-10 px-3 text-sm border border-input bg-background rounded-md"
+                      className="w-full h-10 px-3 text-sm border border-input bg-background rounded-md auth-input"
                     >
                       <option value="buyer">Buyer</option>
                       <option value="seller">Seller</option>
@@ -575,7 +576,7 @@ const AuthPage = () => {
                   </div>
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-2 auth-form-field">
                   <Label htmlFor="signup-email">
                     {accountType === "seller" ? "University Email" : "Email"}
                   </Label>
@@ -589,10 +590,11 @@ const AuthPage = () => {
                     }
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
+                    className="auth-input"
                   />
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-2 auth-form-field">
                   <Label htmlFor="signup-password">Password</Label>
                   <div className="relative">
                     <Input
@@ -601,12 +603,12 @@ const AuthPage = () => {
                       placeholder="Create a strong password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="pr-10"
+                      className="pr-10 auth-input"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 transition-colors duration-150"
                     >
                       {showPassword ? (
                         <EyeOff className="h-4 w-4" />
@@ -617,17 +619,18 @@ const AuthPage = () => {
                   </div>
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-2 auth-form-field">
                   <Label htmlFor="signup-name">Full Name *</Label>
                   <Input
                     id="signup-name"
                     placeholder="Enter your full name"
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
+                    className="auth-input"
                   />
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-2 auth-form-field">
                   <Label htmlFor="signup-university">University *</Label>
                   <div className="relative">
                     <Input
@@ -639,9 +642,10 @@ const AuthPage = () => {
                         setUniversityOpen(true);
                       }}
                       onFocus={() => setUniversityOpen(true)}
+                      className="auth-input"
                     />
                     {universityOpen && (
-                      <div className="university-dropdown absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-auto">
+                      <div className="university-dropdown absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-auto auth-dropdown">
                         {[
                           "Abia State University",
                           "Abubakar Tafawa Balewa University",
@@ -912,17 +916,18 @@ const AuthPage = () => {
 
                 {accountType === "seller" && (
                   <>
-                    <div className="space-y-2">
+                    <div className="space-y-2 auth-form-field">
                       <Label htmlFor="signup-student-id">Matric Number*</Label>
                       <Input
                         id="signup-student-id"
                         placeholder="e.g., 19/55EC/00123"
                         value={studentId}
                         onChange={(e) => setStudentId(e.target.value)}
+                        className="auth-input"
                       />
                     </div>
 
-                    <div className="space-y-2">
+                    <div className="space-y-2 auth-form-field">
                       <Label htmlFor="signup-phone">
                         WhatsApp Phone Number *
                       </Label>
@@ -931,6 +936,7 @@ const AuthPage = () => {
                         placeholder="e.g., +234 801 234 5678"
                         value={phoneNumber}
                         onChange={(e) => setPhoneNumber(e.target.value)}
+                        className="auth-input"
                       />
                       <p className="text-xs text-muted-foreground">
                         Use your WhatsApp number for easy communication with
@@ -959,7 +965,7 @@ const AuthPage = () => {
                 <Button
                   type="submit"
                   variant="brand"
-                  className="w-full"
+                  className={`w-full auth-button ${loading ? 'auth-loading' : ''}`}
                   disabled={loading}
                 >
                   <UserCheck className="h-4 w-4" />

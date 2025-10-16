@@ -332,9 +332,9 @@ const AppContent = () => {
       <PerformanceMonitor />
       <NetworkNotification />
       <Header />
-      <PullToRefresh onRefresh={handleRefresh} className="chrome-pull-refresh min-h-screen scroll-container">
+      <PullToRefresh onRefresh={handleRefresh} className="chrome-pull-refresh min-h-screen scroll-container" style={{ overscrollBehaviorY: 'contain' }}>
         {/* Content container with proper layout structure */}
-        <div className={`${metrics.isLowEndDevice ? 'low-end-device' : ''}`}>
+        <div className={`${metrics.isLowEndDevice ? 'low-end-device' : ''}`} style={{ overscrollBehaviorY: 'auto' }}>
           <AuthGuard>
             <NavigationPreloader>
               <Suspense fallback={<LoadingSkeleton />}>
