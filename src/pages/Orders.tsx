@@ -33,7 +33,6 @@ import {
 import { findOrCreateConversation } from "@/utils/conversationUtils";
 import { useNavigate } from "react-router-dom";
 import { ProfileReviewModal } from "@/components/reviews/ProfileReviewModal";
-import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 
 interface Order {
   id: string;
@@ -82,7 +81,7 @@ const Orders = () => {
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
   const { toast } = useToast();
   useRealTimeOrders();
-  
+
   const [offlineOrders, setOfflineOrders] = useOfflineStorage<Order[]>({
     key: `orders_${user?.id}`,
     defaultValue: [],
@@ -160,8 +159,6 @@ const Orders = () => {
     setLastUpdated(new Date());
   }, [refetch]);
 
-  usePullToRefresh({ onRefresh: handleRefresh }); // Enable pull-to-refresh
-
   // Real-time order updates with automatic background refresh
   useEffect(() => {
     if (!user) return;
@@ -191,7 +188,7 @@ const Orders = () => {
               setUpdatingOrderId(orderId);
               setTimeout(() => setUpdatingOrderId(null), 2000);
             }
-            
+
             // Silently refetch in background
             refetch();
             setLastUpdated(new Date());
@@ -225,7 +222,7 @@ const Orders = () => {
         }
       )
       .subscribe((status) => {
-        setIsRealTimeConnected(status === 'SUBSCRIBED');
+        setIsRealTimeConnected(status === "SUBSCRIBED");
       });
 
     // Also listen for window focus to refresh data
@@ -234,11 +231,11 @@ const Orders = () => {
       setLastUpdated(new Date());
     };
 
-    window.addEventListener('focus', handleFocus);
+    window.addEventListener("focus", handleFocus);
 
     return () => {
       supabase.removeChannel(channel);
-      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener("focus", handleFocus);
     };
   }, [user, refetch]);
 
@@ -259,13 +256,13 @@ const Orders = () => {
   ) => {
     try {
       // Optimistic update - immediately update UI
-      setOfflineOrders(prevOrders => 
-        prevOrders.map(order => 
-          order.id === orderId 
-            ? { 
-                ...order, 
-                status, 
-                ...(trackingInfo && { tracking_info: trackingInfo })
+      setOfflineOrders((prevOrders) =>
+        prevOrders.map((order) =>
+          order.id === orderId
+            ? {
+                ...order,
+                status,
+                ...(trackingInfo && { tracking_info: trackingInfo }),
               }
             : order
         )
@@ -317,7 +314,8 @@ const Orders = () => {
               console.error("Escrow release error:", escrowError);
               toast({
                 title: "Payment Processing",
-                description: "Order confirmed. Payment processing may take a few minutes.",
+                description:
+                  "Order confirmed. Payment processing may take a few minutes.",
                 variant: "default",
               });
             }
@@ -350,7 +348,9 @@ const Orders = () => {
                 : "Order Delivered - CampusConnect";
 
             // Create notification
-            const { sendOrderNotification } = await import('@/utils/notificationService');
+            const { sendOrderNotification } = await import(
+              "@/utils/notificationService"
+            );
             await sendOrderNotification(
               order.buyer_id,
               statusMessage,
@@ -618,16 +618,14 @@ const Orders = () => {
   // Count unattended orders
   const getUnattendedBuyerCount = () => {
     return orders.filter(
-      (order) => 
-        order.buyer_id === user?.id && 
-        order.status === "delivered"
+      (order) => order.buyer_id === user?.id && order.status === "delivered"
     ).length;
   };
 
   const getUnattendedSellerCount = () => {
     return orders.filter(
-      (order) => 
-        order.seller_id === user?.id && 
+      (order) =>
+        order.seller_id === user?.id &&
         (order.status === "paid" || order.status === "shipped")
     ).length;
   };
@@ -705,12 +703,12 @@ const Orders = () => {
       : null;
 
     return (
-      <Card 
-        key={order.id} 
+      <Card
+        key={order.id}
         className={`mb-3 sm:mb-4 transition-all duration-500 ${
-          updatingOrderId === order.id 
-            ? 'ring-2 ring-blue-500 ring-opacity-50 bg-blue-50/50' 
-            : ''
+          updatingOrderId === order.id
+            ? "ring-2 ring-blue-500 ring-opacity-50 bg-blue-50/50"
+            : ""
         }`}
       >
         <CardContent className="p-4 sm:pt-6">
@@ -1075,15 +1073,19 @@ const Orders = () => {
                 disabled={isLoading}
                 className="flex items-center gap-2"
               >
-                <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+                <RefreshCw
+                  className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`}
+                />
                 <span className="hidden sm:inline">Reload</span>
               </Button>
               <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground">
-                <div className={`w-2 h-2 rounded-full ${
-                  isRealTimeConnected ? 'bg-green-500' : 'bg-gray-400'
-                }`} />
+                <div
+                  className={`w-2 h-2 rounded-full ${
+                    isRealTimeConnected ? "bg-green-500" : "bg-gray-400"
+                  }`}
+                />
                 <span className="hidden sm:inline">
-                  {isRealTimeConnected ? 'Live updates' : 'Connecting...'}
+                  {isRealTimeConnected ? "Live updates" : "Connecting..."}
                 </span>
                 <span className="text-xs">
                   Updated {lastUpdated.toLocaleTimeString()}

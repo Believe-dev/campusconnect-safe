@@ -1,29 +1,28 @@
-import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
-import { useOptimizedQuery } from '@/hooks/useOptimizedQuery';
-import { useOfflineStorage } from '@/hooks/useOfflineStorage';
-import { useAuth } from '@/hooks/useAuth';
-import { useQueryClient } from '@tanstack/react-query';
-import { useRealTimeCart } from '@/hooks/useRealTimeCart';
-import { Button } from '@/components/ui/enhanced-button';
-import { SAFE_PROFILE_SELECT } from '@/lib/profileSecurity';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { useToast } from '@/hooks/use-toast';
-import { 
-  Trash2, 
-  Plus, 
-  Minus, 
+import { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { useOptimizedQuery } from "@/hooks/useOptimizedQuery";
+import { useOfflineStorage } from "@/hooks/useOfflineStorage";
+import { useAuth } from "@/hooks/useAuth";
+import { useQueryClient } from "@tanstack/react-query";
+import { useRealTimeCart } from "@/hooks/useRealTimeCart";
+import { Button } from "@/components/ui/enhanced-button";
+import { SAFE_PROFILE_SELECT } from "@/lib/profileSecurity";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
+import {
+  Trash2,
+  Plus,
+  Minus,
   ShoppingCart,
   ArrowRight,
   Package,
   Heart,
-  MessageCircle
-} from 'lucide-react';
-import ProductCard from '@/components/marketplace/ProductCard';
-import { User } from '@supabase/supabase-js';
-import { usePullToRefresh } from '@/hooks/usePullToRefresh';
+  MessageCircle,
+} from "lucide-react";
+import ProductCard from "@/components/marketplace/ProductCard";
+import { User } from "@supabase/supabase-js";
 
 interface CartItem {
   id: string;
@@ -68,7 +67,9 @@ interface CartProduct {
 
 const Cart = () => {
   const { user } = useAuth();
-  const [recommendedProducts, setRecommendedProducts] = useState<CartProduct[]>([]);
+  const [recommendedProducts, setRecommendedProducts] = useState<CartProduct[]>(
+    []
+  );
   const [loadingRecommended, setLoadingRecommended] = useState(false);
   const [isRealTimeConnected, setIsRealTimeConnected] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
@@ -76,11 +77,13 @@ const Cart = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   useRealTimeCart();
-  const [offlineCartItems, setOfflineCartItems] = useOfflineStorage<CartItem[]>({
-    key: `cart_${user?.id}`,
-    defaultValue: [],
-    ttl: 10 * 60 * 1000 // 10 minutes
-  });
+  const [offlineCartItems, setOfflineCartItems] = useOfflineStorage<CartItem[]>(
+    {
+      key: `cart_${user?.id}`,
+      defaultValue: [],
+      ttl: 10 * 60 * 1000, // 10 minutes
+    }
+  );
 
   // Remove automatic redirect - let user stay on page even if not authenticated
 
@@ -88,8 +91,9 @@ const Cart = () => {
     if (!user) return [];
 
     const { data, error } = await supabase
-      .from('cart')
-      .select(`
+      .from("cart")
+      .select(
+        `
         *,
         products (
           *,
@@ -99,19 +103,25 @@ const Cart = () => {
             is_verified
           )
         )
-      `)
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false });
+      `
+      )
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false });
 
     if (error) throw error;
-    
+
     const allItems = data || [];
     setOfflineCartItems(allItems);
     return allItems;
   };
 
-  const { data: cartItems = offlineCartItems, isLoading, error, refetch } = useOptimizedQuery({
-    queryKey: ['cart', user?.id],
+  const {
+    data: cartItems = offlineCartItems,
+    isLoading,
+    error,
+    refetch,
+  } = useOptimizedQuery({
+    queryKey: ["cart", user?.id],
     queryFn: fetchCartItems,
     enabled: !!user,
     placeholderData: offlineCartItems,
@@ -124,8 +134,6 @@ const Cart = () => {
     await refetch();
     setLastUpdated(new Date());
   }, [refetch]);
-
-  usePullToRefresh({ onRefresh: handleRefresh }); // Enable pull-to-refresh
 
   useEffect(() => {
     if (cartItems.length > 0) {
@@ -140,11 +148,11 @@ const Cart = () => {
     const channel = supabase
       .channel(`cart-realtime-${user.id}`)
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: '*',
-          schema: 'public',
-          table: 'cart',
+          event: "*",
+          schema: "public",
+          table: "cart",
         },
         (payload) => {
           const cartData = payload.new as any;
@@ -155,11 +163,11 @@ const Cart = () => {
         }
       )
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: '*',
-          schema: 'public',
-          table: 'orders',
+          event: "*",
+          schema: "public",
+          table: "orders",
         },
         (payload) => {
           const orderData = payload.new as any;
@@ -171,11 +179,11 @@ const Cart = () => {
         }
       )
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: '*',
-          schema: 'public',
-          table: 'products',
+          event: "*",
+          schema: "public",
+          table: "products",
         },
         () => {
           // Product updated, refresh cart and recommendations
@@ -187,7 +195,7 @@ const Cart = () => {
         }
       )
       .subscribe((status) => {
-        setIsRealTimeConnected(status === 'SUBSCRIBED');
+        setIsRealTimeConnected(status === "SUBSCRIBED");
       });
 
     return () => {
@@ -209,8 +217,9 @@ const Cart = () => {
     setLoadingRecommended(true);
     try {
       let query = supabase
-        .from('products')
-        .select(`
+        .from("products")
+        .select(
+          `
           *,
           profiles!products_seller_id_fkey (
             full_name,
@@ -218,30 +227,35 @@ const Cart = () => {
             is_verified,
             rating
           )
-        `)
-        .eq('is_active', true)
+        `
+        )
+        .eq("is_active", true)
         .limit(8);
 
       if (currentCartItems.length > 0) {
         // Get categories from cart items for "You might also like"
-        const categories = [...new Set(currentCartItems
-          .filter(item => item.products?.category)
-          .map(item => item.products.category))];
+        const categories = [
+          ...new Set(
+            currentCartItems
+              .filter((item) => item.products?.category)
+              .map((item) => item.products.category)
+          ),
+        ];
         const productIds = currentCartItems
-          .filter(item => item.products?.id)
-          .map(item => item.products.id);
-        
+          .filter((item) => item.products?.id)
+          .map((item) => item.products.id);
+
         if (categories.length > 0 && productIds.length > 0) {
           query = query
-            .in('category', categories)
-            .not('id', 'in', `(${productIds.join(',')})`)
-            .order('created_at', { ascending: false });
+            .in("category", categories)
+            .not("id", "in", `(${productIds.join(",")})`)
+            .order("created_at", { ascending: false });
         } else {
-          query = query.order('created_at', { ascending: false });
+          query = query.order("created_at", { ascending: false });
         }
       } else {
         // Get popular/recent products for empty cart
-        query = query.order('created_at', { ascending: false });
+        query = query.order("created_at", { ascending: false });
       }
 
       const { data, error } = await query;
@@ -249,27 +263,36 @@ const Cart = () => {
 
       // Transform the data to match our Product interface
       const transformedData = (data || [])
-        .filter(item => item && item.id && item.title && item.images && item.images.length > 0)
-        .map(item => ({
+        .filter(
+          (item) =>
+            item &&
+            item.id &&
+            item.title &&
+            item.images &&
+            item.images.length > 0
+        )
+        .map((item) => ({
           id: item.id,
           title: item.title,
-          description: item.description || '',
+          description: item.description || "",
           price: item.price || 0,
-          category: item.category || 'Other',
-          campus: item.campus || 'Unknown Campus',
-          condition: item.condition || 'good',
+          category: item.category || "Other",
+          campus: item.campus || "Unknown Campus",
+          condition: item.condition || "good",
           images: item.images || [],
           seller_id: item.seller_id,
           stock_quantity: item.stock_quantity || 0,
-          seller: item.profiles ? {
-            full_name: item.profiles.full_name || 'Unknown Seller',
-            rating: item.profiles.rating || 0,
-            is_verified: item.profiles.is_verified || false
-          } : {
-            full_name: 'Unknown Seller',
-            rating: 0,
-            is_verified: false
-          }
+          seller: item.profiles
+            ? {
+                full_name: item.profiles.full_name || "Unknown Seller",
+                rating: item.profiles.rating || 0,
+                is_verified: item.profiles.is_verified || false,
+              }
+            : {
+                full_name: "Unknown Seller",
+                rating: 0,
+                is_verified: false,
+              },
         }));
 
       setRecommendedProducts(transformedData);
@@ -285,17 +308,17 @@ const Cart = () => {
 
     try {
       const { error } = await supabase
-        .from('cart')
+        .from("cart")
         .update({ quantity: newQuantity })
-        .eq('id', cartItemId);
+        .eq("id", cartItemId);
 
       if (error) throw error;
 
       // Invalidate and refetch cart data
-      await queryClient.invalidateQueries({ queryKey: ['cart', user?.id] });
-      
+      await queryClient.invalidateQueries({ queryKey: ["cart", user?.id] });
+
       // Trigger cart count update
-      window.dispatchEvent(new CustomEvent('cartUpdated'));
+      window.dispatchEvent(new CustomEvent("cartUpdated"));
     } catch (error) {
       toast({
         title: "Error",
@@ -308,18 +331,18 @@ const Cart = () => {
   const removeFromCart = async (cartItemId: string) => {
     try {
       const { error } = await supabase
-        .from('cart')
+        .from("cart")
         .delete()
-        .eq('id', cartItemId);
+        .eq("id", cartItemId);
 
       if (error) throw error;
 
       // Invalidate and refetch cart data
-      await queryClient.invalidateQueries({ queryKey: ['cart', user?.id] });
-      
+      await queryClient.invalidateQueries({ queryKey: ["cart", user?.id] });
+
       // Trigger cart count update
-      window.dispatchEvent(new CustomEvent('cartUpdated'));
-      
+      window.dispatchEvent(new CustomEvent("cartUpdated"));
+
       toast({
         title: "Item removed",
         description: "Item removed from your cart",
@@ -335,18 +358,23 @@ const Cart = () => {
 
   const getTotalPrice = () => {
     return cartItems
-      .filter(item => item.products?.price)
-      .reduce((total, item) => total + ((item.products?.price || 0) * item.quantity), 0);
+      .filter((item) => item.products?.price)
+      .reduce(
+        (total, item) => total + (item.products?.price || 0) * item.quantity,
+        0
+      );
   };
 
   const getTotalItems = () => {
     return cartItems
-      .filter(item => item.products && item.products.id)
+      .filter((item) => item.products && item.products.id)
       .reduce((total, item) => total + item.quantity, 0);
   };
 
   const proceedToCheckout = () => {
-    const validItems = cartItems.filter(item => item.products && item.products.id);
+    const validItems = cartItems.filter(
+      (item) => item.products && item.products.id
+    );
     if (validItems.length === 0) {
       toast({
         title: "Empty cart",
@@ -355,7 +383,7 @@ const Cart = () => {
       });
       return;
     }
-    navigate('/checkout');
+    navigate("/checkout");
   };
 
   const handleViewProduct = (productId: string) => {
@@ -379,29 +407,27 @@ const Cart = () => {
     try {
       // Check if item already exists in cart
       const { data: existingItem } = await supabase
-        .from('cart')
-        .select('id, quantity')
-        .eq('user_id', user.id)
-        .eq('product_id', productId)
+        .from("cart")
+        .select("id, quantity")
+        .eq("user_id", user.id)
+        .eq("product_id", productId)
         .single();
 
       if (existingItem) {
         // Update quantity if item exists
         const { error } = await supabase
-          .from('cart')
+          .from("cart")
           .update({ quantity: existingItem.quantity + 1 })
-          .eq('id', existingItem.id);
+          .eq("id", existingItem.id);
 
         if (error) throw error;
       } else {
         // Add new item to cart
-        const { error } = await supabase
-          .from('cart')
-          .insert({
-            user_id: user.id,
-            product_id: productId,
-            quantity: 1
-          });
+        const { error } = await supabase.from("cart").insert({
+          user_id: user.id,
+          product_id: productId,
+          quantity: 1,
+        });
 
         if (error) throw error;
       }
@@ -413,7 +439,7 @@ const Cart = () => {
 
       // Refresh cart items
       if (user) {
-        queryClient.invalidateQueries({ queryKey: ['cart', user.id] });
+        queryClient.invalidateQueries({ queryKey: ["cart", user.id] });
       }
     } catch (error) {
       toast({
@@ -431,8 +457,12 @@ const Cart = () => {
           <Card>
             <CardContent className="p-8 text-center">
               <ShoppingCart className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-              <h3 className="text-xl font-semibold mb-2">Sign in to view your cart</h3>
-              <p className="text-muted-foreground mb-6">Please sign in to access your shopping cart</p>
+              <h3 className="text-xl font-semibold mb-2">
+                Sign in to view your cart
+              </h3>
+              <p className="text-muted-foreground mb-6">
+                Please sign in to access your shopping cart
+              </p>
               <Button variant="brand" asChild>
                 <a href="/auth">Sign In</a>
               </Button>
@@ -463,11 +493,13 @@ const Cart = () => {
           <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 mb-6 sm:mb-8">
             <div className="flex items-center gap-3 flex-1">
               <ShoppingCart className="h-6 w-6 sm:h-7 sm:w-7 text-university-green" />
-              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900">Shopping Cart</h1>
+              <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900">
+                Shopping Cart
+              </h1>
             </div>
             <div className="flex items-center gap-3">
               <Badge className="bg-university-green/10 text-university-green border-university-green/20">
-                {getTotalItems()} {getTotalItems() === 1 ? 'item' : 'items'}
+                {getTotalItems()} {getTotalItems() === 1 ? "item" : "items"}
               </Badge>
               <Button
                 variant="outline"
@@ -485,11 +517,13 @@ const Cart = () => {
                 Reload Cart
               </Button>
               <div className="flex items-center gap-2 text-xs text-gray-500">
-                <div className={`w-2 h-2 rounded-full ${
-                  isRealTimeConnected ? 'bg-green-500' : 'bg-gray-400'
-                }`} />
+                <div
+                  className={`w-2 h-2 rounded-full ${
+                    isRealTimeConnected ? "bg-green-500" : "bg-gray-400"
+                  }`}
+                />
                 <span className="hidden sm:inline">
-                  {isRealTimeConnected ? 'Live' : 'Offline'}
+                  {isRealTimeConnected ? "Live" : "Offline"}
                 </span>
                 <span className="text-xs">
                   {lastUpdated.toLocaleTimeString()}
@@ -503,11 +537,16 @@ const Cart = () => {
               <Card className="border-0 shadow-lg">
                 <CardContent className="p-8 sm:p-12 text-center">
                   <Package className="h-16 w-16 sm:h-20 sm:w-20 text-gray-400 mx-auto mb-4 sm:mb-6" />
-                  <h3 className="text-xl sm:text-2xl font-semibold text-gray-900 mb-3">Your cart is empty</h3>
+                  <h3 className="text-xl sm:text-2xl font-semibold text-gray-900 mb-3">
+                    Your cart is empty
+                  </h3>
                   <p className="text-sm sm:text-base text-gray-600 mb-6 sm:mb-8">
                     Browse our marketplace to find products you love
                   </p>
-                  <Button className="bg-university-green hover:bg-university-green/90 px-8 py-3" asChild>
+                  <Button
+                    className="bg-university-green hover:bg-university-green/90 px-8 py-3"
+                    asChild
+                  >
                     <a href="/marketplace">Browse Products</a>
                   </Button>
                 </CardContent>
@@ -518,7 +557,9 @@ const Cart = () => {
                 <div className="mt-8 sm:mt-12">
                   <Card className="border-0 shadow-lg">
                     <CardContent className="p-6">
-                      <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-6">Recommended for You</h2>
+                      <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-6">
+                        Recommended for You
+                      </h2>
                       <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
                         {recommendedProducts.slice(0, 4).map((product) => (
                           <Card
@@ -541,7 +582,7 @@ const Cart = () => {
                                   <Package className="h-8 w-8 text-gray-400" />
                                 </div>
                               )}
-                              
+
                               {/* Condition Badge */}
                               <div className="absolute top-2 left-2">
                                 <Badge
@@ -555,7 +596,7 @@ const Cart = () => {
                                     product.condition.slice(1)}
                                 </Badge>
                               </div>
-                              
+
                               {/* Verified Seller Badge */}
                               {product.seller?.is_verified && (
                                 <div className="absolute bottom-2 left-2">
@@ -581,11 +622,14 @@ const Cart = () => {
                                 <h3 className="font-semibold text-sm line-clamp-2 text-gray-900 leading-tight">
                                   {product.title}
                                 </h3>
-                                
-                                <Badge variant="outline" className="text-xs bg-gray-50 border-gray-200 w-fit">
+
+                                <Badge
+                                  variant="outline"
+                                  className="text-xs bg-gray-50 border-gray-200 w-fit"
+                                >
                                   {product.category}
                                 </Badge>
-                                
+
                                 <div
                                   className="flex items-center gap-1.5 p-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer"
                                   onClick={(e) => {
@@ -595,7 +639,8 @@ const Cart = () => {
                                 >
                                   <div className="w-4 h-4 bg-university-green/10 rounded-full flex items-center justify-center flex-shrink-0">
                                     <span className="text-xs font-medium text-university-green">
-                                      {product.seller?.full_name?.charAt(0) || "U"}
+                                      {product.seller?.full_name?.charAt(0) ||
+                                        "U"}
                                     </span>
                                   </div>
                                   <span className="text-xs font-medium text-university-green hover:underline truncate flex-1">
@@ -639,8 +684,13 @@ const Cart = () => {
                         <div className="flex items-center gap-3 p-4 bg-muted rounded">
                           <Package className="h-8 w-8 text-muted-foreground" />
                           <div>
-                            <p className="font-medium text-muted-foreground">Product no longer available</p>
-                            <p className="text-xs text-muted-foreground">This item has been removed or is no longer available</p>
+                            <p className="font-medium text-muted-foreground">
+                              Product no longer available
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              This item has been removed or is no longer
+                              available
+                            </p>
                             <Button
                               variant="outline"
                               size="sm"
@@ -652,82 +702,113 @@ const Cart = () => {
                           </div>
                         </div>
                       ) : (
-                      <div className="flex gap-3 sm:gap-4">
-                        {item.products?.images?.[0] && (
-                          <img
-                            src={item.products.images[0]}
-                            alt={item.products?.title || 'Product image'}
-                            className="w-16 h-16 sm:w-20 sm:h-20 object-cover rounded flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
-                            onClick={() => handleViewProduct(item.products.id)}
-                            onError={(e) => {
-                              e.currentTarget.style.display = 'none';
-                            }}
-                          />
-                        )}
-                        
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between mb-2 gap-2">
-                            <div className="min-w-0 flex-1">
-                              <h3 
-                                className="font-semibold text-base sm:text-lg line-clamp-2 cursor-pointer hover:text-primary transition-colors"
-                                onClick={() => handleViewProduct(item.products.id)}
-                              >
-                                {item.products?.title || 'Unknown Product'}
-                              </h3>
-                              <p className="text-xs sm:text-sm text-muted-foreground truncate">
-                                by {item.products?.profiles?.full_name || 'Unknown Seller'}
-                              </p>
-                              <Badge variant="outline" className="mt-1 text-xs">
-                                {item.products?.condition?.replace('_', ' ') || 'Unknown'}
-                              </Badge>
-                            </div>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => removeFromCart(item.id)}
-                              className="text-destructive hover:text-destructive h-8 w-8 sm:h-10 sm:w-10 flex-shrink-0"
-                            >
-                              <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
-                            </Button>
-                          </div>
+                        <div className="flex gap-3 sm:gap-4">
+                          {item.products?.images?.[0] && (
+                            <img
+                              src={item.products.images[0]}
+                              alt={item.products?.title || "Product image"}
+                              className="w-16 h-16 sm:w-20 sm:h-20 object-cover rounded flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
+                              onClick={() =>
+                                handleViewProduct(item.products.id)
+                              }
+                              onError={(e) => {
+                                e.currentTarget.style.display = "none";
+                              }}
+                            />
+                          )}
 
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                            <div className="flex items-center gap-2">
-                              <Button
-                                variant="outline"
-                                size="icon"
-                                className="h-7 w-7 sm:h-8 sm:w-8"
-                                onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                                disabled={item.quantity <= 1}
-                              >
-                                <Minus className="h-3 w-3" />
-                              </Button>
-                              <span className="w-6 sm:w-8 text-center font-medium text-sm sm:text-base">{item.quantity}</span>
-                              <Button
-                                variant="outline"
-                                size="icon"
-                                className="h-7 w-7 sm:h-8 sm:w-8"
-                                onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                                disabled={item.quantity >= (item.products?.stock_quantity || 0)}
-                              >
-                                <Plus className="h-3 w-3" />
-                              </Button>
-                              <span className="text-xs text-muted-foreground ml-2">
-                                ({Math.max(0, (item.products?.stock_quantity || 0))} available)
-                              </span>
-                            </div>
-
-                            <div className="text-right">
-                              <div className="text-base sm:text-lg font-bold">
-                                ₦{((item.products?.price || 0) * item.quantity).toLocaleString()}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between mb-2 gap-2">
+                              <div className="min-w-0 flex-1">
+                                <h3
+                                  className="font-semibold text-base sm:text-lg line-clamp-2 cursor-pointer hover:text-primary transition-colors"
+                                  onClick={() =>
+                                    handleViewProduct(item.products.id)
+                                  }
+                                >
+                                  {item.products?.title || "Unknown Product"}
+                                </h3>
+                                <p className="text-xs sm:text-sm text-muted-foreground truncate">
+                                  by{" "}
+                                  {item.products?.profiles?.full_name ||
+                                    "Unknown Seller"}
+                                </p>
+                                <Badge
+                                  variant="outline"
+                                  className="mt-1 text-xs"
+                                >
+                                  {item.products?.condition?.replace(
+                                    "_",
+                                    " "
+                                  ) || "Unknown"}
+                                </Badge>
                               </div>
-                              <div className="text-xs sm:text-sm text-muted-foreground">
-                                ₦{(item.products?.price || 0).toLocaleString()} each
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => removeFromCart(item.id)}
+                                className="text-destructive hover:text-destructive h-8 w-8 sm:h-10 sm:w-10 flex-shrink-0"
+                              >
+                                <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
+                              </Button>
+                            </div>
+
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="icon"
+                                  className="h-7 w-7 sm:h-8 sm:w-8"
+                                  onClick={() =>
+                                    updateQuantity(item.id, item.quantity - 1)
+                                  }
+                                  disabled={item.quantity <= 1}
+                                >
+                                  <Minus className="h-3 w-3" />
+                                </Button>
+                                <span className="w-6 sm:w-8 text-center font-medium text-sm sm:text-base">
+                                  {item.quantity}
+                                </span>
+                                <Button
+                                  variant="outline"
+                                  size="icon"
+                                  className="h-7 w-7 sm:h-8 sm:w-8"
+                                  onClick={() =>
+                                    updateQuantity(item.id, item.quantity + 1)
+                                  }
+                                  disabled={
+                                    item.quantity >=
+                                    (item.products?.stock_quantity || 0)
+                                  }
+                                >
+                                  <Plus className="h-3 w-3" />
+                                </Button>
+                                <span className="text-xs text-muted-foreground ml-2">
+                                  (
+                                  {Math.max(
+                                    0,
+                                    item.products?.stock_quantity || 0
+                                  )}{" "}
+                                  available)
+                                </span>
+                              </div>
+
+                              <div className="text-right">
+                                <div className="text-base sm:text-lg font-bold">
+                                  ₦
+                                  {(
+                                    (item.products?.price || 0) * item.quantity
+                                  ).toLocaleString()}
+                                </div>
+                                <div className="text-xs sm:text-sm text-muted-foreground">
+                                  ₦
+                                  {(item.products?.price || 0).toLocaleString()}{" "}
+                                  each
+                                </div>
                               </div>
                             </div>
                           </div>
                         </div>
-                      </div>
                       )}
                     </CardContent>
                   </Card>
@@ -738,17 +819,21 @@ const Cart = () => {
               <div className="lg:col-span-1">
                 <Card className="lg:sticky lg:top-4 border-0 shadow-lg">
                   <CardHeader className="pb-4">
-                    <CardTitle className="text-lg sm:text-xl text-gray-900">Order Summary</CardTitle>
+                    <CardTitle className="text-lg sm:text-xl text-gray-900">
+                      Order Summary
+                    </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3 sm:space-y-4">
                     <div className="flex justify-between text-sm">
                       <span>Items ({getTotalItems()})</span>
                       <span>₦{getTotalPrice().toLocaleString()}</span>
                     </div>
-                    
+
                     <div className="flex justify-between text-sm">
                       <span>Delivery</span>
-                      <span className="text-muted-foreground text-xs sm:text-sm">Calculated at checkout</span>
+                      <span className="text-muted-foreground text-xs sm:text-sm">
+                        Calculated at checkout
+                      </span>
                     </div>
 
                     <div className="border-t pt-3 sm:pt-4">
@@ -758,7 +843,7 @@ const Cart = () => {
                       </div>
                     </div>
 
-                    <Button 
+                    <Button
                       className="w-full bg-university-green hover:bg-university-green/90 py-3"
                       onClick={proceedToCheckout}
                     >
@@ -766,7 +851,11 @@ const Cart = () => {
                       <ArrowRight className="h-4 w-4 ml-2" />
                     </Button>
 
-                    <Button variant="outline" className="w-full border-2 border-gray-200 hover:border-university-green" asChild>
+                    <Button
+                      variant="outline"
+                      className="w-full border-2 border-gray-200 hover:border-university-green"
+                      asChild
+                    >
                       <a href="/marketplace">Continue Shopping</a>
                     </Button>
                   </CardContent>
@@ -780,7 +869,9 @@ const Cart = () => {
             <div className="mt-8 sm:mt-12">
               <Card className="border-0 shadow-lg">
                 <CardContent className="p-6">
-                  <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-6">You Might Also Like</h2>
+                  <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-6">
+                    You Might Also Like
+                  </h2>
                   <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
                     {recommendedProducts.slice(0, 4).map((product) => (
                       <Card
@@ -803,7 +894,7 @@ const Cart = () => {
                               <Package className="h-8 w-8 text-gray-400" />
                             </div>
                           )}
-                          
+
                           {/* Condition Badge */}
                           <div className="absolute top-2 left-2">
                             <Badge
@@ -817,7 +908,7 @@ const Cart = () => {
                                 product.condition.slice(1)}
                             </Badge>
                           </div>
-                          
+
                           {/* Verified Seller Badge */}
                           {product.seller?.is_verified && (
                             <div className="absolute bottom-2 left-2">
@@ -843,11 +934,14 @@ const Cart = () => {
                             <h3 className="font-semibold text-sm line-clamp-2 text-gray-900 leading-tight">
                               {product.title}
                             </h3>
-                            
-                            <Badge variant="outline" className="text-xs bg-gray-50 border-gray-200 w-fit">
+
+                            <Badge
+                              variant="outline"
+                              className="text-xs bg-gray-50 border-gray-200 w-fit"
+                            >
                               {product.category}
                             </Badge>
-                            
+
                             <div
                               className="flex items-center gap-1.5 p-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer"
                               onClick={(e) => {

@@ -30,7 +30,6 @@ import {
   Wallet,
 } from "lucide-react";
 import WalletDashboard from "@/components/wallet/WalletDashboard";
-import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 
 interface Product {
   id: string;
@@ -87,8 +86,6 @@ const Dashboard = () => {
     await fetchAnalytics();
     setLastUpdated(new Date());
   }, []);
-
-  usePullToRefresh({ onRefresh: handleRefresh }); // Enable pull-to-refresh
 
   useEffect(() => {
     loadUserProfile();
@@ -162,7 +159,7 @@ const Dashboard = () => {
             }
           )
           .subscribe((status) => {
-            setIsRealTimeConnected(status === 'SUBSCRIBED');
+            setIsRealTimeConnected(status === "SUBSCRIBED");
           });
 
         return () => {
@@ -522,20 +519,22 @@ const Dashboard = () => {
                 </p>
               </div>
               <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground sm:hidden">
-                <div className={`w-2 h-2 rounded-full ${
-                  isRealTimeConnected ? 'bg-green-500' : 'bg-gray-400'
-                }`} />
-                <span>
-                  {isRealTimeConnected ? 'Live' : 'Offline'}
-                </span>
+                <div
+                  className={`w-2 h-2 rounded-full ${
+                    isRealTimeConnected ? "bg-green-500" : "bg-gray-400"
+                  }`}
+                />
+                <span>{isRealTimeConnected ? "Live" : "Offline"}</span>
               </div>
             </div>
             <div className="hidden sm:flex items-center gap-2 text-xs text-muted-foreground mt-1">
-              <div className={`w-2 h-2 rounded-full ${
-                isRealTimeConnected ? 'bg-green-500' : 'bg-gray-400'
-              }`} />
+              <div
+                className={`w-2 h-2 rounded-full ${
+                  isRealTimeConnected ? "bg-green-500" : "bg-gray-400"
+                }`}
+              />
               <span>
-                {isRealTimeConnected ? 'Live updates' : 'Connecting...'}
+                {isRealTimeConnected ? "Live updates" : "Connecting..."}
               </span>
               <span>•</span>
               <span>Updated {lastUpdated.toLocaleTimeString()}</span>

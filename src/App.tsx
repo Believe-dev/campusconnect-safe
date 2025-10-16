@@ -55,7 +55,7 @@ import { usePerformanceOptimization } from "@/hooks/usePerformanceOptimization";
 import { NavigationPreloader } from "@/components/common/NavigationPreloader";
 
 import "@/styles/mobile-fixes.css";
-import "@/styles/pull-to-refresh.css";
+
 import "@/styles/scroll-optimization.css";
 import "@/styles/bottom-nav.css";
 

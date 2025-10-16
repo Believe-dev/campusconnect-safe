@@ -20,7 +20,6 @@ import {
   CheckCircle,
   Store,
 } from "lucide-react";
-import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import "@/styles/animations.css";
 
 // Animated Counter Component
@@ -71,8 +70,6 @@ const Index = () => {
   const handleRefresh = useCallback(async () => {
     window.location.reload();
   }, []);
-
-  usePullToRefresh({ onRefresh: handleRefresh }); // Enable pull-to-refresh
 
   const handleViewProduct = (productId: string) => {
     navigate(`/product/${productId}`);

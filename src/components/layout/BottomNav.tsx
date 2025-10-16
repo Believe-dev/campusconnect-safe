@@ -1,5 +1,5 @@
 import { useLocation } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { cn } from "@/lib/utils";
 import {
   Home,
@@ -22,25 +22,12 @@ const BottomNav = () => {
   const { cartCount } = useCartCount();
   const { goToMarketplace, goToOrders, goToLiveFeed, goToCart, goToProfile } =
     useUniMarketNavigation();
-  const [isScrolled, setIsScrolled] = useState(false);
+
 
   // Hide bottom nav only on chat pages
   const isInChat = location.pathname.startsWith("/chat/");
 
-  useEffect(() => {
-    let ticking = false;
-    const handleScroll = () => {
-      if (!ticking) {
-        requestAnimationFrame(() => {
-          setIsScrolled(window.scrollY > 10);
-          ticking = false;
-        });
-        ticking = true;
-      }
-    };
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
+
 
   if (!user || isInChat) return null;
 
@@ -99,17 +86,9 @@ const BottomNav = () => {
       }}
     >
       <div
-        className={`transition-all duration-300 ease-out ${
-          isScrolled
-            ? "bg-white/90 backdrop-blur-md border border-primary/20 rounded-xl shadow-lg mx-1 mb-2"
-            : "bg-white border-t border-gray-200 shadow-sm "
-        }`}
+        className="bg-white border-t border-gray-200 shadow-sm"
         style={{
-          /* Add safe area padding for devices with home indicators */
-          paddingBottom: isScrolled
-            ? "8px"
-            : "max(8px, env(safe-area-inset-bottom))",
-          /* Ensure minimum height for touch targets */
+          paddingBottom: "max(8px, env(safe-area-inset-bottom))",
           minHeight: "64px",
         }}
       >

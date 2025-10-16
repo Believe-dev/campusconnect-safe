@@ -29,7 +29,6 @@ import {
 import { OfflineNotice } from "@/components/ui/offline-notice";
 import { User } from "@supabase/supabase-js";
 import { searchProducts } from "@/utils/searchUtils";
-import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import "@/styles/animations.css";
 
 interface Product {
@@ -86,8 +85,6 @@ const Marketplace = () => {
       await fetchUserData(user.id);
     }
   }, [user]);
-
-  usePullToRefresh({ onRefresh: handleRefresh }); // Enable pull-to-refresh
 
   useEffect(() => {
     // Check authentication
@@ -699,7 +696,9 @@ const Marketplace = () => {
                           </span>
                         </div>
                         <span className="text-xs sm:text-sm font-medium text-university-green hover:underline truncate">
-                          {product.profiles?.business_name || product.profiles?.full_name || "Unknown"}
+                          {product.profiles?.business_name ||
+                            product.profiles?.full_name ||
+                            "Unknown"}
                         </span>
                       </div>
                       <div className="flex items-center gap-1 flex-shrink-0">

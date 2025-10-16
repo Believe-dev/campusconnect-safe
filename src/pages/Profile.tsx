@@ -42,7 +42,6 @@ import { useMemoryOptimization } from "@/hooks/useMemoryOptimization";
 import { PremiumGameBadge } from "@/components/games/PremiumGameBadge";
 import { SellerRegistrationCard } from "@/components/seller/SellerRegistrationCard";
 import { SellerSubscriptionCard } from "@/components/seller/SellerSubscriptionCard";
-import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 
 interface Profile {
   full_name: string;
@@ -101,8 +100,6 @@ const Profile = () => {
   const handleRefresh = useCallback(async () => {
     await fetchProfile();
   }, []);
-
-  usePullToRefresh({ onRefresh: handleRefresh }); // Enable pull-to-refresh
 
   useEffect(() => {
     fetchProfile();
@@ -196,7 +193,7 @@ const Profile = () => {
         .single();
 
       if (error) {
-        console.error('Profile fetch error:', error);
+        console.error("Profile fetch error:", error);
         // If profile doesn't exist, create it with signup data
         if (error.code === "PGRST116") {
           const { data: newProfile, error: createError } = await supabase
@@ -215,7 +212,8 @@ const Profile = () => {
               phone_number: user.user_metadata?.phone_number || "",
               business_name: user.user_metadata?.business_name || null,
               avatar_url: user.user_metadata?.avatar_url || null,
-              student_id_photo_url: user.user_metadata?.student_id_photo_url || null,
+              student_id_photo_url:
+                user.user_metadata?.student_id_photo_url || null,
               bio: user.user_metadata?.bio || null,
               seller_status:
                 user.user_metadata?.account_type === "seller"
@@ -249,7 +247,7 @@ const Profile = () => {
         student_id_photo_url: data.student_id_photo_url || null,
       };
 
-      console.log('Profile data loaded:', fixedData);
+      console.log("Profile data loaded:", fixedData);
       setProfile(fixedData);
 
       // Fetch wallet data if user is a seller
@@ -1067,8 +1065,6 @@ const Profile = () => {
                           Business name set during registration
                         </p>
                       </div>
-
-
                     </>
                   )}
                 </div>
@@ -1128,7 +1124,10 @@ const Profile = () => {
                           className="max-w-full h-auto rounded border"
                           style={{ maxHeight: "200px" }}
                           onError={(e) => {
-                            console.error('Failed to load student ID photo:', profile.student_id_photo_url);
+                            console.error(
+                              "Failed to load student ID photo:",
+                              profile.student_id_photo_url
+                            );
                             e.currentTarget.style.display = "none";
                           }}
                         />

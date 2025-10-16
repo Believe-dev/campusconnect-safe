@@ -81,7 +81,7 @@ const Header = () => {
   const { messagesCount } = useMessageCount();
   const [searchQuery, setSearchQuery] = useState("");
   const [gameBadge, setGameBadge] = useState<GameBadgeData | null>(null);
-  const [isScrolled, setIsScrolled] = useState(false);
+
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -111,20 +111,7 @@ const Header = () => {
     }
   }, [user]);
 
-  useEffect(() => {
-    let ticking = false;
-    const handleScroll = () => {
-      if (!ticking) {
-        requestAnimationFrame(() => {
-          setIsScrolled(window.scrollY > 10);
-          ticking = false;
-        });
-        ticking = true;
-      }
-    };
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
+
 
   // Hide header on chat pages
   if (location.pathname.startsWith("/chat/")) {
@@ -616,14 +603,8 @@ const Header = () => {
   );
 
   return (
-    <header className="force-fixed-header px-2 transition-all duration-300 ease-out">
-      <div
-        className={`transition-all duration-300 ease-out ${
-          isScrolled
-            ? "bg-white/90 backdrop-blur-md border border-primary/20 rounded-xl shadow-lg mt-2"
-            : "bg-white border-b border-primary/10"
-        }`}
-      >
+    <header className="force-fixed-header px-2">
+      <div className="bg-white border-b border-primary/10">
         <div className="container mx-auto px-1">
           <div className="flex h-16 items-center justify-between">
             {/* Mobile Menu */}
