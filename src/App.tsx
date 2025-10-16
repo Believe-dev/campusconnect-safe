@@ -53,8 +53,7 @@ import { PerformanceMonitor } from "@/components/common/PerformanceMonitor";
 import { AccessibilityProvider } from "@/components/common/AccessibilityProvider";
 import { usePerformanceOptimization } from "@/hooks/usePerformanceOptimization";
 import { NavigationPreloader } from "@/components/common/NavigationPreloader";
-import PullToRefresh from "@/components/common/PullToRefresh";
-import { usePullToRefresh } from "@/hooks/usePullToRefresh";
+
 import "@/styles/mobile-fixes.css";
 import "@/styles/pull-to-refresh.css";
 import "@/styles/scroll-optimization.css";
@@ -282,13 +281,7 @@ const AppContent = () => {
     useProfileCompletion();
   const { isBanned, banReason, userEmail } = useBanCheck();
   const { showOnboarding, closeOnboarding } = useOnboarding();
-  const handleRefresh = useCallback(async () => {
-    // Refresh the current page data
-    await queryClient.invalidateQueries();
-    window.location.reload();
-  }, []);
 
-  const pullToRefreshState = usePullToRefresh({ onRefresh: handleRefresh });
 
   useEffect(() => {
     const setupNotifications = async () => {
@@ -332,9 +325,8 @@ const AppContent = () => {
       <PerformanceMonitor />
       <NetworkNotification />
       <Header />
-      <PullToRefresh onRefresh={handleRefresh} className="chrome-pull-refresh min-h-screen scroll-container" style={{ overscrollBehaviorY: 'contain' }}>
-        {/* Content container with proper layout structure */}
-        <div className={`${metrics.isLowEndDevice ? 'low-end-device' : ''}`} style={{ overscrollBehaviorY: 'auto' }}>
+      {/* Content container with proper layout structure */}
+      <div className={`min-h-screen ${metrics.isLowEndDevice ? 'low-end-device' : ''}`} style={{ overscrollBehaviorY: 'none' }}>
           <AuthGuard>
             <NavigationPreloader>
               <Suspense fallback={<LoadingSkeleton />}>
@@ -392,8 +384,7 @@ const AppContent = () => {
               </Suspense>
             </NavigationPreloader>
           </AuthGuard>
-        </div>
-      </PullToRefresh>
+      </div>
       <BottomNav />
       <MessagePopup />
       <OfflineNotification />

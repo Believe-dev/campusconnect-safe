@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { Textarea } from '@/components/ui/textarea';
-import BottomNav from '@/components/layout/BottomNav';
+
 
 interface SellerProfile {
   id: string;
@@ -294,7 +294,6 @@ const SellerProfile = () => {
             <p className="mt-4 text-muted-foreground">Loading seller profile...</p>
           </div>
         </div>
-        <BottomNav />
       </div>
     );
   }
@@ -311,7 +310,6 @@ const SellerProfile = () => {
             </CardContent>
           </Card>
         </div>
-        <BottomNav />
       </div>
     );
   }
@@ -334,7 +332,6 @@ const SellerProfile = () => {
             </CardContent>
           </Card>
         </div>
-        <BottomNav />
       </div>
     );
   }
@@ -586,7 +583,6 @@ const SellerProfile = () => {
         </Card>
       </div>
       </div>
-      <BottomNav />
       
       {/* Avatar Modal */}
       <Dialog open={showAvatarModal} onOpenChange={setShowAvatarModal}>
