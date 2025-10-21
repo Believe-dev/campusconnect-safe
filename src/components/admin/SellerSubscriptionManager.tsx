@@ -93,11 +93,10 @@ export const SellerSubscriptionManager = () => {
 
       if (error) throw error;
 
-      // Get total paid amounts for each user
+      // Get total paid amounts for each user (all subscriptions, not just active)
       const { data: subscriptionTotals, error: totalsError } = await supabase
         .from('seller_subscriptions')
-        .select('user_id, amount')
-        .eq('status', 'active');
+        .select('user_id, amount');
 
       if (totalsError) console.error('Error fetching subscription totals:', totalsError);
 
