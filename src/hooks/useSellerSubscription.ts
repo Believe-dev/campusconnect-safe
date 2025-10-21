@@ -5,20 +5,19 @@ import { useAuth } from './useAuth';
 interface SellerSubscription {
   isActive: boolean;
   expiresAt: string | null;
-  subscriptionType: 'daily' | 'monthly';
+  subscriptionType: 'monthly';
   timeUntilExpiry: {
-    hours?: number;
     days?: number;
-    type: 'hours' | 'days';
+    type: 'days';
   } | null;
 }
 
 export const useSellerSubscription = () => {
   const { user } = useAuth();
   const [subscription, setSubscription] = useState<SellerSubscription>({
-    isActive: false,
+    isActive: true, // Start optimistic to prevent blinking
     expiresAt: null,
-    subscriptionType: 'daily',
+    subscriptionType: 'monthly',
     timeUntilExpiry: null
   });
   const [loading, setLoading] = useState(true);
@@ -45,21 +44,15 @@ export const useSellerSubscription = () => {
       }
 
       const expiresAt = data.seller_subscription_expires_at;
-      const subscriptionType = data.seller_subscription_type || 'daily';
+      const subscriptionType = 'monthly'; // Always monthly now
       
       let timeUntilExpiry = null;
       if (expiresAt) {
         const expiryDate = new Date(expiresAt);
         const now = new Date();
         const diffTime = expiryDate.getTime() - now.getTime();
-        
-        if (subscriptionType === 'daily') {
-          const diffHours = Math.ceil(diffTime / (1000 * 60 * 60));
-          timeUntilExpiry = { hours: diffHours, type: 'hours' as const };
-        } else {
-          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-          timeUntilExpiry = { days: diffDays, type: 'days' as const };
-        }
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        timeUntilExpiry = { days: diffDays, type: 'days' as const };
       }
 
       setSubscription({
@@ -96,15 +89,15 @@ export const useSellerSubscription = () => {
     }
   };
 
-  const createSubscription = async (subscriptionType: 'daily' | 'monthly', paymentReference: string) => {
+  const createSubscription = async (paymentReference: string) => {
     if (!user) return false;
 
     try {
-      const amount = subscriptionType === 'daily' ? 100.00 : 2000.00;
+      const amount = 1000.00; // Fixed monthly price
       
       const { error } = await supabase.rpc('create_seller_subscription', {
         p_user_id: user.id,
-        p_subscription_type: subscriptionType,
+        p_subscription_type: 'monthly',
         p_payment_reference: paymentReference,
         p_amount: amount
       });
@@ -125,7 +118,7 @@ export const useSellerSubscription = () => {
     if (!subscription.isActive) {
       return {
         allowed: false,
-        reason: 'Seller subscription expired. Please renew to access this feature.'
+        reason: 'Your monthly seller subscription (₦1,000) has expired. Please renew to access seller features.'
       };
     }
 

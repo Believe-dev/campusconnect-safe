@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { Upload, X } from 'lucide-react';
 
+
 const categories = [
   'Books & Textbooks',
   'Electronics',
@@ -300,11 +301,11 @@ const Sell = () => {
     <div className="min-h-screen bg-background">
       <main className="container mx-auto px-4 py-8">
         <Card className="max-w-2xl mx-auto">
-          <CardHeader>
-            <CardTitle className="text-2xl font-bold text-primary">List Your Product</CardTitle>
-            <p className="text-muted-foreground">Fill in the details to list your product on CampusConnect</p>
-          </CardHeader>
-          <CardContent>
+            <CardHeader>
+              <CardTitle className="text-2xl font-bold text-primary">List Your Product</CardTitle>
+              <p className="text-muted-foreground">Fill in the details to list your product on CampusConnect</p>
+            </CardHeader>
+            <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
               <div>
                 <Label htmlFor="title">Product Title *</Label>
@@ -473,8 +474,8 @@ const Sell = () => {
                 {submitting ? 'Listing Product...' : 'List Product'}
               </Button>
             </form>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
       </main>
     </div>
   );

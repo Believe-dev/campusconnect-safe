@@ -33,6 +33,9 @@ export const BUSINESS_RULES = {
   sellerRegistration: {
     fee: 100, // ₦100 one-time registration fee for sellers
   },
+  sellerSubscription: {
+    monthlyFee: 1000, // ₦1000 monthly subscription fee for sellers
+  },
   escrow: {
     autoReleaseDays: 2,
     disputeWindowDays: 14,

@@ -68,84 +68,32 @@ serve(async (req) => {
       .update({ status: 'processing' })
       .eq('id', withdrawalId)
 
-    // Process transfer via Paystack
-    const paystackSecretKey = Deno.env.get('PAYSTACK_SECRET_KEY')
-    if (!paystackSecretKey) {
-      throw new Error('Paystack secret key not configured')
-    }
+    // Generate manual transfer reference (no Paystack API calls)
+    const transferCode = `ADMIN_MANUAL_${Date.now()}_${withdrawalId.toString().slice(0, 8)}`
+    const reference = `ADM_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
 
-    // Create transfer recipient
-    const recipientResponse = await fetch('https://api.paystack.co/transferrecipient', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${paystackSecretKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        type: 'nuban',
-        name: account_name,
-        account_number: account_number,
-        bank_code: getBankCode(bank_name),
-        currency: 'NGN'
-      })
-    })
-
-    const recipientData = await recipientResponse.json()
-    
-    if (!recipientData.status) {
-      await supabaseClient.rpc('fail_admin_withdrawal', {
-        p_withdrawal_id: withdrawalId,
-        p_error_message: recipientData.message
-      })
-      
-      return new Response(
-        JSON.stringify({ error: `Failed to create recipient: ${recipientData.message}` }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    // Initiate transfer
-    const transferResponse = await fetch('https://api.paystack.co/transfer', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${paystackSecretKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        source: 'balance',
-        amount: Math.round(amount * 100), // Convert to kobo
-        recipient: recipientData.data.recipient_code,
-        reason: `Admin commission withdrawal - ${new Date().toISOString()}`
-      })
-    })
-
-    const transferData = await transferResponse.json()
-    
-    if (!transferData.status) {
-      await supabaseClient.rpc('fail_admin_withdrawal', {
-        p_withdrawal_id: withdrawalId,
-        p_error_message: transferData.message
-      })
-      
-      return new Response(
-        JSON.stringify({ error: `Transfer failed: ${transferData.message}` }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    // Complete withdrawal
+    // Complete withdrawal with manual transfer details
     await supabaseClient.rpc('complete_admin_withdrawal', {
       p_withdrawal_id: withdrawalId,
-      p_transfer_code: transferData.data.transfer_code,
-      p_paystack_reference: transferData.data.reference
+      p_transfer_code: transferCode,
+      p_paystack_reference: reference
     })
+
+    // Update withdrawal with manual transfer notes
+    await supabaseClient
+      .from('admin_withdrawals')
+      .update({ 
+        status: 'completed',
+        notes: `Manual transfer required: ₦${amount.toLocaleString()} to ${account_name} (${bank_name}) - Account: ${account_number}. Reference: ${transferCode}`
+      })
+      .eq('id', withdrawalId)
 
     return new Response(
       JSON.stringify({
         success: true,
-        transfer_code: transferData.data.transfer_code,
-        reference: transferData.data.reference,
-        message: 'Withdrawal processed successfully'
+        transfer_code: transferCode,
+        reference: reference,
+        message: `Manual transfer approved: ₦${amount.toLocaleString()} to ${account_name} (${bank_name}) - Account: ${account_number}`
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )

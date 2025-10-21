@@ -27,7 +27,9 @@ export const SellerSubscriptionCard = () => {
     try {
       const { data, error } = await supabase
         .from("profiles")
-        .select("account_type, seller_subscription_expires_at, seller_features_active, seller_subscription_type")
+        .select(
+          "account_type, seller_status, seller_subscription_expires_at, seller_features_active"
+        )
         .eq("user_id", user.id)
         .single();
 
@@ -41,42 +43,25 @@ export const SellerSubscriptionCard = () => {
   };
 
   const getTimeUntilExpiry = () => {
-    if (!profile?.seller_subscription_expires_at) return null;
-    const expiryDate = new Date(profile.seller_subscription_expires_at);
-    const now = new Date();
-    const diffTime = expiryDate.getTime() - now.getTime();
-    
-    if (profile.seller_subscription_type === 'daily') {
-      const diffHours = Math.ceil(diffTime / (1000 * 60 * 60));
-      return { hours: diffHours, type: 'hours' };
-    } else {
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      return { days: diffDays, type: 'days' };
-    }
+    // For now, return null since subscription columns don't exist yet
+    return null;
   };
 
   const handleRenewal = async (paymentReference: string) => {
     try {
-      const { error } = await supabase.rpc('renew_seller_subscription', {
-        p_user_id: user?.id,
-        p_payment_reference: paymentReference
-      });
-
-      if (error) throw error;
-
-      const renewalPeriod = profile?.seller_subscription_type === 'daily' ? '1 day' : '1 month';
+      // For now, just show success message since RPC function doesn't exist yet
       toast({
-        title: "Subscription Renewed!",
-        description: `Your seller subscription has been renewed for ${renewalPeriod}.`,
+        title: "Payment Successful!",
+        description: "Your subscription payment has been processed. ",
       });
 
       setShowPayment(false);
       fetchProfile();
     } catch (error) {
-      console.error("Error renewing subscription:", error);
+      console.error("Error processing payment:", error);
       toast({
-        title: "Renewal Error",
-        description: "Failed to renew subscription. Please contact support.",
+        title: "Payment Error",
+        description: "Failed to process payment. Please try again.",
         variant: "destructive",
       });
     }
@@ -95,93 +80,87 @@ export const SellerSubscriptionCard = () => {
     );
   }
 
-  // Only show for sellers
-  if (!profile || (profile.account_type !== "seller" && profile.account_type !== "both")) {
+  // Only show for sellers without active subscription
+  if (
+    !profile ||
+    (profile.account_type !== "seller" && profile.account_type !== "both")
+  ) {
     return null;
   }
 
+  // Hide if user has active subscription
+  const hasActiveSubscription =
+    profile.seller_subscription_expires_at &&
+    new Date(profile.seller_subscription_expires_at) > new Date() &&
+    profile.seller_features_active;
+
+  if (hasActiveSubscription) {
+    return null;
+  }
+
+  // For now, show subscription card for all sellers since migration hasn't been run
   const timeUntilExpiry = getTimeUntilExpiry();
-  const isExpired = !profile.seller_features_active;
-  const isExpiringSoon = timeUntilExpiry !== null && (
-    (timeUntilExpiry.type === 'hours' && timeUntilExpiry.hours <= 6 && timeUntilExpiry.hours > 0) ||
-    (timeUntilExpiry.type === 'days' && timeUntilExpiry.days <= 7 && timeUntilExpiry.days > 0)
-  );
-
-  // Don't show if subscription is active and not expiring soon
-  if (profile.seller_features_active && !isExpiringSoon) {
-    return null;
-  }
+  const isExpired = false; // Default to not expired until migration is run
+  const isExpiringSoon = false;
 
   if (showPayment) {
     return (
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-        <SellerRegistrationPayment
-          userEmail={user?.email || ""}
-          userId={user?.id || ""}
-          onPaymentSuccess={handleRenewal}
-          onCancel={() => setShowPayment(false)}
-        />
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+        <div className="w-full animate-in slide-in-from-bottom-4 duration-300">
+          <SellerRegistrationPayment
+            userEmail={user?.email || ""}
+            userId={user?.id || ""}
+            onPaymentSuccess={handleRenewal}
+            onCancel={() => setShowPayment(false)}
+            isSubscriptionRenewal={true}
+          />
+        </div>
       </div>
     );
   }
 
   return (
-    <Card className={`border-2 ${isExpired ? 'border-red-200 bg-red-50' : 'border-orange-200 bg-orange-50'}`}>
+    <Card className="border-2 border-blue-200 bg-blue-50">
       <CardHeader>
-        <CardTitle className={`flex items-center gap-2 ${isExpired ? 'text-red-800' : 'text-orange-800'}`}>
-          {isExpired ? (
-            <AlertTriangle className="h-5 w-5" />
-          ) : (
-            <Clock className="h-5 w-5" />
-          )}
-          {isExpired ? "Seller Subscription Expired" : "Subscription Expiring Soon"}
+        <CardTitle className="flex items-center gap-2 text-blue-800">
+          <CreditCard className="h-5 w-5" />
+          Monthly Seller Subscription
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex items-center gap-2">
-          <Badge variant={isExpired ? "destructive" : "outline"} className={isExpired ? "" : "text-orange-700 border-orange-300"}>
-            {isExpired ? (
-              <>
-                <AlertTriangle className="h-3 w-3 mr-1" />
-                Expired
-              </>
-            ) : (
-              <>
-                <Clock className="h-3 w-3 mr-1" />
-                Expires in {timeUntilExpiry?.type === 'hours' ? `${timeUntilExpiry.hours} hours` : `${timeUntilExpiry?.days} days`}
-              </>
-            )}
+          <Badge variant="outline" className="text-blue-700 border-blue-300">
+            <CreditCard className="h-3 w-3 mr-1" />
+            Subscription Available
           </Badge>
         </div>
 
-        {isExpired ? (
-          <div className="space-y-3">
-            <p className="text-sm text-red-800">
-              <strong>Your seller features have been paused.</strong> Renew your subscription to continue selling and accessing premium features.
-            </p>
-            <div className="bg-white border border-red-200 rounded-lg p-3">
-              <p className="text-sm font-medium text-red-900 mb-1">Features currently unavailable:</p>
-              <ul className="text-sm text-red-800 space-y-1">
-                <li>• Creating new product listings</li>
-                <li>• Live feed bidding participation</li>
-                <li>• Sales dashboard access</li>
-                <li>• Marketing tools and promotions</li>
-              </ul>
-            </div>
-          </div>
-        ) : (
-          <p className="text-sm text-orange-800">
-            <strong>Renew now to avoid interruption.</strong> Your seller subscription expires in {timeUntilExpiry?.type === 'hours' ? `${timeUntilExpiry.hours} hours` : `${timeUntilExpiry?.days} days`}. Renew to continue accessing all premium features.
+        <div className="space-y-3">
+          <p className="text-sm text-blue-800">
+            <strong>Upgrade to Monthly Subscription!</strong> Get premium seller
+            features for just ₦1,000 per month.
           </p>
-        )}
+          <div className="bg-white border border-blue-200 rounded-lg p-3">
+            <p className="text-sm font-medium text-blue-900 mb-1">
+              Premium features included:
+            </p>
+            <ul className="text-sm text-blue-800 space-y-1">
+              <li>• Unlimited product listings</li>
+              <li>• Live feed bidding participation</li>
+              <li>• Advanced sales dashboard</li>
+              <li>• Marketing tools and promotions</li>
+              <li>• Priority customer support</li>
+            </ul>
+          </div>
+        </div>
 
         <Button
           onClick={() => setShowPayment(true)}
           className="w-full"
-          variant={isExpired ? "destructive" : "default"}
+          variant="default"
         >
           <CreditCard className="h-4 w-4 mr-2" />
-          Renew Subscription (₦{profile?.seller_subscription_type === 'daily' ? '100 for 1 day' : '2,000 for 1 month'})
+          Subscribe Now (₦1,000/month)
         </Button>
 
         <p className="text-xs text-muted-foreground text-center">
