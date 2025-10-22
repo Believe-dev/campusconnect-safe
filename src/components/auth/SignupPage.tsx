@@ -575,7 +575,7 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
                         <button
                           type="button"
                           onClick={() => setShowPassword(!showPassword)}
-                          className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                          className="absolute right-3 top-0 bottom-0 flex items-center justify-center text-muted-foreground hover:text-foreground"
                         >
                           {showPassword ? (
                             <EyeOff className="h-5 w-5" />
@@ -680,7 +680,7 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
                           <button
                             type="button"
                             onClick={() => setShowPassword(!showPassword)}
-                            className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                            className="absolute right-3 top-0 bottom-0 flex items-center justify-center text-muted-foreground hover:text-foreground"
                           >
                             {showPassword ? (
                               <EyeOff className="h-5 w-5" />
@@ -823,7 +823,7 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
                             <button
                               type="button"
                               onClick={() => setShowPassword(!showPassword)}
-                              className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                              className="absolute right-3 top-0 bottom-0 flex items-center justify-center text-muted-foreground hover:text-foreground"
                             >
                               {showPassword ? (
                                 <EyeOff className="h-5 w-5" />
