@@ -5,13 +5,7 @@ import { useRealTimeProfile } from "@/hooks/useRealTimeProfile";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -1093,16 +1087,15 @@ const Profile = () => {
                   >
                     Account Type
                   </Label>
-                  <Select value={profile.account_type} disabled={true}>
-                    <SelectTrigger className="bg-gray-50 border-gray-200 rounded-lg">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="buyer">Buyer Only</SelectItem>
-                      <SelectItem value="seller">Seller Only</SelectItem>
-                      <SelectItem value="both">Both Buyer & Seller</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <select 
+                    value={profile.account_type} 
+                    disabled={true}
+                    className="w-full h-10 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm cursor-not-allowed"
+                  >
+                    <option value="buyer">Buyer Only</option>
+                    <option value="seller">Seller Only</option>
+                    <option value="both">Both Buyer & Seller</option>
+                  </select>
                   <p className="text-xs text-gray-500 mt-1">
                     Account type cannot be changed. Contact support if you need
                     assistance.

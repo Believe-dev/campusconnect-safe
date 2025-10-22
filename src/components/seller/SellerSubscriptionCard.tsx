@@ -5,8 +5,10 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { SellerRegistrationPayment } from "./SellerRegistrationPayment";
-import { CreditCard, AlertTriangle, Clock, CheckCircle } from "lucide-react";
+import { CreditCard, AlertTriangle, Clock, CheckCircle, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+
+const FIRST_TIME_SELLER_WARNING_KEY = "unimarket:firstTimeSellerWarningShown";
 
 export const SellerSubscriptionCard = () => {
   const { user } = useAuth();
@@ -14,12 +16,21 @@ export const SellerSubscriptionCard = () => {
   const [profile, setProfile] = useState<any>(null);
   const [showPayment, setShowPayment] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [showFirstTimeWarning, setShowFirstTimeWarning] = useState(false);
 
   useEffect(() => {
     if (user) {
       fetchProfile();
+      // Check if first-time seller warning should be shown
+      const warningShown = localStorage.getItem(FIRST_TIME_SELLER_WARNING_KEY);
+      setShowFirstTimeWarning(warningShown !== "1");
     }
   }, [user]);
+
+  const dismissFirstTimeWarning = () => {
+    localStorage.setItem(FIRST_TIME_SELLER_WARNING_KEY, "1");
+    setShowFirstTimeWarning(false);
+  };
 
   const fetchProfile = async () => {
     if (!user) return;
@@ -134,6 +145,34 @@ export const SellerSubscriptionCard = () => {
             Subscription Available
           </Badge>
         </div>
+
+        {showFirstTimeWarning && (
+          <div className="bg-orange-50 border-2 border-orange-200 rounded-lg p-4 relative">
+            <button
+              onClick={dismissFirstTimeWarning}
+              className="absolute top-2 right-2 text-orange-400 hover:text-orange-600"
+            >
+              <X className="h-4 w-4" />
+            </button>
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="h-5 w-5 text-orange-600 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="text-sm font-semibold text-orange-800 mb-1">
+                  ⚠️ First-time sellers - READ THIS!
+                </p>
+                <p className="text-sm text-orange-700">
+                  <strong>
+                    Don't pay this if you are a first-time user and you already
+                    paid the registration fee.
+                  </strong>{" "}
+                  The registration fee covers your first month. This
+                  subscription is only for renewals after your first month
+                  expires. This payment modal be removed soon...
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="space-y-3">
           <p className="text-sm text-blue-800">

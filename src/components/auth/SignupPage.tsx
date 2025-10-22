@@ -10,16 +10,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+
 import { useToast } from "@/hooks/use-toast";
 import { usePaystack } from "@/hooks/usePaystack";
-import { BUSINESS_RULES } from "@/lib/constants";
+import { BUSINESS_RULES, NIGERIAN_UNIVERSITIES } from "@/lib/constants";
 import {
   User,
   Mail,
@@ -76,128 +70,7 @@ interface SignupPageProps {
   onSuccess?: () => void;
 }
 
-const NIGERIAN_UNIVERSITIES = [
-  "Abia State University",
-  "Abubakar Tafawa Balewa University",
-  "Achievers University",
-  "Adamawa State University",
-  "Adekunle Ajasin University",
-  "Adeleke University",
-  "Ahmadu Bello University",
-  "Ajayi Crowther University",
-  "Akwa Ibom State University",
-  "Al-Hikmah University",
-  "Al-Qalam University",
-  "American University of Nigeria",
-  "Anchor University",
-  "Anambra State University",
-  "Arthur Javis University",
-  "Atiba University",
-  "Augustine University",
-  "Babcock University",
-  "Baze University",
-  "Bayero University Kano",
-  "Bells University of Technology",
-  "Benson Idahosa University",
-  "Bingham University",
-  "Bowen University",
-  "Caleb University",
-  "Caritas University",
-  "Chrisland University",
-  "Christopher University",
-  "Clifford University",
-  "Coal City University",
-  "Covenant University",
-  "Crawford University",
-  "Crescent University",
-  "Cross River State University of Technology",
-  "Delta State University",
-  "Eastern Palm University",
-  "Ebonyi State University",
-  "Edo University",
-  "Edwin Clark University",
-  "Ekiti State University",
-  "Elizade University",
-  "Enugu State University of Science and Technology",
-  "Evangel University",
-  "Federal University Gashua",
-  "Federal University Lafia",
-  "Federal University Lokoja",
-  "Federal University Otuoke",
-  "Federal University Oye-Ekiti",
-  "Federal University Wukari",
-  "Federal University of Agriculture, Abeokuta",
-  "Federal University of Agriculture, Makurdi",
-  "Federal University of Petroleum Resources",
-  "Federal University of Technology, Akure",
-  "Federal University of Technology, Minna",
-  "Federal University of Technology, Owerri",
-  "Fountain University",
-  "Godfrey Okoye University",
-  "Gombe State University",
-  "Gregory University",
-  "Hallmark University",
-  "Hezekiah University",
-  "Ibrahim Badamasi Babangida University",
-  "Igbinedion University",
-  "Imo State University",
-  "Joseph Ayo Babalola University",
-  "Kaduna State University",
-  "Kano University of Science and Technology",
-  "Kebbi State University of Science and Technology",
-  "Kogi State University",
-  "Kwara State University",
-  "Ladoke Akintola University of Technology",
-  "Lagos State University",
-  "Landmark University",
-  "Lead City University",
-  "Madonna University",
-  "McPherson University",
-  "Michael Okpara University of Agriculture",
-  "Modibbo Adama University of Technology",
-  "Mountain Top University",
-  "Nasarawa State University",
-  "Niger Delta University",
-  "Nile University of Nigeria",
-  "Nnamdi Azikiwe University",
-  "Novena University",
-  "Obafemi Awolowo University",
-  "Obong University",
-  "Oduduwa University",
-  "Olabisi Onabanjo University",
-  "Osun State University",
-  "Pan-Atlantic University",
-  "Paul University",
-  "Plateau State University",
-  "Redeemer's University",
-  "Renaissance University",
-  "Rhema University",
-  "Rivers State University",
-  "Salem University",
-  "Samuel Adegboyega University",
-  "Sokoto State University",
-  "Summit University",
-  "Taraba State University",
-  "The Technical University",
-  "Tansian University",
-  "University of Abuja",
-  "University of Agriculture, Abeokuta",
-  "University of Benin",
-  "University of Calabar",
-  "University of Ibadan",
-  "University of Ilorin",
-  "University of Jos",
-  "University of Lagos",
-  "University of Maiduguri",
-  "University of Nigeria, Nsukka",
-  "University of Port Harcourt",
-  "University of Uyo",
-  "Veritas University",
-  "Wesley University",
-  "Western Delta University",
-  "Yobe State University",
-  "Yusuf Maitama Sule University",
-];
+
 
 const SignupPage = ({ onSuccess }: SignupPageProps) => {
   const [mode, setMode] = useState<"signin" | "signup">("signin");
@@ -385,22 +258,25 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
       // Update profile with business info and activate subscription
       if (authData.user) {
         // Wait for profile creation
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await new Promise((resolve) => setTimeout(resolve, 2000));
 
         const expiryDate = new Date();
         expiryDate.setDate(expiryDate.getDate() + 30);
 
         // Single comprehensive profile update
-        await supabase.from("profiles").update({
-          business_name: combinedData.businessName,
-          bio: combinedData.bio,
-          seller_registration_paid: true,
-          seller_registration_paid_at: new Date().toISOString(),
-          seller_subscription_expires_at: expiryDate.toISOString(),
-          seller_features_active: true,
-          seller_subscription_type: 'monthly',
-          seller_last_payment_date: new Date().toISOString()
-        }).eq("user_id", authData.user.id);
+        await supabase
+          .from("profiles")
+          .update({
+            business_name: combinedData.businessName,
+            bio: combinedData.bio,
+            seller_registration_paid: true,
+            seller_registration_paid_at: new Date().toISOString(),
+            seller_subscription_expires_at: expiryDate.toISOString(),
+            seller_features_active: true,
+            seller_subscription_type: "monthly",
+            seller_last_payment_date: new Date().toISOString(),
+          })
+          .eq("user_id", authData.user.id);
 
         // Record payment
         await supabase.from("seller_registration_payments").insert({
@@ -414,19 +290,18 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
         // Create subscription record
         await supabase.from("seller_subscriptions").insert({
           user_id: authData.user.id,
-          subscription_type: 'monthly',
+          subscription_type: "monthly",
           amount: BUSINESS_RULES.sellerRegistration.fee,
           payment_reference: reference,
           starts_at: new Date().toISOString(),
           expires_at: expiryDate.toISOString(),
-          status: 'active'
+          status: "active",
         });
       }
 
       toast({
         title: "Seller Account Created!",
-        description:
-          "Your account has been created and payment confirmed. Please check your email to verify.",
+        description: "Your account has been created and payment confirmed.",
       });
 
       onSuccess?.();
@@ -828,23 +703,17 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
                         >
                           University
                         </Label>
-                        <Select
-                          value={buyerForm.watch("university") || ""}
-                          onValueChange={(value) =>
-                            buyerForm.setValue("university", value)
-                          }
+                        <select
+                          {...buyerForm.register("university")}
+                          className="h-12 w-full border border-border focus:border-primary focus:ring-primary/20 rounded-xl bg-card px-3 py-2 text-sm"
                         >
-                          <SelectTrigger className="h-12 border-border focus:border-primary focus:ring-primary/20 rounded-xl bg-card">
-                            <SelectValue placeholder="Select your university" />
-                          </SelectTrigger>
-                          <SelectContent className="max-h-60">
-                            {NIGERIAN_UNIVERSITIES.map((uni) => (
-                              <SelectItem key={uni} value={uni}>
-                                {uni}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                          <option value="">Select your university</option>
+                          {NIGERIAN_UNIVERSITIES.map((uni) => (
+                            <option key={uni} value={uni}>
+                              {uni}
+                            </option>
+                          ))}
+                        </select>
                         {buyerForm.formState.errors.university && (
                           <p className="text-sm text-red-500">
                             {buyerForm.formState.errors.university.message}
@@ -981,25 +850,17 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
                             >
                               University
                             </Label>
-                            <Select
-                              value={
-                                sellerPersonalForm.watch("university") || ""
-                              }
-                              onValueChange={(value) =>
-                                sellerPersonalForm.setValue("university", value)
-                              }
+                            <select
+                              {...sellerPersonalForm.register("university")}
+                              className="h-12 w-full border border-border focus:border-primary focus:ring-primary/20 rounded-xl bg-card px-3 py-2 text-sm"
                             >
-                              <SelectTrigger className="h-12 border-border focus:border-primary focus:ring-primary/20 rounded-xl bg-card">
-                                <SelectValue placeholder="Select university" />
-                              </SelectTrigger>
-                              <SelectContent className="max-h-60">
-                                {NIGERIAN_UNIVERSITIES.map((uni) => (
-                                  <SelectItem key={uni} value={uni}>
-                                    {uni}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                              <option value="">Select university</option>
+                              {NIGERIAN_UNIVERSITIES.map((uni) => (
+                                <option key={uni} value={uni}>
+                                  {uni}
+                                </option>
+                              ))}
+                            </select>
                             {sellerPersonalForm.formState.errors.university && (
                               <p className="text-sm text-red-500">
                                 {

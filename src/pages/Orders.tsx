@@ -172,7 +172,7 @@ const Orders = () => {
           schema: "public",
           table: "orders",
         },
-        (payload) => {
+        async (payload) => {
           // Check if this order involves the current user
           const newOrder = payload.new as any;
           const oldOrder = payload.old as any;
@@ -189,9 +189,20 @@ const Orders = () => {
               setTimeout(() => setUpdatingOrderId(null), 2000);
             }
 
-            // Silently refetch in background
-            refetch();
+            // Force immediate refetch and UI update
+            await refetch();
             setLastUpdated(new Date());
+            
+            // Also update offline storage immediately
+            if (newOrder) {
+              setOfflineOrders((prevOrders) =>
+                prevOrders.map((order) =>
+                  order.id === orderId
+                    ? { ...order, ...newOrder }
+                    : order
+                )
+              );
+            }
           }
         }
       )
@@ -202,9 +213,9 @@ const Orders = () => {
           schema: "public",
           table: "escrow_transactions",
         },
-        (payload) => {
-          // Refetch when escrow status changes
-          refetch();
+        async (payload) => {
+          // Force immediate refetch when escrow status changes
+          await refetch();
           setLastUpdated(new Date());
         }
       )
@@ -215,9 +226,9 @@ const Orders = () => {
           schema: "public",
           table: "disputes",
         },
-        (payload) => {
-          // Refetch when disputes are created/updated
-          refetch();
+        async (payload) => {
+          // Force immediate refetch when disputes are created/updated
+          await refetch();
           setLastUpdated(new Date());
         }
       )
@@ -226,8 +237,8 @@ const Orders = () => {
       });
 
     // Also listen for window focus to refresh data
-    const handleFocus = () => {
-      refetch();
+    const handleFocus = async () => {
+      await refetch();
       setLastUpdated(new Date());
     };
 
@@ -278,9 +289,13 @@ const Orders = () => {
 
       if (error) {
         // Revert optimistic update on error
-        refetch();
+        await refetch();
         throw error;
       }
+
+      // Force immediate UI refresh after successful update
+      await refetch();
+      setLastUpdated(new Date());
 
       // Handle escrow release for confirmed orders
       if (status === "confirmed") {
@@ -398,10 +413,9 @@ const Orders = () => {
         description: `Order status updated to ${status}`,
       });
 
-      // Real-time subscription will handle UI updates automatically
     } catch (error) {
       // Revert optimistic update on error
-      refetch();
+      await refetch();
       toast({
         title: "Error",
         description: error?.message || "Failed to update order",
