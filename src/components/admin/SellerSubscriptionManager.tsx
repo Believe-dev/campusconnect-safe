@@ -134,7 +134,16 @@ export const SellerSubscriptionManager = () => {
           sortPriority = -1;
         }
 
-        if (!profile.seller_features_active) {
+        // Override status if features are not active
+        if (!profile.seller_features_active && expiresAt) {
+          const expiryDate = new Date(expiresAt);
+          const now = new Date();
+          if (expiryDate > now) {
+            // If subscription hasn't expired but features are disabled, show as disabled
+            subscriptionStatus = 'Disabled';
+            sortPriority = -2;
+          }
+        } else if (!profile.seller_features_active) {
           sortPriority = -2;
         }
 

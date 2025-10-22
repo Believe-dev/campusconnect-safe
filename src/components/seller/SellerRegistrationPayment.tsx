@@ -63,38 +63,18 @@ export const SellerRegistrationPayment = ({
               const { data: { user: currentUser } } = await supabase.auth.getUser();
               if (!currentUser) throw new Error('User not authenticated');
               
-              // Update profile directly to activate features
-              const newExpiryDate = new Date();
-              newExpiryDate.setMonth(newExpiryDate.getMonth() + 1);
-              
-              const { error: updateError } = await supabase
-                .from('profiles')
-                .update({
-                  seller_subscription_expires_at: newExpiryDate.toISOString(),
-                  seller_features_active: true,
-                  seller_status: 'approved',
-                  seller_subscription_type: 'monthly',
-                  seller_last_payment_date: new Date().toISOString()
-                })
-                .eq('user_id', currentUser.id);
+              // Use database function to activate subscription
+              const { error: subscriptionError } = await supabase.rpc('create_seller_subscription', {
+                p_user_id: currentUser.id,
+                p_subscription_type: 'monthly',
+                p_payment_reference: response.reference,
+                p_amount: 1000.00
+              });
 
-              if (updateError) {
-                console.error('Profile update error:', updateError);
-                throw updateError;
+              if (subscriptionError) {
+                console.error('Subscription activation error:', subscriptionError);
+                throw subscriptionError;
               }
-              
-              // Create subscription record
-              await supabase
-                .from('seller_subscriptions')
-                .insert({
-                  user_id: currentUser.id,
-                  subscription_type: 'monthly',
-                  amount: 1000.00,
-                  payment_reference: response.reference,
-                  starts_at: new Date().toISOString(),
-                  expires_at: newExpiryDate.toISOString(),
-                  status: 'active'
-                });
               
               // Handle subscription renewal
               toast({

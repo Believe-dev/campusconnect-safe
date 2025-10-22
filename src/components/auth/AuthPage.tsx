@@ -53,7 +53,7 @@ import { SellerPaymentStep } from "@/components/auth/SellerPaymentStep";
 import { BannedUserModal } from "@/components/auth/BannedUserModal";
 import { ForgotPasswordDialog } from "@/components/auth/ForgotPasswordDialog";
 import { TwoFactorVerification } from "@/components/auth/TwoFactorVerification";
-import { logSecurityEvent } from '@/utils/securityLogger';
+import { logSecurityEvent } from "@/utils/securityLogger";
 import { WhatsAppSupport } from "@/components/ui/WhatsAppSupport";
 import { BUSINESS_RULES } from "@/lib/constants";
 
@@ -123,7 +123,11 @@ const AuthPage = () => {
     return <Navigate to="/" replace />;
   }
 
-  const signUp = async (email: string, password: string, paymentRef?: string) => {
+  const signUp = async (
+    email: string,
+    password: string,
+    paymentRef?: string
+  ) => {
     const redirectUrl = `${window.location.origin}/`;
 
     // For sellers, require payment reference
@@ -150,14 +154,18 @@ const AuthPage = () => {
 
       if (error) {
         // Handle specific Supabase errors
-        if (error.message.includes('User already registered')) {
-          throw new Error('An account with this email already exists. Please sign in instead.');
-        } else if (error.message.includes('Invalid email')) {
-          throw new Error('Please enter a valid email address.');
-        } else if (error.message.includes('Password')) {
-          throw new Error('Password must be at least 6 characters long.');
-        } else if (error.message.includes('database')) {
-          throw new Error('Database error during signup. Please try again or contact support.');
+        if (error.message.includes("User already registered")) {
+          throw new Error(
+            "An account with this email already exists. Please sign in instead."
+          );
+        } else if (error.message.includes("Invalid email")) {
+          throw new Error("Please enter a valid email address.");
+        } else if (error.message.includes("Password")) {
+          throw new Error("Password must be at least 6 characters long.");
+        } else if (error.message.includes("database")) {
+          throw new Error(
+            "Database error during signup. Please try again or contact support."
+          );
         }
         throw error;
       }
@@ -166,8 +174,8 @@ const AuthPage = () => {
       if (data.user && accountType === "seller" && paymentRef) {
         try {
           // Wait a moment for the profile to be created by the trigger
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+
           // Record the payment
           await supabase.from("seller_registration_payments").insert({
             user_id: data.user.id,
@@ -177,26 +185,50 @@ const AuthPage = () => {
             status: "completed",
           });
 
-          // Set up 2-month subscription
-          const expiryDate = new Date();
-          expiryDate.setMonth(expiryDate.getMonth() + 2);
+          // Update registration status
+          await supabase
+            .from("profiles")
+            .update({
+              seller_registration_paid: true,
+              seller_registration_paid_at: new Date().toISOString()
+            })
+            .eq("user_id", data.user.id);
 
+          // Activate 30-day subscription directly
+          const expiryDate = new Date();
+          expiryDate.setDate(expiryDate.getDate() + 30);
+          
           await supabase.from("profiles").update({
-            seller_registration_paid: true,
-            seller_registration_paid_at: new Date().toISOString(),
             seller_subscription_expires_at: expiryDate.toISOString(),
             seller_features_active: true,
+            seller_subscription_type: 'monthly',
+            seller_last_payment_date: new Date().toISOString()
           }).eq("user_id", data.user.id);
+          
+          await supabase.from("seller_subscriptions").insert({
+            user_id: data.user.id,
+            subscription_type: 'monthly',
+            amount: BUSINESS_RULES.sellerRegistration.fee,
+            payment_reference: paymentRef,
+            starts_at: new Date().toISOString(),
+            expires_at: expiryDate.toISOString(),
+            status: 'active'
+          });
+          
+          console.log('Subscription activated for 30 days');
 
           // Create notification for sellers to upload documents
           try {
-            const { sendNotification } = await import('@/utils/notificationService');
+            const { sendNotification } = await import(
+              "@/utils/notificationService"
+            );
             await sendNotification({
               userId: data.user.id,
               title: "Complete Your Seller Profile",
-              message: "Upload your profile picture and student ID card to get approved as a seller.",
+              message:
+                "Upload your profile picture and student ID card to get approved as a seller.",
               type: "info",
-              url: "/profile"
+              url: "/profile",
             });
           } catch (notificationError) {
             console.warn("Failed to send notification:", notificationError);
@@ -210,7 +242,7 @@ const AuthPage = () => {
 
       return { error: null };
     } catch (error: any) {
-      console.error('Signup error:', error);
+      console.error("Signup error:", error);
       return { error };
     }
   };
@@ -238,10 +270,10 @@ const AuthPage = () => {
 
       // Check if 2FA is enabled
       const { data: twoFAData } = await supabase
-        .from('user_2fa')
-        .select('enabled')
-        .eq('user_id', data.user.id)
-        .eq('enabled', true)
+        .from("user_2fa")
+        .select("enabled")
+        .eq("user_id", data.user.id)
+        .eq("enabled", true)
         .single();
 
       if (twoFAData?.enabled) {
@@ -253,7 +285,11 @@ const AuthPage = () => {
       }
 
       // Log successful login
-      await logSecurityEvent(data.user.id, 'login', 'User signed in successfully');
+      await logSecurityEvent(
+        data.user.id,
+        "login",
+        "User signed in successfully"
+      );
     }
 
     return { error };
@@ -305,10 +341,16 @@ const AuthPage = () => {
         return false;
       }
     } else if (accountType === "seller") {
-      if (!sanitizedFullName || !university || !sanitizedStudentId || !sanitizedPhoneNumber) {
+      if (
+        !sanitizedFullName ||
+        !university ||
+        !sanitizedStudentId ||
+        !sanitizedPhoneNumber
+      ) {
         toast({
           title: "Missing Information",
-          description: "Please fill in all required fields for seller registration.",
+          description:
+            "Please fill in all required fields for seller registration.",
           variant: "destructive",
         });
         return false;
@@ -348,13 +390,13 @@ const AuthPage = () => {
 
     try {
       const sanitizedEmail = email.trim().toLowerCase();
-      
+
       const result = isSignUp
         ? await signUp(sanitizedEmail, password, paymentReference || undefined)
         : await signIn(sanitizedEmail, password);
-      
+
       const { error } = result;
-      
+
       // Handle 2FA requirement
       if (!isSignUp && (result as any).requires2FA) {
         setLoading(false);
@@ -364,29 +406,39 @@ const AuthPage = () => {
       if (error) {
         // Provide user-friendly error messages
         let errorMessage = error.message;
-        
-        if (error.message.includes('User already registered')) {
-          errorMessage = 'An account with this email already exists. Please sign in instead.';
-        } else if (error.message.includes('Invalid email')) {
-          errorMessage = 'Please enter a valid email address.';
-        } else if (error.message.includes('Password')) {
-          errorMessage = 'Password must be at least 6 characters long.';
-        } else if (error.message.includes('database') || error.message.includes('Database')) {
-          errorMessage = 'There was a database error during signup. Please try again in a moment or contact support if the issue persists.';
-        } else if (error.message.includes('network') || error.message.includes('fetch')) {
-          errorMessage = 'Network error. Please check your internet connection and try again.';
+
+        if (error.message.includes("User already registered")) {
+          errorMessage =
+            "An account with this email already exists. Please sign in instead.";
+        } else if (error.message.includes("Invalid email")) {
+          errorMessage = "Please enter a valid email address.";
+        } else if (error.message.includes("Password")) {
+          errorMessage = "Password must be at least 6 characters long.";
+        } else if (
+          error.message.includes("database") ||
+          error.message.includes("Database")
+        ) {
+          errorMessage =
+            "There was a database error during signup. Please try again in a moment or contact support if the issue persists.";
+        } else if (
+          error.message.includes("network") ||
+          error.message.includes("fetch")
+        ) {
+          errorMessage =
+            "Network error. Please check your internet connection and try again.";
         }
-        
+
         toast({
           title: "Authentication Error",
           description: errorMessage,
           variant: "destructive",
         });
       } else if (isSignUp) {
-        const message = accountType === "seller"
-          ? "Account created! Please check your email to verify. Your seller account will be reviewed by admin for approval."
-          : "Account created! Please check your email to verify your account.";
-        
+        const message =
+          accountType === "seller"
+            ? "Account created! Please check your email to verify. Your seller account will be reviewed by admin for approval."
+            : "Account created! Please check your email to verify your account.";
+
         toast({
           title: "Account Created!",
           description: message,
@@ -437,17 +489,23 @@ const AuthPage = () => {
           userId={pendingUserId}
           onSuccess={() => {
             // Re-authenticate the user after successful 2FA
-            supabase.auth.signInWithPassword({ email, password }).then(async ({ data }) => {
-              if (data.user) {
-                await logSecurityEvent(data.user.id, 'login', 'User signed in with 2FA');
-              }
-              setShow2FA(false);
-              setPendingUserId(null);
-              toast({
-                title: "Welcome Back!",
-                description: "Successfully signed in to UniMarket.",
+            supabase.auth
+              .signInWithPassword({ email, password })
+              .then(async ({ data }) => {
+                if (data.user) {
+                  await logSecurityEvent(
+                    data.user.id,
+                    "login",
+                    "User signed in with 2FA"
+                  );
+                }
+                setShow2FA(false);
+                setPendingUserId(null);
+                toast({
+                  title: "Welcome Back!",
+                  description: "Successfully signed in to UniMarket.",
+                });
               });
-            });
           }}
           onCancel={() => {
             setShow2FA(false);
@@ -480,8 +538,12 @@ const AuthPage = () => {
         <CardContent>
           <Tabs defaultValue="signin" className="space-y-4">
             <TabsList className="grid w-full grid-cols-2 h-fit">
-              <TabsTrigger value="signin" className="auth-tab">Sign In</TabsTrigger>
-              <TabsTrigger value="signup" className="auth-tab">Sign Up</TabsTrigger>
+              <TabsTrigger value="signin" className="auth-tab">
+                Sign In
+              </TabsTrigger>
+              <TabsTrigger value="signup" className="auth-tab">
+                Sign Up
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="signin" className="space-y-4">
@@ -532,7 +594,9 @@ const AuthPage = () => {
                 <Button
                   type="submit"
                   variant="brand"
-                  className={`w-full auth-button ${loading ? 'auth-loading' : ''}`}
+                  className={`w-full auth-button ${
+                    loading ? "auth-loading" : ""
+                  }`}
                   disabled={loading}
                 >
                   <Mail className="h-4 w-4" />
@@ -544,7 +608,7 @@ const AuthPage = () => {
                       Forgot your password?
                     </Button>
                   </ForgotPasswordDialog>
-                  <WhatsAppSupport 
+                  <WhatsAppSupport
                     message="Hi! I'm having trouble signing into my UniMarket account. Can you help me?"
                     className="w-full"
                   />
@@ -950,7 +1014,10 @@ const AuthPage = () => {
                         Seller Registration Requirements:
                       </p>
                       <ul className="text-xs text-amber-700 space-y-1">
-                        <li>• ₦100 per 2 months subscription (required before signup)</li>
+                        <li>
+                          • ₦1000 per month subscription (required before
+                          signup)
+                        </li>
                         <li>• Profile picture & student ID upload</li>
                         <li>• Quick admin approval (24-48 hours)</li>
                         <li>• Keep 100% of sales - No commission ever</li>
@@ -965,19 +1032,25 @@ const AuthPage = () => {
                 <Button
                   type="submit"
                   variant="brand"
-                  className={`w-full auth-button ${loading ? 'auth-loading' : ''}`}
+                  className={`w-full auth-button ${
+                    loading ? "auth-loading" : ""
+                  }`}
                   disabled={loading}
                 >
                   <UserCheck className="h-4 w-4" />
-                  {loading ? "Creating Account..." : 
-                   accountType === "seller" ? "Continue to Payment" : "Create Account"}
+                  {loading
+                    ? "Creating Account..."
+                    : accountType === "seller"
+                    ? "Continue to Payment"
+                    : "Create Account"}
                 </Button>
                 <div className="text-center space-y-2">
                   <div className="text-xs text-muted-foreground">
                     <Shield className="h-3 w-3 inline mr-1" />
-                    By signing up, you agree to keep all transactions on UniMarket
+                    By signing up, you agree to keep all transactions on
+                    UniMarket
                   </div>
-                  <WhatsAppSupport 
+                  <WhatsAppSupport
                     message="Hi! I need help creating my UniMarket account. Can you assist me with the signup process?"
                     className="w-full"
                   />
@@ -992,8 +1065,8 @@ const AuthPage = () => {
             Secure marketplace for Nigerian students
           </p>
           <div className="pt-2">
-            <Link 
-              to="/test-signup" 
+            <Link
+              to="/test-signup"
               className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 w-full"
             >
               Try New Multi-Step Signup Experience →
@@ -1026,34 +1099,37 @@ const AuthPage = () => {
               // Directly call signup with payment reference
               setLoading(true);
               const sanitizedEmail = email.trim().toLowerCase();
-              signUp(sanitizedEmail, password, paymentRef).then(({ error }) => {
-                if (error) {
+              signUp(sanitizedEmail, password, paymentRef)
+                .then(({ error }) => {
+                  if (error) {
+                    toast({
+                      title: "Authentication Error",
+                      description: error.message,
+                      variant: "destructive",
+                    });
+                  } else {
+                    toast({
+                      title: "Account Created!",
+                      description:
+                        "Account created! Please check your email to verify. Your seller account will be reviewed by admin for approval.",
+                    });
+                    // Reset states
+                    setPaymentReference(null);
+                    // Show seller setup modal
+                    setTimeout(() => {
+                      setShowSellerSetup(true);
+                    }, 1000);
+                  }
+                  setLoading(false);
+                })
+                .catch((error) => {
                   toast({
-                    title: "Authentication Error",
-                    description: error.message,
+                    title: "Error",
+                    description: error.message || "An error occurred",
                     variant: "destructive",
                   });
-                } else {
-                  toast({
-                    title: "Account Created!",
-                    description: "Account created! Please check your email to verify. Your seller account will be reviewed by admin for approval.",
-                  });
-                  // Reset states
-                  setPaymentReference(null);
-                  // Show seller setup modal
-                  setTimeout(() => {
-                    setShowSellerSetup(true);
-                  }, 1000);
-                }
-                setLoading(false);
-              }).catch((error) => {
-                toast({
-                  title: "Error",
-                  description: error.message || "An error occurred",
-                  variant: "destructive",
+                  setLoading(false);
                 });
-                setLoading(false);
-              });
             }}
             onBack={() => {
               setShowSellerPayment(false);
