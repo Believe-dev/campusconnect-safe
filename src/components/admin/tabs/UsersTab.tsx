@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
@@ -100,16 +100,15 @@ export const UsersTab: React.FC<UsersTabProps> = ({
               className="pl-8"
             />
           </div>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-32">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="active">Active</SelectItem>
-              <SelectItem value="banned">Banned</SelectItem>
-            </SelectContent>
-          </Select>
+          <select 
+            value={statusFilter} 
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="w-32 h-10 border border-input bg-background px-3 py-2 text-sm rounded-md"
+          >
+            <option value="all">All Status</option>
+            <option value="active">Active</option>
+            <option value="banned">Banned</option>
+          </select>
         </div>
       </CardHeader>
       <CardContent>
@@ -176,18 +175,16 @@ export const UsersTab: React.FC<UsersTabProps> = ({
                             </div>
                             <div>
                               <label>Role</label>
-                              <Select onValueChange={(value: 'admin' | 'seller' | 'buyer') => 
-                                onUpdateRole(user.user_id, value)
-                              }>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select role" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="buyer">Buyer</SelectItem>
-                                  <SelectItem value="seller">Seller</SelectItem>
-                                  <SelectItem value="admin">Admin</SelectItem>
-                                </SelectContent>
-                              </Select>
+                              <select 
+                                onChange={(e) => onUpdateRole(user.user_id, e.target.value as 'admin' | 'seller' | 'buyer')}
+                                className="w-full h-10 border border-input bg-background px-3 py-2 text-sm rounded-md mt-1"
+                                defaultValue={user.account_type}
+                              >
+                                <option value="">Select role</option>
+                                <option value="buyer">Buyer</option>
+                                <option value="seller">Seller</option>
+                                <option value="admin">Admin</option>
+                              </select>
                             </div>
                             <Button
                               variant={user.is_verified ? "outline" : "default"}
