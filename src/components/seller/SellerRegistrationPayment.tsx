@@ -10,8 +10,9 @@ import { CreditCard, Shield, CheckCircle } from "lucide-react";
 interface SellerRegistrationPaymentProps {
   userEmail: string;
   userId: string;
-  onPaymentSuccess: () => void;
+  onPaymentSuccess: (paymentReference: string) => void;
   onCancel: () => void;
+  isSubscriptionRenewal?: boolean;
 }
 
 export const SellerRegistrationPayment = ({
@@ -19,6 +20,7 @@ export const SellerRegistrationPayment = ({
   userId,
   onPaymentSuccess,
   onCancel,
+  isSubscriptionRenewal = false,
 }: SellerRegistrationPaymentProps) => {
   const [processing, setProcessing] = useState(false);
   const { initializePayment } = usePaystack();
@@ -28,61 +30,100 @@ export const SellerRegistrationPayment = ({
     setProcessing(true);
 
     try {
-      const amount = BUSINESS_RULES.sellerRegistration.fee * 100; // Convert to kobo
-      const paymentRef = `SELLER_REG_${Date.now()}_${Math.random()
-        .toString(36)
-        .substr(2, 9)}`;
+      // Get email from auth if not provided
+      let email = userEmail;
+      if (!email) {
+        const { data: { user } } = await supabase.auth.getUser();
+        email = user?.email || '';
+      }
+
+      if (!email) {
+        throw new Error('Email is required for payment');
+      }
+
+      const amount = isSubscriptionRenewal 
+        ? BUSINESS_RULES.sellerSubscription.monthlyFee * 100 
+        : BUSINESS_RULES.sellerRegistration.fee * 100; // Convert to kobo
+      const paymentRef = isSubscriptionRenewal 
+        ? `SELLER_SUB_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+        : `SELLER_REG_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+      // Close the modal after initializing payment to avoid z-index conflicts
+      setTimeout(() => onCancel(), 100);
 
       initializePayment({
-        email: userEmail,
+        email: email,
         amount,
         currency: "NGN",
         ref: paymentRef,
         onSuccess: async (response) => {
           try {
-            // Record the payment in seller_registration_payments table
-            const { error: paymentError } = await supabase
-              .from("seller_registration_payments")
-              .insert({
-                user_id: userId,
-                amount: BUSINESS_RULES.sellerRegistration.fee,
-                payment_reference: response.reference,
-                payment_method: "paystack",
-                status: "completed",
+            if (isSubscriptionRenewal) {
+              // Get current user ID from auth
+              const { data: { user: currentUser } } = await supabase.auth.getUser();
+              if (!currentUser) throw new Error('User not authenticated');
+              
+              // Use database function to activate subscription
+              const { error: subscriptionError } = await supabase.rpc('create_seller_subscription', {
+                p_user_id: currentUser.id,
+                p_subscription_type: 'monthly',
+                p_payment_reference: response.reference,
+                p_amount: 1000.00
               });
 
-            if (paymentError) {
-              console.error("Error recording payment:", paymentError);
-              throw paymentError;
+              if (subscriptionError) {
+                console.error('Subscription activation error:', subscriptionError);
+                throw subscriptionError;
+              }
+              
+              // Handle subscription renewal
+              toast({
+                title: "Payment Successful!",
+                description: "Your monthly seller subscription has been renewed for ₦1,000.",
+              });
+              onPaymentSuccess(response.reference);
+            } else {
+              // Handle registration payment
+              const { error: paymentError } = await supabase
+                .from("seller_registration_payments")
+                .insert({
+                  user_id: userId,
+                  amount: BUSINESS_RULES.sellerRegistration.fee,
+                  payment_reference: response.reference,
+                  payment_method: "paystack",
+                  status: "completed",
+                });
+
+              if (paymentError) {
+                console.error("Error recording payment:", paymentError);
+                throw paymentError;
+              }
+
+              const { error: profileError } = await supabase
+                .from("profiles")
+                .update({
+                  seller_registration_paid: true,
+                  seller_registration_paid_at: new Date().toISOString(),
+                })
+                .eq("user_id", userId);
+
+              if (profileError) {
+                console.error("Error updating profile:", profileError);
+                throw profileError;
+              }
+
+              toast({
+                title: "Payment Successful!",
+                description: "Your seller registration fee has been paid. You can now start selling on the platform.",
+              });
+
+              onPaymentSuccess(response.reference);
             }
-
-            // Update user profile to mark registration fee as paid
-            const { error: profileError } = await supabase
-              .from("profiles")
-              .update({
-                seller_registration_paid: true,
-                seller_registration_paid_at: new Date().toISOString(),
-              })
-              .eq("user_id", userId);
-
-            if (profileError) {
-              console.error("Error updating profile:", profileError);
-              throw profileError;
-            }
-
-            toast({
-              title: "Payment Successful!",
-              description:
-                "Your seller registration fee has been paid. You can now start selling on the platform.",
-            });
-
-            onPaymentSuccess();
           } catch (error) {
             console.error("Error processing payment success:", error);
             toast({
               title: "Payment Processing Error",
-              description:
-                "Payment was successful but there was an error updating your account. Please contact support.",
+              description: "Payment was successful but there was an error updating your account. Please contact support.",
               variant: "destructive",
             });
           }
@@ -103,81 +144,93 @@ export const SellerRegistrationPayment = ({
   };
 
   return (
-    <Card className="w-full max-w-md mx-auto">
-      <CardHeader className="text-center">
-        <CardTitle className="flex items-center justify-center gap-2">
-          <CreditCard className="h-5 w-5" />
-          Seller Registration Fee
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="text-center">
-          <div className="text-3xl font-bold text-primary mb-2">
-            ₦{BUSINESS_RULES.sellerRegistration.fee.toLocaleString()}
+    <div className="w-full relative">
+      {processing && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999]">
+          <div className="bg-white rounded-lg p-6 flex flex-col items-center gap-3">
+            <div className="animate-spin rounded-full h-8 w-8 border-4 border-blue-600 border-t-transparent"></div>
+            <p className="text-sm font-medium text-gray-700">Loading payment...</p>
           </div>
-          <p className="text-sm text-muted-foreground">
-            2-month Registration fee to start selling
+        </div>
+      )}
+      <Card className="border-0 shadow-2xl bg-white">
+        <CardHeader className="text-center pb-4 bg-gradient-to-r from-blue-50 to-purple-50">
+          <CardTitle className="flex items-center justify-center gap-2 text-lg text-gray-900">
+            <CreditCard className="h-5 w-5 text-blue-600" />
+            {isSubscriptionRenewal ? 'Renew Subscription' : 'Seller Registration'}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-5 px-6 pb-6">
+        <div className="text-center bg-gradient-to-br from-green-50 via-blue-50 to-purple-50 rounded-xl p-5 border border-blue-200">
+          <div className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-2">
+            ₦{isSubscriptionRenewal 
+              ? BUSINESS_RULES.sellerSubscription.monthlyFee.toLocaleString()
+              : BUSINESS_RULES.sellerRegistration.fee.toLocaleString()}
+          </div>
+          <p className="text-sm text-gray-600 font-medium">
+            {isSubscriptionRenewal 
+              ? "Monthly subscription • 30 days full access"
+              : "One-time registration fee to start selling"}
           </p>
         </div>
 
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <div className="flex items-start gap-3">
-            <Shield className="h-5 w-5 text-blue-600 mt-0.5" />
-            <div className="text-sm">
-              <p className="font-medium text-blue-900 mb-2">
-                What you get with CampusConnect:
-              </p>
-              <ul className="text-blue-800 space-y-1">
-                <li>
-                  • <strong>Keep 100% of sales</strong> - No commission fees
-                  ever
-                </li>
-                <li>
-                  • <strong>Live feed bidding</strong> - Post requests & receive
-                  competitive bids
-                </li>
-                <li>
-                  • <strong>Secure escrow system</strong> - Payment guaranteed
-                  on delivery
-                </li>
-                <li>
-                  • <strong>Built-in chat system</strong> - Direct WhatsApp &
-                  in-app messaging
-                </li>
-                <li>
-                  • <strong>Sales dashboard</strong> - Track earnings, orders &
-                  analytics
-                </li>
-                <li>
-                  • <strong>Gamified experience</strong> - Earn coins, badges &
-                  rewards
-                </li>
-                <li>
-                  • <strong>Marketing tools</strong> - Boost visibility with
-                  featured listings
-                </li>
-                <li>
-                  • <strong>University-focused</strong> - Reach your exact
-                  target market
-                </li>
-                <li>
-                  • <strong>Instant notifications</strong> - Never miss an order
-                  or message
-                </li>
-                <li>
-                  • <strong>Dispute protection</strong> - Fair resolution system
-                </li>
-                <li>
-                  • <strong>Multiple payment options</strong> - Cards,
-                  transfers, USSD
-                </li>
-                <li>
-                  • <strong>Mobile optimized</strong> - Sell anywhere, anytime
-                </li>
-              </ul>
+        {isSubscriptionRenewal ? (
+          <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl p-4">
+            <div className="flex items-start gap-3">
+              <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 flex-shrink-0" />
+              <div className="text-sm">
+                <p className="font-semibold text-green-900 mb-3">
+                  ✨ Premium Seller Features
+                </p>
+                <div className="grid grid-cols-2 gap-2 text-green-800">
+                  <div className="flex items-center gap-1">
+                    <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
+                    Product listings
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
+                    Live bidding
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
+                    Sales dashboard
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
+                    Marketing tools
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
+                    100% revenue
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
+                    Priority support
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
+        ) : (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="flex items-start gap-3">
+              <Shield className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
+              <div className="text-sm">
+                <p className="font-medium text-blue-900 mb-2">
+                  What you get with CampusConnect:
+                </p>
+                <div className="grid grid-cols-1 gap-1 text-blue-800">
+                  <div>• <strong>Keep 100% of sales</strong> - No commission fees</div>
+                  <div>• <strong>Live feed bidding</strong> - Competitive marketplace</div>
+                  <div>• <strong>Secure escrow system</strong> - Protected payments</div>
+                  <div>• <strong>Sales dashboard</strong> - Track your performance</div>
+                  <div>• <strong>University-focused</strong> - Target market reach</div>
+                  <div>• <strong>Mobile optimized</strong> - Sell anywhere, anytime</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="bg-green-50 border border-green-200 rounded-lg p-3">
           <div className="flex items-center gap-2 text-green-800">
@@ -192,35 +245,42 @@ export const SellerRegistrationPayment = ({
           <Button
             onClick={handlePayment}
             disabled={processing}
-            className="w-full"
-            variant="brand"
+            className="w-full h-12 text-base font-semibold bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 shadow-lg"
+            size="lg"
           >
             {processing ? (
-              "Processing..."
+              <div className="flex items-center gap-2">
+                <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                Processing Payment...
+              </div>
             ) : (
               <>
-                <CreditCard className="h-4 w-4 mr-2" />
-                Pay ₦{BUSINESS_RULES.sellerRegistration.fee.toLocaleString()}{" "}
-                with Paystack
+                <CreditCard className="h-5 w-5 mr-2" />
+                Pay ₦{isSubscriptionRenewal 
+                  ? BUSINESS_RULES.sellerSubscription.monthlyFee.toLocaleString()
+                  : BUSINESS_RULES.sellerRegistration.fee.toLocaleString()}
               </>
             )}
           </Button>
 
           <Button
             onClick={onCancel}
-            variant="outline"
-            className="w-full"
+            variant="ghost"
+            className="w-full h-10 text-gray-600 hover:text-gray-800 hover:bg-gray-100"
             disabled={processing}
           >
             Cancel
           </Button>
         </div>
 
-        <p className="text-xs text-muted-foreground text-center">
-          Secure payment powered by Paystack. Your payment information is
-          encrypted and secure.
-        </p>
-      </CardContent>
-    </Card>
+        <div className="flex items-center justify-center gap-2 pt-2">
+          <Shield className="h-3 w-3 text-muted-foreground" />
+          <p className="text-xs text-muted-foreground text-center">
+            Secure payment powered by Paystack
+          </p>
+        </div>
+        </CardContent>
+      </Card>
+    </div>
   );
 };

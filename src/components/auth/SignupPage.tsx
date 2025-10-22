@@ -67,13 +67,10 @@ const sellerVerificationSchema = z.object({
   bio: z.string().min(20, "Bio must be at least 20 characters"),
 });
 
-
-
 type SigninFormData = z.infer<typeof signinSchema>;
 type BuyerFormData = z.infer<typeof buyerSchema>;
 type SellerPersonalData = z.infer<typeof sellerPersonalSchema>;
 type SellerVerificationData = z.infer<typeof sellerVerificationSchema>;
-
 
 interface SignupPageProps {
   onSuccess?: () => void;
@@ -202,8 +199,6 @@ const NIGERIAN_UNIVERSITIES = [
   "Yusuf Maitama Sule University",
 ];
 
-
-
 const SignupPage = ({ onSuccess }: SignupPageProps) => {
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [accountType, setAccountType] = useState<"buyer" | "seller">("buyer");
@@ -222,10 +217,6 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
   const [sellerVerificationData, setSellerVerificationData] = useState<
     Partial<SellerVerificationData>
   >({});
-
-
-
-
 
   // Form hooks
   const signinForm = useForm<SigninFormData>({
@@ -246,8 +237,6 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
     resolver: zodResolver(sellerVerificationSchema),
     defaultValues: sellerVerificationData,
   });
-
-
 
   // Check for existing user session and listen for auth changes
   useEffect(() => {
@@ -287,7 +276,7 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
       case 1:
         return "Personal Details";
       case 2:
-        return "Verification";
+        return "About";
       case 3:
         return "Payment";
       default:
@@ -393,15 +382,25 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
 
       if (error) throw error;
 
-      // Update profile with business info
+      // Update profile with business info and activate subscription
       if (authData.user) {
-        await supabase
-          .from("profiles")
-          .update({
-            business_name: combinedData.businessName,
-            bio: combinedData.bio,
-          })
-          .eq("user_id", authData.user.id);
+        // Wait for profile creation
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+        const expiryDate = new Date();
+        expiryDate.setDate(expiryDate.getDate() + 30);
+
+        // Single comprehensive profile update
+        await supabase.from("profiles").update({
+          business_name: combinedData.businessName,
+          bio: combinedData.bio,
+          seller_registration_paid: true,
+          seller_registration_paid_at: new Date().toISOString(),
+          seller_subscription_expires_at: expiryDate.toISOString(),
+          seller_features_active: true,
+          seller_subscription_type: 'monthly',
+          seller_last_payment_date: new Date().toISOString()
+        }).eq("user_id", authData.user.id);
 
         // Record payment
         await supabase.from("seller_registration_payments").insert({
@@ -411,11 +410,23 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
           payment_method: "paystack",
           status: "completed",
         });
+
+        // Create subscription record
+        await supabase.from("seller_subscriptions").insert({
+          user_id: authData.user.id,
+          subscription_type: 'monthly',
+          amount: BUSINESS_RULES.sellerRegistration.fee,
+          payment_reference: reference,
+          starts_at: new Date().toISOString(),
+          expires_at: expiryDate.toISOString(),
+          status: 'active'
+        });
       }
 
       toast({
         title: "Seller Account Created!",
-        description: "Your account has been created and payment confirmed. Please check your email to verify.",
+        description:
+          "Your account has been created and payment confirmed. Please check your email to verify.",
       });
 
       onSuccess?.();
@@ -461,10 +472,6 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
       });
     }
   };
-
-
-
-
 
   const stepVariants = {
     hidden: { opacity: 0, x: 50 },
@@ -604,7 +611,7 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
                       currentStep >= 2 ? "text-primary font-medium" : ""
                     }
                   >
-                    Verification
+                    About
                   </span>
                   <span
                     className={
@@ -1076,7 +1083,7 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
                           className="w-full h-12 bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary text-primary-foreground font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 mt-6"
                         >
                           <ArrowRight className="h-5 w-5 mr-2" />
-                          Continue to Verification
+                          Continue
                         </Button>
                       </form>
                     </motion.div>

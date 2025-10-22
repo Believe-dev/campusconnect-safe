@@ -92,6 +92,7 @@ import { triggerProfileUpdate } from "@/utils/realTimeEvents";
 import { sendEmailNotification } from "@/utils/emailService";
 import { sanitizeInput, validateEmail, validateName } from "@/lib/security";
 import { AdminWallet } from "@/components/admin/AdminWallet";
+import { SellerSubscriptionManager } from "@/components/admin/SellerSubscriptionManager";
 
 interface User {
   id: string;
@@ -1120,83 +1121,140 @@ export default function Admin() {
       if (!user) return;
 
       if (approve) {
-        // First check payout eligibility for debugging
-        const { data: eligibilityData, error: eligibilityError } =
-          await supabase.rpc("check_payout_eligibility", {
-            payout_id: payoutId,
+        // Get payout request details
+        const { data: payout, error: payoutError } = await supabase
+          .from("payout_requests")
+          .select("*")
+          .eq("id", payoutId)
+          .single();
+
+        if (payoutError || !payout) {
+          toast.error("Payout request not found");
+          return;
+        }
+
+        // Verify payout is still pending
+        if (payout.status !== "pending") {
+          toast.error(`Payout request status is '${payout.status}', not 'pending'`);
+          return;
+        }
+
+        // Get wallet details to verify balance
+        const { data: wallet, error: walletError } = await supabase
+          .from("wallets")
+          .select("available_balance")
+          .eq("id", payout.wallet_id)
+          .single();
+
+        if (walletError || !wallet) {
+          toast.error("Wallet not found");
+          return;
+        }
+
+        // Check if wallet has sufficient balance
+        if (wallet.available_balance < payout.amount) {
+          toast.error(
+            `Insufficient balance: ₦${wallet.available_balance.toLocaleString()} < ₦${payout.amount.toLocaleString()}`
+          );
+          return;
+        }
+
+        // Generate manual transfer reference
+        const transferCode = `MANUAL_${Date.now()}_${payoutId.slice(0, 8)}`;
+        const adminNotes = notes || `Manual transfer approved by admin. Transfer ₦${payout.amount.toLocaleString()} to ${payout.bank_account_name} (${payout.bank_name}) - Account: ${payout.bank_account_number}. Reference: ${transferCode}`;
+
+        // 1. Deduct funds from wallet first
+        const { error: walletUpdateError } = await supabase
+          .from("wallets")
+          .update({
+            available_balance: wallet.available_balance - payout.amount,
+            updated_at: new Date().toISOString()
+          })
+          .eq("id", payout.wallet_id);
+
+        if (walletUpdateError) {
+          console.error("Wallet update error:", walletUpdateError);
+          throw new Error("Failed to deduct funds from wallet");
+        }
+
+        // 2. Update payout status to approved (funds deducted, awaiting manual transfer)
+        const { error: payoutUpdateError } = await supabase
+          .from("payout_requests")
+          .update({
+            status: "approved",
+            processed_at: new Date().toISOString(),
+            processed_by: user.id,
+            admin_notes: adminNotes,
+            transfer_code: transferCode,
+            transfer_status: "manual_pending"
+          })
+          .eq("id", payoutId);
+
+        if (payoutUpdateError) {
+          console.error("Payout update error:", payoutUpdateError);
+          // Try to revert wallet balance if payout update fails
+          await supabase
+            .from("wallets")
+            .update({
+              available_balance: wallet.available_balance,
+              updated_at: new Date().toISOString()
+            })
+            .eq("id", payout.wallet_id);
+          throw new Error("Failed to update payout status");
+        }
+
+        // 3. Create wallet transaction record
+        const { error: transactionError } = await supabase
+          .from("wallet_transactions")
+          .insert({
+            wallet_id: payout.wallet_id,
+            user_id: payout.user_id,
+            type: "payout",
+            amount: -payout.amount, // Negative for debit
+            description: `Manual payout approved - ${payout.bank_account_name} (${payout.bank_name}) - Ref: ${transferCode}`,
+            reference_id: payoutId, // Use payout ID as UUID reference
+            reference_type: "manual_transfer",
+            status: "completed"
           });
 
-        if (eligibilityError) {
-          console.error("Eligibility check error:", eligibilityError);
-        } else if (eligibilityData && eligibilityData.length > 0) {
-          const check = eligibilityData[0];
-          console.log("Payout eligibility check:", check);
-
-          if (!check.payout_exists) {
-            toast.error("Payout request not found");
-            return;
-          }
-
-          if (check.payout_status !== "pending") {
-            toast.error(
-              `Payout request status is '${check.payout_status}', not 'pending'`
-            );
-            return;
-          }
-
-          if (!check.wallet_exists) {
-            toast.error("User wallet not found");
-            return;
-          }
-
-          if (!check.sufficient_balance) {
-            toast.error(
-              `Insufficient balance. Available: ₦${check.available_balance}, Requested: ₦${check.requested_amount}`
-            );
-            return;
-          }
+        if (transactionError) {
+          console.error("Transaction record error:", transactionError);
+          // Don't throw here as the main operations succeeded
         }
 
-        // Process automatic bank transfer using Edge Function
-        const { data: transferResult, error: transferError } = await supabase.functions.invoke(
-          'process-payout',
-          {
-            body: { payout_id: payoutId }
-          }
-        );
-
-        if (transferError) {
-          console.error('Transfer error:', transferError);
-          toast.error(`Transfer failed: ${transferError.message}`);
-          return;
-        }
-
-        if (transferResult?.error) {
-          toast.error(`Transfer failed: ${transferResult.error}`);
-          return;
-        }
+        // 4. Skip notifications to avoid HTTP dependency issues
 
         toast.success(
-          `Payout approved and bank transfer initiated! Transfer code: ${transferResult.transfer_code}`
+          `Payout approved! ₦${payout.amount.toLocaleString()} deducted from wallet. Please manually transfer to ${payout.bank_account_name} (${payout.bank_name}) - Account: ${payout.bank_account_number}`
         );
       } else {
-        // Just reject the payout request
+        // Reject the payout request
+        const rejectionNotes = notes || "Payout request rejected by admin";
+        
         const { error } = await supabase
           .from("payout_requests")
           .update({
             status: "rejected",
-            admin_notes: notes || null,
+            admin_notes: rejectionNotes,
             processed_by: user.id,
             processed_at: new Date().toISOString(),
           })
           .eq("id", payoutId);
 
         if (error) throw error;
+
+        // Get payout details for notification
+        const { data: payoutData } = await supabase
+          .from("payout_requests")
+          .select("user_id, amount")
+          .eq("id", payoutId)
+          .single();
+
+        // Skip notifications to avoid HTTP dependency issues
+
+        toast.success("Payout request rejected");
       }
 
-      toast.success(
-        `Payout request ${approve ? "approved and processed" : "rejected"}`
-      );
       fetchEscrowData();
     } catch (error) {
       console.error("Process payout error:", error);
@@ -2136,6 +2194,9 @@ export default function Admin() {
               </TabsTrigger>
               <TabsTrigger value="suggestions" className="text-xs md:text-sm whitespace-nowrap px-3 py-2">
                 Suggestions
+              </TabsTrigger>
+              <TabsTrigger value="subscriptions" className="text-xs md:text-sm whitespace-nowrap px-3 py-2">
+                Subscriptions
               </TabsTrigger>
               <TabsTrigger value="wallet" className="text-xs md:text-sm whitespace-nowrap px-3 py-2">
                 Admin Wallet
@@ -4636,6 +4697,11 @@ export default function Admin() {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Seller Subscriptions Tab */}
+          <TabsContent value="subscriptions">
+            <SellerSubscriptionManager />
           </TabsContent>
 
           {/* Admin Wallet Tab */}

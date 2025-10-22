@@ -70,11 +70,11 @@ export const SellerPaymentStep = ({
             ₦{BUSINESS_RULES.sellerRegistration.fee.toLocaleString()}
           </div>
           <p className="text-sm text-muted-foreground mb-3">
-            2-month subscription to unlock unlimited earning potential
+            First month's subscription fee - then ₦1000/month to continue
           </p>
           <div className="bg-gradient-to-r from-green-50 to-blue-50 border border-green-200 rounded-lg p-3">
             <p className="text-sm font-medium text-green-800 mb-1">
-              <strong>Smart Investment:</strong> Pay once, earn forever
+              <strong>Smart Investment:</strong> 30 days full access
             </p>
             <p className="text-xs text-green-700">
               Average sellers recover this fee in their first 2-3 sales

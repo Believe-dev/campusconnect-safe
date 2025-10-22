@@ -174,16 +174,21 @@ export default function Notifications() {
     
     markAsRead(notification.id);
     
+    // Navigate based on notification type
     if (notification.type === 'order_shipped' || notification.type === 'order_delivered') {
       navigate('/orders');
-
     } else if (notification.type === 'seller_approved') {
       navigate('/dashboard');
-    } else {
-      if (notification.message.toLowerCase().includes('order')) {
-        navigate('/orders');
-
-      }
+    } else if (notification.type === 'success' && notification.title.includes('Payout')) {
+      navigate('/wallet');
+    } else if (notification.type === 'warning' && notification.title.includes('Payout')) {
+      navigate('/wallet');
+    } else if (notification.type === 'subscription_expiring' || notification.type === 'subscription_expired') {
+      navigate('/dashboard');
+    } else if (notification.message.toLowerCase().includes('subscription')) {
+      navigate('/dashboard');
+    } else if (notification.message.toLowerCase().includes('order')) {
+      navigate('/orders');
     }
   };
 
@@ -227,6 +232,9 @@ export default function Notifications() {
       case 'success': return 'bg-green-500';
       case 'warning': return 'bg-yellow-500';
       case 'error': return 'bg-red-500';
+      case 'subscription_expiring': return 'bg-orange-500';
+      case 'subscription_expired': return 'bg-red-500';
+      case 'subscription_activated': return 'bg-green-500';
       default: return 'bg-blue-500';
     }
   };

@@ -87,69 +87,10 @@ serve(async (req) => {
       paystackKey !== 'sk_test_your_test_secret_key' &&
       paystackKey.startsWith('sk_live_') // Only accept live keys
     
-    if (isValidLivePaystackKey) {
-      console.log('Attempting real Paystack transfer with key:', paystackKey.substring(0, 10) + '...')
-      
-      try {
-        // Create transfer recipient
-        const recipientResponse = await fetch('https://api.paystack.co/transferrecipient', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${paystackKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            type: 'nuban',
-            name: payout.bank_account_name,
-            account_number: payout.bank_account_number,
-            bank_code: getBankCode(payout.bank_name),
-            currency: 'NGN'
-          })
-        })
-
-        const recipientData = await recipientResponse.json()
-        console.log('Recipient creation response:', recipientData)
-        
-        if (!recipientData.status) {
-          throw new Error(`Failed to create recipient: ${recipientData.message}`)
-        }
-
-        // Initiate transfer
-        const transferResponse = await fetch('https://api.paystack.co/transfer', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${paystackKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            source: 'balance',
-            amount: Math.round(payout.amount * 100), // Convert to kobo
-            recipient: recipientData.data.recipient_code,
-            reason: `Payout for CampusConnect user - ${payout.bank_account_name}`
-          })
-        })
-
-        const transferData = await transferResponse.json()
-        console.log('Transfer response:', transferData)
-        
-        if (!transferData.status) {
-          console.log('Paystack transfer failed, falling back to simulation:', transferData.message)
-          throw new Error(`Paystack: ${transferData.message}`)
-        }
-
-        transferCode = transferData.data.transfer_code
-        isRealTransfer = true
-        console.log('Real Paystack transfer successful:', transferCode)
-        
-      } catch (paystackError) {
-        console.error('Paystack API error:', paystackError)
-        // No fallback to simulation - throw error for production
-        throw new Error(`Paystack transfer failed: ${paystackError.message}`)
-      }
-    } else {
-      // No simulation mode in production - require valid live key
-      throw new Error('Live Paystack secret key required for payout processing. Contact administrator.')
-    }
+    // Generate manual transfer code instead of using Paystack
+    transferCode = `MANUAL_${Date.now()}_${payoutId.slice(0, 8)}`
+    isRealTransfer = false // This is now a manual transfer
+    console.log('Manual transfer code generated:', transferCode)
 
     // Update database regardless of real or simulated transfer
     console.log('Updating database records...')
@@ -160,9 +101,9 @@ serve(async (req) => {
       .update({
         status: 'completed',
         processed_at: new Date().toISOString(),
-        admin_notes: `Live transfer completed: ${transferCode}`,
+        admin_notes: `Manual transfer approved. Please transfer ₦${payout.amount} to ${payout.bank_account_name} (${payout.bank_name}) - Account: ${payout.bank_account_number}. Reference: ${transferCode}`,
         transfer_code: transferCode,
-        transfer_status: 'success'
+        transfer_status: 'manual_pending'
       })
       .eq('id', payoutId)
 
@@ -195,7 +136,7 @@ serve(async (req) => {
         amount: -payout.amount, // Negative for debit
         description: `Payout to ${payout.bank_account_name} (${payout.bank_name}) - ${payout.bank_account_number}`,
         reference_id: transferCode,
-        reference_type: 'paystack_transfer',
+        reference_type: 'manual_transfer',
         status: 'completed'
       })
 
@@ -206,7 +147,7 @@ serve(async (req) => {
 
     // Create notification for user
     const notificationTitle = 'Payout Processed! 💰'
-    const notificationMessage = `Your payout request of ₦${payout.amount.toLocaleString()} has been approved and processed. The funds have been transferred to your bank account (${payout.bank_name}).`
+    const notificationMessage = `Your payout request of ₦${payout.amount.toLocaleString()} has been approved. The funds have been deducted from your wallet and will be manually transferred to your bank account (${payout.bank_name}) within 1-2 business days.`
     
     const { error: notificationError } = await supabaseClient
       .from('notifications')
@@ -247,8 +188,8 @@ serve(async (req) => {
       JSON.stringify({ 
         success: true, 
         transfer_code: transferCode,
-        is_real_transfer: true,
-        message: 'Live bank transfer completed successfully'
+        is_real_transfer: false,
+        message: 'Manual transfer approved - funds deducted from wallet'
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )

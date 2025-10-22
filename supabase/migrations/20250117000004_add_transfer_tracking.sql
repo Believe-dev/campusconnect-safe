@@ -2,7 +2,7 @@
 ALTER TABLE payout_requests 
 ADD COLUMN IF NOT EXISTS transfer_code TEXT,
 ADD COLUMN IF NOT EXISTS recipient_code TEXT,
-ADD COLUMN IF NOT EXISTS transfer_status TEXT DEFAULT 'pending' CHECK (transfer_status IN ('pending', 'success', 'failed', 'reversed'));
+ADD COLUMN IF NOT EXISTS transfer_status TEXT DEFAULT 'pending' CHECK (transfer_status IN ('pending', 'success', 'failed', 'reversed', 'manual_pending', 'processing'));
 
 -- Update existing payout requests to have proper status
 UPDATE payout_requests 

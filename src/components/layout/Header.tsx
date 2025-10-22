@@ -111,8 +111,6 @@ const Header = () => {
     }
   }, [user]);
 
-
-
   // Hide header on chat pages
   if (location.pathname.startsWith("/chat/")) {
     return null;
@@ -324,67 +322,58 @@ const Header = () => {
                 </Link>
               </Button>
 
-              <Button
-                variant="ghost"
-                size="lg"
-                asChild
-                className="justify-start"
-              >
-                <Link to="/learn-more">
-                  <img
-                    src="/logo.png"
-                    alt="UniMarket Logo"
-                    className="mr-3 h-5 w-5 object-contain"
-                  />
-                  Learn More
-                </Link>
-              </Button>
-
-              <Button
-                variant="ghost"
-                size="lg"
-                asChild
-                className="justify-start"
-              >
-                <Link to="/live-feed">
-                  <Zap className="mr-3 h-5 w-5" />
-                  Live Feed
-                </Link>
-              </Button>
-
-              <Button
-                variant="ghost"
-                size="lg"
-                asChild
-                className="justify-start"
-              >
-                <Link to="/suggestions">
-                  <Lightbulb className="mr-3 h-5 w-5" />
-                  Suggestions
-                </Link>
-              </Button>
-
-              <Button
-                variant="ghost"
-                size="lg"
-                asChild
-                className="justify-start"
-              >
-                <Link to="/games">
-                  <svg
-                    className="mr-3 h-5 w-5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
+              {profile?.account_type !== "buyer" &&
+                profile?.seller_status === "approved" && (
+                  <Button
+                    variant="ghost"
+                    size="lg"
+                    asChild
+                    className="justify-start"
                   >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
-                    />
-                  </svg>
-                  UniGames
+                    <Link to="/sell" className="text-seller">
+                      <Plus className="mr-3 h-5 w-5" />
+                      Sell Item
+                    </Link>
+                  </Button>
+                )}
+
+              <Button
+                variant="ghost"
+                size="lg"
+                asChild
+                className="justify-start relative"
+              >
+                <Link to="/cart">
+                  <ShoppingCart className="mr-3 h-5 w-5" />
+                  Cart
+                  {cartCount > 0 && (
+                    <Badge
+                      variant="destructive"
+                      className="ml-auto h-5 w-5 flex items-center justify-center p-0 text-xs font-bold rounded-full bg-red-500 text-white"
+                    >
+                      {cartCount > 99 ? "99+" : cartCount}
+                    </Badge>
+                  )}
+                </Link>
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="lg"
+                asChild
+                className="justify-start relative"
+              >
+                <Link to="/messages">
+                  <MessageCircle className="mr-3 h-5 w-5" />
+                  Messages
+                  {messagesCount > 0 && (
+                    <Badge
+                      variant="destructive"
+                      className="ml-auto h-5 w-5 flex items-center justify-center p-0 text-xs font-bold rounded-full bg-red-500 text-white"
+                    >
+                      {messagesCount > 99 ? "99+" : messagesCount}
+                    </Badge>
+                  )}
                 </Link>
               </Button>
 
@@ -426,61 +415,6 @@ const Header = () => {
                 asChild
                 className="justify-start relative"
               >
-                <Link to="/cart">
-                  <ShoppingCart className="mr-3 h-5 w-5" />
-                  Cart
-                  {cartCount > 0 && (
-                    <Badge
-                      variant="destructive"
-                      className="ml-auto h-5 w-5 flex items-center justify-center p-0 text-xs font-bold rounded-full bg-red-500 text-white"
-                    >
-                      {cartCount > 99 ? "99+" : cartCount}
-                    </Badge>
-                  )}
-                </Link>
-              </Button>
-
-              {profile?.account_type !== "buyer" &&
-                profile?.seller_status === "approved" && (
-                  <Button
-                    variant="ghost"
-                    size="lg"
-                    asChild
-                    className="justify-start"
-                  >
-                    <Link to="/sell" className="text-seller">
-                      <Plus className="mr-3 h-5 w-5" />
-                      Sell Item
-                    </Link>
-                  </Button>
-                )}
-
-              <Button
-                variant="ghost"
-                size="lg"
-                asChild
-                className="justify-start relative"
-              >
-                <Link to="/messages">
-                  <MessageCircle className="mr-3 h-5 w-5" />
-                  Messages
-                  {messagesCount > 0 && (
-                    <Badge
-                      variant="destructive"
-                      className="ml-auto h-5 w-5 flex items-center justify-center p-0 text-xs font-bold rounded-full bg-red-500 text-white"
-                    >
-                      {messagesCount > 99 ? "99+" : messagesCount}
-                    </Badge>
-                  )}
-                </Link>
-              </Button>
-
-              <Button
-                variant="ghost"
-                size="lg"
-                asChild
-                className="justify-start relative"
-              >
                 <Link to="/orders">
                   <Package className="mr-3 h-5 w-5" />
                   Orders
@@ -492,6 +426,40 @@ const Header = () => {
                       {ordersCount > 99 ? "99+" : ordersCount}
                     </Badge>
                   )}
+                </Link>
+              </Button>
+              <Button
+                variant="ghost"
+                size="lg"
+                asChild
+                className="justify-start"
+              >
+                <Link to="/live-feed">
+                  <Zap className="mr-3 h-5 w-5" />
+                  Live Feed
+                </Link>
+              </Button>
+              <Button
+                variant="ghost"
+                size="lg"
+                asChild
+                className="justify-start"
+              >
+                <Link to="/games">
+                  <svg
+                    className="mr-3 h-5 w-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"
+                    />
+                  </svg>
+                  UniGames
                 </Link>
               </Button>
 
@@ -562,6 +530,33 @@ const Header = () => {
                   </Link>
                 </Button>
               )}
+              <Button
+                variant="ghost"
+                size="lg"
+                asChild
+                className="justify-start"
+              >
+                <Link to="/learn-more">
+                  <img
+                    src="/logo.png"
+                    alt="UniMarket Logo"
+                    className="mr-3 h-5 w-5 object-contain"
+                  />
+                  Learn More
+                </Link>
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="lg"
+                asChild
+                className="justify-start"
+              >
+                <Link to="/suggestions">
+                  <Lightbulb className="mr-3 h-5 w-5" />
+                  Suggestions
+                </Link>
+              </Button>
 
               <Button
                 variant="ghost"

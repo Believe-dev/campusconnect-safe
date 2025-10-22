@@ -123,6 +123,7 @@ const WalletDashboard = () => {
   const [analyticsFilter, setAnalyticsFilter] = useState("best_selling");
   const [emailVerification, setEmailVerification] = useState("");
   const [passwordVerification, setPasswordVerification] = useState("");
+  const [payoutLoading, setPayoutLoading] = useState(false);
   const { toast } = useToast();
 
   const [payoutForm, setPayoutForm] = useState({
@@ -415,7 +416,10 @@ const WalletDashboard = () => {
   };
 
   const handlePayoutRequest = async () => {
+    if (payoutLoading) return;
+    
     try {
+      setPayoutLoading(true);
       const {
         data: { user },
       } = await supabase.auth.getUser();
@@ -486,6 +490,8 @@ const WalletDashboard = () => {
         description: "Failed to submit payout request",
         variant: "destructive",
       });
+    } finally {
+      setPayoutLoading(false);
     }
   };
 
@@ -858,6 +864,11 @@ const WalletDashboard = () => {
                 <DialogTitle>Request Payout</DialogTitle>
               </DialogHeader>
               <div className="space-y-4">
+                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-sm text-blue-800">
+                    💰 <strong>Processing Time:</strong> Your payout will be processed and transferred to your bank account within 48 hours of approval.
+                  </p>
+                </div>
                 <div>
                   <Label>
                     Available Balance: ₦
@@ -898,9 +909,10 @@ const WalletDashboard = () => {
                 <Button 
                   onClick={handlePayoutRequest} 
                   className="w-full"
-                  disabled={!bankDetails}
+                  disabled={!bankDetails || payoutLoading}
+                  loading={payoutLoading}
                 >
-                  {bankDetails ? 'Request Payout' : 'Add Bank Details First'}
+                  {payoutLoading ? 'Processing...' : bankDetails ? 'Request Payout' : 'Add Bank Details First'}
                 </Button>
               </div>
             </DialogContent>
