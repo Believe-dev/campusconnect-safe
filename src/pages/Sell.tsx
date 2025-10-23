@@ -165,6 +165,15 @@ const Sell = () => {
       });
       return;
     }
+    
+    if (images.length === 0) {
+      toast({
+        title: "Validation Error",
+        description: "Please upload at least one product image",
+        variant: "destructive",
+      });
+      return;
+    }
 
     setSubmitting(true);
 
@@ -423,7 +432,7 @@ const Sell = () => {
               </div>
 
               <div>
-                <Label htmlFor="images">Product Images</Label>
+                <Label htmlFor="images">Product Images *</Label>
                 <div className="mt-2">
                   <input
                     type="file"

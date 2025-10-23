@@ -23,6 +23,7 @@ import {
   Play,
   Eye,
   Headphones,
+  Edit3,
 } from "lucide-react";
 import {
   Dialog,
@@ -95,6 +96,8 @@ const Profile = () => {
   const [verificationRequest, setVerificationRequest] = useState<any>(null);
   const [gameBadge, setGameBadge] = useState<GameBadgeData | null>(null);
   const [walletBalanceVisible, setWalletBalanceVisible] = useState(false);
+  const [editingBusinessName, setEditingBusinessName] = useState(false);
+  const [newBusinessName, setNewBusinessName] = useState("");
   const handleRefresh = useCallback(async () => {
     await fetchProfile();
   }, []);
@@ -102,6 +105,13 @@ const Profile = () => {
   useEffect(() => {
     fetchProfile();
   }, []);
+
+  // Initialize business name when profile loads
+  useEffect(() => {
+    if (profile?.business_name) {
+      setNewBusinessName(profile.business_name);
+    }
+  }, [profile?.business_name]);
 
   // Real-time updates for profile, wallet, and orders
   useEffect(() => {
@@ -297,16 +307,28 @@ const Profile = () => {
     setSaving(true);
 
     try {
-      // Only allow updating name and bio - secure backend validation
+      const updateData: any = {
+        full_name: profile.full_name,
+        bio: profile.bio,
+      };
+
+      // Include business name if it's a seller and has changed
+      if ((profile.account_type === "seller" || profile.account_type === "both") && 
+          newBusinessName.trim() !== (profile.business_name || "")) {
+        updateData.business_name = newBusinessName.trim() || null;
+      }
+
       const { error } = await supabase
         .from("profiles")
-        .update({
-          full_name: profile.full_name,
-          bio: profile.bio,
-        })
+        .update(updateData)
         .eq("user_id", user.id);
 
       if (error) throw error;
+
+      // Update local profile state
+      if (updateData.business_name !== undefined) {
+        setProfile({ ...profile, business_name: updateData.business_name });
+      }
 
       toast({
         title: "Profile Updated",
@@ -317,6 +339,38 @@ const Profile = () => {
       toast({
         title: "Error",
         description: "Failed to update profile",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleBusinessNameSave = async () => {
+    if (!profile || !user || !newBusinessName.trim()) return;
+    setSaving(true);
+
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          business_name: newBusinessName.trim(),
+        })
+        .eq("user_id", user.id);
+
+      if (error) throw error;
+
+      setProfile({ ...profile, business_name: newBusinessName.trim() });
+      toast({
+        title: "Business Name Updated",
+        description: "Your business name has been successfully updated.",
+      });
+      setEditingBusinessName(false);
+      setNewBusinessName("");
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update business name",
         variant: "destructive",
       });
     } finally {
@@ -538,7 +592,7 @@ const Profile = () => {
                       Edit Profile
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="max-w-md">
+                  <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
                     <DialogHeader>
                       <DialogTitle>Edit Profile</DialogTitle>
                     </DialogHeader>
@@ -573,9 +627,105 @@ const Profile = () => {
                           rows={3}
                         />
                       </div>
+                      
+                      {/* Business Name for Sellers */}
+                      {(profile?.account_type === "seller" || profile?.account_type === "both") && (
+                        <div>
+                          <Label htmlFor="edit_business_name">Business Name</Label>
+                          <Input
+                            id="edit_business_name"
+                            value={newBusinessName}
+                            onChange={(e) => setNewBusinessName(e.target.value)}
+                            placeholder="Enter your business name"
+                          />
+                        </div>
+                      )}
+                      
+                      {/* Non-editable fields with contact support */}
+                      <div className="space-y-3 pt-4 border-t">
+                        <h4 className="text-sm font-semibold text-gray-700">Need to change other details?</h4>
+                        
+                        <div className="space-y-2">
+                          <div className="flex justify-between items-center text-sm">
+                            <span className="text-gray-600">Email</span>
+                            <a
+                              href={`https://wa.me/2349133054018?text=${encodeURIComponent(
+                                "Hello UniMarket Support,\n\nI would like to change my email address on my account.\n\nCurrent Email: " + (profile?.email || "") + "\nNew Email: [Please specify]\n\nReason: [Please provide a valid reason]\n\nThank you."
+                              )}`}
+                              target="_blank"
+                              className="text-blue-600 hover:text-blue-800 underline"
+                            >
+                              Contact Support
+                            </a>
+                          </div>
+                          
+                          <div className="flex justify-between items-center text-sm">
+                            <span className="text-gray-600">University</span>
+                            <a
+                              href={`https://wa.me/2349133054018?text=${encodeURIComponent(
+                                "Hello UniMarket Support,\n\nI would like to change my university information on my account.\n\nCurrent University: " + (profile?.university_name || "Not set") + "\nNew University: [Please specify]\n\nReason: [Please provide a valid reason such as transfer]\n\nThank you."
+                              )}`}
+                              target="_blank"
+                              className="text-blue-600 hover:text-blue-800 underline"
+                            >
+                              Contact Support
+                            </a>
+                          </div>
+                          
+                          {(profile?.account_type === "seller" || profile?.account_type === "both") && (
+                            <>
+                              <div className="flex justify-between items-center text-sm">
+                                <span className="text-gray-600">Student ID</span>
+                                <a
+                                  href={`https://wa.me/2349133054018?text=${encodeURIComponent(
+                                    "Hello UniMarket Support,\n\nI would like to change my student ID on my account.\n\nCurrent Student ID: " + (profile?.student_id || "Not set") + "\nNew Student ID: [Please specify]\n\nReason: [Please provide a valid reason]\n\nThank you."
+                                  )}`}
+                                  target="_blank"
+                                  className="text-blue-600 hover:text-blue-800 underline"
+                                >
+                                  Contact Support
+                                </a>
+                              </div>
+                              
+                              <div className="flex justify-between items-center text-sm">
+                                <span className="text-gray-600">Phone Number</span>
+                                <a
+                                  href={`https://wa.me/2349133054018?text=${encodeURIComponent(
+                                    "Hello UniMarket Support,\n\nI would like to change my phone number on my account for security reasons.\n\nCurrent Phone: " + (profile?.phone_number || "Not set") + "\nNew Phone: [Please specify]\n\nReason: [Please provide a valid reason]\n\nThank you."
+                                  )}`}
+                                  target="_blank"
+                                  className="text-blue-600 hover:text-blue-800 underline"
+                                >
+                                  Contact Support
+                                </a>
+                              </div>
+                            </>
+                          )}
+                          
+                          <div className="flex justify-between items-center text-sm">
+                            <span className="text-gray-600">Account Type</span>
+                            <a
+                              href={`https://wa.me/2349133054018?text=${encodeURIComponent(
+                                "Hello UniMarket Support,\n\nI would like to change my account type.\n\nCurrent Account Type: " + (profile?.account_type || "Not set") + "\nDesired Account Type: [Please specify: buyer/seller/both]\n\nReason: [Please provide a valid reason]\n\nThank you."
+                              )}`}
+                              target="_blank"
+                              className="text-blue-600 hover:text-blue-800 underline"
+                            >
+                              Contact Support
+                            </a>
+                          </div>
+                        </div>
+                      </div>
+                      
                       <div className="flex gap-2 pt-4">
                         <Button
-                          onClick={handleSave}
+                          onClick={() => {
+                            if ((profile?.account_type === "seller" || profile?.account_type === "both") && newBusinessName.trim() !== (profile?.business_name || "")) {
+                              handleBusinessNameSave();
+                            } else {
+                              handleSave();
+                            }
+                          }}
                           disabled={saving}
                           className="flex-1"
                         >
@@ -583,7 +733,10 @@ const Profile = () => {
                         </Button>
                         <Button
                           variant="outline"
-                          onClick={() => setEditing(false)}
+                          onClick={() => {
+                            setEditing(false);
+                            setNewBusinessName(profile?.business_name || "");
+                          }}
                           className="flex-1"
                         >
                           Cancel
@@ -1053,12 +1206,25 @@ const Profile = () => {
                       </div>
 
                       <div className="space-y-2">
-                        <Label
-                          htmlFor="business_name"
-                          className="text-sm font-semibold text-gray-700"
-                        >
-                          Business Name
-                        </Label>
+                        <div className="flex items-center justify-between">
+                          <Label
+                            htmlFor="business_name"
+                            className="text-sm font-semibold text-gray-700"
+                          >
+                            Business Name
+                          </Label>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setNewBusinessName(profile.business_name || "");
+                              setEditingBusinessName(true);
+                            }}
+                            className="text-xs px-2 py-1 h-6"
+                          >
+                            Edit
+                          </Button>
+                        </div>
                         <Input
                           id="business_name"
                           value={profile.business_name || ""}
@@ -1067,7 +1233,7 @@ const Profile = () => {
                           placeholder="Not set"
                         />
                         <p className="text-xs text-gray-500 mt-1">
-                          Business name set during registration
+                          Click Edit to change your business name
                         </p>
                       </div>
                     </>
@@ -1418,6 +1584,46 @@ const Profile = () => {
                 className="flex-1"
               >
                 I Understand
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Business Name Edit Modal */}
+      <Dialog open={editingBusinessName} onOpenChange={setEditingBusinessName}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Business Name</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="new_business_name">Business Name</Label>
+              <Input
+                id="new_business_name"
+                value={newBusinessName}
+                onChange={(e) => setNewBusinessName(e.target.value)}
+                placeholder="Enter your business name"
+                className="mt-1"
+              />
+            </div>
+            <div className="flex gap-2 pt-4">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setEditingBusinessName(false);
+                  setNewBusinessName("");
+                }}
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleBusinessNameSave}
+                disabled={saving || !newBusinessName.trim()}
+                className="flex-1"
+              >
+                {saving ? "Saving..." : "Save"}
               </Button>
             </div>
           </div>

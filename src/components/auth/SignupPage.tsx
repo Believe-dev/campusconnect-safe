@@ -10,6 +10,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 import { useToast } from "@/hooks/use-toast";
 import { usePaystack } from "@/hooks/usePaystack";
@@ -77,6 +84,8 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState<AuthUser | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [pendingBuyerData, setPendingBuyerData] = useState<BuyerFormData | null>(null);
   const { toast } = useToast();
   const { initializePayment } = usePaystack();
 
@@ -182,16 +191,24 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
     }
   };
 
-  const handleBuyerSignup = async (data: BuyerFormData) => {
+  const handleBuyerSignupSubmit = (data: BuyerFormData) => {
+    setPendingBuyerData(data);
+    setShowConfirmModal(true);
+  };
+
+  const handleConfirmBuyerSignup = async () => {
+    if (!pendingBuyerData) return;
+    
     setLoading(true);
+    setShowConfirmModal(false);
     try {
       const { data: authData, error } = await supabase.auth.signUp({
-        email: data.email,
-        password: data.password,
+        email: pendingBuyerData.email,
+        password: pendingBuyerData.password,
         options: {
           data: {
-            full_name: data.fullName,
-            university_name: data.university,
+            full_name: pendingBuyerData.fullName,
+            university_name: pendingBuyerData.university,
             account_type: "buyer",
           },
         },
@@ -213,7 +230,14 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
       });
     } finally {
       setLoading(false);
+      setPendingBuyerData(null);
     }
+  };
+
+  const handleSwitchToSeller = () => {
+    setShowConfirmModal(false);
+    setAccountType("seller");
+    setPendingBuyerData(null);
   };
 
   const handleSellerPersonalNext = (data: SellerPersonalData) => {
@@ -602,7 +626,7 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
                   transition={{ duration: 0.3 }}
                 >
                   <form
-                    onSubmit={buyerForm.handleSubmit(handleBuyerSignup)}
+                    onSubmit={buyerForm.handleSubmit(handleBuyerSignupSubmit)}
                     className="space-y-4"
                   >
                     <div className="space-y-4">
@@ -1093,6 +1117,55 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
           </p>
         </motion.div>
       </div>
+      
+      {/* Confirmation Modal */}
+      <Dialog open={showConfirmModal} onOpenChange={setShowConfirmModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-center">Confirm Account Type</DialogTitle>
+            <DialogDescription className="text-center">
+              Are you sure you want to create a buyer account?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-4 border-2 border-primary bg-primary/5 rounded-xl text-center">
+                <User className="h-6 w-6 mx-auto mb-2 text-primary" />
+                <div className="text-sm font-medium text-primary">Buyer Account</div>
+                <div className="text-xs text-muted-foreground">Shop & Buy Products</div>
+              </div>
+              <div className="p-4 border-2 border-border rounded-xl text-center cursor-pointer hover:border-primary hover:bg-primary/5 transition-colors" onClick={handleSwitchToSeller}>
+                <Building className="h-6 w-6 mx-auto mb-2 text-muted-foreground" />
+                <div className="text-sm font-medium">Seller Account</div>
+                <div className="text-xs text-muted-foreground">Sell & Earn Money</div>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                onClick={() => setShowConfirmModal(false)}
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleConfirmBuyerSignup}
+                disabled={loading}
+                className="flex-1"
+              >
+                {loading ? (
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Creating...
+                  </div>
+                ) : (
+                  "Create Buyer Account"
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

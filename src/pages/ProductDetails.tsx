@@ -38,7 +38,7 @@ import {
   Check,
   Flag,
 } from "lucide-react";
-import { shareProduct } from "@/utils/shareUtils";
+
 import ProductCard from "@/components/marketplace/ProductCard";
 import { ProductReviews } from "@/components/reviews/ProductReviews";
 import { ProductSEO } from "@/components/common/ProductSEO";
@@ -355,21 +355,33 @@ const ProductDetails = () => {
   const handleShare = async () => {
     if (!product) return;
 
-    try {
-      const success = await shareProduct(product);
-      if (success) {
-        setCopied(true);
-        toast({
-          title: "Shared Successfully",
-          description: "Product link has been shared or copied to clipboard",
-        });
-        setTimeout(() => setCopied(false), 2000);
+    const url = window.location.href;
+    const title = `${product.title} - ₦${product.price.toLocaleString()}`;
+    const text = `Check out this ${product.title} on UniMarket! Only ₦${product.price.toLocaleString()}`;
+
+    // Try Web Share API first
+    if (navigator.share) {
+      try {
+        await navigator.share({ title, text, url });
+        return;
+      } catch (error) {
+        if (error.name === 'AbortError') return;
       }
+    }
+
+    // Fallback to clipboard
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      toast({
+        title: "Link Copied",
+        description: "Product link copied to clipboard",
+      });
+      setTimeout(() => setCopied(false), 2000);
     } catch (error) {
       toast({
-        title: "Share Failed",
-        description: "Unable to share product link",
-        variant: "destructive",
+        title: "Share Link",
+        description: url,
       });
     }
   };
