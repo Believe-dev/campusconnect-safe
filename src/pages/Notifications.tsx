@@ -1,13 +1,14 @@
-import { useState, useEffect } from 'react';
-import { useAuth } from '@/hooks/useAuth';
-import { Navigate, useNavigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Bell, Check, Trash2 } from 'lucide-react';
-import { toast } from 'sonner';
-import { format } from 'date-fns';
+import { useState, useEffect } from "react";
+import { useAuth } from "@/hooks/useAuth";
+import { Navigate, useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Bell, Check, Trash2, Settings } from "lucide-react";
+import { toast } from "sonner";
+import { format } from "date-fns";
+import NotificationTester from "@/components/notifications/NotificationTester";
 
 interface Notification {
   id: string;
@@ -23,22 +24,25 @@ export default function Notifications() {
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loadingNotifications, setLoadingNotifications] = useState(true);
-  const [expandedNotifications, setExpandedNotifications] = useState<Set<string>>(new Set());
+  const [expandedNotifications, setExpandedNotifications] = useState<
+    Set<string>
+  >(new Set());
+  const [showTester, setShowTester] = useState(false);
 
   useEffect(() => {
     if (user) {
       fetchNotifications();
-      
+
       // Set up real-time subscription
       const channel = supabase
-        .channel('notifications-changes')
+        .channel("notifications-changes")
         .on(
-          'postgres_changes',
+          "postgres_changes",
           {
-            event: '*',
-            schema: 'public',
-            table: 'notifications',
-            filter: `user_id=eq.${user.id},type=neq.message`
+            event: "*",
+            schema: "public",
+            table: "notifications",
+            filter: `user_id=eq.${user.id},type=neq.message`,
           },
           (payload) => {
             fetchNotifications();
@@ -60,107 +64,157 @@ export default function Notifications() {
 
     try {
       const { data, error } = await supabase
-        .from('notifications')
-        .select('*')
-        .eq('user_id', user.id)
-        .neq('type', 'message')
-        .order('created_at', { ascending: false });
+        .from("notifications")
+        .select("*")
+        .eq("user_id", user.id)
+        .neq("type", "message")
+        .order("created_at", { ascending: false })
+        .limit(50); // Limit to prevent performance issues
 
       if (error) {
         // Check if table exists
-        if (error.code === '42P01') {
-          toast.error('Notifications table not found. Please run the database migration.');
+        if (
+          error.code === "42P01" ||
+          error.message?.includes("relation") ||
+          error.message?.includes("does not exist")
+        ) {
+          console.warn(
+            "Notifications table not found, creating welcome notification"
+          );
+          await createWelcomeNotification();
           return;
         }
-        
+
         // Check for RLS issues
-        if (error.code === '42501') {
-          toast.error('Permission denied. Please check RLS policies.');
+        if (
+          error.code === "42501" ||
+          error.message?.includes("permission denied")
+        ) {
+          console.warn("Permission denied for notifications table");
+          setNotifications([]);
           return;
         }
-        
+
+        // Check for constraint violations
+        if (
+          error.code === "23514" ||
+          error.message?.includes("check constraint")
+        ) {
+          console.warn("Constraint violation in notifications table");
+          setNotifications([]);
+          return;
+        }
+
         throw error;
       }
-      
+
       setNotifications(data || []);
-      
+
       // If no notifications exist, create a welcome notification
       if (!data || data.length === 0) {
         await createWelcomeNotification();
       }
     } catch (error) {
-      toast.error(`Failed to load notifications: ${error.message}`);
+      console.error("Error fetching notifications:", error);
+      // Don't show error toast for common issues, just log them
+      if (
+        !error.message?.includes("relation") &&
+        !error.message?.includes("permission")
+      ) {
+        toast.error(`Failed to load notifications: ${error.message}`);
+      }
       setNotifications([]);
     } finally {
       setLoadingNotifications(false);
     }
   };
-  
+
   const createWelcomeNotification = async () => {
+    if (!user?.id) return;
+
     try {
-      const { error } = await supabase
-        .from('notifications')
+      // Use direct insert only to avoid net schema issues
+      const { error: insertError } = await supabase
+        .from("notifications")
         .insert({
           user_id: user.id,
-          title: 'Welcome to UniMarket! 🎉',
-          message: 'Your notification system is working! You\'ll receive updates about orders, messages, and account activities here.',
-          type: 'success'
+          title: "Welcome to UniMarket! 🎉",
+          message:
+            "Your notification system is working! You'll receive updates about orders, messages, and account activities here.",
+          type: "success",
         });
-        
-      if (error) {
-        // Error handled silently
+
+      if (insertError) {
+        console.warn("Could not create welcome notification:", insertError);
       } else {
-        // Refresh notifications
+        // Refresh notifications after successful insert
         setTimeout(fetchNotifications, 1000);
       }
     } catch (error) {
-      // Error handled silently
+      console.warn("Error creating welcome notification:", error);
     }
   };
 
   const markAsRead = async (notificationId: string) => {
     try {
       const { error } = await supabase
-        .from('notifications')
-        .update({ is_read: true })
-        .eq('id', notificationId);
+        .from("notifications")
+        .update({ is_read: true, updated_at: new Date().toISOString() })
+        .eq("id", notificationId)
+        .eq("user_id", user?.id); // Extra security check
 
-      if (error) throw error;
+      if (error) {
+        console.error("Error marking notification as read:", error);
+        return;
+      }
 
-      setNotifications(prev => 
-        prev.map(notif => 
-          notif.id === notificationId 
-            ? { ...notif, is_read: true }
-            : notif
+      // Optimistically update the UI
+      setNotifications((prev) =>
+        prev.map((notif) =>
+          notif.id === notificationId ? { ...notif, is_read: true } : notif
         )
       );
+
+      // Trigger notification count update
+      window.dispatchEvent(new CustomEvent("notificationsUpdated"));
     } catch (error) {
-      toast.error('Failed to update notification');
+      console.error("Error in markAsRead:", error);
+      toast.error("Failed to update notification");
     }
   };
 
   const deleteNotification = async (notificationId: string) => {
     try {
       const { error } = await supabase
-        .from('notifications')
+        .from("notifications")
         .delete()
-        .eq('id', notificationId);
+        .eq("id", notificationId)
+        .eq("user_id", user?.id); // Extra security check
 
-      if (error) throw error;
+      if (error) {
+        console.error("Error deleting notification:", error);
+        toast.error("Failed to delete notification");
+        return;
+      }
 
-      setNotifications(prev => 
-        prev.filter(notif => notif.id !== notificationId)
+      // Optimistically update the UI
+      setNotifications((prev) =>
+        prev.filter((notif) => notif.id !== notificationId)
       );
-      toast.success('Notification deleted');
+
+      // Trigger notification count update
+      window.dispatchEvent(new CustomEvent("notificationsUpdated"));
+      toast.success("Notification deleted");
     } catch (error) {
-      toast.error('Failed to delete notification');
+      console.error("Error in deleteNotification:", error);
+      toast.error("Failed to delete notification");
     }
   };
 
   const handleNotificationClick = (notification: Notification) => {
     if (notification.is_read) {
       // Toggle expansion for read notifications
-      setExpandedNotifications(prev => {
+      setExpandedNotifications((prev) => {
         const newSet = new Set(prev);
         if (newSet.has(notification.id)) {
           newSet.delete(notification.id);
@@ -171,43 +225,66 @@ export default function Notifications() {
       });
       return;
     }
-    
+
     markAsRead(notification.id);
-    
+
     // Navigate based on notification type
-    if (notification.type === 'order_shipped' || notification.type === 'order_delivered') {
-      navigate('/orders');
-    } else if (notification.type === 'seller_approved') {
-      navigate('/dashboard');
-    } else if (notification.type === 'success' && notification.title.includes('Payout')) {
-      navigate('/wallet');
-    } else if (notification.type === 'warning' && notification.title.includes('Payout')) {
-      navigate('/wallet');
-    } else if (notification.type === 'subscription_expiring' || notification.type === 'subscription_expired') {
-      navigate('/dashboard');
-    } else if (notification.message.toLowerCase().includes('subscription')) {
-      navigate('/dashboard');
-    } else if (notification.message.toLowerCase().includes('order')) {
-      navigate('/orders');
+    if (
+      notification.type === "order_shipped" ||
+      notification.type === "order_delivered"
+    ) {
+      navigate("/orders");
+    } else if (notification.type === "seller_approved") {
+      navigate("/dashboard");
+    } else if (
+      notification.type === "success" &&
+      notification.title.includes("Payout")
+    ) {
+      navigate("/wallet");
+    } else if (
+      notification.type === "warning" &&
+      notification.title.includes("Payout")
+    ) {
+      navigate("/wallet");
+    } else if (
+      notification.type === "subscription_expiring" ||
+      notification.type === "subscription_expired"
+    ) {
+      navigate("/dashboard");
+    } else if (notification.message.toLowerCase().includes("subscription")) {
+      navigate("/dashboard");
+    } else if (notification.message.toLowerCase().includes("order")) {
+      navigate("/orders");
     }
   };
 
   const markAllAsRead = async () => {
+    if (!user?.id) return;
+
     try {
       const { error } = await supabase
-        .from('notifications')
-        .update({ is_read: true })
-        .eq('user_id', user?.id)
-        .eq('is_read', false);
+        .from("notifications")
+        .update({ is_read: true, updated_at: new Date().toISOString() })
+        .eq("user_id", user.id)
+        .eq("is_read", false);
 
-      if (error) throw error;
+      if (error) {
+        console.error("Error marking all notifications as read:", error);
+        toast.error("Failed to update notifications");
+        return;
+      }
 
-      setNotifications(prev => 
-        prev.map(notif => ({ ...notif, is_read: true }))
+      // Optimistically update the UI
+      setNotifications((prev) =>
+        prev.map((notif) => ({ ...notif, is_read: true }))
       );
-      toast.success('All notifications marked as read');
+
+      // Trigger notification count update
+      window.dispatchEvent(new CustomEvent("notificationsUpdated"));
+      toast.success("All notifications marked as read");
     } catch (error) {
-      toast.error('Failed to update notifications');
+      console.error("Error in markAllAsRead:", error);
+      toast.error("Failed to update notifications");
     }
   };
 
@@ -225,17 +302,24 @@ export default function Notifications() {
     return <Navigate to="/auth" replace />;
   }
 
-  const unreadCount = notifications.filter(n => !n.is_read).length;
+  const unreadCount = notifications.filter((n) => !n.is_read).length;
 
   const getNotificationTypeColor = (type: string) => {
     switch (type) {
-      case 'success': return 'bg-green-500';
-      case 'warning': return 'bg-yellow-500';
-      case 'error': return 'bg-red-500';
-      case 'subscription_expiring': return 'bg-orange-500';
-      case 'subscription_expired': return 'bg-red-500';
-      case 'subscription_activated': return 'bg-green-500';
-      default: return 'bg-blue-500';
+      case "success":
+        return "bg-green-500";
+      case "warning":
+        return "bg-yellow-500";
+      case "error":
+        return "bg-red-500";
+      case "subscription_expiring":
+        return "bg-orange-500";
+      case "subscription_expired":
+        return "bg-red-500";
+      case "subscription_activated":
+        return "bg-green-500";
+      default:
+        return "bg-blue-500";
     }
   };
 
@@ -247,17 +331,42 @@ export default function Notifications() {
             <Bell className="h-6 w-6" />
             <h1 className="text-xl sm:text-2xl font-bold">Notifications</h1>
             {unreadCount > 0 && (
-              <Badge variant="destructive" className="text-xs">{unreadCount} unread</Badge>
+              <Badge variant="destructive" className="text-xs">
+                {unreadCount} unread
+              </Badge>
             )}
           </div>
-          
-          {unreadCount > 0 && (
-            <Button onClick={markAllAsRead} variant="outline" size="sm" className="w-full sm:w-auto">
-              <Check className="h-4 w-4 mr-2" />
-              Mark all as read
-            </Button>
-          )}
+
+          <div className="flex gap-2">
+            {unreadCount > 0 && (
+              <Button
+                onClick={markAllAsRead}
+                variant="outline"
+                size="sm"
+                className="w-full sm:w-auto"
+              >
+                <Check className="h-4 w-4 mr-2" />
+                Mark all as read
+              </Button>
+            )}
+
+            {/* <Button 
+              onClick={() => setShowTester(!showTester)} 
+              variant="ghost" 
+              size="sm" 
+              className="w-full sm:w-auto"
+            >
+              <Settings className="h-4 w-4 mr-2" />
+              {showTester ? 'Hide' : 'Show'} Tester
+            </Button> */}
+          </div>
         </div>
+
+        {showTester && (
+          <div className="mb-6">
+            <NotificationTester />
+          </div>
+        )}
 
         {loadingNotifications ? (
           <Card>
@@ -273,7 +382,9 @@ export default function Notifications() {
           <Card>
             <CardContent className="text-center py-12">
               <Bell className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-semibold mb-2">No notifications yet</h3>
+              <h3 className="text-lg font-semibold mb-2">
+                No notifications yet
+              </h3>
               <p className="text-muted-foreground">
                 You'll see important updates and messages here
               </p>
@@ -282,30 +393,40 @@ export default function Notifications() {
         ) : (
           <div className="space-y-4">
             {notifications.map((notification) => (
-              <Card 
-                key={notification.id} 
+              <Card
+                key={notification.id}
                 className={`cursor-pointer hover:shadow-md transition-shadow ${
-                  !notification.is_read ? 'ring-2 ring-primary/20' : ''
+                  !notification.is_read ? "ring-2 ring-primary/20" : ""
                 }`}
                 onClick={() => handleNotificationClick(notification)}
               >
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-start gap-3 flex-1 min-w-0">
-                      <div className={`w-3 h-3 rounded-full mt-2 flex-shrink-0 ${getNotificationTypeColor(notification.type)}`} />
+                      <div
+                        className={`w-3 h-3 rounded-full mt-2 flex-shrink-0 ${getNotificationTypeColor(
+                          notification.type
+                        )}`}
+                      />
                       <div className="flex-1 min-w-0">
-                        <CardTitle className="text-sm sm:text-base truncate">{notification.title}</CardTitle>
-                        <p className={`text-xs sm:text-sm text-muted-foreground mt-1 ${
-                          expandedNotifications.has(notification.id) ? '' : 'line-clamp-2'
-                        }`}>
+                        <CardTitle className="text-sm sm:text-base truncate">
+                          {notification.title}
+                        </CardTitle>
+                        <p
+                          className={`text-xs sm:text-sm text-muted-foreground mt-1 ${
+                            expandedNotifications.has(notification.id)
+                              ? ""
+                              : "line-clamp-2"
+                          }`}
+                        >
                           {notification.message}
                         </p>
                         <p className="text-xs text-muted-foreground mt-2">
-                          {format(new Date(notification.created_at), 'PPp')}
+                          {format(new Date(notification.created_at), "PPp")}
                         </p>
                       </div>
                     </div>
-                    
+
                     <div className="flex items-center gap-1 flex-shrink-0">
                       {!notification.is_read && (
                         <Button

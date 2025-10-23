@@ -1,8 +1,8 @@
-import React, { Component, ErrorInfo, ReactNode } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { AlertTriangle, RefreshCw } from 'lucide-react';
-import { logError } from '@/lib/errors';
+import React, { Component, ErrorInfo, ReactNode } from "react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { AlertTriangle, RefreshCw } from "lucide-react";
+import { logError } from "@/lib/errors";
 
 interface Props {
   children: ReactNode;
@@ -48,23 +48,20 @@ export class ErrorBoundary extends Component<Props, State> {
           </CardHeader>
           <CardContent className="text-center space-y-4">
             <p className="text-muted-foreground">
-              We encountered an unexpected error. Please try refreshing the page.
+              We encountered an unexpected error. Please try refreshing the
+              page.
             </p>
-            {process.env.NODE_ENV === 'development' && this.state.error && (
+            {process.env.NODE_ENV === "development" && this.state.error && (
               <details className="text-left text-xs bg-muted p-2 rounded">
                 <summary className="cursor-pointer">Error Details</summary>
                 <pre className="mt-2 whitespace-pre-wrap">
                   {this.state.error.message}
-                  {'\n\n'}
+                  {"\n\n"}
                   {this.state.error.stack}
                 </pre>
               </details>
             )}
             <div className="flex gap-2 justify-center">
-              <Button onClick={this.handleRetry} variant="outline">
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Try Again
-              </Button>
               <Button onClick={() => window.location.reload()}>
                 Refresh Page
               </Button>

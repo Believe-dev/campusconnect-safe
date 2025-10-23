@@ -1,6 +1,6 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { Book, Laptop, Shirt, Utensils, ShoppingBag, Dumbbell, Home, PenTool, Users } from 'lucide-react';
+import { Book, Laptop, Shirt, Utensils, ShoppingBag, Dumbbell, Home, PenTool, Users, Sparkles } from 'lucide-react';
 import { CATEGORIES } from '@/lib/constants';
 
 interface ProductFiltersProps {
@@ -18,6 +18,7 @@ const categoryIcons = {
   Home,
   PenTool,
   Users,
+  Sparkles,
 };
 
 export const ProductFilters: React.FC<ProductFiltersProps> = ({

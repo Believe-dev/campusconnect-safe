@@ -2318,16 +2318,21 @@ export default function Admin() {
                       className="pl-8"
                     />
                   </div>
-                  <Select value={statusFilter} onValueChange={setStatusFilter}>
-                    <SelectTrigger className="w-32">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Status</SelectItem>
-                      <SelectItem value="active">Active</SelectItem>
-                      <SelectItem value="banned">Banned</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="w-32 h-10 px-3 pr-10 border border-input bg-background rounded-md text-sm focus:border-university-green focus:outline-none appearance-none"
+                    style={{
+                      backgroundImage: `url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIiIGhlaWdodD0iOCIgdmlld0JveD0iMCAwIDEyIDgiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxwYXRoIGQ9Ik0xIDFMNiA2TDExIDEiIHN0cm9rZT0iIzZCNzI4MCIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz4KPC9zdmc+')`,
+                      backgroundRepeat: 'no-repeat',
+                      backgroundPosition: 'right 12px center',
+                      backgroundSize: '12px 8px'
+                    }}
+                  >
+                    <option value="all">All Status</option>
+                    <option value="active">Active</option>
+                    <option value="banned">Banned</option>
+                  </select>
                 </div>
               </CardHeader>
               <CardContent>
@@ -2601,26 +2606,21 @@ export default function Admin() {
 
                                   {/* Actions */}
                                   <div className="flex gap-2 mt-6 pt-4 border-t flex-wrap">
-                                    <Select
-                                      onValueChange={(
-                                        value: "admin" | "seller" | "buyer"
-                                      ) => updateUserRole(user.user_id, value)}
+                                    <select
+                                      onChange={(e) => updateUserRole(user.user_id, e.target.value as "admin" | "seller" | "buyer")}
+                                      className="w-40 h-10 px-3 pr-10 border border-input bg-background rounded-md text-sm focus:border-university-green focus:outline-none appearance-none"
+                                      style={{
+                                        backgroundImage: `url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIiIGhlaWdodD0iOCIgdmlld0JveD0iMCAwIDEyIDgiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxwYXRoIGQ9Ik0xIDFMNiA2TDExIDEiIHN0cm9rZT0iIzZCNzI4MCIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz4KPC9zdmc+')`,
+                                        backgroundRepeat: 'no-repeat',
+                                        backgroundPosition: 'right 12px center',
+                                        backgroundSize: '12px 8px'
+                                      }}
                                     >
-                                      <SelectTrigger className="w-40">
-                                        <SelectValue placeholder="Change role" />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        <SelectItem value="buyer">
-                                          Buyer
-                                        </SelectItem>
-                                        <SelectItem value="seller">
-                                          Seller
-                                        </SelectItem>
-                                        <SelectItem value="admin">
-                                          Admin
-                                        </SelectItem>
-                                      </SelectContent>
-                                    </Select>
+                                      <option value="">Change role</option>
+                                      <option value="buyer">Buyer</option>
+                                      <option value="seller">Seller</option>
+                                      <option value="admin">Admin</option>
+                                    </select>
 
                                     {/* Password Reset */}
                                     <Dialog>
@@ -3081,193 +3081,137 @@ export default function Admin() {
                                           <Label htmlFor="university_name">
                                             University
                                           </Label>
-                                          <Popover>
-                                            <PopoverTrigger asChild>
-                                              <Button
-                                                variant="outline"
-                                                role="combobox"
-                                                className="w-full justify-between"
-                                              >
-                                                {editingUser.university_name ||
-                                                  "Select university..."}
-                                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                                              </Button>
-                                            </PopoverTrigger>
-                                            <PopoverContent className="w-full p-0">
-                                              <Command>
-                                                <CommandInput placeholder="Search universities..." />
-                                                <CommandList>
-                                                  <CommandEmpty>
-                                                    No university found.
-                                                  </CommandEmpty>
-                                                  <CommandGroup>
-                                                    {[
-                                                      "Abia State University",
-                                                      "Abubakar Tafawa Balewa University",
-                                                      "Achievers University",
-                                                      "Adamawa State University",
-                                                      "Adeleke University",
-                                                      "Afe Babalola University",
-                                                      "African University of Science and Technology",
-                                                      "Ahmadu Bello University",
-                                                      "Ajayi Crowther University",
-                                                      "Akwa Ibom State University",
-                                                      "Alex Ekwueme Federal University",
-                                                      "American University of Nigeria",
-                                                      "Anchor University",
-                                                      "Augustine University",
-                                                      "Babcock University",
-                                                      "Baze University",
-                                                      "Bayero University Kano",
-                                                      "Bells University of Technology",
-                                                      "Benson Idahosa University",
-                                                      "Bingham University",
-                                                      "Bowen University",
-                                                      "Caleb University",
-                                                      "Caritas University",
-                                                      "Chrisland University",
-                                                      "Christopher University",
-                                                      "Clifford University",
-                                                      "Coal City University",
-                                                      "Covenant University",
-                                                      "Crawford University",
-                                                      "Cross River University of Technology",
-                                                      "Delta State University",
-                                                      "Eastern Palm University",
-                                                      "Ebonyi State University",
-                                                      "Edo University",
-                                                      "Ekiti State University",
-                                                      "Elizade University",
-                                                      "Enugu State University of Science and Technology",
-                                                      "Federal University Birnin Kebbi",
-                                                      "Federal University Dutse",
-                                                      "Federal University Dutsin-Ma",
-                                                      "Federal University Gashua",
-                                                      "Federal University Gusau",
-                                                      "Federal University Kashere",
-                                                      "Federal University Lafia",
-                                                      "Federal University Lokoja",
-                                                      "Federal University Ndufu-Alike",
-                                                      "Federal University of Agriculture, Abeokuta",
-                                                      "Federal University of Agriculture, Makurdi",
-                                                      "Federal University of Petroleum Resources",
-                                                      "Federal University of Technology, Akure",
-                                                      "Federal University of Technology, Minna",
-                                                      "Federal University of Technology, Owerri",
-                                                      "Federal University Otuoke",
-                                                      "Federal University Oye-Ekiti",
-                                                      "Federal University Wukari",
-                                                      "Fountain University",
-                                                      "Godfrey Okoye University",
-                                                      "Gombe State University",
-                                                      "Gregory University",
-                                                      "Hallmark University",
-                                                      "Hezekiah University",
-                                                      "Igbinedion University",
-                                                      "Imo State University",
-                                                      "Joseph Ayo Babalola University",
-                                                      "Kaduna State University",
-                                                      "Kano University of Science and Technology",
-                                                      "Kebbi State University of Science and Technology",
-                                                      "Kogi State University",
-                                                      "Kwara State University",
-                                                      "Ladoke Akintola University of Technology",
-                                                      "Lagos State University",
-                                                      "Landmark University",
-                                                      "Lead City University",
-                                                      "Madonna University",
-                                                      "Michael Okpara University of Agriculture",
-                                                      "Modibbo Adama University of Technology",
-                                                      "Mountain Top University",
-                                                      "Nasarawa State University",
-                                                      "Niger Delta University",
-                                                      "Nile University of Nigeria",
-                                                      "Nnamdi Azikiwe University",
-                                                      "Northwest University",
-                                                      "Novena University",
-                                                      "Obafemi Awolowo University",
-                                                      "Obong University",
-                                                      "Oduduwa University",
-                                                      "Olabisi Onabanjo University",
-                                                      "Osun State University",
-                                                      "Pan-Atlantic University",
-                                                      "Paul University",
-                                                      "Plateau State University",
-                                                      "Redeemer's University",
-                                                      "Renaissance University",
-                                                      "Rhema University",
-                                                      "Rivers State University",
-                                                      "Salem University",
-                                                      "Samuel Adegboyega University",
-                                                      "Sokoto State University",
-                                                      "Summit University",
-                                                      "Taraba State University",
-                                                      "Tansian University",
-                                                      "University of Abuja",
-                                                      "University of Agriculture and Environmental Sciences",
-                                                      "University of Benin",
-                                                      "University of Calabar",
-                                                      "University of Ibadan",
-                                                      "University of Ilorin",
-                                                      "University of Jos",
-                                                      "University of Lagos",
-                                                      "University of Maiduguri",
-                                                      "University of Nigeria, Nsukka",
-                                                      "University of Port Harcourt",
-                                                      "University of Uyo",
-                                                      "Veritas University",
-                                                      "Wesley University",
-                                                      "Western Delta University",
-                                                      "Yobe State University",
-                                                      "Yusuf Maitama Sule University",
-                                                    ]
-                                                      .sort()
-                                                      .map((uni) => (
-                                                        <CommandItem
-                                                          key={uni}
-                                                          value={uni}
-                                                          onSelect={(
-                                                            currentValue
-                                                          ) => {
-                                                            const form =
-                                                              document.querySelector(
-                                                                "form[data-university-form]"
-                                                              ) as HTMLFormElement;
-                                                            if (form) {
-                                                              const input =
-                                                                form.querySelector(
-                                                                  'input[name="university_name"]'
-                                                                ) as HTMLInputElement;
-                                                              if (input)
-                                                                input.value =
-                                                                  currentValue;
-                                                            }
-                                                          }}
-                                                        >
-                                                          <Check
-                                                            className={cn(
-                                                              "mr-2 h-4 w-4",
-                                                              editingUser.university_name ===
-                                                                uni
-                                                                ? "opacity-100"
-                                                                : "opacity-0"
-                                                            )}
-                                                          />
-                                                          {uni}
-                                                        </CommandItem>
-                                                      ))}
-                                                  </CommandGroup>
-                                                </CommandList>
-                                              </Command>
-                                            </PopoverContent>
-                                          </Popover>
-                                          <Input
+                                          <select
                                             name="university_name"
-                                            type="hidden"
-                                            defaultValue={
-                                              editingUser.university_name || ""
-                                            }
-                                          />
+                                            defaultValue={editingUser.university_name || ""}
+                                            className="w-full h-10 px-3 pr-10 border border-input bg-background rounded-md text-sm focus:border-university-green focus:outline-none appearance-none"
+                                            style={{
+                                              backgroundImage: `url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIiIGhlaWdodD0iOCIgdmlld0JveD0iMCAwIDEyIDgiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxwYXRoIGQ9Ik0xIDFMNiA2TDExIDEiIHN0cm9rZT0iIzZCNzI4MCIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz4KPC9zdmc+')`,
+                                              backgroundRepeat: 'no-repeat',
+                                              backgroundPosition: 'right 12px center',
+                                              backgroundSize: '12px 8px'
+                                            }}
+                                          >
+                                            <option value="">Select university...</option>
+                                            <option value="Abia State University">Abia State University</option>
+                                            <option value="Abubakar Tafawa Balewa University">Abubakar Tafawa Balewa University</option>
+                                            <option value="Achievers University">Achievers University</option>
+                                            <option value="Adamawa State University">Adamawa State University</option>
+                                            <option value="Adeleke University">Adeleke University</option>
+                                            <option value="Afe Babalola University">Afe Babalola University</option>
+                                            <option value="African University of Science and Technology">African University of Science and Technology</option>
+                                            <option value="Ahmadu Bello University">Ahmadu Bello University</option>
+                                            <option value="Ajayi Crowther University">Ajayi Crowther University</option>
+                                            <option value="Akwa Ibom State University">Akwa Ibom State University</option>
+                                            <option value="Alex Ekwueme Federal University">Alex Ekwueme Federal University</option>
+                                            <option value="American University of Nigeria">American University of Nigeria</option>
+                                            <option value="Anchor University">Anchor University</option>
+                                            <option value="Augustine University">Augustine University</option>
+                                            <option value="Babcock University">Babcock University</option>
+                                            <option value="Baze University">Baze University</option>
+                                            <option value="Bayero University Kano">Bayero University Kano</option>
+                                            <option value="Bells University of Technology">Bells University of Technology</option>
+                                            <option value="Benson Idahosa University">Benson Idahosa University</option>
+                                            <option value="Bingham University">Bingham University</option>
+                                            <option value="Bowen University">Bowen University</option>
+                                            <option value="Caleb University">Caleb University</option>
+                                            <option value="Caritas University">Caritas University</option>
+                                            <option value="Chrisland University">Chrisland University</option>
+                                            <option value="Christopher University">Christopher University</option>
+                                            <option value="Clifford University">Clifford University</option>
+                                            <option value="Coal City University">Coal City University</option>
+                                            <option value="Covenant University">Covenant University</option>
+                                            <option value="Crawford University">Crawford University</option>
+                                            <option value="Cross River University of Technology">Cross River University of Technology</option>
+                                            <option value="Delta State University">Delta State University</option>
+                                            <option value="Eastern Palm University">Eastern Palm University</option>
+                                            <option value="Ebonyi State University">Ebonyi State University</option>
+                                            <option value="Edo University">Edo University</option>
+                                            <option value="Ekiti State University">Ekiti State University</option>
+                                            <option value="Elizade University">Elizade University</option>
+                                            <option value="Enugu State University of Science and Technology">Enugu State University of Science and Technology</option>
+                                            <option value="Federal University Birnin Kebbi">Federal University Birnin Kebbi</option>
+                                            <option value="Federal University Dutse">Federal University Dutse</option>
+                                            <option value="Federal University Dutsin-Ma">Federal University Dutsin-Ma</option>
+                                            <option value="Federal University Gashua">Federal University Gashua</option>
+                                            <option value="Federal University Gusau">Federal University Gusau</option>
+                                            <option value="Federal University Kashere">Federal University Kashere</option>
+                                            <option value="Federal University Lafia">Federal University Lafia</option>
+                                            <option value="Federal University Lokoja">Federal University Lokoja</option>
+                                            <option value="Federal University Ndufu-Alike">Federal University Ndufu-Alike</option>
+                                            <option value="Federal University of Agriculture, Abeokuta">Federal University of Agriculture, Abeokuta</option>
+                                            <option value="Federal University of Agriculture, Makurdi">Federal University of Agriculture, Makurdi</option>
+                                            <option value="Federal University of Petroleum Resources">Federal University of Petroleum Resources</option>
+                                            <option value="Federal University of Technology, Akure">Federal University of Technology, Akure</option>
+                                            <option value="Federal University of Technology, Minna">Federal University of Technology, Minna</option>
+                                            <option value="Federal University of Technology, Owerri">Federal University of Technology, Owerri</option>
+                                            <option value="Federal University Otuoke">Federal University Otuoke</option>
+                                            <option value="Federal University Oye-Ekiti">Federal University Oye-Ekiti</option>
+                                            <option value="Federal University Wukari">Federal University Wukari</option>
+                                            <option value="Fountain University">Fountain University</option>
+                                            <option value="Godfrey Okoye University">Godfrey Okoye University</option>
+                                            <option value="Gombe State University">Gombe State University</option>
+                                            <option value="Gregory University">Gregory University</option>
+                                            <option value="Hallmark University">Hallmark University</option>
+                                            <option value="Hezekiah University">Hezekiah University</option>
+                                            <option value="Igbinedion University">Igbinedion University</option>
+                                            <option value="Imo State University">Imo State University</option>
+                                            <option value="Joseph Ayo Babalola University">Joseph Ayo Babalola University</option>
+                                            <option value="Kaduna State University">Kaduna State University</option>
+                                            <option value="Kano University of Science and Technology">Kano University of Science and Technology</option>
+                                            <option value="Kebbi State University of Science and Technology">Kebbi State University of Science and Technology</option>
+                                            <option value="Kogi State University">Kogi State University</option>
+                                            <option value="Kwara State University">Kwara State University</option>
+                                            <option value="Ladoke Akintola University of Technology">Ladoke Akintola University of Technology</option>
+                                            <option value="Lagos State University">Lagos State University</option>
+                                            <option value="Landmark University">Landmark University</option>
+                                            <option value="Lead City University">Lead City University</option>
+                                            <option value="Madonna University">Madonna University</option>
+                                            <option value="Michael Okpara University of Agriculture">Michael Okpara University of Agriculture</option>
+                                            <option value="Modibbo Adama University of Technology">Modibbo Adama University of Technology</option>
+                                            <option value="Mountain Top University">Mountain Top University</option>
+                                            <option value="Nasarawa State University">Nasarawa State University</option>
+                                            <option value="Niger Delta University">Niger Delta University</option>
+                                            <option value="Nile University of Nigeria">Nile University of Nigeria</option>
+                                            <option value="Nnamdi Azikiwe University">Nnamdi Azikiwe University</option>
+                                            <option value="Northwest University">Northwest University</option>
+                                            <option value="Novena University">Novena University</option>
+                                            <option value="Obafemi Awolowo University">Obafemi Awolowo University</option>
+                                            <option value="Obong University">Obong University</option>
+                                            <option value="Oduduwa University">Oduduwa University</option>
+                                            <option value="Olabisi Onabanjo University">Olabisi Onabanjo University</option>
+                                            <option value="Osun State University">Osun State University</option>
+                                            <option value="Pan-Atlantic University">Pan-Atlantic University</option>
+                                            <option value="Paul University">Paul University</option>
+                                            <option value="Plateau State University">Plateau State University</option>
+                                            <option value="Redeemer's University">Redeemer's University</option>
+                                            <option value="Renaissance University">Renaissance University</option>
+                                            <option value="Rhema University">Rhema University</option>
+                                            <option value="Rivers State University">Rivers State University</option>
+                                            <option value="Salem University">Salem University</option>
+                                            <option value="Samuel Adegboyega University">Samuel Adegboyega University</option>
+                                            <option value="Sokoto State University">Sokoto State University</option>
+                                            <option value="Summit University">Summit University</option>
+                                            <option value="Taraba State University">Taraba State University</option>
+                                            <option value="Tansian University">Tansian University</option>
+                                            <option value="University of Abuja">University of Abuja</option>
+                                            <option value="University of Agriculture and Environmental Sciences">University of Agriculture and Environmental Sciences</option>
+                                            <option value="University of Benin">University of Benin</option>
+                                            <option value="University of Calabar">University of Calabar</option>
+                                            <option value="University of Ibadan">University of Ibadan</option>
+                                            <option value="University of Ilorin">University of Ilorin</option>
+                                            <option value="University of Jos">University of Jos</option>
+                                            <option value="University of Lagos">University of Lagos</option>
+                                            <option value="University of Maiduguri">University of Maiduguri</option>
+                                            <option value="University of Nigeria, Nsukka">University of Nigeria, Nsukka</option>
+                                            <option value="University of Port Harcourt">University of Port Harcourt</option>
+                                            <option value="University of Uyo">University of Uyo</option>
+                                            <option value="Veritas University">Veritas University</option>
+                                            <option value="Wesley University">Wesley University</option>
+                                            <option value="Western Delta University">Western Delta University</option>
+                                            <option value="Yobe State University">Yobe State University</option>
+                                            <option value="Yusuf Maitama Sule University">Yusuf Maitama Sule University</option>
+                                          </select>
                                         </div>
                                         <div>
                                           <Label htmlFor="phone_number">
@@ -6605,17 +6549,22 @@ export default function Admin() {
                       </div>
                       <div>
                         <Label htmlFor="type">Type</Label>
-                        <Select name="type" defaultValue="info">
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="info">Info</SelectItem>
-                            <SelectItem value="success">Success</SelectItem>
-                            <SelectItem value="warning">Warning</SelectItem>
-                            <SelectItem value="error">Error</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <select
+                          name="type"
+                          defaultValue="info"
+                          className="w-full h-10 px-3 pr-10 border border-input bg-background rounded-md text-sm focus:border-university-green focus:outline-none appearance-none"
+                          style={{
+                            backgroundImage: `url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIiIGhlaWdodD0iOCIgdmlld0JveD0iMCAwIDEyIDgiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxwYXRoIGQ9Ik0xIDFMNiA2TDExIDEiIHN0cm9rZT0iIzZCNzI4MCIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz4KPC9zdmc+')`,
+                            backgroundRepeat: 'no-repeat',
+                            backgroundPosition: 'right 12px center',
+                            backgroundSize: '12px 8px'
+                          }}
+                        >
+                          <option value="info">Info</option>
+                          <option value="success">Success</option>
+                          <option value="warning">Warning</option>
+                          <option value="error">Error</option>
+                        </select>
                       </div>
                     </div>
                     <div>
@@ -6630,19 +6579,22 @@ export default function Admin() {
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <Label htmlFor="recipient">Send To</Label>
-                        <Select name="recipient" defaultValue="all">
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">All Users</SelectItem>
-                            <SelectItem value="sellers">All Sellers</SelectItem>
-                            <SelectItem value="buyers">All Buyers</SelectItem>
-                            <SelectItem value="specific">
-                              Specific User
-                            </SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <select
+                          name="recipient"
+                          defaultValue="all"
+                          className="w-full h-10 px-3 pr-10 border border-input bg-background rounded-md text-sm focus:border-university-green focus:outline-none appearance-none"
+                          style={{
+                            backgroundImage: `url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIiIGhlaWdodD0iOCIgdmlld0JveD0iMCAwIDEyIDgiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxwYXRoIGQ9Ik0xIDFMNiA2TDExIDEiIHN0cm9rZT0iIzZCNzI4MCIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz4KPC9zdmc+')`,
+                            backgroundRepeat: 'no-repeat',
+                            backgroundPosition: 'right 12px center',
+                            backgroundSize: '12px 8px'
+                          }}
+                        >
+                          <option value="all">All Users</option>
+                          <option value="sellers">All Sellers</option>
+                          <option value="buyers">All Buyers</option>
+                          <option value="specific">Specific User</option>
+                        </select>
                       </div>
                       <div>
                         <Label htmlFor="specific_user_id">

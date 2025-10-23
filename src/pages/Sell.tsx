@@ -16,6 +16,7 @@ const categories = [
   'Electronics',
   'Fashion & Accessories',
   'Food & Beverages',
+  'Cosmetics & Skincare',
   'Services',
   'Sports & Recreation',
   'Home & Living',
