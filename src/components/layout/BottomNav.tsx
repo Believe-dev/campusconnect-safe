@@ -83,7 +83,7 @@ const BottomNav = () => {
      * Content padding prevents overlap with scrollable content
      */
     <nav
-      className="force-fixed-bottom transition-all duration-300 ease-out"
+      className="force-fixed-bottom pb-[-80px] transition-all duration-300 ease-out"
       style={{
         position: "fixed",
         bottom: 0,

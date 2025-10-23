@@ -36,8 +36,8 @@ export const PullToRefresh: React.FC<PullToRefreshProps> = ({
     
     scrollTop.current = container.scrollTop;
     
-    // Only start pull-to-refresh if at the top of the scroll container
-    if (scrollTop.current <= 0) {
+    // Only start pull-to-refresh if exactly at the top AND not scrolling
+    if (scrollTop.current === 0) {
       startY.current = e.touches[0].clientY;
       currentY.current = startY.current;
       isDragging.current = true;
@@ -53,23 +53,26 @@ export const PullToRefresh: React.FC<PullToRefreshProps> = ({
     currentY.current = e.touches[0].clientY;
     const deltaY = currentY.current - startY.current;
     
-    // Only allow pulling down when at the top
-    if (deltaY > 0 && container.scrollTop <= 0) {
-      e.preventDefault(); // Prevent default scroll behavior
+    // Only allow pulling down when exactly at top AND pulling down
+    if (deltaY > 10 && container.scrollTop === 0) {
+      e.preventDefault();
       
-      // Apply resistance curve for natural feel (Chrome-like)
       const resistance = Math.min(deltaY * 0.5, threshold * 1.2);
       setPullDistance(resistance);
       
       if (resistance >= threshold) {
         setRefreshState('ready');
-        // Haptic feedback on mobile (if supported)
         if ('vibrate' in navigator) {
           navigator.vibrate(10);
         }
       } else {
         setRefreshState('pulling');
       }
+    } else if (deltaY < 0) {
+      // If scrolling up, cancel pull-to-refresh
+      isDragging.current = false;
+      setRefreshState('idle');
+      setPullDistance(0);
     }
   }, [disabled, isRefreshing, threshold]);
 
@@ -112,7 +115,7 @@ export const PullToRefresh: React.FC<PullToRefreshProps> = ({
     if (!container) return;
 
     // Add passive: false to allow preventDefault
-    container.addEventListener('touchstart', handleTouchStart, { passive: false });
+    container.addEventListener('touchstart', handleTouchStart, { passive: true });
     container.addEventListener('touchmove', handleTouchMove, { passive: false });
     container.addEventListener('touchend', handleTouchEnd, { passive: true });
 
@@ -126,13 +129,13 @@ export const PullToRefresh: React.FC<PullToRefreshProps> = ({
   const getIndicatorOpacity = () => {
     if (refreshState === 'idle') return 0;
     if (refreshState === 'refreshing') return 1;
-    return Math.min(pullDistance / (threshold * 0.5), 1);
+    return Math.min(pullDistance / (threshold * 0.6), 0.95);
   };
 
   const getIndicatorScale = () => {
     if (refreshState === 'refreshing') return 1;
-    if (refreshState === 'ready') return 1.1; // Slightly larger when ready
-    return Math.min(pullDistance / threshold * 0.8 + 0.2, 1);
+    if (refreshState === 'ready') return 1.05;
+    return Math.min(pullDistance / threshold * 0.7 + 0.3, 1);
   };
 
   const getArrowRotation = () => {
@@ -145,50 +148,48 @@ export const PullToRefresh: React.FC<PullToRefreshProps> = ({
       ref={containerRef}
       className={`pull-container relative overflow-auto h-full ${className}`}
       style={{
-        transform: `translateY(${Math.min(pullDistance * 0.3, threshold * 0.3)}px)`,
-        transition: refreshState === 'idle' ? 'transform 0.3s ease-out' : 'none'
+        transform: `translateY(${Math.min(pullDistance * 0.2, threshold * 0.25)}px)`,
+        transition: refreshState === 'idle' ? 'transform 0.4s cubic-bezier(0.4, 0, 0.2, 1)' : 'none'
       }}
     >
       {/* Pull-to-refresh indicator */}
       <div 
-        className={`pull-indicator absolute top-0 left-1/2 transform -translate-x-1/2 z-50 flex flex-col items-center justify-center ${
-          refreshState === 'pulling' ? 'pulling' : ''
-        } ${
-          refreshState === 'ready' ? 'ready' : ''
-        } ${
-          refreshState === 'refreshing' ? 'refreshing' : ''
-        }`}
+        className="fixed top-0 left-0 right-0 z-50 flex flex-col items-center justify-center pointer-events-none"
         style={{
-          transform: `translateX(-50%) translateY(${Math.max(-60 + pullDistance * 0.8, -60)}px)`,
+          transform: `translateY(${Math.max(-80 + pullDistance * 0.6, -80)}px)`,
           opacity: getIndicatorOpacity(),
-          transition: refreshState === 'idle' ? 'all 0.3s ease-out' : 'opacity 0.1s ease-out'
+          transition: refreshState === 'idle' ? 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)' : 'none'
         }}
       >
         <div 
-          className="pull-backdrop bg-white/90 backdrop-blur-sm rounded-full p-3 shadow-lg border border-gray-200/50"
+          className="bg-white/95 backdrop-blur-md rounded-full p-3 shadow-xl border border-gray-200/30 mx-auto"
           style={{
             transform: `scale(${getIndicatorScale()})`,
-            transition: refreshState === 'refreshing' ? 'transform 0.2s ease-out' : 'none'
+            transition: 'transform 0.2s ease-out'
           }}
         >
-          {refreshState === 'refreshing' ? (
-            <Loader2 className="w-6 h-6 text-primary" />
-          ) : (
-            <ArrowDown 
-              className="pull-arrow w-6 h-6 text-primary"
-              style={{
-                transform: `rotate(${getArrowRotation()}deg)`
-              }}
-            />
-          )}
+          <div className="relative">
+            {refreshState === 'refreshing' ? (
+              <Loader2 className="w-6 h-6 text-primary animate-spin" />
+            ) : (
+              <ArrowDown 
+                className="w-6 h-6 text-primary transition-transform duration-300 ease-out"
+                style={{
+                  transform: `rotate(${getArrowRotation()}deg)`
+                }}
+              />
+            )}
+          </div>
         </div>
         
         {/* Status text */}
-        <div className="mt-2 text-xs font-medium text-gray-600 bg-white/80 backdrop-blur-sm px-2 py-1 rounded-full">
-          {refreshState === 'refreshing' && 'Refreshing...'}
-          {refreshState === 'ready' && 'Release to refresh'}
-          {refreshState === 'pulling' && 'Pull to refresh'}
-        </div>
+        {refreshState !== 'idle' && (
+          <div className="mt-3 text-xs font-medium text-gray-700 bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-full shadow-sm">
+            {refreshState === 'refreshing' && 'Refreshing...'}
+            {refreshState === 'ready' && 'Release to refresh'}
+            {refreshState === 'pulling' && 'Pull to refresh'}
+          </div>
+        )}
       </div>
 
       {/* Content */}
