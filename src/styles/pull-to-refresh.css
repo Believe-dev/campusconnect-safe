@@ -1,0 +1,108 @@
+/* Pull-to-Refresh Custom Animations */
+
+/* Smooth pull indicator animations */
+.pull-indicator {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.pull-indicator.pulling {
+  animation: pullPulse 0.8s ease-in-out infinite alternate;
+}
+
+.pull-indicator.ready {
+  animation: readyBounce 0.6s ease-in-out infinite;
+}
+
+.pull-indicator.refreshing {
+  animation: refreshSpin 1s linear infinite;
+}
+
+/* Keyframe animations */
+@keyframes pullPulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+  100% {
+    transform: scale(1.1);
+    opacity: 1;
+  }
+}
+
+@keyframes readyBounce {
+  0%, 100% {
+    transform: scale(1) translateY(0);
+  }
+  50% {
+    transform: scale(1.15) translateY(-2px);
+  }
+}
+
+@keyframes refreshSpin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* Arrow rotation animation */
+.pull-arrow {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Smooth container transform */
+.pull-container {
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform;
+}
+
+/* Backdrop blur effect for indicator */
+.pull-backdrop {
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* Mobile-optimized touch handling */
+@media (max-width: 768px) {
+  .pull-container {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+  }
+  
+  /* Prevent text selection during pull */
+  .pull-container * {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+  }
+  
+  /* Re-enable text selection for inputs */
+  .pull-container input,
+  .pull-container textarea,
+  .pull-container [contenteditable] {
+    -webkit-user-select: text;
+    -moz-user-select: text;
+    -ms-user-select: text;
+    user-select: text;
+  }
+}
+
+/* Reduce motion for accessibility */
+@media (prefers-reduced-motion: reduce) {
+  .pull-indicator,
+  .pull-arrow,
+  .pull-container {
+    transition: none;
+    animation: none;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .pull-indicator {
+    border: 2px solid currentColor;
+  }
+}

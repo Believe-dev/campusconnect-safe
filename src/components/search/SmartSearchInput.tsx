@@ -11,7 +11,7 @@ import { expandSearchTerms } from '@/utils/searchUtils';
 interface SearchSuggestion {
   id: string;
   text: string;
-  type: 'product' | 'category' | 'recent' | 'trending';
+  type: 'product' | 'category' | 'recent' | 'trending' | 'live_feed';
   count?: number;
 }
 
@@ -67,20 +67,69 @@ const SmartSearchInput = ({
         .eq('is_active', true)
         .or(searchConditions)
         .order('created_at', { ascending: false })
-        .limit(8);
+        .limit(6);
 
-      // Get popular categories
-      const { data: categoryData } = await supabase
-        .from('products')
-        .select('category')
+      // Get live feed suggestions
+      const { data: liveFeeds } = await supabase
+        .from('live_feed')
+        .select('title, price')
         .eq('is_active', true)
-        .or(expandedTerms.map(term => `category.ilike.%${term}%`).join(','))
-        .limit(5);
+        .gt('expires_at', new Date().toISOString())
+        .or(searchConditions)
+        .order('created_at', { ascending: false })
+        .limit(4);
+
+      // Get popular categories from both products and live feed
+      const [{ data: categoryData }, { data: liveFeedTitles }] = await Promise.all([
+        supabase
+          .from('products')
+          .select('category')
+          .eq('is_active', true)
+          .or(expandedTerms.map(term => `category.ilike.%${term}%`).join(','))
+          .limit(3),
+        supabase
+          .from('live_feed')
+          .select('title')
+          .eq('is_active', true)
+          .gt('expires_at', new Date().toISOString())
+          .or(expandedTerms.map(term => `title.ilike.%${term}%`).join(','))
+          .limit(2)
+      ]);
 
       const newSuggestions: SearchSuggestion[] = [];
       const addedTexts = new Set<string>();
 
-      // Add exact product matches first
+      // Add live feed matches first (higher priority)
+      if (liveFeeds) {
+        liveFeeds.forEach(liveFeed => {
+          const titleLower = liveFeed.title.toLowerCase();
+          if (!addedTexts.has(titleLower) && newSuggestions.length < 6) {
+            newSuggestions.push({
+              id: `live_feed-${liveFeed.title}`,
+              text: liveFeed.title,
+              type: 'live_feed'
+            });
+            addedTexts.add(titleLower);
+          }
+        });
+      }
+
+      // Add additional live feed titles from search
+      if (liveFeedTitles) {
+        liveFeedTitles.forEach(item => {
+          const titleLower = item.title.toLowerCase();
+          if (!addedTexts.has(titleLower) && newSuggestions.length < 6) {
+            newSuggestions.push({
+              id: `live_feed_search-${item.title}`,
+              text: item.title,
+              type: 'live_feed'
+            });
+            addedTexts.add(titleLower);
+          }
+        });
+      }
+
+      // Add exact product matches
       if (products) {
         products.forEach(product => {
           const titleLower = product.title.toLowerCase();
@@ -229,6 +278,9 @@ const SmartSearchInput = ({
                     )}
                     {suggestion.type === 'product' && (
                       <span className="text-xs text-muted-foreground bg-blue-100 text-blue-600 px-2 py-1 rounded-full">Product</span>
+                    )}
+                    {suggestion.type === 'live_feed' && (
+                      <span className="text-xs text-white bg-green-500 px-2 py-1 rounded-full animate-pulse">LIVE</span>
                     )}
                   </div>
                 </CommandItem>

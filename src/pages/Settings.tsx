@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/enhanced-button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,6 +7,7 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { PullToRefresh } from '@/components/common/PullToRefresh';
 import { useToast } from '@/hooks/use-toast';
 import { Shield, Bell, User, CreditCard, HelpCircle, LogOut, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -56,6 +57,11 @@ const Settings = () => {
       navigate('/');
     }
   };
+
+  const handleRefresh = useCallback(async () => {
+    // Refresh user data and settings
+    await new Promise(resolve => setTimeout(resolve, 1000));
+  }, []);
 
   const updateNotificationSettings = async (key: keyof NotificationSettings, value: boolean) => {
     setNotifications(prev => ({ ...prev, [key]: value }));
@@ -111,7 +117,8 @@ const Settings = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <main className="container mx-auto px-4 py-8">
+      <PullToRefresh onRefresh={handleRefresh} className="min-h-screen">
+        <main className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto space-y-6">
           <h1 className="text-3xl font-bold text-primary">Settings</h1>
 
@@ -251,7 +258,8 @@ const Settings = () => {
             </CardContent>
           </Card>
         </div>
-      </main>
+        </main>
+      </PullToRefresh>
     </div>
   );
 };

@@ -1,9 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { PullToRefresh } from "@/components/common/PullToRefresh";
 import {
   Dialog,
   DialogContent,
@@ -118,6 +119,12 @@ const Games = () => {
     });
     setSavedGames(saved);
   };
+
+  const handleRefresh = useCallback(async () => {
+    await fetchGameStats();
+    await fetchGameBadge();
+    loadSavedGames();
+  }, []);
 
   const fetchGameStats = async () => {
     if (!user) return;
@@ -374,7 +381,8 @@ const Games = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <main className="container mx-auto px-4 py-8 pb-24 md:pb-8">
+      <PullToRefresh onRefresh={handleRefresh} className="min-h-screen">
+        <main className="container mx-auto px-4 py-8 pb-24 md:pb-8">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-2">
@@ -650,7 +658,8 @@ const Games = () => {
             </DialogContent>
           </Dialog>
         </div>
-      </main>
+        </main>
+      </PullToRefresh>
     </div>
   );
 };

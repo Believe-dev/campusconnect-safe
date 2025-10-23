@@ -21,7 +21,7 @@
 
 /* Prevent content from being hidden behind bottom nav */
 .content-with-bottom-nav {
-  padding-bottom: 80px; /* Height of bottom nav + safe spacing */
+  padding-bottom: 68px; /* Adjusted for slightly bigger bottom nav */
 }
 
 /* Add top padding for fixed header */
@@ -32,7 +32,7 @@
 /* Mobile-specific adjustments */
 @media (max-width: 1024px) {
   .content-with-bottom-nav {
-    padding-bottom: 80px;
+    padding-bottom: 68px; /* Adjusted for slightly bigger nav */
   }
   
   .content-with-fixed-header {
@@ -94,7 +94,7 @@ html, body {
 /* PWA Install Prompt positioning */
 .pwa-install-prompt {
   position: fixed !important;
-  bottom: 80px !important; /* Above bottom nav on mobile */
+  bottom: 68px !important; /* Above slightly bigger bottom nav on mobile */
   left: 1rem !important;
   right: 1rem !important;
   z-index: 1040 !important;

@@ -5,6 +5,7 @@ import { useRealTimeProfile } from "@/hooks/useRealTimeProfile";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { PullToRefresh } from "@/components/common/PullToRefresh";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -511,7 +512,8 @@ const Profile = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50">
-      <main className="container mx-auto px-4 py-6 sm:py-8">
+      <PullToRefresh onRefresh={handleRefresh} className="min-h-screen">
+        <main className="container mx-auto px-4 py-6 sm:py-8">
         <div className="max-w-6xl mx-auto space-y-8">
           <SellerDocumentReminder />
           <SellerRegistrationCard />
@@ -1268,7 +1270,8 @@ const Profile = () => {
             </Card>
           </div>
         </div>
-      </main>
+        </main>
+      </PullToRefresh>
 
       {/* Reviews Dialog */}
       <Dialog open={reviewsOpen} onOpenChange={setReviewsOpen}>

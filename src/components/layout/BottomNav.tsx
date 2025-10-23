@@ -97,12 +97,12 @@ const BottomNav = () => {
       <div
         className="bg-white border-t border-gray-200 shadow-sm"
         style={{
-          paddingBottom: "max(8px, env(safe-area-inset-bottom))",
-          minHeight: "64px",
+          paddingBottom: "max(6px, env(safe-area-inset-bottom))",
+          minHeight: "56px",
         }}
       >
-        {/* Navigation items container with proper spacing */}
-        <div className="flex justify-around items-center py-2 px-2">
+        {/* Navigation items container with balanced spacing */}
+        <div className="flex justify-around items-center py-1.5 px-2">
           {navItems.map(({ to, icon: Icon, label, badge, onClick }) => {
             const isActive =
               location.pathname === to ||
@@ -114,27 +114,28 @@ const BottomNav = () => {
                 key={to}
                 onClick={onClick}
                 className={cn(
-                  "flex flex-col items-center gap-1 p-2 rounded-lg min-w-0 flex-1 relative transition-all duration-200",
+                  "flex flex-col items-center gap-1 p-1.5 rounded-lg min-w-0 flex-1 relative transition-all duration-200",
                   isActive ? "text-university-green" : "text-gray-500"
                 )}
               >
                 <div className="relative">
                   <Icon
                     className={cn(
-                      "h-5 w-5 transition-all duration-200",
+                      "h-4.5 w-4.5 transition-all duration-200",
                       isActive ? "text-university-green" : "text-gray-500"
                     )}
-                    style={{ WebkitAppearance: "none", appearance: "none" }}
+                    style={{ WebkitAppearance: "none", appearance: "none", width: "18px", height: "18px" }}
                   />
                   {badge !== undefined && (
                     <Badge
                       variant="destructive"
-                      className="absolute -top-1 -right-1 h-4 w-4 flex items-center justify-center p-0 text-xs font-bold rounded-full bg-red-500 text-white border border-white shadow-sm notification-badge"
+                      className="absolute -top-1 -right-1 h-3.5 w-3.5 flex items-center justify-center p-0 text-xs font-bold rounded-full bg-red-500 text-white border border-white shadow-sm notification-badge"
                       style={{
                         WebkitAppearance: "none",
                         appearance: "none",
-                        minWidth: "16px",
-                        minHeight: "16px",
+                        minWidth: "14px",
+                        minHeight: "14px",
+                        fontSize: "10px",
                       }}
                     >
                       {badge > 99 ? "99+" : badge}
@@ -148,6 +149,7 @@ const BottomNav = () => {
                       ? "text-university-green font-semibold"
                       : "text-gray-500"
                   )}
+                  style={{ fontSize: "11px" }}
                 >
                   {label}
                 </span>

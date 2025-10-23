@@ -7,7 +7,7 @@
 @import "./styles/accessibility.css";
 @import "./styles/bottom-nav.css";
 @import "./styles/force-fixed.css";
-
+@import "./styles/pull-to-refresh.css";
 
 /* Disable hover effects on mobile sheet buttons and links */
 @media (max-width: 1024px) {
@@ -142,19 +142,27 @@
     user-select: none !important;
   }
 
-  button, a, [role="button"] {
+  button,
+  a,
+  [role="button"] {
     outline: none !important;
     box-shadow: none !important;
   }
 
-  button:focus, a:focus, [role="button"]:focus,
-  button:focus-visible, a:focus-visible, [role="button"]:focus-visible {
+  button:focus,
+  a:focus,
+  [role="button"]:focus,
+  button:focus-visible,
+  a:focus-visible,
+  [role="button"]:focus-visible {
     outline: none !important;
     box-shadow: none !important;
     ring: none !important;
   }
 
-  input, textarea, [contenteditable] {
+  input,
+  textarea,
+  [contenteditable] {
     -webkit-user-select: text !important;
     -moz-user-select: text !important;
     -ms-user-select: text !important;
@@ -176,8 +184,8 @@
     opacity: 1;
     transition: opacity 0.1s ease-in-out;
     min-height: 100vh;
-    padding-top: 80px;
-    padding-bottom: 80px;
+    padding-top: 60px;
+    padding-bottom: 68px;
   }
 
   @media (min-width: 1024px) {
@@ -563,19 +571,32 @@
   }
 
   /* Stagger animation delays for form fields */
-  .auth-form-field:nth-child(1) { animation-delay: 0.05s; }
-  .auth-form-field:nth-child(2) { animation-delay: 0.1s; }
-  .auth-form-field:nth-child(3) { animation-delay: 0.15s; }
-  .auth-form-field:nth-child(4) { animation-delay: 0.2s; }
-  .auth-form-field:nth-child(5) { animation-delay: 0.25s; }
-  .auth-form-field:nth-child(6) { animation-delay: 0.3s; }
+  .auth-form-field:nth-child(1) {
+    animation-delay: 0.05s;
+  }
+  .auth-form-field:nth-child(2) {
+    animation-delay: 0.1s;
+  }
+  .auth-form-field:nth-child(3) {
+    animation-delay: 0.15s;
+  }
+  .auth-form-field:nth-child(4) {
+    animation-delay: 0.2s;
+  }
+  .auth-form-field:nth-child(5) {
+    animation-delay: 0.25s;
+  }
+  .auth-form-field:nth-child(6) {
+    animation-delay: 0.3s;
+  }
 
   .auth-loading {
     animation: authPulse 1.5s ease-in-out infinite;
   }
 
   @keyframes authPulse {
-    0%, 100% {
+    0%,
+    100% {
       opacity: 1;
     }
     50% {
@@ -590,8 +611,12 @@
     }
 
     @keyframes authFadeIn {
-      from { opacity: 0; }
-      to { opacity: 1; }
+      from {
+        opacity: 0;
+      }
+      to {
+        opacity: 1;
+      }
     }
 
     .auth-button:hover:not(:disabled) {

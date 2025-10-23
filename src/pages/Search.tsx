@@ -1,14 +1,23 @@
-import { useState, useEffect } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/enhanced-button';
+import { useState, useEffect, useCallback } from "react";
+import { useSearchParams, useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/enhanced-button";
+import { PullToRefresh } from "@/components/common/PullToRefresh";
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Search as SearchIcon, Filter, SlidersHorizontal, ShoppingCart, MessageCircle, MapPin, Star } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+  Search as SearchIcon,
+  Filter,
+  SlidersHorizontal,
+  ShoppingCart,
+  MessageCircle,
+  MapPin,
+  Star,
+} from "lucide-react";
 
-import { expandSearchTerms } from '@/utils/searchUtils';
+import { expandSearchTerms } from "@/utils/searchUtils";
 
 interface SearchProduct {
   id: string;
@@ -29,39 +38,59 @@ interface SearchProduct {
   };
 }
 
+interface SearchLiveFeed {
+  id: string;
+  title: string;
+  description: string;
+  price: number;
+  image_url: string;
+  location: string;
+  expires_at: string;
+  created_at: string;
+  seller_id: string;
+  seller: {
+    full_name: string;
+    rating: number;
+    is_verified: boolean;
+  };
+  type: "live_feed";
+}
+
+type SearchResult = SearchProduct | SearchLiveFeed;
+
 const categories = [
-  'All Categories',
-  'Books & Textbooks',
-  'Electronics',
-  'Fashion & Accessories',
-  'Food & Beverages',
-  'Services',
-  'Sports & Recreation',
-  'Home & Living',
-  'Other'
+  "All Categories",
+  "Books & Textbooks",
+  "Electronics",
+  "Fashion & Accessories",
+  "Food & Beverages",
+  "Services",
+  "Sports & Recreation",
+  "Home & Living",
+  "Other",
 ];
 
 const campuses = [
-  'All Campuses',
-  'University of Lagos',
-  'University of Ibadan',
-  'Ahmadu Bello University',
-  'University of Nigeria, Nsukka',
-  'Obafemi Awolowo University',
-  'University of Benin',
-  'Other'
+  "All Campuses",
+  "University of Lagos",
+  "University of Ibadan",
+  "Ahmadu Bello University",
+  "University of Nigeria, Nsukka",
+  "Obafemi Awolowo University",
+  "University of Benin",
+  "Other",
 ];
 
 const Search = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [products, setProducts] = useState<SearchProduct[]>([]);
+  const [products, setProducts] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '');
-  const [selectedCategory, setSelectedCategory] = useState('All Categories');
-  const [selectedCampus, setSelectedCampus] = useState('All Campuses');
-  const [priceRange, setPriceRange] = useState({ min: '', max: '' });
-  const [sortBy, setSortBy] = useState('newest');
+  const [searchQuery, setSearchQuery] = useState(searchParams.get("q") || "");
+  const [selectedCategory, setSelectedCategory] = useState("All Categories");
+  const [selectedCampus, setSelectedCampus] = useState("All Campuses");
+  const [priceRange, setPriceRange] = useState({ min: "", max: "" });
+  const [sortBy, setSortBy] = useState("newest");
   const [showFilters, setShowFilters] = useState(false);
   const [user, setUser] = useState(null);
   const [cartItems, setCartItems] = useState<string[]>([]);
@@ -72,7 +101,9 @@ const Search = () => {
 
   const checkAuth = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       setUser(user);
       if (user) {
         loadCartItems(user.id);
@@ -85,12 +116,12 @@ const Search = () => {
   const loadCartItems = async (userId: string) => {
     try {
       const { data } = await supabase
-        .from('cart')
-        .select('product_id')
-        .eq('user_id', userId);
-      
+        .from("cart")
+        .select("product_id")
+        .eq("user_id", userId);
+
       if (data) {
-        setCartItems(data.map(item => item.product_id));
+        setCartItems(data.map((item) => item.product_id));
       }
     } catch (error) {
       // Error handled silently
@@ -98,25 +129,32 @@ const Search = () => {
   };
 
   useEffect(() => {
-    const query = searchParams.get('q');
+    const query = searchParams.get("q");
     if (query) {
       setSearchQuery(query);
     }
     searchProducts();
   }, [searchParams]);
 
+  const handleRefresh = useCallback(async () => {
+    await searchProducts();
+  }, []);
+
   const searchProducts = async () => {
     setLoading(true);
     try {
-      const searchTerm = searchParams.get('q') || searchQuery;
+      const searchTerm = searchParams.get("q") || searchQuery;
       let searchResults = [];
       let otherProducts = [];
+      let liveFeedResults = [];
+      let otherLiveFeeds = [];
 
       if (searchTerm && searchTerm.trim()) {
-        // First, get products matching the search term
-        let searchQuery = supabase
-          .from('products')
-          .select(`
+        // Search products
+        let productQuery = supabase
+          .from("products")
+          .select(
+            `
             *,
             profiles!products_seller_id_fkey (
               full_name,
@@ -124,43 +162,81 @@ const Search = () => {
               is_verified,
               rating
             )
-          `)
-          .eq('is_active', true);
+          `
+          )
+          .eq("is_active", true);
+
+        // Search live feed items
+        let liveFeedQuery = supabase
+          .from("live_feed")
+          .select(
+            `
+            *,
+            profiles!live_feed_seller_id_fkey (
+              full_name,
+              avatar_url,
+              is_verified,
+              rating
+            )
+          `
+          )
+          .eq("is_active", true)
+          .gt("expires_at", new Date().toISOString());
 
         const expandedTerms = expandSearchTerms(searchTerm.trim());
         const conditions = [];
-        expandedTerms.forEach(term => {
-          const escapedTerm = term.replace(/[%_]/g, '\\$&');
+        expandedTerms.forEach((term) => {
+          const escapedTerm = term.replace(/[%_]/g, "\\$&");
           conditions.push(`title.ilike.%${escapedTerm}%`);
           conditions.push(`description.ilike.%${escapedTerm}%`);
           conditions.push(`category.ilike.%${escapedTerm}%`);
         });
         if (conditions.length > 0) {
-          searchQuery = searchQuery.or(conditions.join(','));
+          productQuery = productQuery.or(conditions.join(","));
+          liveFeedQuery = liveFeedQuery.or(conditions.join(","));
         }
 
         // Apply filters to search results
-        if (selectedCategory !== 'All Categories') {
-          searchQuery = searchQuery.eq('category', selectedCategory);
+        if (selectedCategory !== "All Categories") {
+          productQuery = productQuery.eq("category", selectedCategory);
+          // Live feed items always show regardless of category
         }
-        if (selectedCampus !== 'All Campuses') {
-          searchQuery = searchQuery.eq('campus', selectedCampus);
+        if (selectedCampus !== "All Campuses") {
+          productQuery = productQuery.eq("campus", selectedCampus);
+          liveFeedQuery = liveFeedQuery.eq("location", selectedCampus);
         }
         if (priceRange.min) {
-          searchQuery = searchQuery.gte('price', parseFloat(priceRange.min));
+          productQuery = productQuery.gte("price", parseFloat(priceRange.min));
+          liveFeedQuery = liveFeedQuery.gte(
+            "price",
+            parseFloat(priceRange.min)
+          );
         }
         if (priceRange.max) {
-          searchQuery = searchQuery.lte('price', parseFloat(priceRange.max));
+          productQuery = productQuery.lte("price", parseFloat(priceRange.max));
+          liveFeedQuery = liveFeedQuery.lte(
+            "price",
+            parseFloat(priceRange.max)
+          );
         }
 
-        const { data: searchData } = await searchQuery;
-        searchResults = searchData || [];
+        const [{ data: productData }, { data: liveFeedData }] =
+          await Promise.all([productQuery, liveFeedQuery]);
 
-        // Then get other products (excluding search results)
-        const searchResultIds = searchResults.map(item => item.id);
-        let otherQuery = supabase
-          .from('products')
-          .select(`
+        searchResults = productData || [];
+        liveFeedResults = (liveFeedData || []).map((item) => ({
+          ...item,
+          type: "live_feed" as const,
+        }));
+
+        // Get other products and live feed items (excluding search results)
+        const searchResultIds = searchResults.map((item) => item.id);
+        const liveFeedResultIds = liveFeedResults.map((item) => item.id);
+
+        let otherProductQuery = supabase
+          .from("products")
+          .select(
+            `
             *,
             profiles!products_seller_id_fkey (
               full_name,
@@ -168,35 +244,93 @@ const Search = () => {
               is_verified,
               rating
             )
-          `)
-          .eq('is_active', true)
-          .limit(20);
+          `
+          )
+          .eq("is_active", true)
+          .limit(10);
+
+        let otherLiveFeedQuery = supabase
+          .from("live_feed")
+          .select(
+            `
+            *,
+            profiles!live_feed_seller_id_fkey (
+              full_name,
+              avatar_url,
+              is_verified,
+              rating
+            )
+          `
+          )
+          .eq("is_active", true)
+          .gt("expires_at", new Date().toISOString())
+          .limit(10);
 
         if (searchResultIds.length > 0) {
-          otherQuery = otherQuery.not('id', 'in', `(${searchResultIds.join(',')})`);
+          otherProductQuery = otherProductQuery.not(
+            "id",
+            "in",
+            `(${searchResultIds.join(",")})`
+          );
+        }
+        if (liveFeedResultIds.length > 0) {
+          otherLiveFeedQuery = otherLiveFeedQuery.not(
+            "id",
+            "in",
+            `(${liveFeedResultIds.join(",")})`
+          );
         }
 
-        // Apply same filters to other products
-        if (selectedCategory !== 'All Categories') {
-          otherQuery = otherQuery.eq('category', selectedCategory);
+        // Apply same filters to other items
+        if (selectedCategory !== "All Categories") {
+          otherProductQuery = otherProductQuery.eq(
+            "category",
+            selectedCategory
+          );
+          // Live feed items always show regardless of category
         }
-        if (selectedCampus !== 'All Campuses') {
-          otherQuery = otherQuery.eq('campus', selectedCampus);
+        if (selectedCampus !== "All Campuses") {
+          otherProductQuery = otherProductQuery.eq("campus", selectedCampus);
+          otherLiveFeedQuery = otherLiveFeedQuery.eq(
+            "location",
+            selectedCampus
+          );
         }
         if (priceRange.min) {
-          otherQuery = otherQuery.gte('price', parseFloat(priceRange.min));
+          otherProductQuery = otherProductQuery.gte(
+            "price",
+            parseFloat(priceRange.min)
+          );
+          otherLiveFeedQuery = otherLiveFeedQuery.gte(
+            "price",
+            parseFloat(priceRange.min)
+          );
         }
         if (priceRange.max) {
-          otherQuery = otherQuery.lte('price', parseFloat(priceRange.max));
+          otherProductQuery = otherProductQuery.lte(
+            "price",
+            parseFloat(priceRange.max)
+          );
+          otherLiveFeedQuery = otherLiveFeedQuery.lte(
+            "price",
+            parseFloat(priceRange.max)
+          );
         }
 
-        const { data: otherData } = await otherQuery;
-        otherProducts = otherData || [];
+        const [{ data: otherProductData }, { data: otherLiveFeedData }] =
+          await Promise.all([otherProductQuery, otherLiveFeedQuery]);
+
+        otherProducts = otherProductData || [];
+        otherLiveFeeds = (otherLiveFeedData || []).map((item) => ({
+          ...item,
+          type: "live_feed" as const,
+        }));
       } else {
-        // No search term, get all products
-        let query = supabase
-          .from('products')
-          .select(`
+        // No search term, get all products and live bids
+        let productQuery = supabase
+          .from("products")
+          .select(
+            `
             *,
             profiles!products_seller_id_fkey (
               full_name,
@@ -204,78 +338,169 @@ const Search = () => {
               is_verified,
               rating
             )
-          `)
-          .eq('is_active', true);
+          `
+          )
+          .eq("is_active", true);
+
+        let liveFeedQuery = supabase
+          .from("live_feed")
+          .select(
+            `
+            *,
+            profiles!live_feed_seller_id_fkey (
+              full_name,
+              avatar_url,
+              is_verified,
+              rating
+            )
+          `
+          )
+          .eq("is_active", true)
+          .gt("expires_at", new Date().toISOString());
 
         // Apply filters
-        if (selectedCategory !== 'All Categories') {
-          query = query.eq('category', selectedCategory);
+        if (selectedCategory !== "All Categories") {
+          productQuery = productQuery.eq("category", selectedCategory);
+          // Live feed items always show regardless of category
         }
-        if (selectedCampus !== 'All Campuses') {
-          query = query.eq('campus', selectedCampus);
+        if (selectedCampus !== "All Campuses") {
+          productQuery = productQuery.eq("campus", selectedCampus);
+          liveFeedQuery = liveFeedQuery.eq("location", selectedCampus);
         }
         if (priceRange.min) {
-          query = query.gte('price', parseFloat(priceRange.min));
+          productQuery = productQuery.gte("price", parseFloat(priceRange.min));
+          liveFeedQuery = liveFeedQuery.gte(
+            "price",
+            parseFloat(priceRange.min)
+          );
         }
         if (priceRange.max) {
-          query = query.lte('price', parseFloat(priceRange.max));
+          productQuery = productQuery.lte("price", parseFloat(priceRange.max));
+          liveFeedQuery = liveFeedQuery.lte(
+            "price",
+            parseFloat(priceRange.max)
+          );
         }
 
-        const { data } = await query;
-        searchResults = data || [];
+        const [{ data: productData }, { data: liveFeedData }] =
+          await Promise.all([productQuery, liveFeedQuery]);
+
+        searchResults = productData || [];
+        liveFeedResults = (liveFeedData || []).map((item) => ({
+          ...item,
+          type: "live_feed" as const,
+        }));
       }
 
-      // Combine results: search results first, then other products
-      const allProducts = [...searchResults, ...otherProducts];
+      // Combine results: search results first, then other items
+      const allProducts = [
+        ...searchResults,
+        ...liveFeedResults,
+        ...otherProducts,
+        ...otherLiveFeeds,
+      ];
 
       // Apply sorting to the combined results
       const sortedProducts = allProducts.sort((a, b) => {
-        // If there's a search term, prioritize search results
+        // If there's a search term, prioritize by relevance first
         if (searchTerm && searchTerm.trim()) {
-          const aIsSearchResult = searchResults.some(item => item.id === a.id);
-          const bIsSearchResult = searchResults.some(item => item.id === b.id);
+          const searchLower = searchTerm.toLowerCase();
+          const aTitle = a.title.toLowerCase();
+          const bTitle = b.title.toLowerCase();
           
-          if (aIsSearchResult && !bIsSearchResult) return -1;
-          if (!aIsSearchResult && bIsSearchResult) return 1;
+          // Calculate relevance scores
+          const aExactMatch = aTitle === searchLower ? 1000 : 0;
+          const bExactMatch = bTitle === searchLower ? 1000 : 0;
+          
+          const aStartsWith = aTitle.startsWith(searchLower) ? 500 : 0;
+          const bStartsWith = bTitle.startsWith(searchLower) ? 500 : 0;
+          
+          const aIncludes = aTitle.includes(searchLower) ? 100 : 0;
+          const bIncludes = bTitle.includes(searchLower) ? 100 : 0;
+          
+          // Boost live feed items slightly
+          const aLiveBoost = a.type === 'live_feed' ? 50 : 0;
+          const bLiveBoost = b.type === 'live_feed' ? 50 : 0;
+          
+          const aScore = aExactMatch + aStartsWith + aIncludes + aLiveBoost;
+          const bScore = bExactMatch + bStartsWith + bIncludes + bLiveBoost;
+          
+          if (aScore !== bScore) return bScore - aScore;
         }
 
         // Then apply regular sorting
         switch (sortBy) {
-          case 'price-low':
+          case "price-low":
             return a.price - b.price;
-          case 'price-high':
+          case "price-high":
             return b.price - a.price;
-          case 'oldest':
-            return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+          case "oldest":
+            return (
+              new Date(a.created_at).getTime() -
+              new Date(b.created_at).getTime()
+            );
           default:
-            return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+            return (
+              new Date(b.created_at).getTime() -
+              new Date(a.created_at).getTime()
+            );
         }
       });
-      
-      // Transform the data to match our Product interface
-      const transformedData = sortedProducts.map(item => ({
-        id: item.id,
-        title: item.title,
-        description: item.description || '',
-        price: item.price,
-        category: item.category,
-        campus: item.campus || 'Unknown Campus',
-        condition: item.condition,
-        images: item.images || [],
-        seller_id: item.seller_id,
-        stock_quantity: item.stock_quantity,
-        created_at: item.created_at,
-        seller: item.profiles ? {
-          full_name: item.profiles.full_name,
-          rating: item.profiles.rating,
-          is_verified: item.profiles.is_verified
-        } : {
-          full_name: 'Unknown Seller',
-          rating: 0,
-          is_verified: false
+
+      // Transform the data to match our interfaces
+      const transformedData = sortedProducts.map((item) => {
+        if (item.type === "live_feed") {
+          return {
+            id: item.id,
+            title: item.title,
+            description: item.description || "",
+            price: item.price,
+            image_url: item.image_url,
+            location: item.location,
+            expires_at: item.expires_at,
+            created_at: item.created_at,
+            seller_id: item.seller_id,
+            type: "live_feed" as const,
+            seller: item.profiles
+              ? {
+                  full_name: item.profiles.full_name,
+                  rating: item.profiles.rating,
+                  is_verified: item.profiles.is_verified,
+                }
+              : {
+                  full_name: "Unknown Seller",
+                  rating: 0,
+                  is_verified: false,
+                },
+          };
+        } else {
+          return {
+            id: item.id,
+            title: item.title,
+            description: item.description || "",
+            price: item.price,
+            category: item.category,
+            campus: item.campus || "Unknown Campus",
+            condition: item.condition,
+            images: item.images || [],
+            seller_id: item.seller_id,
+            stock_quantity: item.stock_quantity,
+            created_at: item.created_at,
+            seller: item.profiles
+              ? {
+                  full_name: item.profiles.full_name,
+                  rating: item.profiles.rating,
+                  is_verified: item.profiles.is_verified,
+                }
+              : {
+                  full_name: "Unknown Seller",
+                  rating: 0,
+                  is_verified: false,
+                },
+          };
         }
-      }));
-      
+      });
+
       setProducts(transformedData);
     } catch (error) {
       // Error handled silently
@@ -288,18 +513,18 @@ const Search = () => {
     e.preventDefault();
     const params = new URLSearchParams(searchParams);
     if (searchQuery.trim()) {
-      params.set('q', searchQuery.trim());
+      params.set("q", searchQuery.trim());
     } else {
-      params.delete('q');
+      params.delete("q");
     }
     setSearchParams(params);
   };
 
   const clearFilters = () => {
-    setSelectedCategory('All Categories');
-    setSelectedCampus('All Campuses');
-    setPriceRange({ min: '', max: '' });
-    setSortBy('newest');
+    setSelectedCategory("All Categories");
+    setSelectedCampus("All Campuses");
+    setPriceRange({ min: "", max: "" });
+    setSortBy("newest");
     searchProducts();
   };
 
@@ -313,43 +538,41 @@ const Search = () => {
 
   const addToCart = async (productId: string) => {
     if (!user) {
-      navigate('/auth');
+      navigate("/auth");
       return;
     }
 
     try {
       // Check if item already exists in cart
       const { data: existingItem } = await supabase
-        .from('cart')
-        .select('id, quantity')
-        .eq('user_id', user.id)
-        .eq('product_id', productId)
+        .from("cart")
+        .select("id, quantity")
+        .eq("user_id", user.id)
+        .eq("product_id", productId)
         .single();
 
       if (existingItem) {
         // Update quantity if item exists
         const { error } = await supabase
-          .from('cart')
+          .from("cart")
           .update({ quantity: existingItem.quantity + 1 })
-          .eq('id', existingItem.id);
+          .eq("id", existingItem.id);
 
         if (error) throw error;
       } else {
         // Add new item to cart
-        const { error } = await supabase
-          .from('cart')
-          .insert({
-            user_id: user.id,
-            product_id: productId,
-            quantity: 1
-          });
+        const { error } = await supabase.from("cart").insert({
+          user_id: user.id,
+          product_id: productId,
+          quantity: 1,
+        });
 
         if (error) throw error;
       }
 
       // Update local cart items state
-      setCartItems(prev => [...prev, productId]);
-      
+      setCartItems((prev) => [...prev, productId]);
+
       // Trigger cart count refresh
       if (window.refreshCartCount) {
         window.refreshCartCount();
@@ -361,262 +584,346 @@ const Search = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <main className="container mx-auto px-4 py-8">
-        <div className="max-w-7xl mx-auto">
-          {/* Search Header */}
-          <div className="mb-6">
-            <form onSubmit={handleSearch} className="flex gap-2 mb-4">
-              <div className="flex-1 relative">
-                <SearchIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground z-10" />
-                <Input
-                  placeholder="Search products, categories..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  onKeyPress={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      handleSearch(e);
-                    }
-                  }}
-                  className="pl-10"
-                />
-              </div>
-              <Button type="submit" variant="brand">
-                Search
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setShowFilters(!showFilters)}
-              >
-                <SlidersHorizontal className="h-4 w-4 mr-2" />
-                Filters
-              </Button>
-            </form>
-
-            {searchParams.get('q') && (
-              <p className="text-muted-foreground">
-                Search results for "<span className="font-medium">{searchParams.get('q')}</span>"
-                {!loading && (
-                  <span> • {products.length} product{products.length !== 1 ? 's' : ''} found</span>
-                )}
-                <br />
-                <span className="text-xs text-muted-foreground mt-1 block">
-                  Showing matching results first, followed by other products
-                </span>
-              </p>
-            )}
-            <div className="mt-2 text-xs text-muted-foreground bg-muted/30 p-2 rounded border">
-              📌 Verified sellers' products are shown first in search results
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-            {/* Filters Sidebar */}
-            <div className={`lg:col-span-1 ${showFilters ? 'block' : 'hidden lg:block'}`}>
-              <Card className="sticky top-4">
-                <CardContent className="pt-6 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-semibold">Filters</h3>
-                    <Button variant="ghost" size="sm" onClick={clearFilters}>
-                      Clear All
-                    </Button>
-                  </div>
-
-                  <div>
-                    <label className="text-sm font-medium mb-2 block">Category</label>
-                    <select
-                      value={selectedCategory}
-                      onChange={(e) => setSelectedCategory(e.target.value)}
-                      className="w-full h-10 px-3 pr-10 border border-input bg-background rounded-md text-sm focus:border-university-green focus:outline-none appearance-none"
-                      style={{
-                        backgroundImage: `url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIiIGhlaWdodD0iOCIgdmlld0JveD0iMCAwIDEyIDgiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxwYXRoIGQ9Ik0xIDFMNiA2TDExIDEiIHN0cm9rZT0iIzZCNzI4MCIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz4KPC9zdmc+')`,
-                        backgroundRepeat: 'no-repeat',
-                        backgroundPosition: 'right 12px center',
-                        backgroundSize: '12px 8px'
-                      }}
-                    >
-                      {categories.map(category => (
-                        <option key={category} value={category}>
-                          {category}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="text-sm font-medium mb-2 block">Campus</label>
-                    <select
-                      value={selectedCampus}
-                      onChange={(e) => setSelectedCampus(e.target.value)}
-                      className="w-full h-10 px-3 pr-10 border border-input bg-background rounded-md text-sm focus:border-university-green focus:outline-none appearance-none"
-                      style={{
-                        backgroundImage: `url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIiIGhlaWdodD0iOCIgdmlld0JveD0iMCAwIDEyIDgiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxwYXRoIGQ9Ik0xIDFMNiA2TDExIDEiIHN0cm9rZT0iIzZCNzI4MCIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz4KPC9zdmc+')`,
-                        backgroundRepeat: 'no-repeat',
-                        backgroundPosition: 'right 12px center',
-                        backgroundSize: '12px 8px'
-                      }}
-                    >
-                      {campuses.map(campus => (
-                        <option key={campus} value={campus}>
-                          {campus}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="text-sm font-medium mb-2 block">Price Range (₦)</label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <Input
-                        type="number"
-                        placeholder="Min"
-                        value={priceRange.min}
-                        onChange={(e) => setPriceRange({ ...priceRange, min: e.target.value })}
-                      />
-                      <Input
-                        type="number"
-                        placeholder="Max"
-                        value={priceRange.max}
-                        onChange={(e) => setPriceRange({ ...priceRange, max: e.target.value })}
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="text-sm font-medium mb-2 block">Sort By</label>
-                    <select
-                      value={sortBy}
-                      onChange={(e) => setSortBy(e.target.value)}
-                      className="w-full h-10 px-3 pr-10 border border-input bg-background rounded-md text-sm focus:border-university-green focus:outline-none appearance-none"
-                      style={{
-                        backgroundImage: `url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIiIGhlaWdodD0iOCIgdmlld0JveD0iMCAwIDEyIDgiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxwYXRoIGQ9Ik0xIDFMNiA2TDExIDEiIHN0cm9rZT0iIzZCNzI4MCIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz4KPC9zdmc+')`,
-                        backgroundRepeat: 'no-repeat',
-                        backgroundPosition: 'right 12px center',
-                        backgroundSize: '12px 8px'
-                      }}
-                    >
-                      <option value="newest">Newest First</option>
-                      <option value="oldest">Oldest First</option>
-                      <option value="price-low">Price: Low to High</option>
-                      <option value="price-high">Price: High to Low</option>
-                    </select>
-                  </div>
-
-                  <Button onClick={searchProducts} className="w-full">
-                    Apply Filters
-                  </Button>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Results Grid */}
-            <div className="lg:col-span-3">
-              {loading ? (
-                <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-3 sm:gap-4">
-                  {Array.from({ length: 6 }).map((_, i) => (
-                    <div key={i} className="animate-pulse">
-                      <div className="bg-muted aspect-square rounded-lg mb-2"></div>
-                      <div className="h-4 bg-muted rounded mb-2"></div>
-                      <div className="h-4 bg-muted rounded w-2/3"></div>
-                    </div>
-                  ))}
+      <PullToRefresh onRefresh={handleRefresh} className="min-h-screen">
+        <main className="container mx-auto px-4 py-8">
+          <div className="max-w-7xl mx-auto">
+            {/* Search Header */}
+            <div className="mb-6">
+              <form onSubmit={handleSearch} className="flex gap-2 mb-4">
+                <div className="flex-1 relative">
+                  <SearchIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground z-10" />
+                  <Input
+                    placeholder="Search products, categories..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyPress={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleSearch(e);
+                      }
+                    }}
+                    className="pl-10"
+                  />
                 </div>
-              ) : products.length === 0 ? (
-                <Card>
-                  <CardContent className="pt-6 text-center">
-                    <SearchIcon className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                    <h3 className="text-lg font-medium mb-2">No products found</h3>
-                    <p className="text-muted-foreground mb-4">
-                      Try adjusting your search terms or filters
-                    </p>
-                    <Button onClick={clearFilters}>Clear Filters</Button>
+                <Button type="submit" variant="brand">
+                  Search
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowFilters(!showFilters)}
+                >
+                  <SlidersHorizontal className="h-4 w-4 mr-2" />
+                  Filters
+                </Button>
+              </form>
+
+              {searchParams.get("q") && (
+                <p className="text-muted-foreground">
+                  Search results for "
+                  <span className="font-medium">{searchParams.get("q")}</span>"
+                  {!loading && (
+                    <span>
+                      {" "}
+                      • {products.length} product
+                      {products.length !== 1 ? "s" : ""} found
+                    </span>
+                  )}
+                  <br />
+                  <span className="text-xs text-muted-foreground mt-1 block">
+                    Showing matching results first, followed by other products
+                  </span>
+                </p>
+              )}
+              <div className="mt-2 text-xs text-muted-foreground bg-muted/30 p-2 rounded border">
+                📌 Verified sellers' products are shown first in search results
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+              {/* Filters Sidebar */}
+              <div
+                className={`lg:col-span-1 ${
+                  showFilters ? "block" : "hidden lg:block"
+                }`}
+              >
+                <Card className="sticky top-4">
+                  <CardContent className="pt-6 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-semibold">Filters</h3>
+                      <Button variant="ghost" size="sm" onClick={clearFilters}>
+                        Clear All
+                      </Button>
+                    </div>
+
+                    <div>
+                      <label className="text-sm font-medium mb-2 block">
+                        Category
+                      </label>
+                      <select
+                        value={selectedCategory}
+                        onChange={(e) => setSelectedCategory(e.target.value)}
+                        className="w-full h-10 px-3 pr-10 border border-input bg-background rounded-md text-sm focus:border-university-green focus:outline-none appearance-none"
+                        style={{
+                          backgroundImage: `url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIiIGhlaWdodD0iOCIgdmlld0JveD0iMCAwIDEyIDgiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxwYXRoIGQ9Ik0xIDFMNiA2TDExIDEiIHN0cm9rZT0iIzZCNzI4MCIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz4KPC9zdmc+')`,
+                          backgroundRepeat: "no-repeat",
+                          backgroundPosition: "right 12px center",
+                          backgroundSize: "12px 8px",
+                        }}
+                      >
+                        {categories.map((category) => (
+                          <option key={category} value={category}>
+                            {category}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-sm font-medium mb-2 block">
+                        Campus
+                      </label>
+                      <select
+                        value={selectedCampus}
+                        onChange={(e) => setSelectedCampus(e.target.value)}
+                        className="w-full h-10 px-3 pr-10 border border-input bg-background rounded-md text-sm focus:border-university-green focus:outline-none appearance-none"
+                        style={{
+                          backgroundImage: `url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIiIGhlaWdodD0iOCIgdmlld0JveD0iMCAwIDEyIDgiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxwYXRoIGQ9Ik0xIDFMNiA2TDExIDEiIHN0cm9rZT0iIzZCNzI4MCIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz4KPC9zdmc+')`,
+                          backgroundRepeat: "no-repeat",
+                          backgroundPosition: "right 12px center",
+                          backgroundSize: "12px 8px",
+                        }}
+                      >
+                        {campuses.map((campus) => (
+                          <option key={campus} value={campus}>
+                            {campus}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-sm font-medium mb-2 block">
+                        Price Range (₦)
+                      </label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Input
+                          type="number"
+                          placeholder="Min"
+                          value={priceRange.min}
+                          onChange={(e) =>
+                            setPriceRange({
+                              ...priceRange,
+                              min: e.target.value,
+                            })
+                          }
+                        />
+                        <Input
+                          type="number"
+                          placeholder="Max"
+                          value={priceRange.max}
+                          onChange={(e) =>
+                            setPriceRange({
+                              ...priceRange,
+                              max: e.target.value,
+                            })
+                          }
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-sm font-medium mb-2 block">
+                        Sort By
+                      </label>
+                      <select
+                        value={sortBy}
+                        onChange={(e) => setSortBy(e.target.value)}
+                        className="w-full h-10 px-3 pr-10 border border-input bg-background rounded-md text-sm focus:border-university-green focus:outline-none appearance-none"
+                        style={{
+                          backgroundImage: `url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIiIGhlaWdodD0iOCIgdmlld0JveD0iMCAwIDEyIDgiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxwYXRoIGQ9Ik0xIDFMNiA2TDExIDEiIHN0cm9rZT0iIzZCNzI4MCIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz4KPC9zdmc+')`,
+                          backgroundRepeat: "no-repeat",
+                          backgroundPosition: "right 12px center",
+                          backgroundSize: "12px 8px",
+                        }}
+                      >
+                        <option value="newest">Newest First</option>
+                        <option value="oldest">Oldest First</option>
+                        <option value="price-low">Price: Low to High</option>
+                        <option value="price-high">Price: High to Low</option>
+                      </select>
+                    </div>
+
+                    <Button onClick={searchProducts} className="w-full">
+                      Apply Filters
+                    </Button>
                   </CardContent>
                 </Card>
-              ) : (
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {products.map((product) => (
-                    <Card 
-                      key={product.id} 
-                      className="group hover:shadow-lg transition-all cursor-pointer overflow-hidden"
-                      onClick={() => handleViewProduct(product.id)}
-                    >
-                      <div className="relative">
-                        {product.images && product.images[0] && (
-                          <img
-                            src={product.images[0]}
-                            alt={product.title}
-                            className="w-full h-40 object-cover group-hover:scale-105 transition-transform duration-300"
-                          />
-                        )}
-                        <Badge 
-                          className="absolute top-2 left-2 text-xs"
-                          variant={product.condition === 'new' ? 'default' : 'secondary'}
-                        >
-                          {product.condition?.charAt(0).toUpperCase() + product.condition?.slice(1) || 'Good'}
-                        </Badge>
+              </div>
+
+              {/* Results Grid */}
+              <div className="lg:col-span-3">
+                {loading ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-3 sm:gap-4">
+                    {Array.from({ length: 6 }).map((_, i) => (
+                      <div key={i} className="animate-pulse">
+                        <div className="bg-muted aspect-square rounded-lg mb-2"></div>
+                        <div className="h-4 bg-muted rounded mb-2"></div>
+                        <div className="h-4 bg-muted rounded w-2/3"></div>
                       </div>
+                    ))}
+                  </div>
+                ) : products.length === 0 ? (
+                  <Card>
+                    <CardContent className="pt-6 text-center">
+                      <SearchIcon className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                      <h3 className="text-lg font-medium mb-2">
+                        No products found
+                      </h3>
+                      <p className="text-muted-foreground mb-4">
+                        Try adjusting your search terms or filters
+                      </p>
+                      <Button onClick={clearFilters}>Clear Filters</Button>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    {products.map((item) => {
+                      const isLiveFeed =
+                        "type" in item && item.type === "live_feed";
+                      const price = item.price;
+                      const handleClick = () => {
+                        if (isLiveFeed) {
+                          navigate(`/live-feed#live-feed-${item.id}`);
+                        } else {
+                          handleViewProduct(item.id);
+                        }
+                      };
 
-                      <CardContent className="p-3">
-                        <h3 className="font-semibold text-sm line-clamp-2 mb-2">{product.title}</h3>
-                        
-                        <div className="flex items-center gap-2 mb-2">
-                          <Badge variant="outline" className="text-xs">
-                            {product.category}
-                          </Badge>
-                        </div>
+                      return (
+                        <Card
+                          key={item.id}
+                          className="group hover:shadow-lg transition-all cursor-pointer overflow-hidden"
+                          onClick={handleClick}
+                        >
+                          <div className="relative">
+                            {(isLiveFeed
+                              ? item.image_url
+                              : item.images?.[0]) && (
+                              <img
+                                src={
+                                  isLiveFeed ? item.image_url : item.images[0]
+                                }
+                                alt={item.title}
+                                className="w-full h-40 object-cover group-hover:scale-105 transition-transform duration-300"
+                              />
+                            )}
+                            {!isLiveFeed && (
+                              <Badge
+                                className="absolute top-2 left-2 text-xs"
+                                variant={
+                                  item.condition === "new"
+                                    ? "default"
+                                    : "secondary"
+                                }
+                              >
+                                {item.condition?.charAt(0).toUpperCase() +
+                                  item.condition?.slice(1) || "Good"}
+                              </Badge>
+                            )}
+                            {isLiveFeed && (
+                              <Badge className="absolute top-2 right-2 text-xs bg-green-500 text-white animate-pulse">
+                                LIVE
+                              </Badge>
+                            )}
+                          </div>
 
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2">
-                          <span className="truncate">by {product.seller?.full_name || 'Unknown'}</span>
-                          {product.seller?.is_verified && (
-                            <div className="bg-blue-500 rounded-full p-0.5">
-                              <svg className="h-2 w-2 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                              </svg>
+                          <CardContent className="p-3">
+                            <h3 className="font-semibold text-sm line-clamp-2 mb-2">
+                              {item.title}
+                            </h3>
+
+                            <div className="flex items-center gap-2 mb-2">
+                              <Badge variant="outline" className="text-xs">
+                                {isLiveFeed ? 'Live' : item.category}
+                              </Badge>
                             </div>
-                          )}
-                        </div>
 
-                        <div className="text-lg font-bold text-primary mb-2">
-                          ₦{product.price.toLocaleString()}
-                        </div>
-                        
-                        {cartItems.includes(product.id) ? (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              navigate('/cart');
-                            }}
-                            className="w-full text-xs"
-                          >
-                            <ShoppingCart className="h-3 w-3 mr-1" />
-                            In Cart
-                          </Button>
-                        ) : (
-                          <Button
-                            variant="brand"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              addToCart(product.id);
-                            }}
-                            className="w-full text-xs"
-                          >
-                            <ShoppingCart className="h-3 w-3 mr-1" />
-                            Add to Cart
-                          </Button>
-                        )}
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              )}
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2">
+                              <span className="truncate">
+                                by {item.seller?.full_name || "Unknown"}
+                              </span>
+                              {item.seller?.is_verified && (
+                                <div className="bg-blue-500 rounded-full p-0.5">
+                                  <svg
+                                    className="h-2 w-2 text-white"
+                                    fill="currentColor"
+                                    viewBox="0 0 20 20"
+                                  >
+                                    <path
+                                      fillRule="evenodd"
+                                      d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                      clipRule="evenodd"
+                                    />
+                                  </svg>
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="text-lg font-bold text-primary mb-2">
+                              ₦{price.toLocaleString()}
+                            </div>
+
+                            {isLiveFeed ? (
+                              <Button
+                                variant="brand"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  navigate(`/live-feed#live-feed-${item.id}`);
+                                }}
+                                className="w-full text-xs"
+                              >
+                                View Live
+                              </Button>
+                            ) : cartItems.includes(item.id) ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  navigate("/cart");
+                                }}
+                                className="w-full text-xs"
+                              >
+                                <ShoppingCart className="h-3 w-3 mr-1" />
+                                In Cart
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="brand"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  addToCart(item.id);
+                                }}
+                                className="w-full text-xs"
+                              >
+                                <ShoppingCart className="h-3 w-3 mr-1" />
+                                Add to Cart
+                              </Button>
+                            )}
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      </main>
+        </main>
+      </PullToRefresh>
     </div>
   );
 };

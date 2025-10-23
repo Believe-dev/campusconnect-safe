@@ -431,6 +431,7 @@ export const LiveFeedCard = ({
 
   return (
     <div
+      id={`live-feed-${item.id}`}
       className={`relative rounded-3xl shadow-sm border overflow-hidden transition-all duration-300 hover:shadow-lg ${
         isOwner
           ? "bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200"

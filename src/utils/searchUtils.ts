@@ -43,6 +43,11 @@ const synonymMap: Record<string, string[]> = {
   'paper': ['notebook', 'sheets', 'stationery'],
   'calculator': ['calc', 'scientific calculator'],
   
+  // Auction/Bidding terms
+  'auction': ['bid', 'bidding', 'live bid', 'live auction'],
+  'bid': ['auction', 'bidding', 'live bid', 'offer'],
+  'bidding': ['auction', 'bid', 'live bid', 'competitive'],
+  
   // Nigerian university specific terms
   'jamb': ['utme', 'university entrance', 'admission'],
   'waec': ['wassce', 'senior secondary', 'o level'],
@@ -77,31 +82,31 @@ export const expandSearchTerms = (query: string): string[] => {
   return Array.from(expandedTerms);
 };
 
-// Enhanced search function with smart ranking
-export const searchProducts = (products: any[], query: string) => {
-  if (!query.trim()) return products;
+// Enhanced search function with smart ranking for both products and live bids
+export const searchProducts = (items: any[], query: string) => {
+  if (!query.trim()) return items;
   
   const searchTerms = expandSearchTerms(query);
   const queryLower = query.toLowerCase();
   
-  return products
-    .map(product => {
+  return items
+    .map(item => {
       const searchableText = [
-        product.title,
-        product.description,
-        product.category,
-        product.condition
+        item.title,
+        item.description,
+        item.category,
+        item.condition
       ].join(' ').toLowerCase();
       
       let score = 0;
       
       // Exact title match gets highest score
-      if (product.title.toLowerCase().includes(queryLower)) {
+      if (item.title.toLowerCase().includes(queryLower)) {
         score += 100;
       }
       
       // Category match
-      if (product.category.toLowerCase().includes(queryLower)) {
+      if (item.category.toLowerCase().includes(queryLower)) {
         score += 50;
       }
       
@@ -118,12 +123,21 @@ export const searchProducts = (products: any[], query: string) => {
         }
       });
       
-      // Boost newer products slightly
-      const daysSinceCreated = (Date.now() - new Date(product.created_at).getTime()) / (1000 * 60 * 60 * 24);
+      // Boost newer items slightly
+      const daysSinceCreated = (Date.now() - new Date(item.created_at).getTime()) / (1000 * 60 * 60 * 24);
       if (daysSinceCreated < 7) score += 5;
       
-      return { ...product, searchScore: score };
+      // Boost live feed items slightly for urgency
+      if (item.type === 'live_feed') {
+        score += 15;
+        // Boost items expiring soon
+        const hoursUntilExpiry = (new Date(item.expires_at).getTime() - Date.now()) / (1000 * 60 * 60);
+        if (hoursUntilExpiry < 2) score += 20;
+        else if (hoursUntilExpiry < 6) score += 10;
+      }
+      
+      return { ...item, searchScore: score };
     })
-    .filter(product => product.searchScore > 0)
+    .filter(item => item.searchScore > 0)
     .sort((a, b) => b.searchScore - a.searchScore);
 };

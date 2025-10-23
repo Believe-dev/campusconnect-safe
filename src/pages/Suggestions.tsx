@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { Lightbulb, Send } from 'lucide-react';
+import { PullToRefresh } from '@/components/common/PullToRefresh';
 
 const Suggestions = () => {
   const { user } = useAuth();
@@ -76,9 +77,21 @@ const Suggestions = () => {
     }
   };
 
+  const handleRefresh = async () => {
+    // Reset form to initial state
+    setFormData({
+      title: '',
+      category: '',
+      description: '',
+      priority: 'medium'
+    });
+    setLoading(false);
+  };
+
   return (
     <div className="min-h-screen bg-background">
-      <main className="container mx-auto px-4 py-8 pb-24 md:pb-8">
+      <PullToRefresh onRefresh={handleRefresh} className="min-h-screen">
+        <main className="container mx-auto px-4 py-8 pb-24 md:pb-8">
         <div className="max-w-2xl mx-auto">
           <div className="text-center mb-8">
             <Lightbulb className="h-12 w-12 mx-auto mb-4 text-university-green" />
@@ -178,8 +191,9 @@ const Suggestions = () => {
               Contact Support on WhatsApp
             </Button>
           </div>
-        </div>
-      </main>
+          </div>
+        </main>
+      </PullToRefresh>
     </div>
   );
 };
