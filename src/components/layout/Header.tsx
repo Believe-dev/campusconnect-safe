@@ -80,7 +80,8 @@ const Header = () => {
   const { unreadCount } = useNotifications();
   const { ordersCount } = useOrdersCount();
   const { messagesCount } = useMessageCount();
-  const { unreadCount: liveFeedUnreadCount, markAsRead: markLiveFeedAsRead } = useLiveFeedNotifications();
+  const { unreadCount: liveFeedUnreadCount, markAsRead: markLiveFeedAsRead } =
+    useLiveFeedNotifications();
   const [searchQuery, setSearchQuery] = useState("");
   const [gameBadge, setGameBadge] = useState<GameBadgeData | null>(null);
 
@@ -740,7 +741,9 @@ const Header = () => {
                                 variant="destructive"
                                 className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center p-0 text-xs font-bold rounded-full bg-red-500 text-white border-2 border-background shadow-sm"
                               >
-                                {liveFeedUnreadCount > 99 ? "99+" : liveFeedUnreadCount}
+                                {liveFeedUnreadCount > 99
+                                  ? "99+"
+                                  : liveFeedUnreadCount}
                               </Badge>
                             )}
                           </Link>
