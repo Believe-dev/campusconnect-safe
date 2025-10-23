@@ -6,6 +6,7 @@ import { Plus, RefreshCw } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { LiveFeedCard } from "@/components/feed/LiveFeedCard";
 import { CreateLiveFeedDialog } from "@/components/feed/CreateLiveFeedDialog";
+import { useLiveFeedNotifications } from "@/hooks/useLiveFeedNotifications";
 import "@/styles/mobile-fixes.css";
 
 interface LiveFeedItem {
@@ -34,6 +35,7 @@ const LiveFeed = () => {
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
   const { user } = useAuth();
+  const { markAsRead } = useLiveFeedNotifications();
 
   const fetchLiveFeed = async () => {
     try {
@@ -138,6 +140,8 @@ const LiveFeed = () => {
 
   useEffect(() => {
     fetchLiveFeed();
+    // Mark live feed as read when page is opened
+    markAsRead();
 
     // Set up real-time subscriptions
     const subscription = supabase

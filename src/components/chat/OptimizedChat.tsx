@@ -162,26 +162,50 @@ const OptimizedChat: React.FC<OptimizedChatProps> = ({
 
   // Handle mobile keyboard and viewport changes
   useEffect(() => {
-    document.body.style.overflow = "hidden";
-    document.body.style.position = "fixed";
-    document.body.style.width = "100%";
-    document.body.style.height = "100%";
-
-    // Handle viewport height changes for mobile keyboard
-    const handleResize = () => {
+    const chatContainer = document.querySelector('[data-chat-container]') as HTMLElement;
+    
+    // Set initial viewport height
+    const setVH = () => {
       const vh = window.innerHeight * 0.01;
-      document.documentElement.style.setProperty("--vh", `${vh}px`);
+      document.documentElement.style.setProperty('--vh', `${vh}px`);
     };
-
-    handleResize();
-    window.addEventListener("resize", handleResize);
-
+    
+    setVH();
+    
+    // Handle keyboard show/hide on mobile
+    const handleVisualViewportChange = () => {
+      if (window.visualViewport) {
+        const viewport = window.visualViewport;
+        const heightDiff = window.innerHeight - viewport.height;
+        
+        if (heightDiff > 150) { // Keyboard is likely open
+          if (chatContainer) {
+            chatContainer.style.paddingBottom = `${heightDiff}px`;
+            chatContainer.style.transition = 'padding-bottom 0.3s ease';
+          }
+        } else { // Keyboard is closed
+          if (chatContainer) {
+            chatContainer.style.paddingBottom = '0px';
+          }
+        }
+      }
+    };
+    
+    // Listen for viewport changes
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', handleVisualViewportChange);
+    }
+    
+    window.addEventListener('resize', setVH);
+    
     return () => {
-      document.body.style.overflow = "";
-      document.body.style.position = "";
-      document.body.style.width = "";
-      document.body.style.height = "";
-      window.removeEventListener("resize", handleResize);
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', handleVisualViewportChange);
+      }
+      window.removeEventListener('resize', setVH);
+      if (chatContainer) {
+        chatContainer.style.paddingBottom = '0px';
+      }
     };
   }, []);
 
@@ -216,11 +240,12 @@ const OptimizedChat: React.FC<OptimizedChatProps> = ({
 
   return (
     <div
-      className="w-full flex flex-col bg-white overflow-hidden"
+      data-chat-container
+      className="w-full h-screen flex flex-col bg-gradient-to-br from-slate-50 to-white overflow-hidden relative"
       style={{ height: "calc(var(--vh, 1vh) * 100)" }}
     >
       {/* Fixed Header */}
-      <div className="bg-gradient-to-r from-green-600 to-green-700 text-white p-3 sm:p-4 flex-shrink-0">
+      <div className="bg-gradient-to-r from-green-600 via-green-700 to-emerald-600 text-white px-4 py-3 flex-shrink-0 shadow-lg border-b border-green-500/20">
         <div className="flex items-center gap-3">
           {onClose && (
             <Button
@@ -287,19 +312,19 @@ const OptimizedChat: React.FC<OptimizedChatProps> = ({
       </div>
 
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto bg-gradient-to-b from-gray-50 to-white">
-        <div className="p-3 sm:p-4 space-y-3 min-h-full">
+      <div className="flex-1 overflow-y-auto bg-transparent">
+        <div className="px-4 py-2 space-y-4 min-h-full">
           {messages.length === 0 ? (
-            <div className="flex items-center justify-center h-64">
+            <div className="flex items-center justify-center h-full min-h-[60vh]">
               <div className="text-center">
-                <div className="p-4 bg-green-100 rounded-full w-fit mx-auto mb-4">
-                  <MessageCircle className="h-8 w-8 text-green-600" />
+                <div className="p-6 bg-gradient-to-br from-green-100 to-emerald-100 rounded-full w-fit mx-auto mb-6 shadow-lg">
+                  <MessageCircle className="h-12 w-12 text-green-600" />
                 </div>
-                <h3 className="font-semibold text-foreground mb-2">
-                  Start secure conversation
+                <h3 className="font-bold text-xl text-gray-800 mb-3">
+                  Start your conversation
                 </h3>
-                <p className="text-sm text-muted-foreground max-w-sm">
-                  All messages are encrypted and monitored for safety
+                <p className="text-sm text-gray-600 max-w-sm leading-relaxed">
+                  Send your first message to begin a secure, monitored conversation
                 </p>
               </div>
             </div>
@@ -307,18 +332,18 @@ const OptimizedChat: React.FC<OptimizedChatProps> = ({
             messages.map((message) => (
               <div
                 key={message.id}
-                className={`flex mb-3 group ${
+                className={`flex group ${
                   message.sender_id === currentUserId
                     ? "justify-end"
                     : "justify-start"
                 }`}
               >
                 <div
-                  className={`max-w-[75%] px-3 py-2 rounded-2xl shadow-sm relative ${
+                  className={`max-w-[80%] px-4 py-3 rounded-3xl shadow-md relative transition-all duration-200 ${
                     message.sender_id === currentUserId
-                      ? "bg-gradient-to-br from-green-500 to-green-600 text-white rounded-br-md"
-                      : "bg-white text-foreground border border-gray-200 rounded-bl-md"
-                  } ${message._isOptimistic ? "opacity-70" : ""} ${
+                      ? "bg-gradient-to-br from-green-500 to-green-600 text-white rounded-br-lg shadow-green-200"
+                      : "bg-white text-gray-800 border border-gray-100 rounded-bl-lg shadow-gray-200"
+                  } ${message._isOptimistic ? "opacity-70 scale-95" : ""} ${
                     message._isFailed ? "border-red-300 bg-red-50" : ""
                   }`}
                   onTouchStart={(e) => {
@@ -350,7 +375,7 @@ const OptimizedChat: React.FC<OptimizedChatProps> = ({
                     </div>
                   )}
 
-                  <p className="text-sm leading-relaxed break-words mb-1">
+                  <p className="text-sm leading-relaxed break-words mb-2 font-medium">
                     {message.content}
                   </p>
 
@@ -362,10 +387,10 @@ const OptimizedChat: React.FC<OptimizedChatProps> = ({
                     }`}
                   >
                     <span
-                      className={`text-xs ${
+                      className={`text-xs font-medium ${
                         message.sender_id === currentUserId
                           ? "text-green-100"
-                          : "text-muted-foreground"
+                          : "text-gray-500"
                       }`}
                     >
                       {formatTime(message.created_at)}
@@ -402,41 +427,33 @@ const OptimizedChat: React.FC<OptimizedChatProps> = ({
       </div>
 
       {/* Fixed Input Bar */}
-      <div className="border-t bg-white p-3 sm:p-4 flex-shrink-0 transition-all duration-300 ease-out">
-        <div className="flex items-center gap-2 sm:gap-3">
-          <Input
-            ref={inputRef}
-            placeholder="Type your message..."
-            value={newMessage}
-            onChange={(e) => handleTyping(e.target.value)}
-            onKeyPress={handleKeyPress}
-            onFocus={() => {
-              // Smooth scroll to keep input visible when keyboard appears
-              setTimeout(() => {
-                inputRef.current?.scrollIntoView({
-                  behavior: "smooth",
-                  block: "center",
-                  inline: "nearest",
-                });
-              }, 300);
-            }}
-            className="flex-1 border-2 border-muted focus:border-green-500 rounded-full px-4 py-2"
-          />
+      <div className="border-t border-gray-200/50 bg-white/95 backdrop-blur-sm px-4 py-3 flex-shrink-0 transition-all duration-300 ease-out">
+        <div className="flex items-end gap-3">
+          <div className="flex-1 relative">
+            <Input
+              ref={inputRef}
+              placeholder="Type your message..."
+              value={newMessage}
+              onChange={(e) => handleTyping(e.target.value)}
+              onKeyPress={handleKeyPress}
+              className="w-full border-2 border-gray-200 focus:border-green-500 rounded-2xl px-4 py-3 text-sm bg-gray-50 focus:bg-white transition-all duration-200 resize-none min-h-[44px] max-h-32"
+            />
+          </div>
           <Button
             onClick={handleSendMessage}
             disabled={!newMessage.trim()}
-            className="h-10 w-10 rounded-full bg-green-600 hover:bg-green-700 shadow-lg"
+            className="h-11 w-11 rounded-full bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <Send className="h-4 w-4" />
+            <Send className="h-5 w-5" />
           </Button>
         </div>
 
         {/* Status */}
-        <div className="flex items-center justify-center gap-2 mt-2 text-xs text-muted-foreground">
+        <div className="flex items-center justify-center gap-2 mt-3 text-xs text-gray-500">
           <Shield className="h-3 w-3 text-green-600" />
-          <span>Monitored for safety • Real-time updates</span>
+          <span>Secure & monitored</span>
           {hasFailedMessages && (
-            <Badge variant="destructive" className="text-xs">
+            <Badge variant="destructive" className="text-xs ml-2">
               {messages.filter((m) => m._isFailed).length} failed
             </Badge>
           )}

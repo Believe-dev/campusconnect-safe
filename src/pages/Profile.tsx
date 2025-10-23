@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 import {
   Shield,
   Star,
@@ -20,6 +21,7 @@ import {
   Trash2,
   Play,
   Eye,
+  Headphones,
 } from "lucide-react";
 import {
   Dialog,
@@ -71,6 +73,7 @@ const Profile = () => {
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [wallet, setWallet] = useState<WalletData | null>(null);
+  const { isAdmin } = useAuth();
   useRealTimeProfile();
   const [editing, setEditing] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -713,6 +716,12 @@ const Profile = () => {
                           isPremium={gameBadge.is_premium}
                           size="sm"
                         />
+                      )}
+                      {isAdmin && (
+                        <Badge className="bg-purple-50 text-purple-700 border-purple-200 px-3 py-1 font-medium flex items-center gap-1">
+                          <Headphones className="h-3 w-3" />
+                          Support
+                        </Badge>
                       )}
                     </div>
 

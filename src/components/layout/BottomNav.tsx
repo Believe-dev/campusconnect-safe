@@ -15,11 +15,13 @@ import { Badge } from "@/components/ui/badge";
 import { useCartCount } from "@/hooks/useCartCount";
 import { useAuth } from "@/hooks/useAuth";
 import { useUniMarketNavigation } from "@/hooks/useUniMarketNavigation";
+import { useLiveFeedNotifications } from "@/hooks/useLiveFeedNotifications";
 
 const BottomNav = () => {
   const location = useLocation();
   const { user } = useAuth();
   const { cartCount } = useCartCount();
+  const { unreadCount: liveFeedUnreadCount, markAsRead: markLiveFeedAsRead } = useLiveFeedNotifications();
   const { goToMarketplace, goToOrders, goToLiveFeed, goToCart, goToProfile } =
     useUniMarketNavigation();
 
@@ -55,7 +57,16 @@ const BottomNav = () => {
       onClick: goToMarketplace,
     },
     { to: "/orders", icon: Package, label: "Orders", onClick: goToOrders },
-    { to: "/live-feed", icon: Zap, label: "Live", onClick: goToLiveFeed },
+    { 
+      to: "/live-feed", 
+      icon: Zap, 
+      label: "Live", 
+      badge: liveFeedUnreadCount,
+      onClick: () => {
+        markLiveFeedAsRead();
+        goToLiveFeed();
+      }
+    },
     {
       to: "/cart",
       icon: ShoppingCart,

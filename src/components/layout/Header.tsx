@@ -50,6 +50,7 @@ import { useNetworkStatus } from "@/hooks/useNetworkStatus";
 import { useNotifications } from "@/hooks/useNotifications";
 import { useOrdersCount } from "@/hooks/useOrdersCount";
 import { useMessageCount } from "@/contexts/MessageCountContext";
+import { useLiveFeedNotifications } from "@/hooks/useLiveFeedNotifications";
 import { useProfile } from "@/contexts/ProfileContext";
 import { useRealTimeUpdates } from "@/hooks/useRealTimeUpdates";
 import SmartSearchInput from "@/components/search/SmartSearchInput";
@@ -79,6 +80,7 @@ const Header = () => {
   const { unreadCount } = useNotifications();
   const { ordersCount } = useOrdersCount();
   const { messagesCount } = useMessageCount();
+  const { unreadCount: liveFeedUnreadCount, markAsRead: markLiveFeedAsRead } = useLiveFeedNotifications();
   const [searchQuery, setSearchQuery] = useState("");
   const [gameBadge, setGameBadge] = useState<GameBadgeData | null>(null);
 
@@ -432,11 +434,19 @@ const Header = () => {
                 variant="ghost"
                 size="lg"
                 asChild
-                className="justify-start"
+                className="justify-start relative"
               >
-                <Link to="/live-feed">
+                <Link to="/live-feed" onClick={markLiveFeedAsRead}>
                   <Zap className="mr-3 h-5 w-5" />
                   Live Feed
+                  {liveFeedUnreadCount > 0 && (
+                    <Badge
+                      variant="destructive"
+                      className="ml-auto h-5 w-5 flex items-center justify-center p-0 text-xs font-bold rounded-full bg-red-500 text-white"
+                    >
+                      {liveFeedUnreadCount > 99 ? "99+" : liveFeedUnreadCount}
+                    </Badge>
+                  )}
                 </Link>
               </Button>
               <Button
@@ -717,9 +727,22 @@ const Header = () => {
 
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Button variant="ghost" size="sm" asChild>
-                          <Link to="/live-feed">
-                            <Zap className="mr-1 h-4 w-4" />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          asChild
+                          className="relative"
+                        >
+                          <Link to="/live-feed" onClick={markLiveFeedAsRead}>
+                            <Zap className="h-5 w-5" />
+                            {liveFeedUnreadCount > 0 && (
+                              <Badge
+                                variant="destructive"
+                                className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center p-0 text-xs font-bold rounded-full bg-red-500 text-white border-2 border-background shadow-sm"
+                              >
+                                {liveFeedUnreadCount > 99 ? "99+" : liveFeedUnreadCount}
+                              </Badge>
+                            )}
                           </Link>
                         </Button>
                       </TooltipTrigger>

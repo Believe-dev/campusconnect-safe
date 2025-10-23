@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/enhanced-button';
 import { Separator } from '@/components/ui/separator';
-import { Star, MessageCircle, MapPin, GraduationCap, ShieldCheck, User, Package, Heart, ShoppingCart, Phone } from 'lucide-react';
+import { Star, MessageCircle, MapPin, GraduationCap, ShieldCheck, User, Package, Heart, ShoppingCart, Phone, Headphones } from 'lucide-react';
 import { PremiumGameBadge } from '@/components/games/PremiumGameBadge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
@@ -75,6 +75,7 @@ const SellerProfile = () => {
   const [visibleProducts, setVisibleProducts] = useState(5);
   const [showAvatarModal, setShowAvatarModal] = useState(false);
   const [gameBadge, setGameBadge] = useState<GameBadgeData | null>(null);
+  const [isSellerAdmin, setIsSellerAdmin] = useState(false);
 
   useEffect(() => {
     if (sellerId) {
@@ -84,6 +85,13 @@ const SellerProfile = () => {
       fetchGameBadge();
     }
   }, [sellerId]);
+
+  // Check admin status after seller profile is loaded
+  useEffect(() => {
+    if (seller) {
+      checkAdminStatus();
+    }
+  }, [seller]);
 
   const fetchGameBadge = async () => {
     try {
@@ -97,6 +105,23 @@ const SellerProfile = () => {
       }
     } catch (error) {
       console.error('Error fetching game badge:', error);
+    }
+  };
+
+  const checkAdminStatus = async () => {
+    if (!seller?.user_id) return;
+    
+    try {
+      const { data: roles } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', seller.user_id)
+        .eq('role', 'admin')
+        .maybeSingle();
+      
+      setIsSellerAdmin(!!roles);
+    } catch (error) {
+      setIsSellerAdmin(false);
     }
   };
 
@@ -384,6 +409,12 @@ const SellerProfile = () => {
                         isPremium={gameBadge.is_premium}
                         size="sm" 
                       />
+                    )}
+                    {(isSellerAdmin || seller?.user_id === '197cc55f-a224-4bcb-9f0c-f4abd3639626') && (
+                      <Badge className="bg-purple-50 text-purple-700 border-purple-200 px-3 py-1 font-medium flex items-center gap-1">
+                        <Headphones className="h-3 w-3" />
+                        Support
+                      </Badge>
                     )}
                   </div>
                 </div>
