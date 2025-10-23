@@ -1084,6 +1084,18 @@ export type Database = {
         Args: {}
         Returns: undefined
       }
+      end_expired_auctions: {
+        Args: {}
+        Returns: undefined
+      }
+      validate_bid_amount: {
+        Args: {}
+        Returns: undefined
+      }
+      update_live_bid_stats: {
+        Args: {}
+        Returns: undefined
+      }
     }
     Enums: {
       app_role: "admin" | "seller" | "buyer"

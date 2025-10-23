@@ -93,6 +93,7 @@ import { sendEmailNotification } from "@/utils/emailService";
 import { sanitizeInput, validateEmail, validateName } from "@/lib/security";
 import { AdminWallet } from "@/components/admin/AdminWallet";
 import { SellerSubscriptionManager } from "@/components/admin/SellerSubscriptionManager";
+import { PullToRefresh } from "@/components/common/PullToRefresh";
 
 interface User {
   id: string;
@@ -270,6 +271,27 @@ export default function Admin() {
   const [disputeTemplates, setDisputeTemplates] = useState<any[]>([]);
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [showPassword, setShowPassword] = useState(false);
+
+  // Refresh function for pull-to-refresh
+  const handleRefresh = async () => {
+    if (isAdmin) {
+      await Promise.all([
+        fetchUsers(),
+        fetchProducts(),
+        fetchMessages(),
+        fetchStats(),
+        fetchAnalytics(),
+        fetchPendingSellers(),
+        fetchVerificationRequests(),
+        fetchEscrowData(),
+        fetchProductReports(),
+        fetchBanAppeals(),
+        fetchEmailLogs(),
+        fetchDisputeTemplates(),
+        fetchSuggestions()
+      ]);
+    }
+  };
 
   useEffect(() => {
     if (isAdmin) {
@@ -2017,7 +2039,8 @@ export default function Admin() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 py-8">
+      <PullToRefresh onRefresh={handleRefresh} className="min-h-screen">
+        <div className="container mx-auto px-4 py-8">
         <div className="mb-8 flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold mb-2">Admin Dashboard</h1>
@@ -6803,7 +6826,8 @@ export default function Admin() {
             </DialogContent>
           </Dialog>
         )}
-      </div>
+        </div>
+      </PullToRefresh>
     </div>
   );
 }

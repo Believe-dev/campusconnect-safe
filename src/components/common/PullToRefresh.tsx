@@ -132,32 +132,34 @@ export const PullToRefresh: React.FC<PullToRefreshProps> = ({
       
       {/* Pull indicator */}
       <div 
-        className="absolute top-0 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center pointer-events-none"
+        className="fixed top-0 left-0 right-0 z-50 flex justify-center pointer-events-none"
         style={{
-          transform: `translateY(${Math.max(-60 + pullDistance * 0.8, -60)}px)`,
+          transform: `translateY(${Math.max(-70 + pullDistance * 0.7, -70)}px)`,
           opacity: refreshState === 'idle' ? 0 : Math.min(pullDistance / 40, 1),
           transition: refreshState === 'idle' ? 'all 0.3s ease-out' : 'none'
         }}
       >
-        <div className="bg-white/95 backdrop-blur-sm rounded-full p-3 shadow-lg border border-gray-200/50">
-          {refreshState === 'refreshing' ? (
-            <Loader2 className="w-5 h-5 text-primary animate-spin" />
-          ) : (
-            <ArrowDown 
-              className="w-5 h-5 text-primary transition-transform duration-200"
-              style={{
-                transform: `rotate(${refreshState === 'ready' ? 180 : Math.min(pullDistance / threshold * 180, 180)}deg)`
-              }}
-            />
+        <div className="flex flex-col items-center">
+          <div className="bg-white/95 backdrop-blur-sm rounded-full p-3 shadow-lg border border-gray-200/50">
+            {refreshState === 'refreshing' ? (
+              <Loader2 className="w-5 h-5 text-primary animate-spin" />
+            ) : (
+              <ArrowDown 
+                className="w-5 h-5 text-primary transition-transform duration-200"
+                style={{
+                  transform: `rotate(${refreshState === 'ready' ? 180 : Math.min(pullDistance / threshold * 180, 180)}deg)`
+                }}
+              />
+            )}
+          </div>
+          
+          {refreshState !== 'idle' && (
+            <div className="mt-2 text-xs font-medium text-gray-600 bg-white/80 px-2 py-1 rounded-full">
+              {refreshState === 'refreshing' ? 'Refreshing...' : 
+               refreshState === 'ready' ? 'Release to refresh' : 'Pull to refresh'}
+            </div>
           )}
         </div>
-        
-        {refreshState !== 'idle' && (
-          <div className="mt-2 text-xs font-medium text-gray-600 bg-white/80 px-2 py-1 rounded-full">
-            {refreshState === 'refreshing' ? 'Refreshing...' : 
-             refreshState === 'ready' ? 'Release to refresh' : 'Pull to refresh'}
-          </div>
-        )}
       </div>
 
       {children}

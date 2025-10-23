@@ -481,7 +481,7 @@ const OptimizedChat: React.FC<OptimizedChatProps> = ({
       {/* Fixed Input Bar */}
       <div 
         data-input-bar
-        className="fixed bottom-0 left-0 right-0 border-t border-gray-200/50 bg-white/98 backdrop-blur-xl px-4 py-4 flex-shrink-0 transition-all duration-300 ease-out z-10"
+        className="fixed bottom-0 left-0 right-0 px-4 py-4 flex-shrink-0 z-10"
       >
         <div className="flex items-end gap-3 max-w-4xl mx-auto">
           <div className="flex-1 relative">

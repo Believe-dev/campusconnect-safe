@@ -69,10 +69,10 @@ const Index = () => {
   const { products, loading } = useFeaturedProducts();
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const handleRefresh = useCallback(async () => {
-    // Simulate refresh without page reload
+    // Refresh products data without page reload
     await new Promise(resolve => setTimeout(resolve, 1000));
-    // Trigger re-fetch of products
-    window.location.reload();
+    // Force re-fetch of products by triggering a re-render
+    window.dispatchEvent(new CustomEvent('refreshProducts'));
   }, []);
 
   const handleViewProduct = (productId: string) => {

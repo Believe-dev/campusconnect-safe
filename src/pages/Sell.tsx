@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { Upload, X } from 'lucide-react';
+import { PullToRefresh } from '@/components/common/PullToRefresh';
 
 
 const categories = [
@@ -86,6 +87,10 @@ const Sell = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleRefresh = async () => {
+    await loadUserProfile();
   };
 
   const uploadImages = async () => {
@@ -300,8 +305,9 @@ const Sell = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <main className="container mx-auto px-4 py-8">
-        <Card className="max-w-2xl mx-auto">
+      <PullToRefresh onRefresh={handleRefresh} className="min-h-screen">
+        <main className="container mx-auto px-4 py-8">
+          <Card className="max-w-2xl mx-auto">
             <CardHeader>
               <CardTitle className="text-2xl font-bold text-primary">List Your Product</CardTitle>
               <p className="text-muted-foreground">Fill in the details to list your product on CampusConnect</p>
@@ -476,8 +482,9 @@ const Sell = () => {
               </Button>
             </form>
             </CardContent>
-          </Card>
-      </main>
+            </Card>
+        </main>
+      </PullToRefresh>
     </div>
   );
 };

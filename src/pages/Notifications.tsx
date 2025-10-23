@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { Navigate, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -9,6 +9,7 @@ import { Bell, Check, Trash2, Settings } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import NotificationTester from "@/components/notifications/NotificationTester";
+import { PullToRefresh } from "@/components/common/PullToRefresh";
 
 interface Notification {
   id: string;
@@ -287,6 +288,9 @@ export default function Notifications() {
       toast.error("Failed to update notifications");
     }
   };
+  const handleRefresh = useCallback(async () => {
+    await fetchNotifications();
+  }, [user]);
 
   if (loading) {
     return (
@@ -325,32 +329,33 @@ export default function Notifications() {
 
   return (
     <div className="min-h-screen bg-background">
-      <main className="container mx-auto px-4 py-8">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
-          <div className="flex items-center gap-3">
-            <Bell className="h-6 w-6" />
-            <h1 className="text-xl sm:text-2xl font-bold">Notifications</h1>
-            {unreadCount > 0 && (
-              <Badge variant="destructive" className="text-xs">
-                {unreadCount} unread
-              </Badge>
-            )}
-          </div>
+      <PullToRefresh onRefresh={handleRefresh} className="min-h-screen">
+        <main className="container mx-auto px-4 py-8">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
+            <div className="flex items-center gap-3">
+              <Bell className="h-6 w-6" />
+              <h1 className="text-xl sm:text-2xl font-bold">Notifications</h1>
+              {unreadCount > 0 && (
+                <Badge variant="destructive" className="text-xs">
+                  {unreadCount} unread
+                </Badge>
+              )}
+            </div>
 
-          <div className="flex gap-2">
-            {unreadCount > 0 && (
-              <Button
-                onClick={markAllAsRead}
-                variant="outline"
-                size="sm"
-                className="w-full sm:w-auto"
-              >
-                <Check className="h-4 w-4 mr-2" />
-                Mark all as read
-              </Button>
-            )}
+            <div className="flex gap-2">
+              {unreadCount > 0 && (
+                <Button
+                  onClick={markAllAsRead}
+                  variant="outline"
+                  size="sm"
+                  className="w-full sm:w-auto"
+                >
+                  <Check className="h-4 w-4 mr-2" />
+                  Mark all as read
+                </Button>
+              )}
 
-            {/* <Button 
+              {/* <Button 
               onClick={() => setShowTester(!showTester)} 
               variant="ghost" 
               size="sm" 
@@ -359,107 +364,108 @@ export default function Notifications() {
               <Settings className="h-4 w-4 mr-2" />
               {showTester ? 'Hide' : 'Show'} Tester
             </Button> */}
+            </div>
           </div>
-        </div>
 
-        {showTester && (
-          <div className="mb-6">
-            <NotificationTester />
-          </div>
-        )}
+          {showTester && (
+            <div className="mb-6">
+              <NotificationTester />
+            </div>
+          )}
 
-        {loadingNotifications ? (
-          <Card>
-            <CardContent className="text-center py-12">
-              <div className="animate-pulse space-y-4">
-                <div className="h-4 bg-muted rounded w-3/4 mx-auto"></div>
-                <div className="h-4 bg-muted rounded w-1/2 mx-auto"></div>
-                <div className="h-4 bg-muted rounded w-2/3 mx-auto"></div>
-              </div>
-            </CardContent>
-          </Card>
-        ) : notifications.length === 0 ? (
-          <Card>
-            <CardContent className="text-center py-12">
-              <Bell className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-semibold mb-2">
-                No notifications yet
-              </h3>
-              <p className="text-muted-foreground">
-                You'll see important updates and messages here
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="space-y-4">
-            {notifications.map((notification) => (
-              <Card
-                key={notification.id}
-                className={`cursor-pointer hover:shadow-md transition-shadow ${
-                  !notification.is_read ? "ring-2 ring-primary/20" : ""
-                }`}
-                onClick={() => handleNotificationClick(notification)}
-              >
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-start gap-3 flex-1 min-w-0">
-                      <div
-                        className={`w-3 h-3 rounded-full mt-2 flex-shrink-0 ${getNotificationTypeColor(
-                          notification.type
-                        )}`}
-                      />
-                      <div className="flex-1 min-w-0">
-                        <CardTitle className="text-sm sm:text-base truncate">
-                          {notification.title}
-                        </CardTitle>
-                        <p
-                          className={`text-xs sm:text-sm text-muted-foreground mt-1 ${
-                            expandedNotifications.has(notification.id)
-                              ? ""
-                              : "line-clamp-2"
-                          }`}
-                        >
-                          {notification.message}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-2">
-                          {format(new Date(notification.created_at), "PPp")}
-                        </p>
+          {loadingNotifications ? (
+            <Card>
+              <CardContent className="text-center py-12">
+                <div className="animate-pulse space-y-4">
+                  <div className="h-4 bg-muted rounded w-3/4 mx-auto"></div>
+                  <div className="h-4 bg-muted rounded w-1/2 mx-auto"></div>
+                  <div className="h-4 bg-muted rounded w-2/3 mx-auto"></div>
+                </div>
+              </CardContent>
+            </Card>
+          ) : notifications.length === 0 ? (
+            <Card>
+              <CardContent className="text-center py-12">
+                <Bell className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-semibold mb-2">
+                  No notifications yet
+                </h3>
+                <p className="text-muted-foreground">
+                  You'll see important updates and messages here
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-4">
+              {notifications.map((notification) => (
+                <Card
+                  key={notification.id}
+                  className={`cursor-pointer hover:shadow-md transition-shadow ${
+                    !notification.is_read ? "ring-2 ring-primary/20" : ""
+                  }`}
+                  onClick={() => handleNotificationClick(notification)}
+                >
+                  <CardHeader className="pb-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-3 flex-1 min-w-0">
+                        <div
+                          className={`w-3 h-3 rounded-full mt-2 flex-shrink-0 ${getNotificationTypeColor(
+                            notification.type
+                          )}`}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <CardTitle className="text-sm sm:text-base truncate">
+                            {notification.title}
+                          </CardTitle>
+                          <p
+                            className={`text-xs sm:text-sm text-muted-foreground mt-1 ${
+                              expandedNotifications.has(notification.id)
+                                ? ""
+                                : "line-clamp-2"
+                            }`}
+                          >
+                            {notification.message}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-2">
+                            {format(new Date(notification.created_at), "PPp")}
+                          </p>
+                        </div>
                       </div>
-                    </div>
 
-                    <div className="flex items-center gap-1 flex-shrink-0">
-                      {!notification.is_read && (
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        {!notification.is_read && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 w-8 p-0"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              markAsRead(notification.id);
+                            }}
+                          >
+                            <Check className="h-4 w-4" />
+                          </Button>
+                        )}
                         <Button
                           size="sm"
                           variant="ghost"
                           className="h-8 w-8 p-0"
                           onClick={(e) => {
                             e.stopPropagation();
-                            markAsRead(notification.id);
+                            deleteNotification(notification.id);
                           }}
                         >
-                          <Check className="h-4 w-4" />
+                          <Trash2 className="h-4 w-4" />
                         </Button>
-                      )}
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-8 w-8 p-0"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          deleteNotification(notification.id);
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      </div>
                     </div>
-                  </div>
-                </CardHeader>
-              </Card>
-            ))}
-          </div>
-        )}
-      </main>
+                  </CardHeader>
+                </Card>
+              ))}
+            </div>
+          )}
+        </main>
+      </PullToRefresh>
     </div>
   );
 }

@@ -83,7 +83,7 @@ const BottomNav = () => {
      * Content padding prevents overlap with scrollable content
      */
     <nav
-      className="force-fixed-bottom pb-[-80px] transition-all duration-300 ease-out"
+      className="force-fixed-bottom transition-all duration-300 ease-out"
       style={{
         position: "fixed",
         bottom: 0,
@@ -124,14 +124,9 @@ const BottomNav = () => {
                       "h-4.5 w-4.5 transition-all duration-200",
                       isActive ? "text-university-green" : "text-gray-500"
                     )}
-                    style={{
-                      WebkitAppearance: "none",
-                      appearance: "none",
-                      width: "18px",
-                      height: "18px",
-                    }}
+                    style={{ WebkitAppearance: "none", appearance: "none", width: "18px", height: "18px" }}
                   />
-                  {badge && badge > 0 && (
+                  {badge !== undefined && (
                     <Badge
                       variant="destructive"
                       className="absolute -top-1 -right-1 h-3.5 w-3.5 flex items-center justify-center p-0 text-xs font-bold rounded-full bg-red-500 text-white border border-white shadow-sm notification-badge"
