@@ -131,7 +131,7 @@ const BottomNav = () => {
                       height: "18px",
                     }}
                   />
-                  {badge !== undefined && (
+                  {badge && badge > 0 && (
                     <Badge
                       variant="destructive"
                       className="absolute -top-1 -right-1 h-3.5 w-3.5 flex items-center justify-center p-0 text-xs font-bold rounded-full bg-red-500 text-white border border-white shadow-sm notification-badge"

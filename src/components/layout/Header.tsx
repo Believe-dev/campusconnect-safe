@@ -660,7 +660,7 @@ const Header = () => {
                   >
                     <Link to="/notifications">
                       <Bell className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4" />
-                      {unreadCount > 0 && (
+                      {unreadCount && unreadCount > 0 && (
                         <Badge
                           variant="destructive"
                           className="absolute -top-0.5 -right-0.5 sm:-top-1 sm:-right-1 h-4 w-4 sm:h-5 sm:w-5 flex items-center justify-center p-0 text-[10px] font-bold rounded-full bg-red-500 text-white border border-background"
@@ -688,7 +688,7 @@ const Header = () => {
                   >
                     <Link to="/messages">
                       <MessageCircle className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4" />
-                      {messagesCount > 0 && (
+                      {messagesCount && messagesCount > 0 && (
                         <Badge
                           variant="destructive"
                           className="absolute -top-0.5 -right-0.5 sm:-top-1 sm:-right-1 h-4 w-4 sm:h-5 sm:w-5 flex items-center justify-center p-0 text-[10px] font-bold rounded-full bg-red-500 text-white border border-background"
