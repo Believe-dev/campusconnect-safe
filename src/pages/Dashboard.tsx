@@ -30,6 +30,8 @@ import {
   BarChart3,
   Plus,
   Wallet,
+  Upload,
+  X,
 } from "lucide-react";
 import WalletDashboard from "@/components/wallet/WalletDashboard";
 
@@ -81,6 +83,7 @@ const Dashboard = () => {
   const [accessDenied, setAccessDenied] = useState(false);
   const [isRealTimeConnected, setIsRealTimeConnected] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+  const [newImages, setNewImages] = useState<File[]>([]);
   const navigate = useNavigate();
   const { toast } = useToast();
   const handleRefresh = useCallback(async () => {
@@ -271,6 +274,30 @@ const Dashboard = () => {
     }
   };
 
+  const uploadNewImages = async () => {
+    const uploadedUrls = [];
+    
+    for (let i = 0; i < newImages.length; i++) {
+      const file = newImages[i];
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Date.now()}-${i}.${fileExt}`;
+      
+      const { data, error } = await supabase.storage
+        .from('product-images')
+        .upload(fileName, file);
+      
+      if (error) throw error;
+      
+      const { data: { publicUrl } } = supabase.storage
+        .from('product-images')
+        .getPublicUrl(fileName);
+      
+      uploadedUrls.push(publicUrl);
+    }
+    
+    return uploadedUrls;
+  };
+
   const handleUpdateProduct = async (product: Product) => {
     try {
       const {
@@ -310,6 +337,13 @@ const Dashboard = () => {
         return;
       }
 
+      // Upload new images if any
+      let updatedImages = [...product.images];
+      if (newImages.length > 0) {
+        const newImageUrls = await uploadNewImages();
+        updatedImages = [...updatedImages, ...newImageUrls];
+      }
+
       const { error } = await supabase
         .from("products")
         .update({
@@ -321,6 +355,7 @@ const Dashboard = () => {
           condition: product.condition,
           campus: product.campus,
           is_active: product.is_active,
+          images: updatedImages,
         })
         .eq("id", product.id);
 
@@ -343,6 +378,7 @@ const Dashboard = () => {
       });
 
       setEditingProduct(null);
+      setNewImages([]);
       fetchProducts();
     } catch (error) {
       toast({
@@ -351,6 +387,28 @@ const Dashboard = () => {
         variant: "destructive",
       });
     }
+  };
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const files = Array.from(e.target.files);
+      const totalImages = (editingProduct?.images?.length || 0) + newImages.length;
+      const remainingSlots = 3 - totalImages;
+      const filesToAdd = files.slice(0, remainingSlots);
+      setNewImages(prev => [...prev, ...filesToAdd]);
+    }
+    e.target.value = '';
+  };
+
+  const removeExistingImage = (index: number) => {
+    if (editingProduct) {
+      const updatedImages = editingProduct.images.filter((_, i) => i !== index);
+      setEditingProduct({ ...editingProduct, images: updatedImages });
+    }
+  };
+
+  const removeNewImage = (index: number) => {
+    setNewImages(prev => prev.filter((_, i) => i !== index));
   };
 
   const toggleProductStatus = async (productId: string, isActive: boolean) => {
@@ -839,6 +897,9 @@ const Dashboard = () => {
                                   <p className="text-xs sm:text-sm text-muted-foreground">
                                     ₦{productAnalytics.revenue.toLocaleString()}
                                   </p>
+                                  <p className="text-xs text-primary mt-1">
+                                    Click to view full details
+                                  </p>
                                 </div>
                               </div>
                             );
@@ -897,6 +958,9 @@ const Dashboard = () => {
                                     <p className="text-xs sm:text-sm text-muted-foreground">
                                       ₦
                                       {productAnalytics.revenue.toLocaleString()}
+                                    </p>
+                                    <p className="text-xs text-primary mt-1">
+                                      Click to view full details
                                     </p>
                                   </div>
                                 </div>
@@ -1317,10 +1381,91 @@ const Dashboard = () => {
                   </div>
                 </div>
 
+                {/* Image Management */}
+                <div>
+                  <Label className="text-sm font-medium">Product Images</Label>
+                  
+                  {/* Existing Images */}
+                  {editingProduct.images && editingProduct.images.length > 0 && (
+                    <div className="mt-2">
+                      <p className="text-xs text-muted-foreground mb-2">Current Images:</p>
+                      <div className="grid grid-cols-3 gap-2">
+                        {editingProduct.images.map((imageUrl, index) => (
+                          <div key={index} className="relative">
+                            <img
+                              src={imageUrl}
+                              alt={`Product ${index + 1}`}
+                              className="w-full h-20 object-cover rounded"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => removeExistingImage(index)}
+                              className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full p-1"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* New Images */}
+                  {newImages.length > 0 && (
+                    <div className="mt-2">
+                      <p className="text-xs text-muted-foreground mb-2">New Images:</p>
+                      <div className="grid grid-cols-3 gap-2">
+                        {newImages.map((file, index) => (
+                          <div key={index} className="relative">
+                            <img
+                              src={URL.createObjectURL(file)}
+                              alt={`New ${index + 1}`}
+                              className="w-full h-20 object-cover rounded"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => removeNewImage(index)}
+                              className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full p-1"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Upload New Images */}
+                  {((editingProduct.images?.length || 0) + newImages.length) < 3 && (
+                    <div className="mt-2">
+                      <input
+                        type="file"
+                        id="edit-images"
+                        multiple
+                        accept="image/*"
+                        onChange={handleImageChange}
+                        className="hidden"
+                      />
+                      <label
+                        htmlFor="edit-images"
+                        className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-muted-foreground/25 rounded-lg cursor-pointer hover:bg-muted/50 transition-colors"
+                      >
+                        <Upload className="h-6 w-6 text-muted-foreground mb-1" />
+                        <span className="text-xs text-muted-foreground">
+                          Add Images ({(editingProduct.images?.length || 0) + newImages.length}/3)
+                        </span>
+                      </label>
+                    </div>
+                  )}
+                </div>
+
                 <div className="flex flex-col sm:flex-row gap-2 sm:justify-end pt-4">
                   <Button
                     variant="outline"
-                    onClick={() => setEditingProduct(null)}
+                    onClick={() => {
+                      setEditingProduct(null);
+                      setNewImages([]);
+                    }}
                     className="w-full sm:w-auto"
                   >
                     Cancel

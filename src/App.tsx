@@ -53,6 +53,7 @@ import { PerformanceMonitor } from "@/components/common/PerformanceMonitor";
 import { AccessibilityProvider } from "@/components/common/AccessibilityProvider";
 import { usePerformanceOptimization } from "@/hooks/usePerformanceOptimization";
 import { NavigationPreloader } from "@/components/common/NavigationPreloader";
+import { PageLoadError } from "@/components/common/PageLoadError";
 
 import "@/styles/mobile-fixes.css";
 
@@ -62,152 +63,152 @@ import "@/styles/bottom-nav.css";
 // Lazy load pages for better performance with error boundaries
 const Index = React.lazy(() =>
   import("./pages/Index").catch(() => ({
-    default: () => <div>Error loading page</div>,
+    default: PageLoadError,
   }))
 );
 const NotFound = React.lazy(() =>
   import("./pages/NotFound").catch(() => ({
-    default: () => <div>Error loading page</div>,
+    default: PageLoadError,
   }))
 );
 const ProductDetails = React.lazy(() =>
   import("./pages/ProductDetails").catch(() => ({
-    default: () => <div>Error loading page</div>,
+    default: PageLoadError,
   }))
 );
 const Profile = React.lazy(() =>
   import("./pages/Profile").catch(() => ({
-    default: () => <div>Error loading page</div>,
+    default: PageLoadError,
   }))
 );
 const SellerProfile = React.lazy(() =>
   import("./components/profiles/SellerProfile").catch(() => ({
-    default: () => <div>Error loading page</div>,
+    default: PageLoadError,
   }))
 );
 const Messages = React.lazy(() =>
   import("./pages/Messages").catch(() => ({
-    default: () => <div>Error loading page</div>,
+    default: PageLoadError,
   }))
 );
 const Orders = React.lazy(() =>
   import("./pages/Orders").catch(() => ({
-    default: () => <div>Error loading page</div>,
+    default: PageLoadError,
   }))
 );
 const Search = React.lazy(() =>
   import("./pages/Search").catch(() => ({
-    default: () => <div>Error loading page</div>,
+    default: PageLoadError,
   }))
 );
 const SellerSearch = React.lazy(() =>
   import("./pages/SellerSearch").catch(() => ({
-    default: () => <div>Error loading page</div>,
+    default: PageLoadError,
   }))
 );
 const Settings = React.lazy(() =>
   import("./pages/Settings").catch(() => ({
-    default: () => <div>Error loading page</div>,
+    default: PageLoadError,
   }))
 );
 const Sell = React.lazy(() =>
   import("./pages/Sell").catch(() => ({
-    default: () => <div>Error loading page</div>,
+    default: PageLoadError,
   }))
 );
 const Dashboard = React.lazy(() =>
   import("./pages/Dashboard").catch(() => ({
-    default: () => <div>Error loading page</div>,
+    default: PageLoadError,
   }))
 );
 const Marketplace = React.lazy(() =>
   import("./pages/Marketplace").catch(() => ({
-    default: () => <div>Error loading page</div>,
+    default: PageLoadError,
   }))
 );
 const Cart = React.lazy(() =>
   import("./pages/Cart").catch(() => ({
-    default: () => <div>Error loading page</div>,
+    default: PageLoadError,
   }))
 );
 const Checkout = React.lazy(() =>
   import("./pages/Checkout").catch(() => ({
-    default: () => <div>Error loading page</div>,
+    default: PageLoadError,
   }))
 );
 const Favorites = React.lazy(() =>
   import("./pages/Favorites").catch(() => ({
-    default: () => <div>Error loading page</div>,
+    default: PageLoadError,
   }))
 );
 const AuthPage = React.lazy(() =>
   import("./components/auth/AuthPage").catch(() => ({
-    default: () => <div>Error loading page</div>,
+    default: PageLoadError,
   }))
 );
 const SignupPage = React.lazy(() =>
   import("./components/auth/SignupPage").catch(() => ({
-    default: () => <div>Error loading page</div>,
+    default: PageLoadError,
   }))
 );
 const TestSignup = React.lazy(() =>
   import("./pages/TestSignup").catch(() => ({
-    default: () => <div>Error loading page</div>,
+    default: PageLoadError,
   }))
 );
 const Admin = React.lazy(() =>
   import("./pages/Admin").catch(() => ({
-    default: () => <div>Error loading page</div>,
+    default: PageLoadError,
   }))
 );
 const LearnMore = React.lazy(() =>
   import("./pages/LearnMore").catch(() => ({
-    default: () => <div>Error loading page</div>,
+    default: PageLoadError,
   }))
 );
 const Notifications = React.lazy(() =>
   import("./pages/Notifications").catch(() => ({
-    default: () => <div>Error loading page</div>,
+    default: PageLoadError,
   }))
 );
 const VerificationRequest = React.lazy(() =>
   import("./pages/VerificationRequest").catch(() => ({
-    default: () => <div>Error loading page</div>,
+    default: PageLoadError,
   }))
 );
 const Wallet = React.lazy(() =>
   import("./pages/Wallet").catch(() => ({
-    default: () => <div>Error loading page</div>,
+    default: PageLoadError,
   }))
 );
 const Chat = React.lazy(() =>
   import("./pages/Chat").catch(() => ({
-    default: () => <div>Error loading page</div>,
+    default: PageLoadError,
   }))
 );
 const TermsOfService = React.lazy(() =>
   import("./pages/TermsOfService").catch(() => ({
-    default: () => <div>Error loading page</div>,
+    default: PageLoadError,
   }))
 );
 const PrivacyPolicy = React.lazy(() =>
   import("./pages/PrivacyPolicy").catch(() => ({
-    default: () => <div>Error loading page</div>,
+    default: PageLoadError,
   }))
 );
 const Suggestions = React.lazy(() =>
   import("./pages/Suggestions").catch(() => ({
-    default: () => <div>Error loading page</div>,
+    default: PageLoadError,
   }))
 );
 const LiveFeed = React.lazy(() =>
   import("./pages/LiveFeed").catch(() => ({
-    default: () => <div>Error loading page</div>,
+    default: PageLoadError,
   }))
 );
 const Games = React.lazy(() =>
   import("./pages/Games").catch(() => ({
-    default: () => <div>Error loading page</div>,
+    default: PageLoadError,
   }))
 );
 
@@ -282,7 +283,6 @@ const AppContent = () => {
   const { isBanned, banReason, userEmail } = useBanCheck();
   const { showOnboarding, closeOnboarding } = useOnboarding();
 
-
   useEffect(() => {
     const setupNotifications = async () => {
       // Register service worker
@@ -297,14 +297,17 @@ const AppContent = () => {
 
       // Setup notification click handlers
       setupNotificationClickHandler();
-      
+
       // Initialize push notifications (skip on localhost)
-      if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+      if (
+        window.location.hostname !== "localhost" &&
+        window.location.hostname !== "127.0.0.1"
+      ) {
         await initializePushNotifications();
         await requestNotificationPermission();
         await initializeOneSignal();
       } else {
-        console.log('Push notifications skipped on localhost');
+        console.log("Push notifications skipped on localhost");
       }
     };
     setupNotifications();
@@ -326,64 +329,72 @@ const AppContent = () => {
       <NetworkNotification />
       <Header />
       {/* Content container with proper layout structure */}
-      <div className={`min-h-screen ${metrics.isLowEndDevice ? 'low-end-device' : ''}`} style={{ overscrollBehaviorY: 'none' }}>
-          <AuthGuard>
-            <NavigationPreloader>
-              <Suspense fallback={<LoadingSkeleton />}>
-                <div className="page-transition student-focus">
-                  <Routes>
-                <Route path={ROUTES.home} element={<Index />} />
-                <Route path={ROUTES.auth} element={<SignupPage />} />
-                <Route path="/old-auth" element={<AuthPage />} />
-                <Route path="/test-signup" element={<TestSignup />} />
-                <Route path="/learn-more" element={<LearnMore />} />
-                <Route path="/notifications" element={<Notifications />} />
-                <Route path={ROUTES.marketplace} element={<Marketplace />} />
-                <Route path="/product/:id" element={<ProductDetails />} />
-                <Route path={ROUTES.profile} element={<Profile />} />
-                <Route path="/seller/:sellerId" element={<SellerProfile />} />
-                <Route path="/messages" element={<Messages />} />
-                <Route path="/chat/:conversationId" element={<Chat />} />
-                <Route path={ROUTES.orders} element={<Orders />} />
-                <Route path="/search" element={<Search />} />
-                <Route path="/sellers" element={<SellerSearch />} />
-                <Route path="/settings" element={<Settings />} />
-                <Route
-                  path={ROUTES.sell}
-                  element={
-                    <ProtectedSellerRoute>
-                      <Sell />
-                    </ProtectedSellerRoute>
-                  }
-                />
-                <Route
-                  path={ROUTES.dashboard}
-                  element={
-                    <ProtectedSellerRoute>
-                      <Dashboard />
-                    </ProtectedSellerRoute>
-                  }
-                />
-                <Route path="/favorites" element={<Favorites />} />
-                <Route path={ROUTES.cart} element={<Cart />} />
-                <Route path={ROUTES.checkout} element={<Checkout />} />
-                <Route path={ROUTES.admin} element={<Admin />} />
-                <Route
-                  path="/verification-request"
-                  element={<VerificationRequest />}
-                />
-                <Route path="/wallet" element={<Wallet />} />
-                <Route path="/terms-of-service" element={<TermsOfService />} />
-                <Route path="/privacy-policy" element={<PrivacyPolicy />} />
-                <Route path="/suggestions" element={<Suggestions />} />
-                <Route path="/live-feed" element={<LiveFeed />} />
-                <Route path="/games" element={<Games />} />
-                    <Route path="*" element={<NotFound />} />
-                  </Routes>
-                </div>
-              </Suspense>
-            </NavigationPreloader>
-          </AuthGuard>
+      <div
+        className={`min-h-screen ${
+          metrics.isLowEndDevice ? "low-end-device" : ""
+        }`}
+        style={{ overscrollBehaviorY: "none" }}
+      >
+        <AuthGuard>
+          <NavigationPreloader>
+            <Suspense fallback={<LoadingSkeleton />}>
+              <div className="page-transition student-focus">
+                <Routes>
+                  <Route path={ROUTES.home} element={<Index />} />
+                  <Route path={ROUTES.auth} element={<SignupPage />} />
+                  <Route path="/old-auth" element={<AuthPage />} />
+                  <Route path="/test-signup" element={<TestSignup />} />
+                  <Route path="/learn-more" element={<LearnMore />} />
+                  <Route path="/notifications" element={<Notifications />} />
+                  <Route path={ROUTES.marketplace} element={<Marketplace />} />
+                  <Route path="/product/:id" element={<ProductDetails />} />
+                  <Route path={ROUTES.profile} element={<Profile />} />
+                  <Route path="/seller/:sellerId" element={<SellerProfile />} />
+                  <Route path="/messages" element={<Messages />} />
+                  <Route path="/chat/:conversationId" element={<Chat />} />
+                  <Route path={ROUTES.orders} element={<Orders />} />
+                  <Route path="/search" element={<Search />} />
+                  <Route path="/sellers" element={<SellerSearch />} />
+                  <Route path="/settings" element={<Settings />} />
+                  <Route
+                    path={ROUTES.sell}
+                    element={
+                      <ProtectedSellerRoute>
+                        <Sell />
+                      </ProtectedSellerRoute>
+                    }
+                  />
+                  <Route
+                    path={ROUTES.dashboard}
+                    element={
+                      <ProtectedSellerRoute>
+                        <Dashboard />
+                      </ProtectedSellerRoute>
+                    }
+                  />
+                  <Route path="/favorites" element={<Favorites />} />
+                  <Route path={ROUTES.cart} element={<Cart />} />
+                  <Route path={ROUTES.checkout} element={<Checkout />} />
+                  <Route path={ROUTES.admin} element={<Admin />} />
+                  <Route
+                    path="/verification-request"
+                    element={<VerificationRequest />}
+                  />
+                  <Route path="/wallet" element={<Wallet />} />
+                  <Route
+                    path="/terms-of-service"
+                    element={<TermsOfService />}
+                  />
+                  <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+                  <Route path="/suggestions" element={<Suggestions />} />
+                  <Route path="/live-feed" element={<LiveFeed />} />
+                  <Route path="/games" element={<Games />} />
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </div>
+            </Suspense>
+          </NavigationPreloader>
+        </AuthGuard>
       </div>
       <BottomNav />
       <MessagePopup />
