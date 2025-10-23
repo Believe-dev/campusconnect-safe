@@ -21,15 +21,13 @@ const BottomNav = () => {
   const location = useLocation();
   const { user } = useAuth();
   const { cartCount } = useCartCount();
-  const { unreadCount: liveFeedUnreadCount, markAsRead: markLiveFeedAsRead } = useLiveFeedNotifications();
+  const { unreadCount: liveFeedUnreadCount, markAsRead: markLiveFeedAsRead } =
+    useLiveFeedNotifications();
   const { goToMarketplace, goToOrders, goToLiveFeed, goToCart, goToProfile } =
     useUniMarketNavigation();
 
-
   // Hide bottom nav only on chat pages
   const isInChat = location.pathname.startsWith("/chat/");
-
-
 
   if (!user || isInChat) return null;
 
@@ -57,15 +55,15 @@ const BottomNav = () => {
       onClick: goToMarketplace,
     },
     { to: "/orders", icon: Package, label: "Orders", onClick: goToOrders },
-    { 
-      to: "/live-feed", 
-      icon: Zap, 
-      label: "Live", 
+    {
+      to: "/live-feed",
+      icon: Zap,
+      label: "Live",
       badge: liveFeedUnreadCount,
       onClick: () => {
         markLiveFeedAsRead();
         goToLiveFeed();
-      }
+      },
     },
     {
       to: "/cart",
@@ -85,13 +83,13 @@ const BottomNav = () => {
      * Content padding prevents overlap with scrollable content
      */
     <nav
-      className="force-fixed-bottom px-2 transition-all duration-300 ease-out"
+      className="force-fixed-bottom transition-all duration-300 ease-out"
       style={{
         position: "fixed",
         bottom: 0,
         left: 0,
         right: 0,
-        width: "100%",
+        width: "100vw",
         zIndex: 9997,
         pointerEvents: "auto",
       }}
@@ -104,7 +102,7 @@ const BottomNav = () => {
         }}
       >
         {/* Navigation items container with proper spacing */}
-        <div className="flex justify-around items-center py-2 px-1">
+        <div className="flex justify-around items-center py-2 px-2">
           {navItems.map(({ to, icon: Icon, label, badge, onClick }) => {
             const isActive =
               location.pathname === to ||

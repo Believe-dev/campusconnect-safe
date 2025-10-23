@@ -37,9 +37,6 @@ import {
   Bell,
   Menu,
   Store,
-  Wifi,
-  WifiOff,
-  Signal,
   Lightbulb,
   Zap,
 } from "lucide-react";
@@ -609,9 +606,9 @@ const Header = () => {
   );
 
   return (
-    <header className="force-fixed-header px-2">
+    <header className="force-fixed-header">
       <div className="bg-white border-b border-primary/10">
-        <div className="container mx-auto px-1">
+        <div className="container mx-auto px-2">
           <div className="flex h-16 items-center justify-between">
             {/* Mobile Menu */}
             <MobileNav />
