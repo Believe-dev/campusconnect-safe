@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/enhanced-button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { PullToRefresh } from "@/components/common/PullToRefresh";
 
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -75,10 +76,12 @@ const Marketplace = () => {
   const { toast } = useToast();
 
   const handleRefresh = useCallback(async () => {
+    setLoading(true);
     await fetchProducts();
     if (user) {
       await fetchUserData(user.id);
     }
+    setLoading(false);
   }, [user]);
 
   useEffect(() => {
@@ -399,8 +402,9 @@ const Marketplace = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50">
-      <main className="container mx-auto px-4 py-6 sm:py-8">
-        <OfflineNotice />
+      <PullToRefresh onRefresh={handleRefresh} className="min-h-screen">
+        <main className="container mx-auto px-4 py-6 sm:py-8">
+          <OfflineNotice />
 
         {/* Enhanced Search & Filters */}
         <Card className="mb-8 border-0 shadow-lg animate-fade-in-up">
@@ -750,7 +754,8 @@ const Marketplace = () => {
             ))}
           </div>
         )}
-      </main>
+        </main>
+      </PullToRefresh>
     </div>
   );
 };

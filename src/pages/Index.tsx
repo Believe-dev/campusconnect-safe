@@ -7,6 +7,7 @@ import { OfflineNotice } from "@/components/ui/offline-notice";
 import { SellerDocumentReminder } from "@/components/seller/SellerDocumentReminder";
 import { ProductFilters } from "@/components/home/ProductFilters";
 import { ProductGrid } from "@/components/home/ProductGrid";
+import { PullToRefresh } from "@/components/common/PullToRefresh";
 import { useAuth } from "@/hooks/useAuth";
 import { useFeaturedProducts } from "@/hooks/useProducts";
 import { ROUTES, CATEGORIES } from "@/lib/constants";
@@ -68,6 +69,9 @@ const Index = () => {
   const { products, loading } = useFeaturedProducts();
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const handleRefresh = useCallback(async () => {
+    // Simulate refresh without page reload
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    // Trigger re-fetch of products
     window.location.reload();
   }, []);
 
@@ -100,10 +104,11 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50">
-      <div className="container mx-auto px-4">
-        <OfflineNotice />
-        <SellerDocumentReminder />
-      </div>
+      <PullToRefresh onRefresh={handleRefresh} className="min-h-screen">
+        <div className="container mx-auto px-4">
+          <OfflineNotice />
+          <SellerDocumentReminder />
+        </div>
 
       {/* Modern Hero Section */}
       <section className="relative py-20 lg:py-32 overflow-hidden">
@@ -405,6 +410,7 @@ const Index = () => {
           </div>
         </section>
       )}
+      </PullToRefresh>
     </div>
   );
 };

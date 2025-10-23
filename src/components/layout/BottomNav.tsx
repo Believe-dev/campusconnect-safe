@@ -124,7 +124,12 @@ const BottomNav = () => {
                       "h-4.5 w-4.5 transition-all duration-200",
                       isActive ? "text-university-green" : "text-gray-500"
                     )}
-                    style={{ WebkitAppearance: "none", appearance: "none", width: "18px", height: "18px" }}
+                    style={{
+                      WebkitAppearance: "none",
+                      appearance: "none",
+                      width: "18px",
+                      height: "18px",
+                    }}
                   />
                   {badge !== undefined && (
                     <Badge
