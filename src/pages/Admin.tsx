@@ -94,6 +94,7 @@ import { sanitizeInput, validateEmail, validateName } from "@/lib/security";
 import { AdminWallet } from "@/components/admin/AdminWallet";
 import { SellerSubscriptionManager } from "@/components/admin/SellerSubscriptionManager";
 import { PullToRefresh } from "@/components/common/PullToRefresh";
+import { OrdersTab } from "@/components/admin/OrdersTab";
 
 interface User {
   id: string;
@@ -2223,6 +2224,9 @@ export default function Admin() {
               </TabsTrigger>
               <TabsTrigger value="wallet" className="text-xs md:text-sm whitespace-nowrap px-3 py-2">
                 Admin Wallet
+              </TabsTrigger>
+              <TabsTrigger value="orders" className="text-xs md:text-sm whitespace-nowrap px-3 py-2">
+                Orders
               </TabsTrigger>
               <TabsTrigger value="settings" className="text-xs md:text-sm whitespace-nowrap px-3 py-2">
                 Settings
@@ -6703,6 +6707,10 @@ export default function Admin() {
                 </CardContent>
               </Card>
             </div>
+          </TabsContent>
+          {/* Orders Tab */}
+          <TabsContent value="orders">
+            <OrdersTab />
           </TabsContent>
         </Tabs>
 
