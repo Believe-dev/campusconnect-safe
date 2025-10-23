@@ -31,4 +31,4 @@ Allow: /privacy-policy
 Crawl-delay: 1
 
 # Sitemap
-Sitemap: https://unimarket.com.ng/sitemap.xml
+Sitemap: https://unimarket.com.ng/api/sitemap

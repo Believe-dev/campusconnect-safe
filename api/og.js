@@ -59,6 +59,10 @@ export default async function handler(req, res) {
     
     const productUrl = `https://unimarket.com.ng/product/${product.id}`;
 
+    // Check if it's Google bot - serve full content, not redirect
+    const userAgent = req.headers['user-agent'] || '';
+    const isGoogleBot = /googlebot|google/i.test(userAgent);
+    
     // Generate HTML with meta tags
     const html = `<!DOCTYPE html>
 <html lang="en">
@@ -67,6 +71,8 @@ export default async function handler(req, res) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>${title}</title>
     <meta name="description" content="${description}">
+    <meta name="keywords" content="${product.title}, ${product.category}, unimarket, nigeria, university marketplace, buy, sell">
+    <link rel="canonical" href="${productUrl}">
     
     <!-- Open Graph Meta Tags -->
     <meta property="og:type" content="product">
@@ -85,12 +91,45 @@ export default async function handler(req, res) {
     <meta name="twitter:description" content="${description}">
     <meta name="twitter:image" content="${imageUrl}">
     
-    <!-- Redirect to actual product page -->
-    <meta http-equiv="refresh" content="0; url=${productUrl}">
-    <script>window.location.href = "${productUrl}";</script>
+    <!-- Structured Data for Google -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Product",
+      "name": "${product.title}",
+      "description": "${description}",
+      "image": "${imageUrl}",
+      "url": "${productUrl}",
+      "category": "${product.category}",
+      "offers": {
+        "@type": "Offer",
+        "price": "${product.price}",
+        "priceCurrency": "NGN",
+        "availability": "${product.stock_quantity > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock'}",
+        "url": "${productUrl}"
+      },
+      "brand": {
+        "@type": "Brand",
+        "name": "UniMarket"
+      }
+    }
+    </script>
+    
+    ${!isGoogleBot ? `<meta http-equiv="refresh" content="0; url=${productUrl}">` : ''}
+    ${!isGoogleBot ? `<script>window.location.href = "${productUrl}";</script>` : ''}
 </head>
 <body>
-    <p>Redirecting to <a href="${productUrl}">${product.title}</a>...</p>
+    ${isGoogleBot ? `
+    <main>
+        <h1>${product.title}</h1>
+        <p><strong>Price:</strong> ₦${product.price.toLocaleString()}</p>
+        <p><strong>Category:</strong> ${product.category}</p>
+        <p><strong>Condition:</strong> ${product.condition}</p>
+        ${product.description ? `<p><strong>Description:</strong> ${product.description}</p>` : ''}
+        <img src="${imageUrl}" alt="${product.title}" style="max-width:100%;height:auto;">
+        <p><a href="${productUrl}">View on UniMarket</a></p>
+    </main>
+    ` : `<p>Redirecting to <a href="${productUrl}">${product.title}</a>...</p>`}
 </body>
 </html>`;
 
