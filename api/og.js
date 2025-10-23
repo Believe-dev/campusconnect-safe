@@ -34,9 +34,28 @@ export default async function handler(req, res) {
       ? `${product.description.slice(0, 150)}... - Available on UniMarket, Nigeria's trusted university marketplace.`
       : `${product.title} for ₦${product.price.toLocaleString()} - ${product.condition} condition. Buy safely from verified student sellers on UniMarket.`;
     
-    const imageUrl = product.images && product.images[0] 
-      ? (product.images[0].startsWith('http') ? product.images[0] : `https://unimarket.com.ng${product.images[0]}`)
-      : 'https://unimarket.com.ng/social-preview.png';
+    // Handle Supabase storage URLs properly
+    let imageUrl = 'https://unimarket.com.ng/social-preview.png';
+    if (product.images && product.images[0]) {
+      const img = product.images[0];
+      console.log('Original image URL:', img); // Debug log
+      
+      if (img.startsWith('https://')) {
+        imageUrl = img;
+      } else if (img.includes('supabase.co')) {
+        imageUrl = img.startsWith('https://') ? img : `https://${img}`;
+      } else if (img.startsWith('/')) {
+        imageUrl = `https://unimarket.com.ng${img}`;
+      } else {
+        // Try different Supabase storage patterns
+        if (img.includes('/')) {
+          imageUrl = `https://ssqplkrxtrvfptrsnpow.supabase.co/storage/v1/object/public/${img}`;
+        } else {
+          imageUrl = `https://ssqplkrxtrvfptrsnpow.supabase.co/storage/v1/object/public/product-images/${img}`;
+        }
+      }
+      console.log('Final image URL:', imageUrl); // Debug log
+    }
     
     const productUrl = `https://unimarket.com.ng/product/${product.id}`;
 
