@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 
 import { expandSearchTerms } from "@/utils/searchUtils";
+import { NIGERIAN_UNIVERSITIES } from "@/lib/constants";
 
 interface SearchProduct {
   id: string;
@@ -70,15 +71,9 @@ const categories = [
   "Other",
 ];
 
-const campuses = [
-  "All Campuses",
-  "University of Lagos",
-  "University of Ibadan",
-  "Ahmadu Bello University",
-  "University of Nigeria, Nsukka",
-  "Obafemi Awolowo University",
-  "University of Benin",
-  "Other",
+const universities = [
+  "All Universities",
+  ...NIGERIAN_UNIVERSITIES,
 ];
 
 const Search = () => {
@@ -88,7 +83,7 @@ const Search = () => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState(searchParams.get("q") || "");
   const [selectedCategory, setSelectedCategory] = useState("All Categories");
-  const [selectedCampus, setSelectedCampus] = useState("All Campuses");
+  const [selectedUniversity, setSelectedUniversity] = useState("All Universities");
   const [priceRange, setPriceRange] = useState({ min: "", max: "" });
   const [sortBy, setSortBy] = useState("newest");
   const [showFilters, setShowFilters] = useState(false);
@@ -201,9 +196,9 @@ const Search = () => {
           productQuery = productQuery.eq("category", selectedCategory);
           // Live feed items always show regardless of category
         }
-        if (selectedCampus !== "All Campuses") {
-          productQuery = productQuery.eq("campus", selectedCampus);
-          liveFeedQuery = liveFeedQuery.eq("location", selectedCampus);
+        if (selectedUniversity !== "All Universities") {
+          productQuery = productQuery.eq("campus", selectedUniversity);
+          liveFeedQuery = liveFeedQuery.eq("location", selectedUniversity);
         }
         if (priceRange.min) {
           productQuery = productQuery.gte("price", parseFloat(priceRange.min));
@@ -289,11 +284,11 @@ const Search = () => {
           );
           // Live feed items always show regardless of category
         }
-        if (selectedCampus !== "All Campuses") {
-          otherProductQuery = otherProductQuery.eq("campus", selectedCampus);
+        if (selectedUniversity !== "All Universities") {
+          otherProductQuery = otherProductQuery.eq("campus", selectedUniversity);
           otherLiveFeedQuery = otherLiveFeedQuery.eq(
             "location",
-            selectedCampus
+            selectedUniversity
           );
         }
         if (priceRange.min) {
@@ -363,9 +358,9 @@ const Search = () => {
           productQuery = productQuery.eq("category", selectedCategory);
           // Live feed items always show regardless of category
         }
-        if (selectedCampus !== "All Campuses") {
-          productQuery = productQuery.eq("campus", selectedCampus);
-          liveFeedQuery = liveFeedQuery.eq("location", selectedCampus);
+        if (selectedUniversity !== "All Universities") {
+          productQuery = productQuery.eq("campus", selectedUniversity);
+          liveFeedQuery = liveFeedQuery.eq("location", selectedUniversity);
         }
         if (priceRange.min) {
           productQuery = productQuery.gte("price", parseFloat(priceRange.min));
@@ -522,7 +517,7 @@ const Search = () => {
 
   const clearFilters = () => {
     setSelectedCategory("All Categories");
-    setSelectedCampus("All Campuses");
+    setSelectedUniversity("All Universities");
     setPriceRange({ min: "", max: "" });
     setSortBy("newest");
     searchProducts();
@@ -681,11 +676,11 @@ const Search = () => {
 
                     <div>
                       <label className="text-sm font-medium mb-2 block">
-                        Campus
+                        Universities
                       </label>
                       <select
-                        value={selectedCampus}
-                        onChange={(e) => setSelectedCampus(e.target.value)}
+                        value={selectedUniversity}
+                        onChange={(e) => setSelectedUniversity(e.target.value)}
                         className="w-full h-10 px-3 pr-10 border border-input bg-background rounded-md text-sm focus:border-university-green focus:outline-none appearance-none"
                         style={{
                           backgroundImage: `url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIiIGhlaWdodD0iOCIgdmlld0JveD0iMCAwIDEyIDgiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxwYXRoIGQ9Ik0xIDFMNiA2TDExIDEiIHN0cm9rZT0iIzZCNzI4MCIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz4KPC9zdmc+')`,
@@ -694,9 +689,9 @@ const Search = () => {
                           backgroundSize: "12px 8px",
                         }}
                       >
-                        {campuses.map((campus) => (
-                          <option key={campus} value={campus}>
-                            {campus}
+                        {universities.map((university) => (
+                          <option key={university} value={university}>
+                            {university}
                           </option>
                         ))}
                       </select>

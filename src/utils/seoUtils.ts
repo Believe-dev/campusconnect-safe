@@ -16,6 +16,11 @@ export const getAbsoluteImageUrl = (imageUrl: string | undefined): string => {
     return imageUrl;
   }
 
+  // Handle Supabase storage URLs
+  if (imageUrl.includes('supabase')) {
+    return imageUrl.startsWith('https://') ? imageUrl : `https://${imageUrl}`;
+  }
+
   // If relative URL, make it absolute
   if (imageUrl.startsWith('/')) {
     return `https://unimarket.com.ng${imageUrl}`;
@@ -34,11 +39,23 @@ export const generateSEODescription = (
   price?: number, 
   condition?: string
 ): string => {
-  if (description && description.length > 10) {
+  // Clean and escape description for HTML
+  const cleanDescription = description?.replace(/["'<>&]/g, (match) => {
+    const escapeMap: { [key: string]: string } = {
+      '"': '&quot;',
+      "'": '&#39;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '&': '&amp;'
+    };
+    return escapeMap[match] || match;
+  });
+
+  if (cleanDescription && cleanDescription.length > 10) {
     // Truncate description to 150 characters for optimal SEO
-    const truncated = description.length > 150 
-      ? `${description.slice(0, 147)}...` 
-      : description;
+    const truncated = cleanDescription.length > 150 
+      ? `${cleanDescription.slice(0, 147)}...` 
+      : cleanDescription;
     return `${truncated} - Available on UniMarket, Nigeria's trusted university marketplace.`;
   }
 
