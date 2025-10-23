@@ -70,8 +70,6 @@ interface SignupPageProps {
   onSuccess?: () => void;
 }
 
-
-
 const SignupPage = ({ onSuccess }: SignupPageProps) => {
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [accountType, setAccountType] = useState<"buyer" | "seller">("buyer");
@@ -423,6 +421,18 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
               </button>
             </div>
 
+            <div className="text-center mb-6">
+              <h2 className="text-2xl font-bold text-foreground">
+                {getStepTitle()}
+              </h2>
+              <p className="text-muted-foreground mt-1">
+                {mode === "signin"
+                  ? "Enter your credentials to continue"
+                  : accountType === "buyer"
+                  ? "Join thousands of students shopping safely"
+                  : "Start your selling journey with zero commission"}
+              </p>
+            </div>
             {/* Account Type Selector for Signup */}
             {mode === "signup" && (
               <motion.div
@@ -431,37 +441,25 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
                 exit={{ opacity: 0, height: 0 }}
                 className="mb-6"
               >
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    onClick={() => {
-                      setAccountType("buyer");
+                <div className="space-y-2">
+                  <Label
+                    htmlFor="accountType"
+                    className="text-foreground font-medium"
+                  >
+                    Select Account Type
+                  </Label>
+                  <select
+                    id="accountType"
+                    value={accountType}
+                    onChange={(e) => {
+                      setAccountType(e.target.value as "buyer" | "seller");
                       setCurrentStep(1);
                     }}
-                    className={`p-4 rounded-xl border-2 transition-all duration-200 ${
-                      accountType === "buyer"
-                        ? "border-primary bg-gradient-to-br from-primary/10 to-primary/5 text-primary shadow-sm"
-                        : "border-border hover:border-primary/30 text-muted-foreground hover:text-foreground hover:bg-primary/5"
-                    }`}
+                    className="h-12 w-full border border-border focus:border-primary focus:ring-primary/20 rounded-xl bg-card px-3 py-2 text-sm"
                   >
-                    <User className="h-6 w-6 mx-auto mb-2" />
-                    <div className="text-sm font-medium">Buyer</div>
-                    <div className="text-xs opacity-70">Shop & Buy</div>
-                  </button>
-                  <button
-                    onClick={() => {
-                      setAccountType("seller");
-                      setCurrentStep(1);
-                    }}
-                    className={`p-4 rounded-xl border-2 transition-all duration-200 ${
-                      accountType === "seller"
-                        ? "border-primary bg-gradient-to-br from-primary/10 to-primary/5 text-primary shadow-sm"
-                        : "border-border hover:border-accent/30 text-muted-foreground hover:text-foreground hover:bg-accent/5"
-                    }`}
-                  >
-                    <Building className="h-6 w-6 mx-auto mb-2" />
-                    <div className="text-sm font-medium">Seller</div>
-                    <div className="text-xs opacity-70">Sell & Earn</div>
-                  </button>
+                    <option value="buyer">Buyer - Shop & Buy</option>
+                    <option value="seller">Seller - Sell & Earn</option>
+                  </select>
                 </div>
               </motion.div>
             )}
@@ -506,19 +504,6 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
                 </div>
               </motion.div>
             )}
-
-            <div className="text-center mb-6">
-              <h2 className="text-2xl font-bold text-foreground">
-                {getStepTitle()}
-              </h2>
-              <p className="text-muted-foreground mt-1">
-                {mode === "signin"
-                  ? "Enter your credentials to continue"
-                  : accountType === "buyer"
-                  ? "Join thousands of students shopping safely"
-                  : "Start your selling journey with zero commission"}
-              </p>
-            </div>
           </div>
 
           <div className="px-6 pb-6">
