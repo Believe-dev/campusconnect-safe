@@ -18,27 +18,47 @@ export function useNotifications() {
           .from('notifications')
           .select('*', { count: 'exact', head: true })
           .eq('user_id', user.id)
-          .eq('is_read', false);
+          .eq('is_read', false)
+          .neq('type', 'message'); // Exclude message notifications from count
         
-        // If notifications table doesn't exist, silently fail
-        if (error && (error.message?.includes('relation') || error.message?.includes('does not exist'))) {
+        // Handle various error cases gracefully
+        if (error) {
+          if (error.code === '42P01' || error.message?.includes('relation') || error.message?.includes('does not exist')) {
+            console.warn('Notifications table not found');
+            setUnreadCount(0);
+            return;
+          }
+          
+          if (error.code === '42501' || error.message?.includes('permission denied')) {
+            console.warn('Permission denied for notifications');
+            setUnreadCount(0);
+            return;
+          }
+          
+          if (error.code === '23514' || error.message?.includes('check constraint')) {
+            console.warn('Constraint violation in notifications');
+            setUnreadCount(0);
+            return;
+          }
+          
+          console.error('Error fetching notification count:', error);
           setUnreadCount(0);
           return;
         }
         
-        if (error) throw error;
         setUnreadCount(count || 0);
       } catch (error) {
-        // Silently handle table not found errors
+        console.error('Unexpected error in fetchUnreadCount:', error);
         setUnreadCount(0);
       }
     };
 
+    // Initial fetch
     fetchUnreadCount();
 
-    // Subscribe to real-time updates
+    // Subscribe to real-time updates with error handling
     const subscription = supabase
-      .channel('notifications')
+      .channel(`notifications-${user.id}`)
       .on('postgres_changes', 
         { 
           event: '*', 
@@ -46,14 +66,28 @@ export function useNotifications() {
           table: 'notifications',
           filter: `user_id=eq.${user.id}`
         }, 
-        () => fetchUnreadCount()
+        (payload) => {
+          console.log('Notification change detected:', payload);
+          fetchUnreadCount();
+        }
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('Successfully subscribed to notifications');
+        } else if (status === 'CHANNEL_ERROR') {
+          console.warn('Error subscribing to notifications channel');
+        }
+      });
       
     // Listen for custom notification update events
-    const handleNotificationUpdate = () => fetchUnreadCount();
+    const handleNotificationUpdate = () => {
+      console.log('Custom notification update event received');
+      fetchUnreadCount();
+    };
+    
     window.addEventListener('notificationsUpdated', handleNotificationUpdate);
 
+    // Cleanup function
     return () => {
       subscription.unsubscribe();
       window.removeEventListener('notificationsUpdated', handleNotificationUpdate);

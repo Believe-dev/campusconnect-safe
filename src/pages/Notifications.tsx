@@ -5,9 +5,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Bell, Check, Trash2 } from 'lucide-react';
+import { Bell, Check, Trash2, Settings } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
+import NotificationTester from '@/components/notifications/NotificationTester';
 
 interface Notification {
   id: string;
@@ -24,6 +25,7 @@ export default function Notifications() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loadingNotifications, setLoadingNotifications] = useState(true);
   const [expandedNotifications, setExpandedNotifications] = useState<Set<string>>(new Set());
+  const [showTester, setShowTester] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -64,18 +66,28 @@ export default function Notifications() {
         .select('*')
         .eq('user_id', user.id)
         .neq('type', 'message')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(50); // Limit to prevent performance issues
 
       if (error) {
         // Check if table exists
-        if (error.code === '42P01') {
-          toast.error('Notifications table not found. Please run the database migration.');
+        if (error.code === '42P01' || error.message?.includes('relation') || error.message?.includes('does not exist')) {
+          console.warn('Notifications table not found, creating welcome notification');
+          await createWelcomeNotification();
           return;
         }
         
         // Check for RLS issues
-        if (error.code === '42501') {
-          toast.error('Permission denied. Please check RLS policies.');
+        if (error.code === '42501' || error.message?.includes('permission denied')) {
+          console.warn('Permission denied for notifications table');
+          setNotifications([]);
+          return;
+        }
+        
+        // Check for constraint violations
+        if (error.code === '23514' || error.message?.includes('check constraint')) {
+          console.warn('Constraint violation in notifications table');
+          setNotifications([]);
           return;
         }
         
@@ -89,7 +101,11 @@ export default function Notifications() {
         await createWelcomeNotification();
       }
     } catch (error) {
-      toast.error(`Failed to load notifications: ${error.message}`);
+      console.error('Error fetching notifications:', error);
+      // Don't show error toast for common issues, just log them
+      if (!error.message?.includes('relation') && !error.message?.includes('permission')) {
+        toast.error(`Failed to load notifications: ${error.message}`);
+      }
       setNotifications([]);
     } finally {
       setLoadingNotifications(false);
@@ -97,8 +113,11 @@ export default function Notifications() {
   };
   
   const createWelcomeNotification = async () => {
+    if (!user?.id) return;
+    
     try {
-      const { error } = await supabase
+      // Use direct insert only to avoid net schema issues
+      const { error: insertError } = await supabase
         .from('notifications')
         .insert({
           user_id: user.id,
@@ -107,14 +126,14 @@ export default function Notifications() {
           type: 'success'
         });
         
-      if (error) {
-        // Error handled silently
+      if (insertError) {
+        console.warn('Could not create welcome notification:', insertError);
       } else {
-        // Refresh notifications
+        // Refresh notifications after successful insert
         setTimeout(fetchNotifications, 1000);
       }
     } catch (error) {
-      // Error handled silently
+      console.warn('Error creating welcome notification:', error);
     }
   };
 
@@ -122,11 +141,16 @@ export default function Notifications() {
     try {
       const { error } = await supabase
         .from('notifications')
-        .update({ is_read: true })
-        .eq('id', notificationId);
+        .update({ is_read: true, updated_at: new Date().toISOString() })
+        .eq('id', notificationId)
+        .eq('user_id', user?.id); // Extra security check
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error marking notification as read:', error);
+        return;
+      }
 
+      // Optimistically update the UI
       setNotifications(prev => 
         prev.map(notif => 
           notif.id === notificationId 
@@ -134,7 +158,11 @@ export default function Notifications() {
             : notif
         )
       );
+      
+      // Trigger notification count update
+      window.dispatchEvent(new CustomEvent('notificationsUpdated'));
     } catch (error) {
+      console.error('Error in markAsRead:', error);
       toast.error('Failed to update notification');
     }
   };
@@ -144,15 +172,25 @@ export default function Notifications() {
       const { error } = await supabase
         .from('notifications')
         .delete()
-        .eq('id', notificationId);
+        .eq('id', notificationId)
+        .eq('user_id', user?.id); // Extra security check
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error deleting notification:', error);
+        toast.error('Failed to delete notification');
+        return;
+      }
 
+      // Optimistically update the UI
       setNotifications(prev => 
         prev.filter(notif => notif.id !== notificationId)
       );
+      
+      // Trigger notification count update
+      window.dispatchEvent(new CustomEvent('notificationsUpdated'));
       toast.success('Notification deleted');
     } catch (error) {
+      console.error('Error in deleteNotification:', error);
       toast.error('Failed to delete notification');
     }
   };
@@ -193,20 +231,31 @@ export default function Notifications() {
   };
 
   const markAllAsRead = async () => {
+    if (!user?.id) return;
+    
     try {
       const { error } = await supabase
         .from('notifications')
-        .update({ is_read: true })
-        .eq('user_id', user?.id)
+        .update({ is_read: true, updated_at: new Date().toISOString() })
+        .eq('user_id', user.id)
         .eq('is_read', false);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error marking all notifications as read:', error);
+        toast.error('Failed to update notifications');
+        return;
+      }
 
+      // Optimistically update the UI
       setNotifications(prev => 
         prev.map(notif => ({ ...notif, is_read: true }))
       );
+      
+      // Trigger notification count update
+      window.dispatchEvent(new CustomEvent('notificationsUpdated'));
       toast.success('All notifications marked as read');
     } catch (error) {
+      console.error('Error in markAllAsRead:', error);
       toast.error('Failed to update notifications');
     }
   };
@@ -251,13 +300,31 @@ export default function Notifications() {
             )}
           </div>
           
-          {unreadCount > 0 && (
-            <Button onClick={markAllAsRead} variant="outline" size="sm" className="w-full sm:w-auto">
-              <Check className="h-4 w-4 mr-2" />
-              Mark all as read
+          <div className="flex gap-2">
+            {unreadCount > 0 && (
+              <Button onClick={markAllAsRead} variant="outline" size="sm" className="w-full sm:w-auto">
+                <Check className="h-4 w-4 mr-2" />
+                Mark all as read
+              </Button>
+            )}
+            
+            <Button 
+              onClick={() => setShowTester(!showTester)} 
+              variant="ghost" 
+              size="sm" 
+              className="w-full sm:w-auto"
+            >
+              <Settings className="h-4 w-4 mr-2" />
+              {showTester ? 'Hide' : 'Show'} Tester
             </Button>
-          )}
+          </div>
         </div>
+
+        {showTester && (
+          <div className="mb-6">
+            <NotificationTester />
+          </div>
+        )}
 
         {loadingNotifications ? (
           <Card>

@@ -5,13 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/enhanced-button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+
 import { useToast } from "@/hooks/use-toast";
 import {
   Heart,
@@ -79,6 +73,7 @@ const Marketplace = () => {
   const [cart, setCart] = useState<Set<string>>(new Set());
   const navigate = useNavigate();
   const { toast } = useToast();
+
   const handleRefresh = useCallback(async () => {
     await fetchProducts();
     if (user) {
@@ -412,7 +407,7 @@ const Marketplace = () => {
           <CardContent className="p-6">
             <div className="space-y-6">
               {/* Search Bar */}
-              <div className="max-w-2xl mx-auto">
+              <div className="marketplace-search-container">
                 <form
                   onSubmit={(e) => {
                     e.preventDefault();
@@ -421,16 +416,16 @@ const Marketplace = () => {
                   className="relative"
                 >
                   <div className="relative">
-                    <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+                    <Search className="absolute left-3 sm:left-4 top-1/2 transform -translate-y-1/2 h-4 w-4 sm:h-5 sm:w-5 text-gray-400 z-10" />
                     <Input
                       placeholder="Search for anything..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-12 pr-24 h-14 text-lg border-2 border-gray-200 focus:border-university-green rounded-xl"
+                      className="pl-10 sm:pl-12 pr-20 sm:pr-24 h-12 sm:h-14 text-base sm:text-lg border-2 border-gray-200 focus:border-university-green rounded-xl w-full"
                     />
                     <Button
                       type="submit"
-                      className="absolute right-2 top-1/2 -translate-y-1/2 bg-university-green hover:bg-university-green/90 rounded-lg px-6"
+                      className="absolute right-1 sm:right-2 top-1/2 transform -translate-y-1/2 bg-university-green hover:bg-university-green/90 rounded-lg px-3 sm:px-6 h-10 sm:h-auto text-sm sm:text-base"
                     >
                       Search
                     </Button>
@@ -440,57 +435,63 @@ const Marketplace = () => {
 
               {/* Filter Pills */}
               <div className="flex flex-wrap gap-3 justify-center">
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 w-full max-w-4xl">
-                  <Select
+                <div className="marketplace-filter-grid">
+                  {/* Native HTML select elements for all devices */}
+                  <select
                     value={selectedCategory}
-                    onValueChange={setSelectedCategory}
+                    onChange={(e) => setSelectedCategory(e.target.value)}
+                    className="h-12 px-3 pr-10 border-2 border-gray-200 rounded-lg bg-white text-gray-900 focus:border-university-green focus:outline-none appearance-none"
+                    style={{
+                      backgroundImage: `url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIiIGhlaWdodD0iOCIgdmlld0JveD0iMCAwIDEyIDgiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxwYXRoIGQ9Ik0xIDFMNiA2TDExIDEiIHN0cm9rZT0iIzZCNzI4MCIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz4KPC9zdmc+')`,
+                      backgroundRepeat: 'no-repeat',
+                      backgroundPosition: 'right 12px center',
+                      backgroundSize: '12px 8px'
+                    }}
                   >
-                    <SelectTrigger className="h-12 border-2 border-gray-200 rounded-lg">
-                      <SelectValue placeholder="Category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {categories.map((category) => (
-                        <SelectItem key={category} value={category}>
-                          {category}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    {categories.map((category) => (
+                      <option key={category} value={category}>
+                        {category}
+                      </option>
+                    ))}
+                  </select>
 
-                  <Select
+                  <select
                     value={selectedCondition}
-                    onValueChange={setSelectedCondition}
+                    onChange={(e) => setSelectedCondition(e.target.value)}
+                    className="h-12 px-3 pr-10 border-2 border-gray-200 rounded-lg bg-white text-gray-900 focus:border-university-green focus:outline-none appearance-none"
+                    style={{
+                      backgroundImage: `url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIiIGhlaWdodD0iOCIgdmlld0JveD0iMCAwIDEyIDgiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxwYXRoIGQ9Ik0xIDFMNiA2TDExIDEiIHN0cm9rZT0iIzZCNzI4MCIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz4KPC9zdmc+')`,
+                      backgroundRepeat: 'no-repeat',
+                      backgroundPosition: 'right 12px center',
+                      backgroundSize: '12px 8px'
+                    }}
                   >
-                    <SelectTrigger className="h-12 border-2 border-gray-200 rounded-lg">
-                      <SelectValue placeholder="Condition" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {conditions.map((condition) => (
-                        <SelectItem key={condition} value={condition}>
-                          {condition === "All Conditions"
-                            ? condition
-                            : condition.charAt(0).toUpperCase() +
-                              condition.slice(1)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    {conditions.map((condition) => (
+                      <option key={condition} value={condition}>
+                        {condition === "All Conditions"
+                          ? condition
+                          : condition.charAt(0).toUpperCase() +
+                            condition.slice(1)}
+                      </option>
+                    ))}
+                  </select>
 
-                  <Select value={sortBy} onValueChange={setSortBy}>
-                    <SelectTrigger className="h-12 border-2 border-gray-200 rounded-lg">
-                      <SelectValue placeholder="Sort by" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="newest">Newest First</SelectItem>
-                      <SelectItem value="oldest">Oldest First</SelectItem>
-                      <SelectItem value="price_low">
-                        Price: Low to High
-                      </SelectItem>
-                      <SelectItem value="price_high">
-                        Price: High to Low
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value)}
+                    className="h-12 px-3 pr-10 border-2 border-gray-200 rounded-lg bg-white text-gray-900 focus:border-university-green focus:outline-none appearance-none"
+                    style={{
+                      backgroundImage: `url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIiIGhlaWdodD0iOCIgdmlld0JveD0iMCAwIDEyIDgiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxwYXRoIGQ9Ik0xIDFMNiA2TDExIDEiIHN0cm9rZT0iIzZCNzI4MCIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz4KPC9zdmc+')`,
+                      backgroundRepeat: 'no-repeat',
+                      backgroundPosition: 'right 12px center',
+                      backgroundSize: '12px 8px'
+                    }}
+                  >
+                    <option value="newest">Newest First</option>
+                    <option value="oldest">Oldest First</option>
+                    <option value="price_low">Price: Low to High</option>
+                    <option value="price_high">Price: High to Low</option>
+                  </select>
 
                   <Button
                     variant="outline"

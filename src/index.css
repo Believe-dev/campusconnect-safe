@@ -3,6 +3,7 @@
 @import "./styles/browser-fixes.css";
 @import "./styles/mobile-upload.css";
 @import "./styles/ios-fixes.css";
+@import "./styles/marketplace-mobile.css";
 @import "./styles/accessibility.css";
 @import "./styles/bottom-nav.css";
 @import "./styles/force-fixed.css";
