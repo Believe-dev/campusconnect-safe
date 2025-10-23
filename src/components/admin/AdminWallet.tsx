@@ -16,13 +16,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+
 import {
   Table,
   TableBody,
@@ -303,36 +297,33 @@ export const AdminWallet = () => {
 
                     <div>
                       <Label htmlFor="bankName">Bank Name</Label>
-                      <Select
+                      <select
                         value={withdrawalForm.bankName}
-                        onValueChange={(value) => setWithdrawalForm(prev => ({ ...prev, bankName: value }))}
+                        onChange={(e) => setWithdrawalForm(prev => ({ ...prev, bankName: e.target.value }))}
+                        className="w-full h-10 border border-input bg-background px-3 py-2 text-sm rounded-md"
                       >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select your bank" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Access Bank">Access Bank</SelectItem>
-                          <SelectItem value="Citibank Nigeria">Citibank Nigeria</SelectItem>
-                          <SelectItem value="Diamond Bank">Diamond Bank</SelectItem>
-                          <SelectItem value="Ecobank Nigeria">Ecobank Nigeria</SelectItem>
-                          <SelectItem value="Fidelity Bank">Fidelity Bank</SelectItem>
-                          <SelectItem value="First Bank of Nigeria">First Bank of Nigeria</SelectItem>
-                          <SelectItem value="First City Monument Bank">First City Monument Bank</SelectItem>
-                          <SelectItem value="Guaranty Trust Bank">Guaranty Trust Bank</SelectItem>
-                          <SelectItem value="Heritage Bank">Heritage Bank</SelectItem>
-                          <SelectItem value="Keystone Bank">Keystone Bank</SelectItem>
-                          <SelectItem value="Polaris Bank">Polaris Bank</SelectItem>
-                          <SelectItem value="Providus Bank">Providus Bank</SelectItem>
-                          <SelectItem value="Stanbic IBTC Bank">Stanbic IBTC Bank</SelectItem>
-                          <SelectItem value="Standard Chartered Bank">Standard Chartered Bank</SelectItem>
-                          <SelectItem value="Sterling Bank">Sterling Bank</SelectItem>
-                          <SelectItem value="Union Bank of Nigeria">Union Bank of Nigeria</SelectItem>
-                          <SelectItem value="United Bank For Africa">United Bank For Africa</SelectItem>
-                          <SelectItem value="Unity Bank">Unity Bank</SelectItem>
-                          <SelectItem value="Wema Bank">Wema Bank</SelectItem>
-                          <SelectItem value="Zenith Bank">Zenith Bank</SelectItem>
-                        </SelectContent>
-                      </Select>
+                        <option value="">Select your bank</option>
+                        <option value="Access Bank">Access Bank</option>
+                        <option value="Citibank Nigeria">Citibank Nigeria</option>
+                        <option value="Diamond Bank">Diamond Bank</option>
+                        <option value="Ecobank Nigeria">Ecobank Nigeria</option>
+                        <option value="Fidelity Bank">Fidelity Bank</option>
+                        <option value="First Bank of Nigeria">First Bank of Nigeria</option>
+                        <option value="First City Monument Bank">First City Monument Bank</option>
+                        <option value="Guaranty Trust Bank">Guaranty Trust Bank</option>
+                        <option value="Heritage Bank">Heritage Bank</option>
+                        <option value="Keystone Bank">Keystone Bank</option>
+                        <option value="Polaris Bank">Polaris Bank</option>
+                        <option value="Providus Bank">Providus Bank</option>
+                        <option value="Stanbic IBTC Bank">Stanbic IBTC Bank</option>
+                        <option value="Standard Chartered Bank">Standard Chartered Bank</option>
+                        <option value="Sterling Bank">Sterling Bank</option>
+                        <option value="Union Bank of Nigeria">Union Bank of Nigeria</option>
+                        <option value="United Bank For Africa">United Bank For Africa</option>
+                        <option value="Unity Bank">Unity Bank</option>
+                        <option value="Wema Bank">Wema Bank</option>
+                        <option value="Zenith Bank">Zenith Bank</option>
+                      </select>
                     </div>
 
                     <div>
