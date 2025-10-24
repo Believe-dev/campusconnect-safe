@@ -26,15 +26,21 @@ export const PWAInstallPrompt: React.FC = () => {
     if (isInstalled) return;
 
     const handleBeforeInstallPrompt = (e: Event) => {
+      console.log('beforeinstallprompt event fired');
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
       setShowPrompt(true);
     };
 
+    // Add event listener for beforeinstallprompt
     window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
 
-    // Always show install prompt after 3 seconds regardless of notifications
-    const timer = setTimeout(() => setShowPrompt(true), 1000);
+    // For Android Chrome, show prompt after delay if no beforeinstallprompt event
+    const timer = setTimeout(() => {
+      if (!deferredPrompt && !iOS) {
+        setShowPrompt(true);
+      }
+    }, 3000);
 
     return () => {
       window.removeEventListener(
@@ -43,16 +49,25 @@ export const PWAInstallPrompt: React.FC = () => {
       );
       clearTimeout(timer);
     };
-  }, []);
+  }, [deferredPrompt]);
 
   const handleInstall = async () => {
     if (deferredPrompt) {
-      deferredPrompt.prompt();
-      const { outcome } = await deferredPrompt.userChoice;
-      if (outcome === "accepted") {
-        setDeferredPrompt(null);
-        setShowPrompt(false);
+      try {
+        await deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        console.log('Install prompt outcome:', outcome);
+        if (outcome === "accepted") {
+          setDeferredPrompt(null);
+          setShowPrompt(false);
+        }
+      } catch (error) {
+        console.error('Error showing install prompt:', error);
       }
+    } else {
+      // Fallback for browsers that don't support beforeinstallprompt
+      // Show manual installation instructions
+      alert('To install this app:\n\n1. Open browser menu (⋮)\n2. Select "Add to Home screen" or "Install app"\n3. Follow the prompts');
     }
   };
 
@@ -102,7 +117,7 @@ export const PWAInstallPrompt: React.FC = () => {
             {!isIOS && (
               <Button size="sm" onClick={handleInstall} className="text-xs">
                 <Download className="h-3 w-3 mr-1" />
-                Install
+                {deferredPrompt ? 'Install' : 'Add to Home'}
               </Button>
             )}
             <Button

@@ -37,6 +37,8 @@ import {
   Copy,
   Check,
   Flag,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 
 import ProductCard from "@/components/marketplace/ProductCard";
@@ -84,6 +86,7 @@ const ProductDetails = () => {
   const [isFavorited, setIsFavorited] = useState(false);
   const [favoriteLoading, setFavoriteLoading] = useState(false);
   const [isInCart, setIsInCart] = useState(false);
+  const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -846,6 +849,38 @@ const ProductDetails = () => {
                     </div>
                   </div>
 
+                  {product.description && (
+                    <div className="mb-4">
+                      <div className="relative">
+                        <p className={`text-gray-700 leading-relaxed ${
+                          !isDescriptionExpanded && product.description.length > 150 
+                            ? "line-clamp-3" 
+                            : ""
+                        }`}>
+                          {product.description}
+                        </p>
+                        {product.description.length > 150 && (
+                          <button
+                            onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
+                            className="flex items-center gap-1 text-university-green hover:text-university-green/80 text-sm font-medium mt-2 transition-colors"
+                          >
+                            {isDescriptionExpanded ? (
+                              <>
+                                Show less
+                                <ChevronUp className="h-4 w-4" />
+                              </>
+                            ) : (
+                              <>
+                                Show more
+                                <ChevronDown className="h-4 w-4" />
+                              </>
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="flex flex-wrap gap-2 mb-4">
                     <Badge className="bg-university-green/10 text-university-green border-university-green/20">
                       {product.category}
@@ -883,16 +918,7 @@ const ProductDetails = () => {
                 </CardContent>
               </Card>
 
-              {product.description && (
-                <Card className="border-0 shadow-lg">
-                  <CardContent className="p-4 sm:p-6">
-                    <h3 className="font-semibold text-lg mb-3">Description</h3>
-                    <p className="text-gray-700 leading-relaxed">
-                      {product.description}
-                    </p>
-                  </CardContent>
-                </Card>
-              )}
+
 
               {/* Purchase Actions */}
               <Card className="border-0 shadow-lg">

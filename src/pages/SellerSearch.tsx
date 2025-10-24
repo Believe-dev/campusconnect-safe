@@ -85,20 +85,20 @@ const SellerSearch = () => {
       const sortedSellers = sellersWithCount.sort((a, b) => {
         const aVerified = a.is_verified;
         const bVerified = b.is_verified;
-        const aFromUserUni = userUniversity && a.university_name === userUniversity;
-        const bFromUserUni = userUniversity && b.university_name === userUniversity;
+        const aHasProducts = a.product_count > 0;
+        const bHasProducts = b.product_count > 0;
         
-        // Priority 1: Verified + Same University
-        if (aVerified && aFromUserUni && !(bVerified && bFromUserUni)) return -1;
-        if (bVerified && bFromUserUni && !(aVerified && aFromUserUni)) return 1;
+        // Priority 1: Verified sellers with products
+        if (aVerified && aHasProducts && !(bVerified && bHasProducts)) return -1;
+        if (bVerified && bHasProducts && !(aVerified && aHasProducts)) return 1;
         
-        // Priority 2: Same University (non-verified)
-        if (aFromUserUni && !aVerified && !bFromUserUni) return -1;
-        if (bFromUserUni && !bVerified && !aFromUserUni) return 1;
+        // Priority 2: Sellers with products (non-verified)
+        if (aHasProducts && !aVerified && !bHasProducts) return -1;
+        if (bHasProducts && !bVerified && !aHasProducts) return 1;
         
-        // Priority 3: Verified (different university)
-        if (aVerified && !aFromUserUni && !bVerified && !bFromUserUni) return -1;
-        if (bVerified && !bFromUserUni && !aVerified && !aFromUserUni) return 1;
+        // Priority 3: Verified sellers without products
+        if (aVerified && !aHasProducts && !bVerified && !bHasProducts) return -1;
+        if (bVerified && !bHasProducts && !aVerified && !bHasProducts) return 1;
         
         // Within same priority group, sort by rating
         return b.rating - a.rating;
@@ -158,14 +158,12 @@ const SellerSearch = () => {
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-primary mb-2">Find Sellers</h1>
           <p className="text-muted-foreground mb-3">Discover trusted sellers in your university</p>
-          {userUniversity && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-              <p className="text-sm text-blue-800">
-                <span className="font-medium">Smart Sorting:</span> Showing verified sellers from {userUniversity} first, 
-                followed by other sellers from your university, then verified sellers from other universities.
-              </p>
-            </div>
-          )}
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+            <p className="text-sm text-blue-800">
+              <span className="font-medium">Smart Sorting:</span> Showing verified sellers with products first, 
+              then sellers with products, then verified sellers without products, and finally other sellers.
+            </p>
+          </div>
         </div>
 
         {/* Search */}
