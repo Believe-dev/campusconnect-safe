@@ -10,16 +10,19 @@ import {
   User,
   ShoppingCart,
   Zap,
+  Plus,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useCartCount } from "@/hooks/useCartCount";
 import { useAuth } from "@/hooks/useAuth";
+import { useProfile } from "@/contexts/ProfileContext";
 import { useUniMarketNavigation } from "@/hooks/useUniMarketNavigation";
 import { useLiveFeedNotifications } from "@/hooks/useLiveFeedNotifications";
 
 const BottomNav = () => {
   const location = useLocation();
   const { user } = useAuth();
+  const { profile } = useProfile();
   const { cartCount } = useCartCount();
   const { unreadCount: liveFeedUnreadCount, markAsRead: markLiveFeedAsRead } =
     useLiveFeedNotifications();
@@ -47,6 +50,8 @@ const BottomNav = () => {
     </svg>
   );
 
+
+  
   const navItems = [
     {
       to: "/marketplace",
@@ -65,7 +70,13 @@ const BottomNav = () => {
         goToLiveFeed();
       },
     },
-    {
+    // For sellers: Sell button, for buyers: Cart button
+    profile?.account_type !== "buyer" ? {
+      to: "/sell",
+      icon: Plus,
+      label: "Sell",
+      onClick: () => window.location.href = "/sell",
+    } : {
       to: "/cart",
       icon: ShoppingCart,
       label: "Cart",

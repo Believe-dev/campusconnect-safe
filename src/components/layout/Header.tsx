@@ -670,16 +670,38 @@ const Header = () => {
                       )}
                     </Link>
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    asChild
-                    className="relative h-6 w-6 sm:h-7 sm:w-7 md:h-8 md:w-8 p-0 gap-0 rounded-md"
-                  >
-                    <Link to="/favorites">
-                      <Heart className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4" />
-                    </Link>
-                  </Button>
+                  {/* Cart for sellers, Favorites for buyers */}
+                  {profile?.account_type !== "buyer" ? (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      asChild
+                      className="relative h-6 w-6 sm:h-7 sm:w-7 md:h-8 md:w-8 p-0 gap-0 rounded-md"
+                    >
+                      <Link to="/cart">
+                        <ShoppingCart className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4" />
+                        {cartCount > 0 && (
+                          <Badge
+                            variant="destructive"
+                            className="absolute -top-0.5 -right-0.5 sm:-top-1 sm:-right-1 h-4 w-4 sm:h-5 sm:w-5 flex items-center justify-center p-0 text-[10px] font-bold rounded-full bg-red-500 text-white border border-background"
+                          >
+                            {cartCount > 99 ? "99+" : cartCount}
+                          </Badge>
+                        )}
+                      </Link>
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      asChild
+                      className="relative h-6 w-6 sm:h-7 sm:w-7 md:h-8 md:w-8 p-0 gap-0 rounded-md"
+                    >
+                      <Link to="/favorites">
+                        <Heart className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4" />
+                      </Link>
+                    </Button>
+                  )}
                   <Button
                     variant="ghost"
                     size="icon"
