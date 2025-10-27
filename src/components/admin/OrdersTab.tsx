@@ -3,9 +3,20 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Package, TrendingUp, BarChart3, RefreshCw, Users, DollarSign, ShoppingCart } from 'lucide-react';
+import { Package, TrendingUp, BarChart3, RefreshCw, Users, DollarSign, ShoppingCart, CheckCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 
 interface OrderStats {
   totalOrders: number;
@@ -23,6 +34,11 @@ interface Order {
   buyer_profile: { full_name: string; email: string };
   seller_profile: { full_name: string; email: string };
   products: { title: string; price: number };
+  escrow_transactions?: {
+    id: string;
+    status: string;
+    seller_amount: number;
+  }[];
 }
 
 interface TopSeller {
@@ -122,16 +138,66 @@ export const OrdersTab: React.FC = () => {
           product_id,
           buyer_profile:profiles!orders_buyer_id_fkey(full_name, email),
           seller_profile:profiles!orders_seller_id_fkey(full_name, email),
-          products(title, price)
+          products(title, price),
+          escrow_transactions(id, status, seller_amount)
         `)
         .order('created_at', { ascending: false })
-        .limit(10);
+        .limit(20);
 
       if (error) throw error;
       setRecentOrders(data || []);
     } catch (error) {
       console.error('Error fetching recent orders:', error);
       setRecentOrders([]);
+    }
+  };
+
+  const releaseFunds = async (orderId: string) => {
+    try {
+      // Get the order with escrow transaction
+      const order = recentOrders.find(o => o.id === orderId);
+      if (!order || !order.escrow_transactions || order.escrow_transactions.length === 0) {
+        toast.error('No escrow transaction found for this order');
+        return;
+      }
+
+      const escrowTransaction = order.escrow_transactions[0];
+      if (escrowTransaction.status !== 'held') {
+        toast.error('Funds have already been released or are not available for release');
+        return;
+      }
+
+      // Release escrow funds
+      const { data, error } = await supabase.rpc('release_escrow_funds', {
+        escrow_id: escrowTransaction.id
+      });
+
+      if (error) throw error;
+
+      if (data === false) {
+        toast.error('Failed to release funds - escrow transaction not found or already released');
+        return;
+      }
+
+      // Update order status to confirmed
+      const { error: orderError } = await supabase
+        .from('orders')
+        .update({ status: 'confirmed' })
+        .eq('id', orderId);
+
+      if (orderError) {
+        console.error('Error updating order status:', orderError);
+        // Don't throw here as funds were already released
+      }
+
+      toast.success('Funds released successfully and order status updated to confirmed');
+      
+      // Refresh the orders data
+      fetchRecentOrders();
+      fetchOrderStats();
+    } catch (error) {
+      console.error('Error releasing funds:', error);
+      toast.error('Failed to release funds');
     }
   };
 
@@ -356,6 +422,7 @@ export const OrdersTab: React.FC = () => {
                     <TableHead>Amount</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Date</TableHead>
+                    <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -398,6 +465,45 @@ export const OrdersTab: React.FC = () => {
                       </TableCell>
                       <TableCell>
                         {new Date(order.created_at).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell>
+                        {order.status === 'paid' && order.escrow_transactions && 
+                         order.escrow_transactions.length > 0 && 
+                         order.escrow_transactions[0].status === 'held' ? (
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button size="sm" className="bg-green-600 hover:bg-green-700">
+                                <CheckCircle className="h-4 w-4 mr-1" />
+                                Release Funds
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Release Escrow Funds</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Are you sure you want to release the escrow funds for this order? 
+                                  This will transfer ₦{order.escrow_transactions[0].seller_amount.toLocaleString()} to the seller 
+                                  and change the order status to "confirmed".
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction 
+                                  onClick={() => releaseFunds(order.id)}
+                                  className="bg-green-600 hover:bg-green-700"
+                                >
+                                  Release Funds
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        ) : order.status === 'confirmed' ? (
+                          <Badge variant="default" className="bg-green-100 text-green-800">
+                            Funds Released
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground text-sm">-</span>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}

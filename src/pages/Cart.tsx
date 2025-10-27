@@ -29,6 +29,7 @@ interface CartItem {
   id: string;
   quantity: number;
   product_id: string;
+  selected_size?: string;
   products: {
     id: string;
     title: string;
@@ -735,15 +736,25 @@ const Cart = () => {
                                   {item.products?.profiles?.full_name ||
                                     "Unknown Seller"}
                                 </p>
-                                <Badge
-                                  variant="outline"
-                                  className="mt-1 text-xs"
-                                >
-                                  {item.products?.condition?.replace(
-                                    "_",
-                                    " "
-                                  ) || "Unknown"}
-                                </Badge>
+                                <div className="flex gap-2 mt-1">
+                                  <Badge
+                                    variant="outline"
+                                    className="text-xs"
+                                  >
+                                    {item.products?.condition?.replace(
+                                      "_",
+                                      " "
+                                    ) || "Unknown"}
+                                  </Badge>
+                                  {item.selected_size && (
+                                    <Badge
+                                      variant="outline"
+                                      className="text-xs"
+                                    >
+                                      Size: {item.selected_size}
+                                    </Badge>
+                                  )}
+                                </div>
                               </div>
                               <Button
                                 variant="ghost"

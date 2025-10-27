@@ -6,6 +6,7 @@ import { useAuth } from '@/hooks/useAuth';
 declare global {
   interface Window {
     refreshCartCount?: () => void;
+    updateCartCountOptimistically?: (increment: number) => void;
   }
 }
 
@@ -83,5 +84,20 @@ export const useCartCount = () => {
     }
   };
 
-  return { cartCount, loading, refetch: fetchCartCount };
+  // Optimistic update function for immediate UI feedback
+  const updateCartCountOptimistically = (increment: number) => {
+    setCartCount(prev => Math.max(0, prev + increment));
+  };
+
+  // Expose optimistic update globally
+  useEffect(() => {
+    if (user) {
+      window.updateCartCountOptimistically = updateCartCountOptimistically;
+      return () => {
+        delete window.updateCartCountOptimistically;
+      };
+    }
+  }, [user]);
+
+  return { cartCount, loading, refetch: fetchCartCount, updateOptimistically: updateCartCountOptimistically };
 };

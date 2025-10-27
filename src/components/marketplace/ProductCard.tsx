@@ -1,4 +1,4 @@
-import { Star, MapPin, Badge, MessageCircle, ShoppingCart } from 'lucide-react';
+import { Star, MapPin, Badge, MessageCircle, ShoppingCart, Ruler } from 'lucide-react';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/enhanced-button';
 import { LowMemoryImage } from '@/components/ui/LowMemoryImage';
@@ -9,6 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { sanitizeInput, secureLog } from '@/utils/security';
 import { supabase } from '@/integrations/supabase/client';
 import { useState, useEffect } from 'react';
+import { SizeSelector } from '@/components/marketplace/SizeSelector';
 
 interface Product {
   id: string;
@@ -21,6 +22,7 @@ interface Product {
   condition: string;
   seller_id: string;
   stock_quantity: number;
+  available_sizes?: string[];
   seller: {
     full_name: string;
     business_name?: string;
@@ -50,6 +52,8 @@ const ProductCard = ({
   const { toast } = useToast();
   const { isLowMemory } = useMemoryOptimization();
   const [isInCart, setIsInCart] = useState(false);
+  const [selectedSize, setSelectedSize] = useState<string>('');
+  const [showSizeSelector, setShowSizeSelector] = useState(false);
 
   useEffect(() => {
     if (user && product) {
@@ -88,6 +92,12 @@ const ProductCard = ({
       return;
     }
 
+    // Check if product has sizes and none is selected
+    if (product.available_sizes && product.available_sizes.length > 0 && !selectedSize) {
+      setShowSizeSelector(true);
+      return;
+    }
+
     try {
       const { data: existingItem } = await supabase
         .from('cart')
@@ -107,32 +117,62 @@ const ProductCard = ({
           return;
         }
 
+        // Optimistic update
+        if (window.updateCartCountOptimistically) {
+          window.updateCartCountOptimistically(1);
+        }
+        setIsInCart(true);
+        toast({
+          title: "Added to Cart",
+          description: "Item added to your cart",
+        });
+
         const { error } = await supabase
           .from('cart')
           .update({ 
             quantity: existingItem.quantity + 1,
+            selected_size: selectedSize || existingItem.selected_size,
             updated_at: new Date().toISOString()
           })
           .eq('id', existingItem.id);
 
-        if (error) throw error;
+        if (error) {
+          // Revert optimistic update
+          if (window.updateCartCountOptimistically) {
+            window.updateCartCountOptimistically(-1);
+          }
+          setIsInCart(false);
+          throw error;
+        }
       } else {
+        // Optimistic update
+        if (window.updateCartCountOptimistically) {
+          window.updateCartCountOptimistically(1);
+        }
+        setIsInCart(true);
+        toast({
+          title: "Added to Cart",
+          description: "Item added to your cart",
+        });
+
         const { error } = await supabase
           .from('cart')
           .insert({
             user_id: user.id,
             product_id: product.id,
-            quantity: 1
+            quantity: 1,
+            selected_size: selectedSize
           });
 
-        if (error) throw error;
+        if (error) {
+          // Revert optimistic update
+          if (window.updateCartCountOptimistically) {
+            window.updateCartCountOptimistically(-1);
+          }
+          setIsInCart(false);
+          throw error;
+        }
       }
-
-      setIsInCart(true);
-      toast({
-        title: "Added to Cart",
-        description: "Item added to your cart",
-      });
     } catch (error) {
       toast({
         title: "Error",
@@ -252,8 +292,12 @@ const ProductCard = ({
               disabled={isInCart}
             >
               <ShoppingCart className="h-3 w-3 mr-1" />
-              <span className="hidden sm:inline">{isInCart ? "In Cart" : "Add to Cart"}</span>
-              <span className="sm:hidden">{isInCart ? "In Cart" : "Add"}</span>
+              <span className="hidden sm:inline">
+                {isInCart ? "In Cart" : (product.available_sizes && product.available_sizes.length > 0 && !selectedSize ? "Select Size" : "Add to Cart")}
+              </span>
+              <span className="sm:hidden">
+                {isInCart ? "In Cart" : (product.available_sizes && product.available_sizes.length > 0 && !selectedSize ? "Size" : "Add")}
+              </span>
             </Button>
             {/* Message Seller Button */}
             <Button
@@ -285,6 +329,46 @@ const ProductCard = ({
             <MapPin className="h-3 w-3 flex-shrink-0" />
             <span className="truncate">{sanitizeInput(product?.seller?.campus || product?.campus || 'Unknown Campus')}</span>
           </div>
+          
+          {/* Size Selection */}
+          {product.available_sizes && product.available_sizes.length > 0 && (
+            <div className="mt-2">
+              {showSizeSelector ? (
+                <div className="space-y-2">
+                  <div className="text-xs font-medium flex items-center gap-1">
+                    <Ruler className="h-3 w-3" />
+                    Select Size:
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {product.available_sizes.map((size) => (
+                      <Button
+                        key={size}
+                        variant={selectedSize === size ? "default" : "outline"}
+                        size="sm"
+                        className="h-6 px-2 text-xs"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedSize(size);
+                          setShowSizeSelector(false);
+                        }}
+                      >
+                        {size}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <Ruler className="h-3 w-3" />
+                  {selectedSize ? (
+                    <span>Size: <span className="font-medium">{selectedSize}</span></span>
+                  ) : (
+                    <span>Available sizes: {product.available_sizes.join(', ')}</span>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </CardContent>
 

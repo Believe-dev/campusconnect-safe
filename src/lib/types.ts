@@ -18,6 +18,7 @@ export interface Profile {
   phone_number?: string;
   account_type: 'buyer' | 'seller';
   seller_status?: 'pending' | 'approved' | 'rejected';
+  seller_application_reason?: string;
   is_verified: boolean;
   is_banned: boolean;
   rating: number;
@@ -41,6 +42,7 @@ export interface Product {
   campus: string;
   seller_id: string;
   is_active: boolean;
+  available_sizes?: string[];
   created_at: string;
   updated_at: string;
   seller?: Profile;
@@ -61,6 +63,7 @@ export interface Order {
   seller_id: string;
   product_id: string;
   quantity: number;
+  selected_size?: string;
   total_amount: number;
   commission_amount: number;
   shipping_address: string;
@@ -201,6 +204,7 @@ export interface ProductForm {
   condition: string;
   campus: string;
   images: File[];
+  available_sizes?: string[];
 }
 
 export interface ProfileForm {

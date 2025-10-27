@@ -44,6 +44,7 @@ import {
 import ProductCard from "@/components/marketplace/ProductCard";
 import { ProductReviews } from "@/components/reviews/ProductReviews";
 import { ProductSEO } from "@/components/common/ProductSEO";
+import { SizeSelector } from "@/components/marketplace/SizeSelector";
 
 interface Product {
   id: string;
@@ -87,6 +88,7 @@ const ProductDetails = () => {
   const [favoriteLoading, setFavoriteLoading] = useState(false);
   const [isInCart, setIsInCart] = useState(false);
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
+  const [selectedSize, setSelectedSize] = useState<string>("");
   const { toast } = useToast();
 
   useEffect(() => {
@@ -139,7 +141,7 @@ const ProductDetails = () => {
     const isLeftSwipe = distance > 50;
     const isRightSwipe = distance < -50;
 
-    if (isLeftSwipe && currentImageIndex < images.length - 1) {
+    if (isLeftSwipe && product && product.images && currentImageIndex < product.images.length - 1) {
       setCurrentImageIndex((prev) => prev + 1);
     }
     if (isRightSwipe && currentImageIndex > 0) {
@@ -269,16 +271,34 @@ const ProductDetails = () => {
           return;
         }
 
+        // Optimistic update
+        if (window.updateCartCountOptimistically) {
+          window.updateCartCountOptimistically(quantity);
+        }
+        setIsInCart(true);
+        toast({
+          title: "Added to Cart",
+          description: `${quantity} item(s) added to your cart`,
+        });
+
         // Update quantity if item exists
         const { error } = await supabase
           .from("cart")
           .update({
             quantity: existingItem.quantity + quantity,
+            selected_size: selectedSize || existingItem.selected_size,
             updated_at: new Date().toISOString(),
           })
           .eq("id", existingItem.id);
 
-        if (error) throw error;
+        if (error) {
+          // Revert optimistic update
+          if (window.updateCartCountOptimistically) {
+            window.updateCartCountOptimistically(-quantity);
+          }
+          setIsInCart(false);
+          throw error;
+        }
       } else {
         // Check if requested quantity exceeds stock
         if (quantity > product.stock_quantity) {
@@ -290,21 +310,33 @@ const ProductDetails = () => {
           return;
         }
 
+        // Optimistic update
+        if (window.updateCartCountOptimistically) {
+          window.updateCartCountOptimistically(quantity);
+        }
+        setIsInCart(true);
+        toast({
+          title: "Added to Cart",
+          description: `${quantity} item(s) added to your cart`,
+        });
+
         // Insert new item to cart
         const { error } = await supabase.from("cart").insert({
           user_id: user.id,
           product_id: product.id,
           quantity: quantity,
+          selected_size: selectedSize || null,
         });
 
-        if (error) throw error;
+        if (error) {
+          // Revert optimistic update
+          if (window.updateCartCountOptimistically) {
+            window.updateCartCountOptimistically(-quantity);
+          }
+          setIsInCart(false);
+          throw error;
+        }
       }
-
-      setIsInCart(true);
-      toast({
-        title: "Added to Cart",
-        description: `${quantity} item(s) added to your cart`,
-      });
     } catch (error) {
       toast({
         title: "Error",
@@ -909,7 +941,7 @@ const ProductDetails = () => {
                   <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-sm text-gray-600">
                     <span className="flex items-center gap-1">
                       <Package className="h-4 w-4" />
-                      {product.stock_quantity} available
+                      {product.stock_quantity} items in stock
                     </span>
                     <span>
                       Listed {new Date(product.created_at).toLocaleDateString()}
@@ -924,6 +956,16 @@ const ProductDetails = () => {
               <Card className="border-0 shadow-lg">
                 <CardContent className="p-4 sm:p-6">
                   <div className="space-y-4">
+                    {/* Size Selection */}
+                    {product.available_sizes && product.available_sizes.length > 0 && (
+                      <SizeSelector
+                        availableSizes={product.available_sizes}
+                        selectedSize={selectedSize}
+                        onSizeSelect={setSelectedSize}
+                        required={true}
+                      />
+                    )}
+
                     <div className="flex items-center gap-3">
                       <label className="text-sm font-medium">Quantity:</label>
                       <select
@@ -932,7 +974,7 @@ const ProductDetails = () => {
                         className="border-2 border-gray-200 rounded-lg px-3 py-2 focus:border-university-green focus:outline-none"
                       >
                         {Array.from(
-                          { length: Math.min(5, product.stock_quantity) },
+                          { length: Math.min(10, product.stock_quantity) },
                           (_, i) => (
                             <option key={i + 1} value={i + 1}>
                               {i + 1}
@@ -940,6 +982,9 @@ const ProductDetails = () => {
                           )
                         )}
                       </select>
+                      <span className="text-xs text-gray-500">
+                        (Max: {product.stock_quantity})
+                      </span>
                     </div>
 
                     <div className="space-y-3">
