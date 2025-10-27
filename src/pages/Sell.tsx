@@ -44,10 +44,12 @@ const Sell = () => {
     category: '',
     customCategory: '',
     price: '',
-    stock_quantity: '1',
+    stock_quantity: '',
     condition: 'good',
-    university_name: ''
+    university_name: '',
+    available_sizes: [] as string[]
   });
+  const [customSize, setCustomSize] = useState('');
   const [images, setImages] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const navigate = useNavigate();
@@ -157,10 +159,12 @@ const Sell = () => {
       return;
     }
     
-    if (!formData.stock_quantity || parseInt(formData.stock_quantity) <= 0) {
+    // Set default stock quantity if not provided
+    const stockQuantity = formData.stock_quantity ? parseInt(formData.stock_quantity) : 1;
+    if (stockQuantity <= 0) {
       toast({
         title: "Validation Error",
-        description: "Please enter a valid stock quantity",
+        description: "Stock quantity must be greater than 0",
         variant: "destructive",
       });
       return;
@@ -223,11 +227,12 @@ const Sell = () => {
           description: formData.description.trim(),
           category: finalCategory,
           price: parseFloat(formData.price),
-          stock_quantity: parseInt(formData.stock_quantity),
+          stock_quantity: stockQuantity,
           condition: formData.condition,
           campus: formData.university_name,
           seller_id: user.id,
-          images: imageUrls
+          images: imageUrls,
+          available_sizes: formData.available_sizes.length > 0 ? formData.available_sizes : null
         });
 
       if (error) {
@@ -272,6 +277,32 @@ const Sell = () => {
 
   const removeImage = (index: number) => {
     setImages(images.filter((_, i) => i !== index));
+  };
+
+  const addSize = () => {
+    if (customSize.trim() && !formData.available_sizes.includes(customSize.trim())) {
+      setFormData(prev => ({
+        ...prev,
+        available_sizes: [...prev.available_sizes, customSize.trim()]
+      }));
+      setCustomSize('');
+    }
+  };
+
+  const removeSize = (sizeToRemove: string) => {
+    setFormData(prev => ({
+      ...prev,
+      available_sizes: prev.available_sizes.filter(size => size !== sizeToRemove)
+    }));
+  };
+
+  const addPredefinedSize = (size: string) => {
+    if (!formData.available_sizes.includes(size)) {
+      setFormData(prev => ({
+        ...prev,
+        available_sizes: [...prev.available_sizes, size]
+      }));
+    }
   };
 
   if (loading) {
@@ -403,15 +434,18 @@ const Sell = () => {
                 </div>
 
                 <div>
-                  <Label htmlFor="stock">Stock Quantity *</Label>
+                  <Label htmlFor="stock">Stock Quantity (Optional)</Label>
                   <Input
                     id="stock"
                     type="number"
                     value={formData.stock_quantity}
                     onChange={(e) => setFormData({ ...formData, stock_quantity: e.target.value })}
                     min="1"
-                    required
+                    placeholder="1 (default)"
                   />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Leave empty to default to 1 item
+                  </p>
                 </div>
 
                 <div>
@@ -482,6 +516,71 @@ const Sell = () => {
                         </button>
                       </div>
                     ))}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <Label>Product Sizes (Optional)</Label>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Add sizes if your product comes in different sizes (e.g., clothing, shoes)
+                </p>
+                
+                {/* Predefined size buttons */}
+                <div className="mb-3">
+                  <p className="text-sm font-medium mb-2">Common sizes:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {['XS', 'S', 'M', 'L', 'XL', 'XXL'].map(size => (
+                      <Button
+                        key={size}
+                        type="button"
+                        variant={formData.available_sizes.includes(size) ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => addPredefinedSize(size)}
+                        disabled={formData.available_sizes.includes(size)}
+                      >
+                        {size}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Custom size input */}
+                <div className="flex gap-2 mb-3">
+                  <Input
+                    placeholder="Add custom size (e.g., 42, 43, One Size)"
+                    value={customSize}
+                    onChange={(e) => setCustomSize(e.target.value)}
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        addSize();
+                      }
+                    }}
+                  />
+                  <Button type="button" onClick={addSize} disabled={!customSize.trim()}>
+                    Add
+                  </Button>
+                </div>
+
+                {/* Selected sizes */}
+                {formData.available_sizes.length > 0 && (
+                  <div>
+                    <p className="text-sm font-medium mb-2">Selected sizes:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {formData.available_sizes.map(size => (
+                        <div key={size} className="flex items-center gap-1 bg-primary/10 text-primary px-2 py-1 rounded text-sm">
+                          {size}
+                          <button
+                            type="button"
+                            onClick={() => removeSize(size)}
+                            className="ml-1 text-primary hover:text-primary/70"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>

@@ -34,6 +34,7 @@ import { User } from "@supabase/supabase-js";
 interface CartItem {
   id: string;
   quantity: number;
+  selected_size?: string;
   products: {
     id: string;
     title: string;
@@ -290,6 +291,7 @@ const Checkout = () => {
               seller_id: sellerId,
               product_id: items[0].products.id,
               quantity: items.reduce((sum, item) => sum + item.quantity, 0),
+              selected_size: items[0].selected_size || null,
               total_amount: totalAmount,
               commission_amount: commissionAmount,
               shipping_address: `${formData.address}, ${formData.city}, ${formData.state}`,
@@ -756,6 +758,11 @@ const Checkout = () => {
                                 <Badge variant="outline" className="text-xs">
                                   Qty: {item.quantity}
                                 </Badge>
+                                {item.selected_size && (
+                                  <Badge variant="outline" className="text-xs">
+                                    Size: {item.selected_size}
+                                  </Badge>
+                                )}
                               </div>
                             </div>
                             <div className="text-right">

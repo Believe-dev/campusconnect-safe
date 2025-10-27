@@ -34,6 +34,7 @@ import {
 import { findOrCreateConversation } from "@/utils/conversationUtils";
 import { useNavigate } from "react-router-dom";
 import { ProfileReviewModal } from "@/components/reviews/ProfileReviewModal";
+import { OrderDetailsDialog } from "@/components/orders/OrderDetailsDialog";
 
 interface Order {
   id: string;
@@ -41,6 +42,7 @@ interface Order {
   seller_id: string;
   product_id: string;
   quantity: number;
+  selected_size?: string;
   total_amount: number;
   commission_amount: number;
   status: string;
@@ -629,6 +631,8 @@ const Orders = () => {
     sellerId: string;
     sellerName: string;
   } | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [showOrderDetails, setShowOrderDetails] = useState(false);
 
   // Count unattended orders
   const getUnattendedBuyerCount = () => {
@@ -784,7 +788,11 @@ const Orders = () => {
               </div>
               <div className="text-xs sm:text-sm text-muted-foreground space-y-1">
                 <p>
-                  Qty: {order.quantity} • Total: ₦
+                  Qty: {order.quantity}
+                  {order.selected_size && (
+                    <span> • Size: {order.selected_size}</span>
+                  )}
+                  {" • Total: ₦"}
                   {order.total_amount.toLocaleString()}
                 </p>
                 {isSeller && escrow && (
@@ -828,6 +836,20 @@ const Orders = () => {
             </div>
 
             <div className="flex flex-col gap-2 w-full sm:w-auto">
+              {/* View Details Button */}
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setSelectedOrder(order);
+                  setShowOrderDetails(true);
+                }}
+                className="w-full sm:w-auto text-xs sm:text-sm"
+              >
+                <Package className="h-3 w-3 mr-1" />
+                View Details
+              </Button>
+
               {/* Chat Button - Always visible */}
               <Button
                 size="sm"
@@ -1210,6 +1232,17 @@ const Orders = () => {
         </div>
         </main>
       </PullToRefresh>
+
+      {/* Order Details Dialog */}
+      <OrderDetailsDialog
+        order={selectedOrder}
+        open={showOrderDetails}
+        onClose={() => {
+          setShowOrderDetails(false);
+          setSelectedOrder(null);
+        }}
+        isSeller={activeTab === "seller"}
+      />
 
       {/* Profile Review Modal */}
       {reviewOrderData && (

@@ -198,53 +198,69 @@ const Marketplace = () => {
     // Show all products without university prioritization
     // Removed university-specific filtering to show all products
 
-    // Sort with verified sellers first
-    switch (sortBy) {
-      case "price_low":
-        filtered.sort((a, b) => {
-          const aVerified = a.profiles?.is_verified;
-          const bVerified = b.profiles?.is_verified;
+    // Separate verified and non-verified products
+    const verifiedProducts = filtered.filter(p => p.profiles?.is_verified);
+    const nonVerifiedProducts = filtered.filter(p => !p.profiles?.is_verified);
 
-          if (aVerified && !bVerified) return -1;
-          if (!aVerified && bVerified) return 1;
+    // Sort function for products
+    const sortFunction = (a: Product, b: Product) => {
+      switch (sortBy) {
+        case "price_low":
           return a.price - b.price;
-        });
-        break;
-      case "price_high":
-        filtered.sort((a, b) => {
-          const aVerified = a.profiles?.is_verified;
-          const bVerified = b.profiles?.is_verified;
-
-          if (aVerified && !bVerified) return -1;
-          if (!aVerified && bVerified) return 1;
+        case "price_high":
           return b.price - a.price;
-        });
-        break;
-      case "newest":
-        filtered.sort((a, b) => {
-          const aVerified = a.profiles?.is_verified;
-          const bVerified = b.profiles?.is_verified;
+        case "newest":
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        case "oldest":
+          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+        default:
+          return 0;
+      }
+    };
 
-          if (aVerified && !bVerified) return -1;
-          if (!aVerified && bVerified) return 1;
-          return (
-            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-          );
+    // Function to shuffle products ensuring no same seller products are adjacent
+    const shuffleSellers = (products: Product[]) => {
+      if (products.length <= 1) return products;
+      
+      // Group by seller
+      const sellerGroups = products.reduce((acc, product) => {
+        if (!acc[product.seller_id]) acc[product.seller_id] = [];
+        acc[product.seller_id].push(product);
+        return acc;
+      }, {} as Record<string, Product[]>);
+      
+      // Sort each seller's products by criteria
+      Object.values(sellerGroups).forEach(group => group.sort(sortFunction));
+      
+      // Distribute products evenly
+      const result: Product[] = [];
+      const sellerQueues = Object.values(sellerGroups);
+      
+      while (sellerQueues.some(queue => queue.length > 0)) {
+        // Shuffle seller order each round
+        const availableSellers = sellerQueues.filter(queue => queue.length > 0);
+        for (let i = availableSellers.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [availableSellers[i], availableSellers[j]] = [availableSellers[j], availableSellers[i]];
+        }
+        
+        // Take one product from each available seller
+        availableSellers.forEach(queue => {
+          if (queue.length > 0) {
+            result.push(queue.shift()!);
+          }
         });
-        break;
-      case "oldest":
-        filtered.sort((a, b) => {
-          const aVerified = a.profiles?.is_verified;
-          const bVerified = b.profiles?.is_verified;
+      }
+      
+      return result;
+    };
+    
+    // Shuffle verified and non-verified products separately
+    const shuffledVerified = shuffleSellers(verifiedProducts);
+    const shuffledNonVerified = shuffleSellers(nonVerifiedProducts);
 
-          if (aVerified && !bVerified) return -1;
-          if (!aVerified && bVerified) return 1;
-          return (
-            new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-          );
-        });
-        break;
-    }
+    // Combine: all verified products first, then all non-verified
+    filtered = [...shuffledVerified, ...shuffledNonVerified];
 
     setFilteredProducts(filtered);
   };
@@ -324,16 +340,34 @@ const Marketplace = () => {
         return;
       }
 
-      await supabase
-        .from("cart")
-        .insert({ user_id: user.id, product_id: productId, quantity: 1 });
-
+      // Optimistic update - update UI immediately
       setCart((prev) => new Set([...prev, productId]));
+      if (window.updateCartCountOptimistically) {
+        window.updateCartCountOptimistically(1);
+      }
 
       toast({
         title: "Added to cart",
         description: "Product added to your cart",
       });
+
+      // Then update database
+      const { error } = await supabase
+        .from("cart")
+        .insert({ user_id: user.id, product_id: productId, quantity: 1 });
+
+      if (error) {
+        // Revert optimistic update on error
+        setCart((prev) => {
+          const newSet = new Set(prev);
+          newSet.delete(productId);
+          return newSet;
+        });
+        if (window.updateCartCountOptimistically) {
+          window.updateCartCountOptimistically(-1);
+        }
+        throw error;
+      }
 
       // Update analytics
       await updateAnalytics(productId, "cart_additions", 1);
@@ -540,7 +574,7 @@ const Marketplace = () => {
                   />
                 </svg>
               </span>{" "}
-              are verified sellers{" "}
+              are from verified sellers
             </div>
           </div>
           <Badge
