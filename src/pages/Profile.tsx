@@ -859,7 +859,10 @@ const Profile = () => {
 
                     <div className="flex items-center justify-center gap-3 mt-2 flex-wrap">
                       <Badge className="bg-university-green/10 text-university-green border-university-green/20 px-3 py-1 font-medium capitalize">
-                        {profile.account_type === 'seller' ? 'Seller & Buyer' : profile.account_type === 'both' ? 'Seller & Buyer' : profile.account_type}
+                        {profile.account_type === 'seller' && profile.seller_status === 'pending' ? 'Buyer waiting to be approved as a seller' : 
+                         profile.account_type === 'seller' ? 'Seller & Buyer' : 
+                         profile.account_type === 'both' ? 'Seller & Buyer' : 
+                         profile.account_type}
                       </Badge>
 
                       {profile.is_verified && (
@@ -977,11 +980,16 @@ const Profile = () => {
                               <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
                             </svg>
                             <span className="capitalize font-medium">
-                              {profile.account_type === 'seller' ? 'Seller & Buyer' : profile.account_type === 'both' ? 'Seller & Buyer' : profile.account_type}
+                              {profile.account_type === 'seller' && profile.seller_status === 'pending' ? 'Buyer waiting to be approved as a seller' : 
+                               profile.account_type === 'seller' ? 'Seller & Buyer' : 
+                               profile.account_type === 'both' ? 'Seller & Buyer' : 
+                               profile.account_type}
                             </span>
                           </div>
                           <div className="text-xs text-university-green/70 mt-1">
-                            {(profile.account_type === 'seller' || profile.account_type === 'both') && 'You can both buy and sell items on UniMarket'}
+                            {profile.account_type === 'seller' && profile.seller_status === 'pending' && 'You can buy items. Selling access pending approval.'}
+                            {profile.account_type === 'seller' && profile.seller_status === 'approved' && 'You can both buy and sell items on UniMarket'}
+                            {profile.account_type === 'both' && 'You can both buy and sell items on UniMarket'}
                             {profile.account_type === 'buyer' && 'You can buy items on UniMarket'}
                           </div>
                         </div>
@@ -1336,11 +1344,14 @@ const Profile = () => {
                     Account Type
                   </Label>
                   <select 
-                    value={profile.account_type === 'seller' ? 'both' : profile.account_type} 
+                    value={profile.account_type === 'seller' && profile.seller_status === 'pending' ? 'pending' : 
+                           profile.account_type === 'seller' ? 'both' : 
+                           profile.account_type} 
                     disabled={true}
                     className="w-full h-10 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm cursor-not-allowed"
                   >
                     <option value="buyer">Buyer Only</option>
+                    <option value="pending">Buyer waiting to be approved as a seller</option>
                     <option value="both">Both Buyer & Seller</option>
                   </select>
                   <p className="text-xs text-gray-500 mt-1">
