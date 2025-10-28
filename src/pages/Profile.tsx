@@ -58,6 +58,9 @@ interface Profile {
   seller_status?: string;
   student_id_photo_url?: string;
   business_name?: string;
+  seller_subscription_expires_at?: string;
+  seller_features_active?: boolean;
+  seller_subscription_type?: string;
 }
 
 interface WalletData {
@@ -855,8 +858,11 @@ const Profile = () => {
                     )}
 
                     <div className="flex items-center justify-center gap-3 mt-2 flex-wrap">
-                      <Badge className="bg-university-green/10 text-university-green border-university-green/20 px-3 py-1 font-medium">
-                        {profile.account_type}
+                      <Badge className="bg-university-green/10 text-university-green border-university-green/20 px-3 py-1 font-medium capitalize">
+                        {profile.account_type === 'seller' && profile.seller_status === 'pending' ? 'Buyer waiting to be approved as a seller' : 
+                         profile.account_type === 'seller' ? 'Seller & Buyer' : 
+                         profile.account_type === 'both' ? 'Seller & Buyer' : 
+                         profile.account_type}
                       </Badge>
 
                       {profile.is_verified && (
@@ -960,43 +966,116 @@ const Profile = () => {
                         </div>
                       )}
 
-                    {/* Seller Status Display */}
-                    {(profile.account_type === "seller" ||
-                      profile.account_type === "both") && (
-                      <div className="mt-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-100">
+                    {/* Account Type Display - For All Users */}
+                    <div className="mt-6 space-y-4">
+                      <div className="p-4 bg-gradient-to-r from-university-green/5 to-emerald-50 rounded-xl border border-university-green/20">
                         <div className="flex items-center justify-between mb-3">
-                          <span className="text-sm font-semibold text-blue-800">
-                            Seller Status
+                          <span className="text-sm font-semibold text-university-green">
+                            Account Type
                           </span>
                         </div>
                         <div className="text-sm">
-                          {profile.seller_status === "approved" && (
-                            <div className="flex items-center gap-2 text-green-600">
-                              <Shield className="h-4 w-4" />
-                              <span>Approved - You can sell items</span>
-                            </div>
-                          )}
-                          {profile.seller_status === "pending" && (
-                            <div className="flex items-center gap-2 text-orange-600">
-                              <Shield className="h-4 w-4" />
-                              <span>Pending Admin Approval</span>
-                            </div>
-                          )}
-                          {profile.seller_status === "rejected" && (
-                            <div className="flex items-center gap-2 text-red-600">
-                              <Shield className="h-4 w-4" />
-                              <span>Application Rejected</span>
-                            </div>
-                          )}
-                          {!profile.seller_status && (
-                            <div className="flex items-center gap-2 text-gray-600">
-                              <Shield className="h-4 w-4" />
-                              <span>Not yet submitted for approval</span>
-                            </div>
-                          )}
+                          <div className="flex items-center gap-2 text-university-green">
+                            <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+                            </svg>
+                            <span className="capitalize font-medium">
+                              {profile.account_type === 'seller' && profile.seller_status === 'pending' ? 'Buyer waiting to be approved as a seller' : 
+                               profile.account_type === 'seller' ? 'Seller & Buyer' : 
+                               profile.account_type === 'both' ? 'Seller & Buyer' : 
+                               profile.account_type}
+                            </span>
+                          </div>
+                          <div className="text-xs text-university-green/70 mt-1">
+                            {profile.account_type === 'seller' && profile.seller_status === 'pending' && 'You can buy items. Selling access pending approval.'}
+                            {profile.account_type === 'seller' && profile.seller_status === 'approved' && 'You can both buy and sell items on UniMarket'}
+                            {profile.account_type === 'both' && 'You can both buy and sell items on UniMarket'}
+                            {profile.account_type === 'buyer' && 'You can buy items on UniMarket'}
+                          </div>
                         </div>
                       </div>
-                    )}
+                      
+                      {/* Seller Status Display - Only for Sellers */}
+                      {(profile.account_type === "seller" || profile.account_type === "both") && (
+                        <>
+                          <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-100">
+                            <div className="flex items-center justify-between mb-3">
+                              <span className="text-sm font-semibold text-blue-800">
+                                Seller Status
+                              </span>
+                            </div>
+                            <div className="text-sm">
+                              {profile.seller_status === "approved" && (
+                                <div className="flex items-center gap-2 text-green-600">
+                                  <Shield className="h-4 w-4" />
+                                  <span>Approved - You can sell items</span>
+                                </div>
+                              )}
+                              {profile.seller_status === "pending" && (
+                                <div className="flex items-center gap-2 text-orange-600">
+                                  <Shield className="h-4 w-4" />
+                                  <span>Pending Admin Approval</span>
+                                </div>
+                              )}
+                              {profile.seller_status === "rejected" && (
+                                <div className="flex items-center gap-2 text-red-600">
+                                  <Shield className="h-4 w-4" />
+                                  <span>Application Rejected</span>
+                                </div>
+                              )}
+                              {!profile.seller_status && (
+                                <div className="flex items-center gap-2 text-gray-600">
+                                  <Shield className="h-4 w-4" />
+                                  <span>Not yet submitted for approval</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          
+                          {/* Subscription Status - Modern Design */}
+                          <div className="relative overflow-hidden p-4 bg-gradient-to-br from-university-green/10 via-emerald-50 to-university-green/5 rounded-xl border border-university-green/20">
+                            <div className="absolute top-0 right-0 w-20 h-20 bg-university-green/5 rounded-full -translate-y-10 translate-x-10"></div>
+                            <div className="relative">
+                              <div className="flex items-center justify-between mb-3">
+                                <span className="text-sm font-semibold text-university-green flex items-center gap-2">
+                                  <Package className="h-4 w-4" />
+                                  Subscription Status
+                                </span>
+                              </div>
+                              <div className="text-sm space-y-2">
+                                {profile.seller_features_active && profile.seller_subscription_expires_at ? (
+                                  <>
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                                      <span className="text-green-700 font-medium">
+                                        Active - {profile.seller_subscription_type === 'monthly' ? 'Monthly' : 'Daily'} Plan
+                                      </span>
+                                    </div>
+                                    <div className="text-xs text-university-green/70 ml-4">
+                                      Expires: {new Date(profile.seller_subscription_expires_at).toLocaleDateString()}
+                                    </div>
+                                  </>
+                                ) : profile.seller_subscription_expires_at && new Date(profile.seller_subscription_expires_at) < new Date() ? (
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                                    <span className="text-red-600 font-medium">
+                                      Expired - Renew to continue selling
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+                                    <span className="text-gray-600 font-medium">
+                                      No active subscription
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </div>
 
                     {/* Verification Request Button */}
                     {!profile.is_verified &&
@@ -1265,12 +1344,14 @@ const Profile = () => {
                     Account Type
                   </Label>
                   <select 
-                    value={profile.account_type} 
+                    value={profile.account_type === 'seller' && profile.seller_status === 'pending' ? 'pending' : 
+                           profile.account_type === 'seller' ? 'both' : 
+                           profile.account_type} 
                     disabled={true}
                     className="w-full h-10 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm cursor-not-allowed"
                   >
                     <option value="buyer">Buyer Only</option>
-                    <option value="seller">Seller Only</option>
+                    <option value="pending">Buyer waiting to be approved as a seller</option>
                     <option value="both">Both Buyer & Seller</option>
                   </select>
                   <p className="text-xs text-gray-500 mt-1">

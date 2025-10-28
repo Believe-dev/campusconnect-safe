@@ -297,6 +297,8 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
             seller_features_active: true,
             seller_subscription_type: "monthly",
             seller_last_payment_date: new Date().toISOString(),
+            account_type: "seller",
+            seller_status: "pending"
           })
           .eq("user_id", authData.user.id);
 

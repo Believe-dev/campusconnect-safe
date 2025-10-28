@@ -149,6 +149,23 @@ interface Message {
   };
 }
 
+interface ConversationSummary {
+  id: string;
+  buyer_id: string;
+  seller_id: string;
+  product_id?: string;
+  created_at: string;
+  product?: { title: string; price: number };
+  buyer: { full_name: string; email: string; avatar_url?: string };
+  seller: { full_name: string; email: string; avatar_url?: string };
+  message_count: number;
+  last_message?: {
+    content: string;
+    created_at: string;
+    sender_name: string;
+  };
+}
+
 interface Analytics {
   totalRevenue: number;
   monthlyGrowth: number;
@@ -228,6 +245,10 @@ export default function Admin() {
   const [users, setUsers] = useState<User[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [conversations, setConversations] = useState<ConversationSummary[]>([]);
+  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
+  const [conversationMessages, setConversationMessages] = useState<Message[]>([]);
+  const [loadingConversation, setLoadingConversation] = useState(false);
   const [analytics, setAnalytics] = useState<Analytics>({
     totalRevenue: 0,
     monthlyGrowth: 0,
@@ -238,6 +259,7 @@ export default function Admin() {
     totalUsers: 0,
     totalProducts: 0,
     totalMessages: 0,
+    totalConversations: 0,
     activeUsers: 0,
   });
 
@@ -280,6 +302,7 @@ export default function Admin() {
         fetchUsers(),
         fetchProducts(),
         fetchMessages(),
+        fetchConversations(),
         fetchStats(),
         fetchAnalytics(),
         fetchPendingSellers(),
@@ -294,12 +317,23 @@ export default function Admin() {
     }
   };
 
+  const handleViewConversation = async (conversationId: string) => {
+    setSelectedConversationId(conversationId);
+    await fetchConversationMessages(conversationId);
+  };
+
+  const handleCloseConversationModal = () => {
+    setSelectedConversationId(null);
+    setConversationMessages([]);
+  };
+
   useEffect(() => {
     if (isAdmin) {
       console.log("Admin dashboard loading...");
       fetchUsers();
       fetchProducts();
       fetchMessages();
+      fetchConversations();
       fetchStats();
       fetchAnalytics();
       fetchPendingSellers();
@@ -432,9 +466,112 @@ export default function Admin() {
     }
   };
 
+  const fetchConversations = async () => {
+    try {
+      // Fetch conversations with message counts and last message
+      const { data: conversationsData, error } = await supabase
+        .from("conversations")
+        .select(
+          `
+          id,
+          buyer_id,
+          seller_id,
+          product_id,
+          created_at,
+          products(title, price),
+          buyer:profiles!conversations_buyer_id_fkey(full_name, email, avatar_url),
+          seller:profiles!conversations_seller_id_fkey(full_name, email, avatar_url)
+        `
+        )
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      if (!conversationsData || conversationsData.length === 0) {
+        setConversations([]);
+        return;
+      }
+
+      // Get message counts and last messages for each conversation
+      const conversationIds = conversationsData.map(c => c.id);
+      
+      // Batch fetch message counts
+      const messageCounts = {};
+      const lastMessages = {};
+      
+      for (const convId of conversationIds) {
+        // Get message count
+        const { count } = await supabase
+          .from("messages")
+          .select("*", { count: "exact", head: true })
+          .eq("conversation_id", convId);
+        
+        messageCounts[convId] = count || 0;
+        
+        // Get last message with sender info
+        const { data: lastMsg } = await supabase
+          .from("messages")
+          .select(
+            `
+            content,
+            created_at,
+            sender:profiles!messages_sender_id_fkey(full_name)
+          `
+          )
+          .eq("conversation_id", convId)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .single();
+        
+        if (lastMsg) {
+          lastMessages[convId] = {
+            content: lastMsg.content,
+            created_at: lastMsg.created_at,
+            sender_name: lastMsg.sender?.full_name || "Unknown"
+          };
+        }
+      }
+
+      // Process conversations with counts and last messages
+      const processedConversations = conversationsData.map(conv => ({
+        ...conv,
+        message_count: messageCounts[conv.id] || 0,
+        last_message: lastMessages[conv.id]
+      }));
+
+      setConversations(processedConversations);
+    } catch (error) {
+      toast.error("Failed to fetch conversations");
+    }
+  };
+
+  const fetchConversationMessages = async (conversationId: string) => {
+    setLoadingConversation(true);
+    try {
+      const { data, error } = await supabase
+        .from("messages")
+        .select(
+          `
+          *,
+          sender:profiles!messages_sender_id_fkey(full_name, email, avatar_url)
+        `
+        )
+        .eq("conversation_id", conversationId)
+        .order("created_at", { ascending: true });
+
+      if (error) throw error;
+      setConversationMessages(data || []);
+    } catch (error) {
+      toast.error("Failed to fetch conversation messages");
+    } finally {
+      setLoadingConversation(false);
+    }
+  };
+
   const fetchPendingSellers = async () => {
     try {
       // Get profiles that want to be sellers but haven't been approved yet
+      // Include both sellers with pending status AND those who have paid registration fee
       const { data: profiles, error: profilesError } = await supabase
         .from("profiles")
         .select(
@@ -457,10 +594,11 @@ export default function Admin() {
           is_banned,
           verification_status,
           is_verified,
-          seller_status
+          seller_status,
+          seller_registration_paid
         `
         )
-        .eq("account_type", "seller")
+        .or("account_type.eq.seller,seller_registration_paid.eq.true")
         .or("seller_status.is.null,seller_status.eq.pending")
         .eq("is_banned", false)
         .order("created_at", { ascending: false });
@@ -761,16 +899,18 @@ export default function Admin() {
 
   const fetchStats = async () => {
     try {
-      const [usersCount, productsCount, messagesCount] = await Promise.all([
+      const [usersCount, productsCount, messagesCount, conversationsCount] = await Promise.all([
         supabase.from("profiles").select("*", { count: "exact", head: true }),
         supabase.from("products").select("*", { count: "exact", head: true }),
         supabase.from("messages").select("*", { count: "exact", head: true }),
+        supabase.from("conversations").select("*", { count: "exact", head: true }),
       ]);
 
       setStats({
         totalUsers: usersCount.count || 0,
         totalProducts: productsCount.count || 0,
         totalMessages: messagesCount.count || 0,
+        totalConversations: conversationsCount.count || 0,
         activeUsers: users.filter((u) => !u.is_banned).length,
       });
     } catch (error) {
@@ -2100,13 +2240,13 @@ export default function Admin() {
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Messages</CardTitle>
+              <CardTitle className="text-sm font-medium">Conversations</CardTitle>
               <MessageSquare className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.totalMessages}</div>
+              <div className="text-2xl font-bold">{stats.totalConversations}</div>
               <p className="text-xs text-muted-foreground">
-                {analytics.recentOrders} this month
+                {stats.totalMessages} total messages
               </p>
             </CardContent>
           </Card>
@@ -5022,86 +5162,272 @@ export default function Admin() {
             <Card>
               <CardHeader>
                 <div className="flex justify-between items-center">
-                  <CardTitle>Message Monitoring</CardTitle>
-                  <Button
-                    onClick={() => exportData("messages")}
-                    variant="outline"
-                    size="sm"
-                  >
-                    <Download className="h-4 w-4 mr-2" />
-                    Export
-                  </Button>
+                  <CardTitle>Conversation Monitoring</CardTitle>
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={fetchConversations}
+                      variant="outline"
+                      size="sm"
+                    >
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Refresh
+                    </Button>
+                    <Button
+                      onClick={() => exportData("messages")}
+                      variant="outline"
+                      size="sm"
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Export
+                    </Button>
+                  </div>
                 </div>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Monitor all conversations between users. Click "View Chat" to see the full conversation.
+                </p>
               </CardHeader>
               <CardContent>
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Content</TableHead>
-                        <TableHead>Sender</TableHead>
-                        <TableHead>Product</TableHead>
-                        <TableHead>Participants</TableHead>
-                        <TableHead>Time</TableHead>
-                        <TableHead>Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {messages.map((message) => (
-                        <TableRow key={message.id}>
-                          <TableCell className="max-w-xs truncate">
-                            {message.content}
-                          </TableCell>
-                          <TableCell>
-                            {message.sender?.full_name || "Unknown"}
-                          </TableCell>
-                          <TableCell>
-                            {message.conversations?.products?.title || "N/A"}
-                          </TableCell>
-                          <TableCell>
-                            <div className="text-sm">
-                              <div>
-                                Seller:{" "}
-                                {message.conversations?.seller?.full_name ||
-                                  "Unknown"}
+                {conversations.length === 0 ? (
+                  <div className="text-center py-12">
+                    <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold mb-2">
+                      No conversations found
+                    </h3>
+                    <p className="text-muted-foreground">
+                      Users haven't started any conversations yet
+                    </p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Participants</TableHead>
+                          <TableHead>Product</TableHead>
+                          <TableHead>Messages</TableHead>
+                          <TableHead>Last Message</TableHead>
+                          <TableHead>Started</TableHead>
+                          <TableHead>Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {conversations.map((conversation) => (
+                          <TableRow key={conversation.id}>
+                            <TableCell>
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <Avatar className="h-6 w-6">
+                                    <AvatarImage src={conversation.buyer?.avatar_url} />
+                                    <AvatarFallback className="text-xs">
+                                      {conversation.buyer?.full_name?.charAt(0) || "B"}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  <span className="text-sm font-medium">
+                                    {conversation.buyer?.full_name || "Unknown Buyer"}
+                                  </span>
+                                  <Badge variant="outline" className="text-xs">Buyer</Badge>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Avatar className="h-6 w-6">
+                                    <AvatarImage src={conversation.seller?.avatar_url} />
+                                    <AvatarFallback className="text-xs">
+                                      {conversation.seller?.full_name?.charAt(0) || "S"}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  <span className="text-sm font-medium">
+                                    {conversation.seller?.full_name || "Unknown Seller"}
+                                  </span>
+                                  <Badge variant="outline" className="text-xs">Seller</Badge>
+                                </div>
                               </div>
-                              <div>
-                                Buyer:{" "}
-                                {message.conversations?.buyer?.full_name ||
-                                  "Unknown"}
+                            </TableCell>
+                            <TableCell>
+                              {conversation.product ? (
+                                <div>
+                                  <p className="font-medium text-sm">{conversation.product.title}</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    ₦{conversation.product.price?.toLocaleString()}
+                                  </p>
+                                </div>
+                              ) : (
+                                <span className="text-muted-foreground text-sm">General Chat</span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <MessageSquare className="h-4 w-4 text-muted-foreground" />
+                                <span className="font-medium">{conversation.message_count}</span>
+                                <span className="text-xs text-muted-foreground">messages</span>
                               </div>
+                            </TableCell>
+                            <TableCell className="max-w-xs">
+                              {conversation.last_message ? (
+                                <div>
+                                  <p className="text-sm truncate" title={conversation.last_message.content}>
+                                    <span className="font-medium">{conversation.last_message.sender_name}:</span>{" "}
+                                    {conversation.last_message.content}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {new Date(conversation.last_message.created_at).toLocaleString()}
+                                  </p>
+                                </div>
+                              ) : (
+                                <span className="text-muted-foreground text-sm italic">No messages yet</span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <span className="text-sm">
+                                {new Date(conversation.created_at).toLocaleDateString()}
+                              </span>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex gap-2">
+                                <Button 
+                                  variant="outline" 
+                                  size="sm"
+                                  onClick={() => handleViewConversation(conversation.id)}
+                                  disabled={conversation.message_count === 0}
+                                >
+                                  <Eye className="h-4 w-4 mr-1" />
+                                  View Chat
+                                </Button>
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <Button variant="outline" size="sm">
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>
+                                        Delete Conversation
+                                      </AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        Are you sure you want to delete this entire conversation? 
+                                        This will delete all {conversation.message_count} messages and cannot be undone.
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>
+                                        Cancel
+                                      </AlertDialogCancel>
+                                      <AlertDialogAction
+                                        onClick={async () => {
+                                          try {
+                                            const { error } = await supabase
+                                              .from("conversations")
+                                              .delete()
+                                              .eq("id", conversation.id);
+                                            
+                                            if (error) throw error;
+                                            
+                                            toast.success("Conversation deleted successfully");
+                                            fetchConversations();
+                                          } catch (error) {
+                                            toast.error("Failed to delete conversation");
+                                          }
+                                        }}
+                                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                      >
+                                        Delete
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Conversation Modal */}
+            <Dialog open={!!selectedConversationId} onOpenChange={handleCloseConversationModal}>
+              <DialogContent className="max-w-4xl max-h-[80vh] flex flex-col">
+                <DialogHeader className="flex-shrink-0">
+                  <DialogTitle className="flex items-center gap-2">
+                    <MessageSquare className="h-5 w-5" />
+                    Conversation Details
+                  </DialogTitle>
+                  <DialogDescription>
+                    {selectedConversationId && (
+                      <span>Conversation ID: {selectedConversationId.slice(0, 8)}...</span>
+                    )}
+                  </DialogDescription>
+                </DialogHeader>
+                
+                <div className="flex-1 overflow-y-auto min-h-0">
+                  {loadingConversation ? (
+                    <div className="flex items-center justify-center h-64">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                      <span className="ml-2">Loading conversation...</span>
+                    </div>
+                  ) : (
+                    <div className="space-y-4 p-4">
+                      {conversationMessages.length === 0 ? (
+                        <div className="text-center py-8">
+                          <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                          <p className="text-muted-foreground">No messages in this conversation</p>
+                        </div>
+                      ) : (
+                        conversationMessages.map((message, index) => (
+                          <div key={message.id} className="flex gap-3 p-3 rounded-lg bg-muted/30">
+                            <Avatar className="h-8 w-8 flex-shrink-0">
+                              <AvatarImage src={message.sender?.avatar_url} />
+                              <AvatarFallback className="text-xs">
+                                {message.sender?.full_name?.charAt(0) || "U"}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="font-medium text-sm">
+                                  {message.sender?.full_name || "Unknown User"}
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  {new Date(message.created_at).toLocaleString()}
+                                </span>
+                              </div>
+                              <p className="text-sm break-words">{message.content}</p>
                             </div>
-                          </TableCell>
-                          <TableCell>
-                            {new Date(message.created_at).toLocaleString()}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex gap-2">
-                              <Button variant="outline" size="sm">
-                                <Eye className="h-4 w-4" />
-                              </Button>
+                            <div className="flex-shrink-0">
                               <AlertDialog>
                                 <AlertDialogTrigger asChild>
-                                  <Button variant="outline" size="sm">
-                                    <Trash2 className="h-4 w-4" />
+                                  <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
+                                    <Trash2 className="h-3 w-3" />
                                   </Button>
                                 </AlertDialogTrigger>
                                 <AlertDialogContent>
                                   <AlertDialogHeader>
-                                    <AlertDialogTitle>
-                                      Delete Message
-                                    </AlertDialogTitle>
+                                    <AlertDialogTitle>Delete Message</AlertDialogTitle>
                                     <AlertDialogDescription>
-                                      Are you sure you want to delete this
-                                      message? This action cannot be undone.
+                                      Are you sure you want to delete this message? This action cannot be undone.
                                     </AlertDialogDescription>
                                   </AlertDialogHeader>
                                   <AlertDialogFooter>
-                                    <AlertDialogCancel>
-                                      Cancel
-                                    </AlertDialogCancel>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
                                     <AlertDialogAction
-                                      onClick={() => deleteMessage(message.id)}
+                                      onClick={async () => {
+                                        try {
+                                          const { error } = await supabase
+                                            .from("messages")
+                                            .delete()
+                                            .eq("id", message.id);
+                                          
+                                          if (error) throw error;
+                                          
+                                          toast.success("Message deleted successfully");
+                                          if (selectedConversationId) {
+                                            await fetchConversationMessages(selectedConversationId);
+                                          }
+                                          fetchConversations();
+                                        } catch (error) {
+                                          toast.error("Failed to delete message");
+                                        }
+                                      }}
                                       className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                                     >
                                       Delete
@@ -5110,14 +5436,14 @@ export default function Admin() {
                                 </AlertDialogContent>
                               </AlertDialog>
                             </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
                 </div>
-              </CardContent>
-            </Card>
+              </DialogContent>
+            </Dialog>
           </TabsContent>
 
           {/* Emails Tab */}
