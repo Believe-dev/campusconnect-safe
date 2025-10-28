@@ -56,7 +56,7 @@ import { NavigationPreloader } from "@/components/common/NavigationPreloader";
 import { PageLoadError } from "@/components/common/PageLoadError";
 
 import "@/styles/mobile-fixes.css";
-
+import "@/styles/pwa-ios.css";
 import "@/styles/scroll-optimization.css";
 import "@/styles/bottom-nav.css";
 

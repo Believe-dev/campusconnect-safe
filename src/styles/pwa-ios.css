@@ -1,0 +1,97 @@
+/* iOS PWA Specific Styles */
+
+/* PWA Install Prompt positioning for iOS */
+.force-fixed-pwa {
+  position: fixed !important;
+  bottom: 80px !important;
+  left: 16px !important;
+  right: 16px !important;
+  z-index: 9999 !important;
+  max-width: calc(100vw - 32px) !important;
+  margin: 0 !important;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15) !important;
+  border-radius: 12px !important;
+  backdrop-filter: blur(10px) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
+}
+
+/* iOS Safari specific adjustments */
+@supports (-webkit-touch-callout: none) {
+  .force-fixed-pwa {
+    bottom: calc(80px + env(safe-area-inset-bottom)) !important;
+  }
+}
+
+/* iPhone X and newer with notch */
+@media screen and (device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) {
+  .force-fixed-pwa {
+    bottom: calc(80px + 34px) !important;
+  }
+}
+
+/* iPhone 12/13/14 Pro Max */
+@media screen and (device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) {
+  .force-fixed-pwa {
+    bottom: calc(80px + 34px) !important;
+  }
+}
+
+/* iPad adjustments */
+@media screen and (min-device-width: 768px) and (max-device-width: 1024px) {
+  .force-fixed-pwa {
+    bottom: 20px !important;
+    left: 50% !important;
+    right: auto !important;
+    transform: translateX(-50%) !important;
+    max-width: 400px !important;
+  }
+}
+
+/* PWA prompt animation */
+.force-fixed-pwa {
+  animation: slideUpFade 0.3s ease-out forwards;
+}
+
+@keyframes slideUpFade {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* iOS standalone mode detection */
+@media all and (display-mode: standalone) {
+  .force-fixed-pwa {
+    display: none !important;
+  }
+}
+
+/* iOS Safari standalone mode */
+@media all and (-webkit-standalone: yes) {
+  .force-fixed-pwa {
+    display: none !important;
+  }
+}
+
+/* Ensure proper text rendering on iOS */
+.force-fixed-pwa * {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* iOS specific button styling */
+.force-fixed-pwa button {
+  -webkit-appearance: none;
+  border-radius: 8px;
+  font-weight: 500;
+}
+
+/* Share icon for iOS */
+.ios-share-icon {
+  color: #007AFF;
+  stroke-width: 2.5;
+}

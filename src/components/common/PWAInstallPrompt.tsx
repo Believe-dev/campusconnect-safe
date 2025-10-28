@@ -1,6 +1,16 @@
 import React, { useState, useEffect } from "react";
 import { X, Download, Smartphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { IOSInstallGuide } from "./IOSInstallGuide";
+import { 
+  isStandalone, 
+  isIOS as checkIsIOS, 
+  isSafari as checkIsSafari, 
+  getInstallationMethod, 
+  hasRecentlyDismissedPrompt, 
+  markPromptDismissed,
+  trackPWAInstallation
+} from "@/utils/pwaUtils";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt(): Promise<void>;
@@ -11,19 +21,23 @@ export const PWAInstallPrompt: React.FC = () => {
   const [deferredPrompt, setDeferredPrompt] =
     useState<BeforeInstallPromptEvent | null>(null);
   const [showPrompt, setShowPrompt] = useState(false);
+  const [showIOSGuide, setShowIOSGuide] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
 
   useEffect(() => {
-    // Check if it's iOS
-    const iOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    const iOS = checkIsIOS();
+    const safari = checkIsSafari();
     setIsIOS(iOS);
 
-    // Check if already installed
-    const isInstalled =
-      window.matchMedia("(display-mode: standalone)").matches ||
-      (window.navigator as any).standalone === true;
+    // Check if already installed or recently dismissed
+    if (isStandalone() || hasRecentlyDismissedPrompt()) {
+      return;
+    }
 
-    if (isInstalled) return;
+    const installMethod = getInstallationMethod();
+    if (installMethod === 'unsupported') {
+      return;
+    }
 
     const handleBeforeInstallPrompt = (e: Event) => {
       console.log('beforeinstallprompt event fired');
@@ -32,15 +46,19 @@ export const PWAInstallPrompt: React.FC = () => {
       setShowPrompt(true);
     };
 
-    // Add event listener for beforeinstallprompt
+    // Add event listener for beforeinstallprompt (Android/Chrome)
     window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
 
-    // For Android Chrome, show prompt after delay if no beforeinstallprompt event
+    // Show prompt based on installation method
     const timer = setTimeout(() => {
-      if (!deferredPrompt && !iOS) {
+      if (installMethod === 'manual') {
+        // iOS Safari - show manual installation prompt
+        setShowPrompt(true);
+      } else if (installMethod === 'automatic' && !deferredPrompt) {
+        // Other browsers without beforeinstallprompt event
         setShowPrompt(true);
       }
-    }, 3000);
+    }, 5000);
 
     return () => {
       window.removeEventListener(
@@ -58,6 +76,7 @@ export const PWAInstallPrompt: React.FC = () => {
         const { outcome } = await deferredPrompt.userChoice;
         console.log('Install prompt outcome:', outcome);
         if (outcome === "accepted") {
+          trackPWAInstallation('automatic');
           setDeferredPrompt(null);
           setShowPrompt(false);
         }
@@ -66,19 +85,20 @@ export const PWAInstallPrompt: React.FC = () => {
       }
     } else {
       // Fallback for browsers that don't support beforeinstallprompt
-      // Show manual installation instructions
       alert('To install this app:\n\n1. Open browser menu (⋮)\n2. Select "Add to Home screen" or "Install app"\n3. Follow the prompts');
     }
   };
 
   const handleDismiss = () => {
     setShowPrompt(false);
+    markPromptDismissed();
   };
 
   if (!showPrompt) return null;
 
   return (
-    <div className="force-fixed-pwa bg-white border border-gray-200 rounded-lg shadow-lg p-4 max-w-sm mx-auto">
+    <>
+      <div className="force-fixed-pwa bg-white border border-gray-200 rounded-lg shadow-lg p-4 max-w-sm mx-auto">
       <div className="flex items-start gap-3">
         <div className="bg-primary/10 p-2 rounded-full">
           <Smartphone className="h-5 w-5 text-primary" />
@@ -89,25 +109,17 @@ export const PWAInstallPrompt: React.FC = () => {
           </h3>
           <p className="text-xs text-black mt-1 leading-relaxed">
             {isIOS ? (
-              <span className="flex items-center flex-wrap gap-1">
-                <span>Tap</span>
-                <svg
-                  xmlns="http://www.w3.org/2000/svg"
-                  viewBox="0 0 24 24"
-                  width="16"
-                  height="16"
-                  fill="none"
-                  stroke="#555"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="inline-block flex-shrink-0"
-                >
-                  <path d="M12 16V4" />
-                  <path d="M8 8l4-4 4 4" />
-                  <path d="M4 12v6a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6" />
-                </svg>
-                <span>then scroll and choose 'Add to Home Screen'</span>
+              <span className="space-y-1">
+                <div className="flex items-center gap-1">
+                  <span>1. Tap the Share button</span>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#007AFF" strokeWidth="2">
+                    <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+                    <polyline points="16,6 12,2 8,6"/>
+                    <line x1="12" y1="2" x2="12" y2="15"/>
+                  </svg>
+                </div>
+                <div>2. Select "Add to Home Screen"</div>
+                <div className="text-gray-600">Get faster access & offline features!</div>
               </span>
             ) : (
               "Install our app for faster access and offline features"
@@ -120,13 +132,22 @@ export const PWAInstallPrompt: React.FC = () => {
                 {deferredPrompt ? 'Install' : 'Add to Home'}
               </Button>
             )}
+            {isIOS && (
+              <Button 
+                size="sm" 
+                onClick={() => setShowIOSGuide(true)} 
+                className="text-xs bg-blue-500 hover:bg-blue-600 text-white"
+              >
+                Show me how
+              </Button>
+            )}
             <Button
               size="sm"
               variant="outline"
               onClick={handleDismiss}
               className="text-xs"
             >
-              Later
+              {isIOS ? 'Maybe later' : 'Later'}
             </Button>
           </div>
         </div>
@@ -140,5 +161,10 @@ export const PWAInstallPrompt: React.FC = () => {
         </Button>
       </div>
     </div>
+    
+    {showIOSGuide && (
+      <IOSInstallGuide onClose={() => setShowIOSGuide(false)} />
+    )}
+    </>
   );
 };
