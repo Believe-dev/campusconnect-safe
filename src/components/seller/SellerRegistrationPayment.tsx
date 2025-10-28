@@ -104,6 +104,8 @@ export const SellerRegistrationPayment = ({
                 .update({
                   seller_registration_paid: true,
                   seller_registration_paid_at: new Date().toISOString(),
+                  account_type: "seller",
+                  seller_status: "pending"
                 })
                 .eq("user_id", userId);
 
