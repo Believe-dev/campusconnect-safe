@@ -72,10 +72,7 @@ const categories = [
   "Other",
 ];
 
-const universities = [
-  "All Universities",
-  ...NIGERIAN_UNIVERSITIES,
-];
+const universities = ["All Universities", ...NIGERIAN_UNIVERSITIES];
 
 const Search = () => {
   const navigate = useNavigate();
@@ -84,7 +81,8 @@ const Search = () => {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState(searchParams.get("q") || "");
   const [selectedCategory, setSelectedCategory] = useState("All Categories");
-  const [selectedUniversity, setSelectedUniversity] = useState("All Universities");
+  const [selectedUniversity, setSelectedUniversity] =
+    useState("All Universities");
   const [priceRange, setPriceRange] = useState({ min: "", max: "" });
   const [sortBy, setSortBy] = useState("newest");
   const [showFilters, setShowFilters] = useState(false);
@@ -93,8 +91,12 @@ const Search = () => {
   const userUniversity = profile?.university_name || null;
   const [cartItems, setCartItems] = useState<string[]>([]);
   const [showOtherSchools, setShowOtherSchools] = useState(false);
-  const [universityProducts, setUniversityProducts] = useState<SearchResult[]>([]);
-  const [otherSchoolProducts, setOtherSchoolProducts] = useState<SearchResult[]>([]);
+  const [universityProducts, setUniversityProducts] = useState<SearchResult[]>(
+    []
+  );
+  const [otherSchoolProducts, setOtherSchoolProducts] = useState<
+    SearchResult[]
+  >([]);
 
   useEffect(() => {
     checkAuth();
@@ -113,8 +115,6 @@ const Search = () => {
       // Error handled silently
     }
   };
-
-
 
   const loadCartItems = async (userId: string) => {
     try {
@@ -295,7 +295,10 @@ const Search = () => {
           // Live feed items always show regardless of category
         }
         if (selectedUniversity !== "All Universities") {
-          otherProductQuery = otherProductQuery.eq("campus", selectedUniversity);
+          otherProductQuery = otherProductQuery.eq(
+            "campus",
+            selectedUniversity
+          );
           otherLiveFeedQuery = otherLiveFeedQuery.eq(
             "location",
             selectedUniversity
@@ -406,18 +409,23 @@ const Search = () => {
       ];
 
       if (userUniversity) {
-        universityResults = allResults.filter(item => {
-          const itemUniversity = item.type === 'live_feed' ? item.location : item.campus;
+        universityResults = allResults.filter((item) => {
+          const itemUniversity =
+            item.type === "live_feed" ? item.location : item.campus;
           return itemUniversity === userUniversity;
         });
-        
-        otherSchoolResults = allResults.filter(item => {
-          const itemUniversity = item.type === 'live_feed' ? item.location : item.campus;
+
+        otherSchoolResults = allResults.filter((item) => {
+          const itemUniversity =
+            item.type === "live_feed" ? item.location : item.campus;
           return itemUniversity !== userUniversity;
         });
-        
+
         // Always show university products first, then other schools if toggled
-        const allProducts = [...universityResults, ...(showOtherSchools ? otherSchoolResults : [])];
+        const allProducts = [
+          ...universityResults,
+          ...(showOtherSchools ? otherSchoolResults : []),
+        ];
       } else {
         // If no user university, show all products together
         universityResults = allResults;
@@ -426,8 +434,11 @@ const Search = () => {
       }
 
       // Determine which products to show and sort
-      const productsToShow = userUniversity 
-        ? [...universityResults, ...(showOtherSchools ? otherSchoolResults : [])]
+      const productsToShow = userUniversity
+        ? [
+            ...universityResults,
+            ...(showOtherSchools ? otherSchoolResults : []),
+          ]
         : allResults;
 
       // Apply sorting to the products
@@ -437,24 +448,24 @@ const Search = () => {
           const searchLower = searchTerm.toLowerCase();
           const aTitle = a.title.toLowerCase();
           const bTitle = b.title.toLowerCase();
-          
+
           // Calculate relevance scores
           const aExactMatch = aTitle === searchLower ? 1000 : 0;
           const bExactMatch = bTitle === searchLower ? 1000 : 0;
-          
+
           const aStartsWith = aTitle.startsWith(searchLower) ? 500 : 0;
           const bStartsWith = bTitle.startsWith(searchLower) ? 500 : 0;
-          
+
           const aIncludes = aTitle.includes(searchLower) ? 100 : 0;
           const bIncludes = bTitle.includes(searchLower) ? 100 : 0;
-          
+
           // Boost live feed items slightly
-          const aLiveBoost = a.type === 'live_feed' ? 50 : 0;
-          const bLiveBoost = b.type === 'live_feed' ? 50 : 0;
-          
+          const aLiveBoost = a.type === "live_feed" ? 50 : 0;
+          const bLiveBoost = b.type === "live_feed" ? 50 : 0;
+
           const aScore = aExactMatch + aStartsWith + aIncludes + aLiveBoost;
           const bScore = bExactMatch + bStartsWith + bIncludes + bLiveBoost;
-          
+
           if (aScore !== bScore) return bScore - aScore;
         }
 
@@ -718,10 +729,9 @@ const Search = () => {
                   )}
                   <br />
                   <span className="text-xs text-muted-foreground mt-1 block">
-                    {userUniversity 
+                    {userUniversity
                       ? `Showing products from ${userUniversity} first`
-                      : "Showing matching results first, followed by other products"
-                    }
+                      : "Showing matching results first, followed by other products"}
                   </span>
                 </p>
               )}
@@ -881,12 +891,13 @@ const Search = () => {
                     {/* University Products */}
                     {userUniversity && universityProducts.length > 0 && (
                       <div>
-                        <h3 className="text-lg font-semibold mb-4 text-university-green">
+                        <h3 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4 text-university-green px-1">
                           Products from {userUniversity}
                         </h3>
-                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-4 px-1 sm:px-0">
                           {universityProducts.map((item) => {
-                            const isLiveFeed = "type" in item && item.type === "live_feed";
+                            const isLiveFeed =
+                              "type" in item && item.type === "live_feed";
                             const price = item.price;
                             const handleClick = () => {
                               if (isLiveFeed) {
@@ -908,10 +919,12 @@ const Search = () => {
                                     : item.images?.[0]) && (
                                     <img
                                       src={
-                                        isLiveFeed ? item.image_url : item.images[0]
+                                        isLiveFeed
+                                          ? item.image_url
+                                          : item.images[0]
                                       }
                                       alt={item.title}
-                                      className="w-full h-40 object-cover group-hover:scale-105 transition-transform duration-300"
+                                      className="w-full h-32 sm:h-40 object-cover group-hover:scale-105 transition-transform duration-300"
                                     />
                                   )}
                                   {!isLiveFeed && (
@@ -934,18 +947,21 @@ const Search = () => {
                                   )}
                                 </div>
 
-                                <CardContent className="p-3">
-                                  <h3 className="font-semibold text-sm line-clamp-2 mb-2">
+                                <CardContent className="p-2 sm:p-3">
+                                  <h3 className="font-semibold text-xs sm:text-sm line-clamp-2 mb-1 sm:mb-2">
                                     {item.title}
                                   </h3>
 
-                                  <div className="flex items-center gap-2 mb-2">
-                                    <Badge variant="outline" className="text-xs">
-                                      {isLiveFeed ? 'Live' : item.category}
+                                  <div className="flex items-center gap-2 mb-1 sm:mb-2">
+                                    <Badge
+                                      variant="outline"
+                                      className="text-xs px-1 py-0.5"
+                                    >
+                                      {isLiveFeed ? "Live" : item.category}
                                     </Badge>
                                   </div>
 
-                                  <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2">
+                                  <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1 sm:mb-2">
                                     <span className="truncate">
                                       by {item.seller?.full_name || "Unknown"}
                                     </span>
@@ -966,7 +982,7 @@ const Search = () => {
                                     )}
                                   </div>
 
-                                  <div className="text-lg font-bold text-primary mb-2">
+                                  <div className="text-sm sm:text-lg font-bold text-primary mb-1 sm:mb-2">
                                     ₦{price.toLocaleString()}
                                   </div>
 
@@ -976,9 +992,11 @@ const Search = () => {
                                       size="sm"
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        navigate(`/live-feed#live-feed-${item.id}`);
+                                        navigate(
+                                          `/live-feed#live-feed-${item.id}`
+                                        );
                                       }}
-                                      className="w-full text-xs"
+                                      className="w-full text-xs px-2 py-1"
                                     >
                                       View Live
                                     </Button>
@@ -990,7 +1008,7 @@ const Search = () => {
                                         e.stopPropagation();
                                         navigate("/cart");
                                       }}
-                                      className="w-full text-xs"
+                                      className="w-full text-xs px-2 py-1"
                                     >
                                       <ShoppingCart className="h-3 w-3 mr-1" />
                                       In Cart
@@ -1003,7 +1021,7 @@ const Search = () => {
                                         e.stopPropagation();
                                         addToCart(item.id);
                                       }}
-                                      className="w-full text-xs"
+                                      className="w-full text-xs px-2 py-1"
                                     >
                                       <ShoppingCart className="h-3 w-3 mr-1" />
                                       Add to Cart
@@ -1018,27 +1036,36 @@ const Search = () => {
                     )}
 
                     {/* Show Other Schools Button */}
-                    {userUniversity && otherSchoolProducts.length > 0 && !showOtherSchools && (
-                      <div className="text-center">
-                        <Button
-                          variant="outline"
-                          onClick={() => setShowOtherSchools(true)}
-                          className="px-8 py-2"
-                        >
-                          Show Products from Other Schools ({otherSchoolProducts.length})
-                        </Button>
-                      </div>
-                    )}
+                    {userUniversity &&
+                      otherSchoolProducts.length > 0 &&
+                      !showOtherSchools && (
+                        <div className="text-center">
+                          <Button
+                            variant="outline"
+                            onClick={() => setShowOtherSchools(true)}
+                            className="w-full sm:w-auto px-4 sm:px-8 py-2 text-xs sm:text-sm"
+                          >
+                            <span className="sm:hidden">
+                              Other Schools ({otherSchoolProducts.length})
+                            </span>
+                            <span className="hidden sm:inline">
+                              Show Products from Other Schools (
+                              {otherSchoolProducts.length})
+                            </span>
+                          </Button>
+                        </div>
+                      )}
 
                     {/* Other Schools Products */}
                     {showOtherSchools && otherSchoolProducts.length > 0 && (
                       <div>
-                        <h3 className="text-lg font-semibold mb-4 text-muted-foreground">
+                        <h3 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4 text-muted-foreground px-1">
                           Products from Other Schools
                         </h3>
-                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-4 px-1 sm:px-0">
                           {otherSchoolProducts.map((item) => {
-                            const isLiveFeed = "type" in item && item.type === "live_feed";
+                            const isLiveFeed =
+                              "type" in item && item.type === "live_feed";
                             const price = item.price;
                             const handleClick = () => {
                               if (isLiveFeed) {
@@ -1060,7 +1087,9 @@ const Search = () => {
                                     : item.images?.[0]) && (
                                     <img
                                       src={
-                                        isLiveFeed ? item.image_url : item.images[0]
+                                        isLiveFeed
+                                          ? item.image_url
+                                          : item.images[0]
                                       }
                                       alt={item.title}
                                       className="w-full h-40 object-cover group-hover:scale-105 transition-transform duration-300"
@@ -1084,8 +1113,10 @@ const Search = () => {
                                       LIVE
                                     </Badge>
                                   ) : (
-                                    <Badge className="absolute top-2 right-2 text-xs bg-gray-500 text-white">
-                                      {item.campus}
+                                    <Badge className="absolute bottom-2 right-2 text-xs bg-gray-500 text-white w-fit">
+                                      <span className="truncate">
+                                        {item.campus}
+                                      </span>
                                     </Badge>
                                   )}
                                 </div>
@@ -1096,8 +1127,11 @@ const Search = () => {
                                   </h3>
 
                                   <div className="flex items-center gap-2 mb-2">
-                                    <Badge variant="outline" className="text-xs">
-                                      {isLiveFeed ? 'Live' : item.category}
+                                    <Badge
+                                      variant="outline"
+                                      className="text-xs"
+                                    >
+                                      {isLiveFeed ? "Live" : item.category}
                                     </Badge>
                                   </div>
 
@@ -1132,7 +1166,9 @@ const Search = () => {
                                       size="sm"
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        navigate(`/live-feed#live-feed-${item.id}`);
+                                        navigate(
+                                          `/live-feed#live-feed-${item.id}`
+                                        );
                                       }}
                                       className="w-full text-xs"
                                     >
@@ -1174,10 +1210,13 @@ const Search = () => {
                     )}
 
                     {/* Fallback: Show all products if no university or no separation needed */}
-                    {(!userUniversity || (universityProducts.length === 0 && otherSchoolProducts.length === 0)) && (
-                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    {(!userUniversity ||
+                      (universityProducts.length === 0 &&
+                        otherSchoolProducts.length === 0)) && (
+                      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-4 px-1 sm:px-0">
                         {products.map((item) => {
-                          const isLiveFeed = "type" in item && item.type === "live_feed";
+                          const isLiveFeed =
+                            "type" in item && item.type === "live_feed";
                           const price = item.price;
                           const handleClick = () => {
                             if (isLiveFeed) {
@@ -1199,7 +1238,9 @@ const Search = () => {
                                   : item.images?.[0]) && (
                                   <img
                                     src={
-                                      isLiveFeed ? item.image_url : item.images[0]
+                                      isLiveFeed
+                                        ? item.image_url
+                                        : item.images[0]
                                     }
                                     alt={item.title}
                                     className="w-full h-40 object-cover group-hover:scale-105 transition-transform duration-300"
@@ -1232,7 +1273,7 @@ const Search = () => {
 
                                 <div className="flex items-center gap-2 mb-2">
                                   <Badge variant="outline" className="text-xs">
-                                    {isLiveFeed ? 'Live' : item.category}
+                                    {isLiveFeed ? "Live" : item.category}
                                   </Badge>
                                 </div>
 
@@ -1267,7 +1308,9 @@ const Search = () => {
                                     size="sm"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      navigate(`/live-feed#live-feed-${item.id}`);
+                                      navigate(
+                                        `/live-feed#live-feed-${item.id}`
+                                      );
                                     }}
                                     className="w-full text-xs"
                                   >
