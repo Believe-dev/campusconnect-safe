@@ -19,6 +19,7 @@ import {
 
 import { expandSearchTerms } from "@/utils/searchUtils";
 import { NIGERIAN_UNIVERSITIES } from "@/lib/constants";
+import { useProfile } from "@/contexts/ProfileContext";
 
 interface SearchProduct {
   id: string;
@@ -88,7 +89,12 @@ const Search = () => {
   const [sortBy, setSortBy] = useState("newest");
   const [showFilters, setShowFilters] = useState(false);
   const [user, setUser] = useState(null);
+  const { profile } = useProfile();
+  const userUniversity = profile?.university_name || null;
   const [cartItems, setCartItems] = useState<string[]>([]);
+  const [showOtherSchools, setShowOtherSchools] = useState(false);
+  const [universityProducts, setUniversityProducts] = useState<SearchResult[]>([]);
+  const [otherSchoolProducts, setOtherSchoolProducts] = useState<SearchResult[]>([]);
 
   useEffect(() => {
     checkAuth();
@@ -107,6 +113,8 @@ const Search = () => {
       // Error handled silently
     }
   };
+
+
 
   const loadCartItems = async (userId: string) => {
     try {
@@ -129,7 +137,7 @@ const Search = () => {
       setSearchQuery(query);
     }
     searchProducts();
-  }, [searchParams]);
+  }, [searchParams, showOtherSchools]);
 
   const handleRefresh = useCallback(async () => {
     await searchProducts();
@@ -143,6 +151,8 @@ const Search = () => {
       let otherProducts = [];
       let liveFeedResults = [];
       let otherLiveFeeds = [];
+      let universityResults = [];
+      let otherSchoolResults = [];
 
       if (searchTerm && searchTerm.trim()) {
         // Search products
@@ -387,16 +397,41 @@ const Search = () => {
         }));
       }
 
-      // Combine results: search results first, then other items
-      const allProducts = [
+      // Separate products by university
+      const allResults = [
         ...searchResults,
         ...liveFeedResults,
         ...otherProducts,
         ...otherLiveFeeds,
       ];
 
-      // Apply sorting to the combined results
-      const sortedProducts = allProducts.sort((a, b) => {
+      if (userUniversity) {
+        universityResults = allResults.filter(item => {
+          const itemUniversity = item.type === 'live_feed' ? item.location : item.campus;
+          return itemUniversity === userUniversity;
+        });
+        
+        otherSchoolResults = allResults.filter(item => {
+          const itemUniversity = item.type === 'live_feed' ? item.location : item.campus;
+          return itemUniversity !== userUniversity;
+        });
+        
+        // Always show university products first, then other schools if toggled
+        const allProducts = [...universityResults, ...(showOtherSchools ? otherSchoolResults : [])];
+      } else {
+        // If no user university, show all products together
+        universityResults = allResults;
+        otherSchoolResults = [];
+        const allProducts = allResults;
+      }
+
+      // Determine which products to show and sort
+      const productsToShow = userUniversity 
+        ? [...universityResults, ...(showOtherSchools ? otherSchoolResults : [])]
+        : allResults;
+
+      // Apply sorting to the products
+      const sortedProducts = productsToShow.sort((a, b) => {
         // If there's a search term, prioritize by relevance first
         if (searchTerm && searchTerm.trim()) {
           const searchLower = searchTerm.toLowerCase();
@@ -496,7 +531,63 @@ const Search = () => {
         }
       });
 
+      // Helper function to transform products
+      const transformProduct = (item: any) => {
+        if (item.type === "live_feed") {
+          return {
+            id: item.id,
+            title: item.title,
+            description: item.description || "",
+            price: item.price,
+            image_url: item.image_url,
+            location: item.location,
+            expires_at: item.expires_at,
+            created_at: item.created_at,
+            seller_id: item.seller_id,
+            type: "live_feed" as const,
+            seller: item.profiles
+              ? {
+                  full_name: item.profiles.full_name,
+                  rating: item.profiles.rating,
+                  is_verified: item.profiles.is_verified,
+                }
+              : {
+                  full_name: "Unknown Seller",
+                  rating: 0,
+                  is_verified: false,
+                },
+          };
+        } else {
+          return {
+            id: item.id,
+            title: item.title,
+            description: item.description || "",
+            price: item.price,
+            category: item.category,
+            campus: item.campus || "Unknown Campus",
+            condition: item.condition,
+            images: item.images || [],
+            seller_id: item.seller_id,
+            stock_quantity: item.stock_quantity,
+            created_at: item.created_at,
+            seller: item.profiles
+              ? {
+                  full_name: item.profiles.full_name,
+                  rating: item.profiles.rating,
+                  is_verified: item.profiles.is_verified,
+                }
+              : {
+                  full_name: "Unknown Seller",
+                  rating: 0,
+                  is_verified: false,
+                },
+          };
+        }
+      };
+
       setProducts(transformedData);
+      setUniversityProducts(universityResults.map(transformProduct));
+      setOtherSchoolProducts(otherSchoolResults.map(transformProduct));
     } catch (error) {
       // Error handled silently
     } finally {
@@ -520,6 +611,7 @@ const Search = () => {
     setSelectedUniversity("All Universities");
     setPriceRange({ min: "", max: "" });
     setSortBy("newest");
+    setShowOtherSchools(false);
     searchProducts();
   };
 
@@ -626,7 +718,10 @@ const Search = () => {
                   )}
                   <br />
                   <span className="text-xs text-muted-foreground mt-1 block">
-                    Showing matching results first, followed by other products
+                    {userUniversity 
+                      ? `Showing products from ${userUniversity} first`
+                      : "Showing matching results first, followed by other products"
+                    }
                   </span>
                 </p>
               )}
@@ -782,136 +877,435 @@ const Search = () => {
                     </CardContent>
                   </Card>
                 ) : (
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                    {products.map((item) => {
-                      const isLiveFeed =
-                        "type" in item && item.type === "live_feed";
-                      const price = item.price;
-                      const handleClick = () => {
-                        if (isLiveFeed) {
-                          navigate(`/live-feed#live-feed-${item.id}`);
-                        } else {
-                          handleViewProduct(item.id);
-                        }
-                      };
+                  <div className="space-y-6">
+                    {/* University Products */}
+                    {userUniversity && universityProducts.length > 0 && (
+                      <div>
+                        <h3 className="text-lg font-semibold mb-4 text-university-green">
+                          Products from {userUniversity}
+                        </h3>
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                          {universityProducts.map((item) => {
+                            const isLiveFeed = "type" in item && item.type === "live_feed";
+                            const price = item.price;
+                            const handleClick = () => {
+                              if (isLiveFeed) {
+                                navigate(`/live-feed#live-feed-${item.id}`);
+                              } else {
+                                handleViewProduct(item.id);
+                              }
+                            };
 
-                      return (
-                        <Card
-                          key={item.id}
-                          className="group hover:shadow-lg transition-all cursor-pointer overflow-hidden"
-                          onClick={handleClick}
-                        >
-                          <div className="relative">
-                            {(isLiveFeed
-                              ? item.image_url
-                              : item.images?.[0]) && (
-                              <img
-                                src={
-                                  isLiveFeed ? item.image_url : item.images[0]
-                                }
-                                alt={item.title}
-                                className="w-full h-40 object-cover group-hover:scale-105 transition-transform duration-300"
-                              />
-                            )}
-                            {!isLiveFeed && (
-                              <Badge
-                                className="absolute top-2 left-2 text-xs"
-                                variant={
-                                  item.condition === "new"
-                                    ? "default"
-                                    : "secondary"
-                                }
+                            return (
+                              <Card
+                                key={item.id}
+                                className="group hover:shadow-lg transition-all cursor-pointer overflow-hidden"
+                                onClick={handleClick}
                               >
-                                {item.condition?.charAt(0).toUpperCase() +
-                                  item.condition?.slice(1) || "Good"}
-                              </Badge>
-                            )}
-                            {isLiveFeed && (
-                              <Badge className="absolute top-2 right-2 text-xs bg-green-500 text-white animate-pulse">
-                                LIVE
-                              </Badge>
-                            )}
-                          </div>
-
-                          <CardContent className="p-3">
-                            <h3 className="font-semibold text-sm line-clamp-2 mb-2">
-                              {item.title}
-                            </h3>
-
-                            <div className="flex items-center gap-2 mb-2">
-                              <Badge variant="outline" className="text-xs">
-                                {isLiveFeed ? 'Live' : item.category}
-                              </Badge>
-                            </div>
-
-                            <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2">
-                              <span className="truncate">
-                                by {item.seller?.full_name || "Unknown"}
-                              </span>
-                              {item.seller?.is_verified && (
-                                <div className="bg-blue-500 rounded-full p-0.5">
-                                  <svg
-                                    className="h-2 w-2 text-white"
-                                    fill="currentColor"
-                                    viewBox="0 0 20 20"
-                                  >
-                                    <path
-                                      fillRule="evenodd"
-                                      d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                                      clipRule="evenodd"
+                                <div className="relative">
+                                  {(isLiveFeed
+                                    ? item.image_url
+                                    : item.images?.[0]) && (
+                                    <img
+                                      src={
+                                        isLiveFeed ? item.image_url : item.images[0]
+                                      }
+                                      alt={item.title}
+                                      className="w-full h-40 object-cover group-hover:scale-105 transition-transform duration-300"
                                     />
-                                  </svg>
+                                  )}
+                                  {!isLiveFeed && (
+                                    <Badge
+                                      className="absolute top-2 left-2 text-xs"
+                                      variant={
+                                        item.condition === "new"
+                                          ? "default"
+                                          : "secondary"
+                                      }
+                                    >
+                                      {item.condition?.charAt(0).toUpperCase() +
+                                        item.condition?.slice(1) || "Good"}
+                                    </Badge>
+                                  )}
+                                  {isLiveFeed && (
+                                    <Badge className="absolute top-2 right-2 text-xs bg-green-500 text-white animate-pulse">
+                                      LIVE
+                                    </Badge>
+                                  )}
                                 </div>
-                              )}
-                            </div>
 
-                            <div className="text-lg font-bold text-primary mb-2">
-                              ₦{price.toLocaleString()}
-                            </div>
+                                <CardContent className="p-3">
+                                  <h3 className="font-semibold text-sm line-clamp-2 mb-2">
+                                    {item.title}
+                                  </h3>
 
-                            {isLiveFeed ? (
-                              <Button
-                                variant="brand"
-                                size="sm"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  navigate(`/live-feed#live-feed-${item.id}`);
-                                }}
-                                className="w-full text-xs"
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <Badge variant="outline" className="text-xs">
+                                      {isLiveFeed ? 'Live' : item.category}
+                                    </Badge>
+                                  </div>
+
+                                  <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2">
+                                    <span className="truncate">
+                                      by {item.seller?.full_name || "Unknown"}
+                                    </span>
+                                    {item.seller?.is_verified && (
+                                      <div className="bg-blue-500 rounded-full p-0.5">
+                                        <svg
+                                          className="h-2 w-2 text-white"
+                                          fill="currentColor"
+                                          viewBox="0 0 20 20"
+                                        >
+                                          <path
+                                            fillRule="evenodd"
+                                            d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                            clipRule="evenodd"
+                                          />
+                                        </svg>
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  <div className="text-lg font-bold text-primary mb-2">
+                                    ₦{price.toLocaleString()}
+                                  </div>
+
+                                  {isLiveFeed ? (
+                                    <Button
+                                      variant="brand"
+                                      size="sm"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        navigate(`/live-feed#live-feed-${item.id}`);
+                                      }}
+                                      className="w-full text-xs"
+                                    >
+                                      View Live
+                                    </Button>
+                                  ) : cartItems.includes(item.id) ? (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        navigate("/cart");
+                                      }}
+                                      className="w-full text-xs"
+                                    >
+                                      <ShoppingCart className="h-3 w-3 mr-1" />
+                                      In Cart
+                                    </Button>
+                                  ) : (
+                                    <Button
+                                      variant="brand"
+                                      size="sm"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        addToCart(item.id);
+                                      }}
+                                      className="w-full text-xs"
+                                    >
+                                      <ShoppingCart className="h-3 w-3 mr-1" />
+                                      Add to Cart
+                                    </Button>
+                                  )}
+                                </CardContent>
+                              </Card>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Show Other Schools Button */}
+                    {userUniversity && otherSchoolProducts.length > 0 && !showOtherSchools && (
+                      <div className="text-center">
+                        <Button
+                          variant="outline"
+                          onClick={() => setShowOtherSchools(true)}
+                          className="px-8 py-2"
+                        >
+                          Show Products from Other Schools ({otherSchoolProducts.length})
+                        </Button>
+                      </div>
+                    )}
+
+                    {/* Other Schools Products */}
+                    {showOtherSchools && otherSchoolProducts.length > 0 && (
+                      <div>
+                        <h3 className="text-lg font-semibold mb-4 text-muted-foreground">
+                          Products from Other Schools
+                        </h3>
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                          {otherSchoolProducts.map((item) => {
+                            const isLiveFeed = "type" in item && item.type === "live_feed";
+                            const price = item.price;
+                            const handleClick = () => {
+                              if (isLiveFeed) {
+                                navigate(`/live-feed#live-feed-${item.id}`);
+                              } else {
+                                handleViewProduct(item.id);
+                              }
+                            };
+
+                            return (
+                              <Card
+                                key={item.id}
+                                className="group hover:shadow-lg transition-all cursor-pointer overflow-hidden"
+                                onClick={handleClick}
                               >
-                                View Live
-                              </Button>
-                            ) : cartItems.includes(item.id) ? (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  navigate("/cart");
-                                }}
-                                className="w-full text-xs"
-                              >
-                                <ShoppingCart className="h-3 w-3 mr-1" />
-                                In Cart
-                              </Button>
-                            ) : (
-                              <Button
-                                variant="brand"
-                                size="sm"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  addToCart(item.id);
-                                }}
-                                className="w-full text-xs"
-                              >
-                                <ShoppingCart className="h-3 w-3 mr-1" />
-                                Add to Cart
-                              </Button>
-                            )}
-                          </CardContent>
-                        </Card>
-                      );
-                    })}
+                                <div className="relative">
+                                  {(isLiveFeed
+                                    ? item.image_url
+                                    : item.images?.[0]) && (
+                                    <img
+                                      src={
+                                        isLiveFeed ? item.image_url : item.images[0]
+                                      }
+                                      alt={item.title}
+                                      className="w-full h-40 object-cover group-hover:scale-105 transition-transform duration-300"
+                                    />
+                                  )}
+                                  {!isLiveFeed && (
+                                    <Badge
+                                      className="absolute top-2 left-2 text-xs"
+                                      variant={
+                                        item.condition === "new"
+                                          ? "default"
+                                          : "secondary"
+                                      }
+                                    >
+                                      {item.condition?.charAt(0).toUpperCase() +
+                                        item.condition?.slice(1) || "Good"}
+                                    </Badge>
+                                  )}
+                                  {isLiveFeed ? (
+                                    <Badge className="absolute top-2 right-2 text-xs bg-green-500 text-white animate-pulse">
+                                      LIVE
+                                    </Badge>
+                                  ) : (
+                                    <Badge className="absolute top-2 right-2 text-xs bg-gray-500 text-white">
+                                      {item.campus}
+                                    </Badge>
+                                  )}
+                                </div>
+
+                                <CardContent className="p-3">
+                                  <h3 className="font-semibold text-sm line-clamp-2 mb-2">
+                                    {item.title}
+                                  </h3>
+
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <Badge variant="outline" className="text-xs">
+                                      {isLiveFeed ? 'Live' : item.category}
+                                    </Badge>
+                                  </div>
+
+                                  <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2">
+                                    <span className="truncate">
+                                      by {item.seller?.full_name || "Unknown"}
+                                    </span>
+                                    {item.seller?.is_verified && (
+                                      <div className="bg-blue-500 rounded-full p-0.5">
+                                        <svg
+                                          className="h-2 w-2 text-white"
+                                          fill="currentColor"
+                                          viewBox="0 0 20 20"
+                                        >
+                                          <path
+                                            fillRule="evenodd"
+                                            d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                            clipRule="evenodd"
+                                          />
+                                        </svg>
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  <div className="text-lg font-bold text-primary mb-2">
+                                    ₦{price.toLocaleString()}
+                                  </div>
+
+                                  {isLiveFeed ? (
+                                    <Button
+                                      variant="brand"
+                                      size="sm"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        navigate(`/live-feed#live-feed-${item.id}`);
+                                      }}
+                                      className="w-full text-xs"
+                                    >
+                                      View Live
+                                    </Button>
+                                  ) : cartItems.includes(item.id) ? (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        navigate("/cart");
+                                      }}
+                                      className="w-full text-xs"
+                                    >
+                                      <ShoppingCart className="h-3 w-3 mr-1" />
+                                      In Cart
+                                    </Button>
+                                  ) : (
+                                    <Button
+                                      variant="brand"
+                                      size="sm"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        addToCart(item.id);
+                                      }}
+                                      className="w-full text-xs"
+                                    >
+                                      <ShoppingCart className="h-3 w-3 mr-1" />
+                                      Add to Cart
+                                    </Button>
+                                  )}
+                                </CardContent>
+                              </Card>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Fallback: Show all products if no university or no separation needed */}
+                    {(!userUniversity || (universityProducts.length === 0 && otherSchoolProducts.length === 0)) && (
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                        {products.map((item) => {
+                          const isLiveFeed = "type" in item && item.type === "live_feed";
+                          const price = item.price;
+                          const handleClick = () => {
+                            if (isLiveFeed) {
+                              navigate(`/live-feed#live-feed-${item.id}`);
+                            } else {
+                              handleViewProduct(item.id);
+                            }
+                          };
+
+                          return (
+                            <Card
+                              key={item.id}
+                              className="group hover:shadow-lg transition-all cursor-pointer overflow-hidden"
+                              onClick={handleClick}
+                            >
+                              <div className="relative">
+                                {(isLiveFeed
+                                  ? item.image_url
+                                  : item.images?.[0]) && (
+                                  <img
+                                    src={
+                                      isLiveFeed ? item.image_url : item.images[0]
+                                    }
+                                    alt={item.title}
+                                    className="w-full h-40 object-cover group-hover:scale-105 transition-transform duration-300"
+                                  />
+                                )}
+                                {!isLiveFeed && (
+                                  <Badge
+                                    className="absolute top-2 left-2 text-xs"
+                                    variant={
+                                      item.condition === "new"
+                                        ? "default"
+                                        : "secondary"
+                                    }
+                                  >
+                                    {item.condition?.charAt(0).toUpperCase() +
+                                      item.condition?.slice(1) || "Good"}
+                                  </Badge>
+                                )}
+                                {isLiveFeed && (
+                                  <Badge className="absolute top-2 right-2 text-xs bg-green-500 text-white animate-pulse">
+                                    LIVE
+                                  </Badge>
+                                )}
+                              </div>
+
+                              <CardContent className="p-3">
+                                <h3 className="font-semibold text-sm line-clamp-2 mb-2">
+                                  {item.title}
+                                </h3>
+
+                                <div className="flex items-center gap-2 mb-2">
+                                  <Badge variant="outline" className="text-xs">
+                                    {isLiveFeed ? 'Live' : item.category}
+                                  </Badge>
+                                </div>
+
+                                <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2">
+                                  <span className="truncate">
+                                    by {item.seller?.full_name || "Unknown"}
+                                  </span>
+                                  {item.seller?.is_verified && (
+                                    <div className="bg-blue-500 rounded-full p-0.5">
+                                      <svg
+                                        className="h-2 w-2 text-white"
+                                        fill="currentColor"
+                                        viewBox="0 0 20 20"
+                                      >
+                                        <path
+                                          fillRule="evenodd"
+                                          d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                          clipRule="evenodd"
+                                        />
+                                      </svg>
+                                    </div>
+                                  )}
+                                </div>
+
+                                <div className="text-lg font-bold text-primary mb-2">
+                                  ₦{price.toLocaleString()}
+                                </div>
+
+                                {isLiveFeed ? (
+                                  <Button
+                                    variant="brand"
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      navigate(`/live-feed#live-feed-${item.id}`);
+                                    }}
+                                    className="w-full text-xs"
+                                  >
+                                    View Live
+                                  </Button>
+                                ) : cartItems.includes(item.id) ? (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      navigate("/cart");
+                                    }}
+                                    className="w-full text-xs"
+                                  >
+                                    <ShoppingCart className="h-3 w-3 mr-1" />
+                                    In Cart
+                                  </Button>
+                                ) : (
+                                  <Button
+                                    variant="brand"
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      addToCart(item.id);
+                                    }}
+                                    className="w-full text-xs"
+                                  >
+                                    <ShoppingCart className="h-3 w-3 mr-1" />
+                                    Add to Cart
+                                  </Button>
+                                )}
+                              </CardContent>
+                            </Card>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
