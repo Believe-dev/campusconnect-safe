@@ -97,6 +97,9 @@ const Search = () => {
   const [otherSchoolProducts, setOtherSchoolProducts] = useState<
     SearchResult[]
   >([]);
+  const [tryTheseOutProducts, setTryTheseOutProducts] = useState<
+    SearchResult[]
+  >([]);
 
   useEffect(() => {
     checkAuth();
@@ -400,37 +403,51 @@ const Search = () => {
         }));
       }
 
-      // Separate products by university
-      const allResults = [
-        ...searchResults,
-        ...liveFeedResults,
-        ...otherProducts,
-        ...otherLiveFeeds,
-      ];
+      // Separate search results and other products by university
+      let tryTheseOutResults = [];
 
       if (userUniversity) {
-        universityResults = allResults.filter((item) => {
+        // Search results from user's university (related products)
+        const searchResultsFromUniversity = [
+          ...searchResults,
+          ...liveFeedResults,
+        ].filter((item) => {
           const itemUniversity =
             item.type === "live_feed" ? item.location : item.campus;
           return itemUniversity === userUniversity;
         });
 
-        otherSchoolResults = allResults.filter((item) => {
+        // Search results from other schools
+        const searchResultsFromOtherSchools = [
+          ...searchResults,
+          ...liveFeedResults,
+        ].filter((item) => {
           const itemUniversity =
             item.type === "live_feed" ? item.location : item.campus;
           return itemUniversity !== userUniversity;
         });
 
-        // Always show university products first, then other schools if toggled
-        const allProducts = [
-          ...universityResults,
-          ...(showOtherSchools ? otherSchoolResults : []),
-        ];
+        // Non-related products (for "try these out" section)
+        const unrelatedProducts = [...otherProducts, ...otherLiveFeeds];
+
+        // University results: only search results from user's university
+        universityResults = searchResultsFromUniversity;
+
+        // Other school results: only search results from other schools
+        otherSchoolResults = searchResultsFromOtherSchools;
+
+        // Try these out: unrelated products from all schools
+        tryTheseOutResults = unrelatedProducts;
       } else {
         // If no user university, show all products together
-        universityResults = allResults;
+        universityResults = [
+          ...searchResults,
+          ...liveFeedResults,
+          ...otherProducts,
+          ...otherLiveFeeds,
+        ];
         otherSchoolResults = [];
-        const allProducts = allResults;
+        tryTheseOutResults = [];
       }
 
       // Determine which products to show and sort
@@ -439,7 +456,12 @@ const Search = () => {
             ...universityResults,
             ...(showOtherSchools ? otherSchoolResults : []),
           ]
-        : allResults;
+        : [
+            ...searchResults,
+            ...liveFeedResults,
+            ...otherProducts,
+            ...otherLiveFeeds,
+          ];
 
       // Apply sorting to the products
       const sortedProducts = productsToShow.sort((a, b) => {
@@ -599,6 +621,7 @@ const Search = () => {
       setProducts(transformedData);
       setUniversityProducts(universityResults.map(transformProduct));
       setOtherSchoolProducts(otherSchoolResults.map(transformProduct));
+      setTryTheseOutProducts(tryTheseOutResults.map(transformProduct));
     } catch (error) {
       // Error handled silently
     } finally {
@@ -1036,25 +1059,26 @@ const Search = () => {
                     )}
 
                     {/* Show Other Schools Button */}
-                    {userUniversity &&
-                      otherSchoolProducts.length > 0 &&
-                      !showOtherSchools && (
-                        <div className="text-center">
-                          <Button
-                            variant="outline"
-                            onClick={() => setShowOtherSchools(true)}
-                            className="w-full sm:w-auto px-4 sm:px-8 py-2 text-xs sm:text-sm"
-                          >
-                            <span className="sm:hidden">
-                              Other Schools ({otherSchoolProducts.length})
-                            </span>
-                            <span className="hidden sm:inline">
-                              Show Products from Other Schools (
-                              {otherSchoolProducts.length})
-                            </span>
-                          </Button>
-                        </div>
-                      )}
+                    {userUniversity && otherSchoolProducts.length > 0 && (
+                      <div className="text-center">
+                        <Button
+                          variant="outline"
+                          onClick={() => setShowOtherSchools(!showOtherSchools)}
+                          className="w-full sm:w-auto px-4 sm:px-8 py-2 text-xs sm:text-sm bg-green-600 text-white"
+                        >
+                          <span className="sm:hidden">
+                            {showOtherSchools ? "Hide" : "Other Schools"} (
+                            {otherSchoolProducts.length})
+                          </span>
+                          <span className="hidden sm:inline">
+                            {showOtherSchools
+                              ? "Hide Products from Other Schools"
+                              : "Show Products from Other Schools"}{" "}
+                            ({otherSchoolProducts.length})
+                          </span>
+                        </Button>
+                      </div>
+                    )}
 
                     {/* Other Schools Products */}
                     {showOtherSchools && otherSchoolProducts.length > 0 && (
@@ -1209,10 +1233,164 @@ const Search = () => {
                       </div>
                     )}
 
+                    {/* Try These Out Section */}
+                    {tryTheseOutProducts.length > 0 && (
+                      <div>
+                        <h3 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4 mt-28 text-muted-foreground px-1">
+                          You can try these out
+                        </h3>
+                        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-4 px-1 sm:px-0">
+                          {tryTheseOutProducts.map((item) => {
+                            const isLiveFeed =
+                              "type" in item && item.type === "live_feed";
+                            const price = item.price;
+                            const handleClick = () => {
+                              if (isLiveFeed) {
+                                navigate(`/live-feed#live-feed-${item.id}`);
+                              } else {
+                                handleViewProduct(item.id);
+                              }
+                            };
+
+                            return (
+                              <Card
+                                key={item.id}
+                                className="group hover:shadow-lg transition-all cursor-pointer overflow-hidden"
+                                onClick={handleClick}
+                              >
+                                <div className="relative">
+                                  {(isLiveFeed
+                                    ? item.image_url
+                                    : item.images?.[0]) && (
+                                    <img
+                                      src={
+                                        isLiveFeed
+                                          ? item.image_url
+                                          : item.images[0]
+                                      }
+                                      alt={item.title}
+                                      className="w-full h-32 sm:h-40 object-cover group-hover:scale-105 transition-transform duration-300"
+                                    />
+                                  )}
+                                  {!isLiveFeed && (
+                                    <Badge
+                                      className="absolute top-2 left-2 text-xs"
+                                      variant={
+                                        item.condition === "new"
+                                          ? "default"
+                                          : "secondary"
+                                      }
+                                    >
+                                      {item.condition?.charAt(0).toUpperCase() +
+                                        item.condition?.slice(1) || "Good"}
+                                    </Badge>
+                                  )}
+                                  {isLiveFeed ? (
+                                    <Badge className="absolute top-2 right-2 text-xs bg-green-500 text-white animate-pulse">
+                                      LIVE
+                                    </Badge>
+                                  ) : (
+                                    <Badge className="absolute bottom-2 right-2 text-xs bg-gray-500 text-white w-fit">
+                                      <span className="truncate">
+                                        {item.campus}
+                                      </span>
+                                    </Badge>
+                                  )}
+                                </div>
+
+                                <CardContent className="p-2 sm:p-3">
+                                  <h3 className="font-semibold text-xs sm:text-sm line-clamp-2 mb-1 sm:mb-2">
+                                    {item.title}
+                                  </h3>
+
+                                  <div className="flex items-center gap-2 mb-1 sm:mb-2">
+                                    <Badge
+                                      variant="outline"
+                                      className="text-xs px-1 py-0.5"
+                                    >
+                                      {isLiveFeed ? "Live" : item.category}
+                                    </Badge>
+                                  </div>
+
+                                  <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1 sm:mb-2">
+                                    <span className="truncate">
+                                      by {item.seller?.full_name || "Unknown"}
+                                    </span>
+                                    {item.seller?.is_verified && (
+                                      <div className="bg-blue-500 rounded-full p-0.5">
+                                        <svg
+                                          className="h-2 w-2 text-white"
+                                          fill="currentColor"
+                                          viewBox="0 0 20 20"
+                                        >
+                                          <path
+                                            fillRule="evenodd"
+                                            d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                            clipRule="evenodd"
+                                          />
+                                        </svg>
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  <div className="text-sm sm:text-lg font-bold text-primary mb-1 sm:mb-2">
+                                    ₦{price.toLocaleString()}
+                                  </div>
+
+                                  {isLiveFeed ? (
+                                    <Button
+                                      variant="brand"
+                                      size="sm"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        navigate(
+                                          `/live-feed#live-feed-${item.id}`
+                                        );
+                                      }}
+                                      className="w-full text-xs px-2 py-1"
+                                    >
+                                      View Live
+                                    </Button>
+                                  ) : cartItems.includes(item.id) ? (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        navigate("/cart");
+                                      }}
+                                      className="w-full text-xs px-2 py-1"
+                                    >
+                                      <ShoppingCart className="h-3 w-3 mr-1" />
+                                      In Cart
+                                    </Button>
+                                  ) : (
+                                    <Button
+                                      variant="brand"
+                                      size="sm"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        addToCart(item.id);
+                                      }}
+                                      className="w-full text-xs px-2 py-1"
+                                    >
+                                      <ShoppingCart className="h-3 w-3 mr-1" />
+                                      Add to Cart
+                                    </Button>
+                                  )}
+                                </CardContent>
+                              </Card>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Fallback: Show all products if no university or no separation needed */}
                     {(!userUniversity ||
                       (universityProducts.length === 0 &&
-                        otherSchoolProducts.length === 0)) && (
+                        otherSchoolProducts.length === 0 &&
+                        tryTheseOutProducts.length === 0)) && (
                       <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-4 px-1 sm:px-0">
                         {products.map((item) => {
                           const isLiveFeed =
