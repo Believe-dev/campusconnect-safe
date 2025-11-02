@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { Upload, X } from 'lucide-react';
 import { PullToRefresh } from '@/components/common/PullToRefresh';
+import { CompressedImageUpload } from '@/components/ui/CompressedImageUpload';
 
 
 const categories = [
@@ -50,7 +51,8 @@ const Sell = () => {
     available_sizes: [] as string[]
   });
   const [customSize, setCustomSize] = useState('');
-  const [images, setImages] = useState<File[]>([]);
+  const [images, setImages] = useState<string[]>([]);
+  const [uploadingImages, setUploadingImages] = useState<boolean[]>([false, false, false]);
   const [submitting, setSubmitting] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -150,7 +152,8 @@ const Sell = () => {
       return;
     }
     
-    if (images.length === 0) {
+    const uploadedImages = images.filter(url => url);
+    if (uploadedImages.length === 0) {
       toast({
         title: "Validation Error",
         description: "Please upload at least one product image",
@@ -194,26 +197,8 @@ const Sell = () => {
         return;
       }
 
-      // Upload images
-      const uploadedUrls = [];
-      for (let i = 0; i < images.length; i++) {
-        const file = images[i];
-        const fileExt = file.name.split('.').pop();
-        const fileName = `${Date.now()}-${i}.${fileExt}`;
-        
-        const { data, error } = await supabase.storage
-          .from('product-images')
-          .upload(fileName, file);
-        
-        if (error) throw error;
-        
-        const { data: { publicUrl } } = supabase.storage
-          .from('product-images')
-          .getPublicUrl(fileName);
-        
-        uploadedUrls.push(publicUrl);
-      }
-      const imageUrls = uploadedUrls;
+      // Use already uploaded image URLs
+      const imageUrls = images.filter(url => url); // Filter out empty strings
       
       // Use custom category if "Other" is selected
       const finalCategory = formData.category === 'Other' ? formData.customCategory : formData.category;
@@ -262,18 +247,20 @@ const Sell = () => {
     }
   };
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      const newFiles = Array.from(e.target.files);
-      const remainingSlots = 3 - images.length;
-      const filesToAdd = newFiles.slice(0, remainingSlots);
-      setImages(prev => [...prev, ...filesToAdd]);
-    }
-    e.target.value = '';
+  const handleImageUpload = (url: string, index: number) => {
+    setImages(prev => {
+      const newImages = [...prev];
+      newImages[index] = url;
+      return newImages;
+    });
   };
 
   const removeImage = (index: number) => {
-    setImages(prev => prev.filter((_, i) => i !== index));
+    setImages(prev => {
+      const newImages = [...prev];
+      newImages[index] = '';
+      return newImages;
+    });
   };
 
   const addSize = () => {
@@ -463,47 +450,63 @@ const Sell = () => {
               </div>
 
               <div>
-                <Label htmlFor="images">Product Images * (Max 3)</Label>
-                <div className="mt-2">
-                  <input
-                    type="file"
-                    id="images"
-                    multiple
-                    accept="image/*"
-                    onChange={handleImageChange}
-                    className="hidden"
-                  />
-                  <label
-                    htmlFor="images"
-                    className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-muted-foreground/25 rounded-lg cursor-pointer hover:bg-muted/50 transition-colors"
-                  >
-                    <Upload className="h-8 w-8 text-muted-foreground mb-2" />
-                    <span className="text-sm text-muted-foreground">
-                      Click to select images ({images.length}/3)
-                    </span>
-                  </label>
-                </div>
-
-                {images.length > 0 && (
-                  <div className="grid grid-cols-3 gap-2 mt-4">
-                    {images.map((file, index) => (
-                      <div key={index} className="relative">
-                        <img
-                          src={URL.createObjectURL(file)}
-                          alt={`Preview ${index + 1}`}
-                          className="w-full h-24 object-cover rounded"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => removeImage(index)}
-                          className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full p-1"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
+                <Label>Product Images * (Max 3)</Label>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Upload up to 3 high-quality images of your product
+                </p>
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {[0, 1, 2].map((index) => (
+                    <div key={index} className="space-y-2">
+                      <div className="border-2 border-dashed border-gray-200 rounded-xl p-4 text-center bg-gray-50/50">
+                        {images[index] ? (
+                          <div className="relative">
+                            <img
+                              src={images[index]}
+                              alt={`Product ${index + 1}`}
+                              className="w-full h-32 object-cover rounded-lg mb-2"
+                            />
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => removeImage(index)}
+                              className="w-full"
+                            >
+                              <X className="h-4 w-4 mr-1" />
+                              Remove
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            <div className="text-sm font-medium text-gray-600">
+                              Image {index + 1}
+                            </div>
+                            <CompressedImageUpload
+                              onUpload={(url) => handleImageUpload(url, index)}
+                              bucket="product-images"
+                              path={`${Date.now()}-${index}.jpg`}
+                              uploading={uploadingImages[index]}
+                              setUploading={(uploading) => {
+                                setUploadingImages(prev => {
+                                  const newState = [...prev];
+                                  newState[index] = uploading;
+                                  return newState;
+                                });
+                              }}
+                              label={index === 0 ? "Upload Main Image" : "Upload Image"}
+                            />
+                          </div>
+                        )}
                       </div>
-                    ))}
-                  </div>
-                )}
+                    </div>
+                  ))}
+                </div>
+                
+                <p className="text-xs text-muted-foreground mt-2">
+                  {images.filter(img => img).length}/3 images uploaded
+                  {images.filter(img => img).length === 0 && " - At least 1 image is required"}
+                </p>
               </div>
 
               <div>
