@@ -59,6 +59,8 @@ const Sell = () => {
     loadUserProfile();
   }, []);
 
+
+
   const loadUserProfile = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -95,29 +97,7 @@ const Sell = () => {
     await loadUserProfile();
   };
 
-  const uploadImages = async () => {
-    const uploadedUrls = [];
-    
-    for (let i = 0; i < images.length; i++) {
-      const file = images[i];
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Date.now()}-${i}.${fileExt}`;
-      
-      const { data, error } = await supabase.storage
-        .from('product-images')
-        .upload(fileName, file);
-      
-      if (error) throw error;
-      
-      const { data: { publicUrl } } = supabase.storage
-        .from('product-images')
-        .getPublicUrl(fileName);
-      
-      uploadedUrls.push(publicUrl);
-    }
-    
-    return uploadedUrls;
-  };
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -214,8 +194,26 @@ const Sell = () => {
         return;
       }
 
-      // Upload images first
-      const imageUrls = images.length > 0 ? await uploadImages() : [];
+      // Upload images
+      const uploadedUrls = [];
+      for (let i = 0; i < images.length; i++) {
+        const file = images[i];
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${Date.now()}-${i}.${fileExt}`;
+        
+        const { data, error } = await supabase.storage
+          .from('product-images')
+          .upload(fileName, file);
+        
+        if (error) throw error;
+        
+        const { data: { publicUrl } } = supabase.storage
+          .from('product-images')
+          .getPublicUrl(fileName);
+        
+        uploadedUrls.push(publicUrl);
+      }
+      const imageUrls = uploadedUrls;
       
       // Use custom category if "Other" is selected
       const finalCategory = formData.category === 'Other' ? formData.customCategory : formData.category;
@@ -271,12 +269,11 @@ const Sell = () => {
       const filesToAdd = newFiles.slice(0, remainingSlots);
       setImages(prev => [...prev, ...filesToAdd]);
     }
-    // Reset input value to allow selecting the same file again
     e.target.value = '';
   };
 
   const removeImage = (index: number) => {
-    setImages(images.filter((_, i) => i !== index));
+    setImages(prev => prev.filter((_, i) => i !== index));
   };
 
   const addSize = () => {
@@ -466,7 +463,7 @@ const Sell = () => {
               </div>
 
               <div>
-                <Label htmlFor="images">Product Images *</Label>
+                <Label htmlFor="images">Product Images * (Max 3)</Label>
                 <div className="mt-2">
                   <input
                     type="file"
@@ -475,24 +472,14 @@ const Sell = () => {
                     accept="image/*"
                     onChange={handleImageChange}
                     className="hidden"
-                    disabled={images.length >= 3}
                   />
                   <label
                     htmlFor="images"
-                    className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg transition-colors ${
-                      images.length >= 3 
-                        ? 'border-muted-foreground/10 bg-muted/30 cursor-not-allowed' 
-                        : 'border-muted-foreground/25 cursor-pointer hover:bg-muted/50'
-                    }`}
+                    className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-muted-foreground/25 rounded-lg cursor-pointer hover:bg-muted/50 transition-colors"
                   >
                     <Upload className="h-8 w-8 text-muted-foreground mb-2" />
-                    <span className={`text-sm ${
-                      images.length >= 3 ? 'text-muted-foreground/50' : 'text-muted-foreground'
-                    }`}>
-                      {images.length >= 3 
-                        ? `Maximum 3 images uploaded (${images.length}/3)` 
-                        : `Click to upload images (${images.length}/3)`
-                      }
+                    <span className="text-sm text-muted-foreground">
+                      Click to select images ({images.length}/3)
                     </span>
                   </label>
                 </div>
@@ -505,7 +492,6 @@ const Sell = () => {
                           src={URL.createObjectURL(file)}
                           alt={`Preview ${index + 1}`}
                           className="w-full h-24 object-cover rounded"
-                          onLoad={() => URL.revokeObjectURL(URL.createObjectURL(file))}
                         />
                         <button
                           type="button"

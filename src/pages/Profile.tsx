@@ -101,6 +101,8 @@ const Profile = () => {
   const [walletBalanceVisible, setWalletBalanceVisible] = useState(false);
   const [editingBusinessName, setEditingBusinessName] = useState(false);
   const [newBusinessName, setNewBusinessName] = useState("");
+  const [editingPhoneNumber, setEditingPhoneNumber] = useState(false);
+  const [newPhoneNumber, setNewPhoneNumber] = useState("");
   const handleRefresh = useCallback(async () => {
     await fetchProfile();
   }, []);
@@ -109,12 +111,15 @@ const Profile = () => {
     fetchProfile();
   }, []);
 
-  // Initialize business name when profile loads
+  // Initialize business name and phone number when profile loads
   useEffect(() => {
     if (profile?.business_name) {
       setNewBusinessName(profile.business_name);
     }
-  }, [profile?.business_name]);
+    if (profile?.phone_number) {
+      setNewPhoneNumber(profile.phone_number);
+    }
+  }, [profile?.business_name, profile?.phone_number]);
 
   // Real-time updates for profile, wallet, and orders
   useEffect(() => {
@@ -315,10 +320,14 @@ const Profile = () => {
         bio: profile.bio,
       };
 
-      // Include business name if it's a seller and has changed
-      if ((profile.account_type === "seller" || profile.account_type === "both") && 
-          newBusinessName.trim() !== (profile.business_name || "")) {
-        updateData.business_name = newBusinessName.trim() || null;
+      // Include business name and phone number if they're a seller and have changed
+      if (profile.account_type === "seller" || profile.account_type === "both") {
+        if (newBusinessName.trim() !== (profile.business_name || "")) {
+          updateData.business_name = newBusinessName.trim() || null;
+        }
+        if (newPhoneNumber.trim() !== (profile.phone_number || "")) {
+          updateData.phone_number = newPhoneNumber.trim() || null;
+        }
       }
 
       const { error } = await supabase
@@ -329,9 +338,13 @@ const Profile = () => {
       if (error) throw error;
 
       // Update local profile state
-      if (updateData.business_name !== undefined) {
-        setProfile({ ...profile, business_name: updateData.business_name });
-      }
+      setProfile(prev => prev ? {
+        ...prev,
+        full_name: profile.full_name,
+        bio: profile.bio,
+        business_name: updateData.business_name !== undefined ? updateData.business_name : prev.business_name,
+        phone_number: updateData.phone_number !== undefined ? updateData.phone_number : prev.phone_number
+      } : null);
 
       toast({
         title: "Profile Updated",
@@ -374,6 +387,38 @@ const Profile = () => {
       toast({
         title: "Error",
         description: "Failed to update business name",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handlePhoneNumberSave = async () => {
+    if (!profile || !user || !newPhoneNumber.trim()) return;
+    setSaving(true);
+
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          phone_number: newPhoneNumber.trim(),
+        })
+        .eq("user_id", user.id);
+
+      if (error) throw error;
+
+      setProfile({ ...profile, phone_number: newPhoneNumber.trim() });
+      toast({
+        title: "Phone Number Updated",
+        description: "Your phone number has been successfully updated.",
+      });
+      setEditingPhoneNumber(false);
+      setNewPhoneNumber("");
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update phone number",
         variant: "destructive",
       });
     } finally {
@@ -644,6 +689,19 @@ const Profile = () => {
                         </div>
                       )}
                       
+                      {/* Phone Number for Sellers */}
+                      {(profile?.account_type === "seller" || profile?.account_type === "both") && (
+                        <div>
+                          <Label htmlFor="edit_phone_number">Phone Number</Label>
+                          <Input
+                            id="edit_phone_number"
+                            value={newPhoneNumber}
+                            onChange={(e) => setNewPhoneNumber(e.target.value)}
+                            placeholder="Enter your phone number"
+                          />
+                        </div>
+                      )}
+                      
                       {/* Non-editable fields with contact support */}
                       <div className="space-y-3 pt-4 border-t">
                         <h4 className="text-sm font-semibold text-gray-700">Need to change other details?</h4>
@@ -690,18 +748,7 @@ const Profile = () => {
                                 </a>
                               </div>
                               
-                              <div className="flex justify-between items-center text-sm">
-                                <span className="text-gray-600">Phone Number</span>
-                                <a
-                                  href={`https://wa.me/2349133054018?text=${encodeURIComponent(
-                                    "Hello UniMarket Support,\n\nI would like to change my phone number on my account for security reasons.\n\nCurrent Phone: " + (profile?.phone_number || "Not set") + "\nNew Phone: [Please specify]\n\nReason: [Please provide a valid reason]\n\nThank you."
-                                  )}`}
-                                  target="_blank"
-                                  className="text-blue-600 hover:text-blue-800 underline"
-                                >
-                                  Contact Support
-                                </a>
-                              </div>
+
                             </>
                           )}
                           
@@ -1266,12 +1313,25 @@ const Profile = () => {
                       </div>
 
                       <div className="space-y-2">
-                        <Label
-                          htmlFor="phone"
-                          className="text-sm font-semibold text-gray-700"
-                        >
-                          Phone Number
-                        </Label>
+                        <div className="flex items-center justify-between">
+                          <Label
+                            htmlFor="phone"
+                            className="text-sm font-semibold text-gray-700"
+                          >
+                            Phone Number
+                          </Label>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setNewPhoneNumber(profile.phone_number || "");
+                              setEditingPhoneNumber(true);
+                            }}
+                            className="text-xs px-2 py-1 h-6"
+                          >
+                            Edit
+                          </Button>
+                        </div>
                         <Input
                           id="phone"
                           value={profile.phone_number || ""}
@@ -1280,7 +1340,7 @@ const Profile = () => {
                           placeholder="Not set"
                         />
                         <p className="text-xs text-gray-500 mt-1">
-                          Phone number cannot be changed for security reasons
+                          Click Edit to change your phone number
                         </p>
                       </div>
 
@@ -1702,6 +1762,46 @@ const Profile = () => {
               <Button
                 onClick={handleBusinessNameSave}
                 disabled={saving || !newBusinessName.trim()}
+                className="flex-1"
+              >
+                {saving ? "Saving..." : "Save"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Phone Number Edit Modal */}
+      <Dialog open={editingPhoneNumber} onOpenChange={setEditingPhoneNumber}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Phone Number</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="new_phone_number">Phone Number</Label>
+              <Input
+                id="new_phone_number"
+                value={newPhoneNumber}
+                onChange={(e) => setNewPhoneNumber(e.target.value)}
+                placeholder="Enter your phone number"
+                className="mt-1"
+              />
+            </div>
+            <div className="flex gap-2 pt-4">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setEditingPhoneNumber(false);
+                  setNewPhoneNumber("");
+                }}
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handlePhoneNumberSave}
+                disabled={saving || !newPhoneNumber.trim()}
                 className="flex-1"
               >
                 {saving ? "Saving..." : "Save"}
