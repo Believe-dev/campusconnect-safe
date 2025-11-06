@@ -455,7 +455,7 @@ const Search = () => {
           }
           return shuffled;
         };
-        
+
         // Other school results: only search results from other schools (shuffled)
         otherSchoolResults = shuffleArray(searchResultsFromOtherSchools);
 
@@ -789,29 +789,6 @@ const Search = () => {
               <div className="mt-2 text-xs mb-2 text-muted-foreground bg-muted/30 p-2 rounded border">
                 📌 Verified sellers' products are shown first in search results
               </div>
-              {/* Show Other Schools Button */}
-              {userUniversity && otherSchoolProducts.length > 0 && (
-                <div className="text-center">
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowOtherSchools(!showOtherSchools)}
-                    className="w-full sm:w-auto px-4 sm:px-8 py-2 text-xs sm:text-sm bg-green-500 text-white"
-                  >
-                    <span className="sm:hidden">
-                      {showOtherSchools
-                        ? "Hide"
-                        : "Show Products from Other Schools"}{" "}
-                      ({otherSchoolProducts.length})
-                    </span>
-                    <span className="hidden sm:inline">
-                      {showOtherSchools
-                        ? "Hide Products from Other Schools"
-                        : "Show Products from Other Schools"}{" "}
-                      ({otherSchoolProducts.length})
-                    </span>
-                  </Button>
-                </div>
-              )}
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -1285,9 +1262,37 @@ const Search = () => {
                     {/* University Products */}
                     {userUniversity && universityProducts.length > 0 && (
                       <div>
-                        <h3 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4 text-university-green px-1">
-                          Products from {userUniversity}
-                        </h3>
+                        <div className="flex items-center gap-2 mb-6">
+                          <h3 className="text-base sm:text-lg font-semibold h-fit text-university-green px-1">
+                            Products from {userUniversity}
+                          </h3>
+                          {/* Show Other Schools Button */}
+                          {userUniversity &&
+                            otherSchoolProducts.length >= 0 && (
+                              <div className="text-center">
+                                <Button
+                                  variant="outline"
+                                  onClick={() =>
+                                    setShowOtherSchools(!showOtherSchools)
+                                  }
+                                  className="w-full sm:w-auto px-4 sm:px-8 py-2 text-xs sm:text-sm bg-green-500 text-white"
+                                >
+                                  <span className="sm:hidden">
+                                    {showOtherSchools
+                                      ? "Hide"
+                                      : "Show Products from Other Schools"}{" "}
+                                    ({otherSchoolProducts.length})
+                                  </span>
+                                  <span className="hidden sm:inline">
+                                    {showOtherSchools
+                                      ? "Hide Products from Other Schools"
+                                      : "Show Products from Other Schools"}{" "}
+                                    ({otherSchoolProducts.length})
+                                  </span>
+                                </Button>
+                              </div>
+                            )}
+                        </div>
                         <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-4 px-1 sm:px-0">
                           {universityProducts.map((item) => {
                             const isLiveFeed =
