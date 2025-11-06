@@ -668,27 +668,6 @@ const Marketplace = () => {
               Secure Marketplace
             </Badge>
           </div>
-          {/* Show Other Schools Button */}
-          {userUniversity &&
-            otherSchoolProducts.length > 0 &&
-            !showOtherSchools && (
-              <div className="text-center px-2">
-                <Button
-                  variant="outline"
-                  onClick={() => setShowOtherSchools(true)}
-                  className="px-3 sm:px-6 py-2 sm:py-3 mb-2 text-xs sm:text-sm w-full bg-green-700 text-white sm:w-auto max-w-md"
-                >
-                  <span className="hidden sm:inline">
-                    Can't find what you need? Search from other universities (
-                    {otherSchoolProducts.length})
-                  </span>
-                  <span className="sm:hidden">
-                    Show products from other universities (
-                    {otherSchoolProducts.length})
-                  </span>
-                </Button>
-              </div>
-            )}
 
           {/* Products Grid */}
           {filteredProducts.length === 0 ? (
@@ -912,9 +891,32 @@ const Marketplace = () => {
               {/* University Products */}
               {userUniversity && universityProducts.length > 0 && (
                 <div className="mt-7">
-                  <h3 className="text-base sm:text-lg  font-semibold mb-3 sm:mb-4 text-university-green px-1">
-                    Products from {userUniversity}
-                  </h3>
+                  <div className=" flex items-center mb-5 flex-wrap">
+                    <h3 className="text-base sm:text-lg  font-semibold h-fit text-university-green px-1">
+                      Products from {userUniversity}
+                    </h3>
+                    {/* Show Other Schools Button */}
+                    {userUniversity &&
+                      otherSchoolProducts.length > 0 &&
+                      !showOtherSchools && (
+                        <div className="text-center px-2">
+                          <Button
+                            variant="outline"
+                            onClick={() => setShowOtherSchools(true)}
+                            className="px-3 sm:px-6 py-2 sm:py-3 mb-2 text-xs sm:text-sm w-full bg-green-700 text-white sm:w-auto max-w-md"
+                          >
+                            <span className="hidden sm:inline">
+                              Show products from other universities (
+                              {otherSchoolProducts.length})
+                            </span>
+                            <span className="sm:hidden">
+                              Show products from other universities (
+                              {otherSchoolProducts.length})
+                            </span>
+                          </Button>
+                        </div>
+                      )}
+                  </div>
                   <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-4 lg:gap-6 px-1 sm:px-0">
                     {universityProducts.map((product, index) => (
                       <Card
