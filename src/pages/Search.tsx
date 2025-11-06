@@ -436,8 +436,8 @@ const Search = () => {
         // Other school results: only search results from other schools
         otherSchoolResults = searchResultsFromOtherSchools;
 
-        // Try these out: unrelated products from all schools
-        tryTheseOutResults = unrelatedProducts;
+        // Try these out: all products from all schools (including search results and other products)
+        tryTheseOutResults = [...searchResults, ...liveFeedResults, ...otherProducts, ...otherLiveFeeds];
       } else {
         // If no user university, show all products together
         universityResults = [
@@ -758,9 +758,32 @@ const Search = () => {
                   </span>
                 </p>
               )}
-              <div className="mt-2 text-xs text-muted-foreground bg-muted/30 p-2 rounded border">
+              <div className="mt-2 text-xs mb-2 text-muted-foreground bg-muted/30 p-2 rounded border">
                 📌 Verified sellers' products are shown first in search results
               </div>
+              {/* Show Other Schools Button */}
+              {userUniversity && otherSchoolProducts.length > 0 && (
+                <div className="text-center">
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowOtherSchools(!showOtherSchools)}
+                    className="w-full sm:w-auto px-4 sm:px-8 py-2 text-xs sm:text-sm bg-green-600 text-white"
+                  >
+                    <span className="sm:hidden">
+                      {showOtherSchools
+                        ? "Hide"
+                        : "Show Other Schools products"}{" "}
+                      ({otherSchoolProducts.length})
+                    </span>
+                    <span className="hidden sm:inline">
+                      {showOtherSchools
+                        ? "Hide Products from Other Schools"
+                        : "Show Products from Other Schools"}{" "}
+                      ({otherSchoolProducts.length})
+                    </span>
+                  </Button>
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -897,28 +920,30 @@ const Search = () => {
                     ))}
                   </div>
                 ) : products.length === 0 ? (
-                  <Card>
-                    <CardContent className="pt-6 text-center">
-                      <SearchIcon className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                      <h3 className="text-lg font-medium mb-2">
-                        No products found
-                      </h3>
-                      <p className="text-muted-foreground mb-4">
-                        Try adjusting your search terms or filters
-                      </p>
-                      <Button onClick={clearFilters}>Clear Filters</Button>
-                    </CardContent>
-                  </Card>
-                ) : (
                   <div className="space-y-6">
-                    {/* University Products */}
-                    {userUniversity && universityProducts.length > 0 && (
+                    <Card>
+                      <CardContent className="pt-6 text-center mb-7">
+                        <SearchIcon className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                        <h3 className="text-lg font-medium mb-2">
+                          {searchParams.get("q")
+                            ? `No product "${searchParams.get("q")}" found`
+                            : "No products found"}
+                        </h3>
+                        <p className="text-muted-foreground mb-4">
+                          Try adjusting your search terms or filters
+                        </p>
+                        <Button onClick={clearFilters}>Clear Filters</Button>
+                      </CardContent>
+                    </Card>
+
+                    {/* Try These Out Section - Show when no products found */}
+                    {tryTheseOutProducts.length > 0 && (
                       <div>
-                        <h3 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4 text-university-green px-1">
-                          Products from {userUniversity}
+                        <h3 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4 text-muted-foreground px-1">
+                          You can try these out
                         </h3>
                         <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-4 px-1 sm:px-0">
-                          {universityProducts.map((item) => {
+                          {tryTheseOutProducts.map((item) => {
                             const isLiveFeed =
                               "type" in item && item.type === "live_feed";
                             const price = item.price;
@@ -963,9 +988,15 @@ const Search = () => {
                                         item.condition?.slice(1) || "Good"}
                                     </Badge>
                                   )}
-                                  {isLiveFeed && (
+                                  {isLiveFeed ? (
                                     <Badge className="absolute top-2 right-2 text-xs bg-green-500 text-white animate-pulse">
                                       LIVE
+                                    </Badge>
+                                  ) : (
+                                    <Badge className="absolute bottom-2 right-2 text-xs bg-gray-500 text-white w-fit">
+                                      <span className="truncate">
+                                        {item.campus}
+                                      </span>
                                     </Badge>
                                   )}
                                 </div>
@@ -1057,30 +1088,10 @@ const Search = () => {
                         </div>
                       </div>
                     )}
-
-                    {/* Show Other Schools Button */}
-                    {userUniversity && otherSchoolProducts.length > 0 && (
-                      <div className="text-center">
-                        <Button
-                          variant="outline"
-                          onClick={() => setShowOtherSchools(!showOtherSchools)}
-                          className="w-full sm:w-auto px-4 sm:px-8 py-2 text-xs sm:text-sm bg-green-600 text-white"
-                        >
-                          <span className="sm:hidden">
-                            {showOtherSchools ? "Hide" : "Other Schools"} (
-                            {otherSchoolProducts.length})
-                          </span>
-                          <span className="hidden sm:inline">
-                            {showOtherSchools
-                              ? "Hide Products from Other Schools"
-                              : "Show Products from Other Schools"}{" "}
-                            ({otherSchoolProducts.length})
-                          </span>
-                        </Button>
-                      </div>
-                    )}
-
-                    {/* Other Schools Products */}
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {/* Other Schools Products - Show first when button is clicked */}
                     {showOtherSchools && otherSchoolProducts.length > 0 && (
                       <div>
                         <h3 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4 text-muted-foreground px-1">
@@ -1220,6 +1231,153 @@ const Search = () => {
                                         addToCart(item.id);
                                       }}
                                       className="w-full text-xs"
+                                    >
+                                      <ShoppingCart className="h-3 w-3 mr-1" />
+                                      Add to Cart
+                                    </Button>
+                                  )}
+                                </CardContent>
+                              </Card>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* University Products */}
+                    {userUniversity && universityProducts.length > 0 && (
+                      <div>
+                        <h3 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4 text-university-green px-1">
+                          Products from {userUniversity}
+                        </h3>
+                        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-4 px-1 sm:px-0">
+                          {universityProducts.map((item) => {
+                            const isLiveFeed =
+                              "type" in item && item.type === "live_feed";
+                            const price = item.price;
+                            const handleClick = () => {
+                              if (isLiveFeed) {
+                                navigate(`/live-feed#live-feed-${item.id}`);
+                              } else {
+                                handleViewProduct(item.id);
+                              }
+                            };
+
+                            return (
+                              <Card
+                                key={item.id}
+                                className="group hover:shadow-lg transition-all cursor-pointer overflow-hidden"
+                                onClick={handleClick}
+                              >
+                                <div className="relative">
+                                  {(isLiveFeed
+                                    ? item.image_url
+                                    : item.images?.[0]) && (
+                                    <img
+                                      src={
+                                        isLiveFeed
+                                          ? item.image_url
+                                          : item.images[0]
+                                      }
+                                      alt={item.title}
+                                      className="w-full h-32 sm:h-40 object-cover group-hover:scale-105 transition-transform duration-300"
+                                    />
+                                  )}
+                                  {!isLiveFeed && (
+                                    <Badge
+                                      className="absolute top-2 left-2 text-xs"
+                                      variant={
+                                        item.condition === "new"
+                                          ? "default"
+                                          : "secondary"
+                                      }
+                                    >
+                                      {item.condition?.charAt(0).toUpperCase() +
+                                        item.condition?.slice(1) || "Good"}
+                                    </Badge>
+                                  )}
+                                  {isLiveFeed && (
+                                    <Badge className="absolute top-2 right-2 text-xs bg-green-500 text-white animate-pulse">
+                                      LIVE
+                                    </Badge>
+                                  )}
+                                </div>
+
+                                <CardContent className="p-2 sm:p-3">
+                                  <h3 className="font-semibold text-xs sm:text-sm line-clamp-2 mb-1 sm:mb-2">
+                                    {item.title}
+                                  </h3>
+
+                                  <div className="flex items-center gap-2 mb-1 sm:mb-2">
+                                    <Badge
+                                      variant="outline"
+                                      className="text-xs px-1 py-0.5"
+                                    >
+                                      {isLiveFeed ? "Live" : item.category}
+                                    </Badge>
+                                  </div>
+
+                                  <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1 sm:mb-2">
+                                    <span className="truncate">
+                                      by {item.seller?.full_name || "Unknown"}
+                                    </span>
+                                    {item.seller?.is_verified && (
+                                      <div className="bg-blue-500 rounded-full p-0.5">
+                                        <svg
+                                          className="h-2 w-2 text-white"
+                                          fill="currentColor"
+                                          viewBox="0 0 20 20"
+                                        >
+                                          <path
+                                            fillRule="evenodd"
+                                            d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                            clipRule="evenodd"
+                                          />
+                                        </svg>
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  <div className="text-sm sm:text-lg font-bold text-primary mb-1 sm:mb-2">
+                                    ₦{price.toLocaleString()}
+                                  </div>
+
+                                  {isLiveFeed ? (
+                                    <Button
+                                      variant="brand"
+                                      size="sm"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        navigate(
+                                          `/live-feed#live-feed-${item.id}`
+                                        );
+                                      }}
+                                      className="w-full text-xs px-2 py-1"
+                                    >
+                                      View Live
+                                    </Button>
+                                  ) : cartItems.includes(item.id) ? (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        navigate("/cart");
+                                      }}
+                                      className="w-full text-xs px-2 py-1"
+                                    >
+                                      <ShoppingCart className="h-3 w-3 mr-1" />
+                                      In Cart
+                                    </Button>
+                                  ) : (
+                                    <Button
+                                      variant="brand"
+                                      size="sm"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        addToCart(item.id);
+                                      }}
+                                      className="w-full text-xs px-2 py-1"
                                     >
                                       <ShoppingCart className="h-3 w-3 mr-1" />
                                       Add to Cart
