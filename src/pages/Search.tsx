@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 
 import { expandSearchTerms } from "@/utils/searchUtils";
+import { performAISearch, expandAISearchTerms } from "@/utils/aiSearch";
 import { NIGERIAN_UNIVERSITIES } from "@/lib/constants";
 import { useProfile } from "@/contexts/ProfileContext";
 
@@ -191,9 +192,13 @@ const Search = () => {
           .eq("is_active", true)
           .gt("expires_at", new Date().toISOString());
 
-        const expandedTerms = expandSearchTerms(searchTerm.trim());
+        // Use AI search for better natural language understanding
+        const aiExpandedTerms = expandAISearchTerms(searchTerm.trim());
+        const fallbackTerms = expandSearchTerms(searchTerm.trim());
+        const allTerms = [...new Set([...aiExpandedTerms, ...fallbackTerms])];
+        
         const conditions = [];
-        expandedTerms.forEach((term) => {
+        allTerms.forEach((term) => {
           const escapedTerm = term.replace(/[%_]/g, "\\$&");
           conditions.push(`title.ilike.%${escapedTerm}%`);
           conditions.push(`description.ilike.%${escapedTerm}%`);
@@ -231,11 +236,16 @@ const Search = () => {
         const [{ data: productData }, { data: liveFeedData }] =
           await Promise.all([productQuery, liveFeedQuery]);
 
-        searchResults = productData || [];
-        liveFeedResults = (liveFeedData || []).map((item) => ({
+        // Apply AI search to results for better semantic matching
+        const rawSearchResults = productData || [];
+        const rawLiveFeedResults = (liveFeedData || []).map((item) => ({
           ...item,
           type: "live_feed" as const,
         }));
+        
+        // Use AI search to rerank results based on semantic similarity
+        searchResults = performAISearch(rawSearchResults, searchTerm.trim());
+        liveFeedResults = performAISearch(rawLiveFeedResults, searchTerm.trim());
 
         // Get other products and live feed items (excluding search results)
         const searchResultIds = searchResults.map((item) => item.id);
@@ -714,7 +724,7 @@ const Search = () => {
                 <div className="flex-1 relative">
                   <SearchIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground z-10" />
                   <Input
-                    placeholder="Search products, categories..."
+                    placeholder="Describe what you're looking for (e.g., 'red bag', 'black laptop')..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     onKeyPress={(e) => {
