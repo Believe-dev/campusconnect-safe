@@ -196,7 +196,7 @@ const Search = () => {
         const aiExpandedTerms = expandAISearchTerms(searchTerm.trim());
         const fallbackTerms = expandSearchTerms(searchTerm.trim());
         const allTerms = [...new Set([...aiExpandedTerms, ...fallbackTerms])];
-        
+
         const conditions = [];
         allTerms.forEach((term) => {
           const escapedTerm = term.replace(/[%_]/g, "\\$&");
@@ -242,10 +242,13 @@ const Search = () => {
           ...item,
           type: "live_feed" as const,
         }));
-        
+
         // Use AI search to rerank results based on semantic similarity
         searchResults = performAISearch(rawSearchResults, searchTerm.trim());
-        liveFeedResults = performAISearch(rawLiveFeedResults, searchTerm.trim());
+        liveFeedResults = performAISearch(
+          rawLiveFeedResults,
+          searchTerm.trim()
+        );
 
         // Get other products and live feed items (excluding search results)
         const searchResultIds = searchResults.map((item) => item.id);
@@ -443,11 +446,26 @@ const Search = () => {
         // University results: only search results from user's university
         universityResults = searchResultsFromUniversity;
 
-        // Other school results: only search results from other schools
-        otherSchoolResults = searchResultsFromOtherSchools;
+        // Shuffle function for better distribution
+        const shuffleArray = (array: SearchResult[]) => {
+          const shuffled = [...array];
+          for (let i = shuffled.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+          }
+          return shuffled;
+        };
+        
+        // Other school results: only search results from other schools (shuffled)
+        otherSchoolResults = shuffleArray(searchResultsFromOtherSchools);
 
-        // Try these out: all products from all schools (including search results and other products)
-        tryTheseOutResults = [...searchResults, ...liveFeedResults, ...otherProducts, ...otherLiveFeeds];
+        // Try these out: all products from all schools (shuffled)
+        tryTheseOutResults = shuffleArray([
+          ...searchResults,
+          ...liveFeedResults,
+          ...otherProducts,
+          ...otherLiveFeeds,
+        ]);
       } else {
         // If no user university, show all products together
         universityResults = [
@@ -777,12 +795,12 @@ const Search = () => {
                   <Button
                     variant="outline"
                     onClick={() => setShowOtherSchools(!showOtherSchools)}
-                    className="w-full sm:w-auto px-4 sm:px-8 py-2 text-xs sm:text-sm bg-green-600 text-white"
+                    className="w-full sm:w-auto px-4 sm:px-8 py-2 text-xs sm:text-sm bg-green-500 text-white"
                   >
                     <span className="sm:hidden">
                       {showOtherSchools
                         ? "Hide"
-                        : "Show Other Schools products"}{" "}
+                        : "Show Products from Other Schools"}{" "}
                       ({otherSchoolProducts.length})
                     </span>
                     <span className="hidden sm:inline">
@@ -1104,9 +1122,19 @@ const Search = () => {
                     {/* Other Schools Products - Show first when button is clicked */}
                     {showOtherSchools && otherSchoolProducts.length > 0 && (
                       <div>
-                        <h3 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4 text-muted-foreground px-1">
-                          Products from Other Schools
-                        </h3>
+                        <div className="flex items-center justify-between mb-3 sm:mb-4 px-1">
+                          <h3 className="text-base sm:text-lg font-semibold text-muted-foreground">
+                            Products from Other Schools
+                          </h3>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setShowOtherSchools(false)}
+                            className="text-xs px-2 py-1"
+                          >
+                            Hide
+                          </Button>
+                        </div>
                         <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-4 px-1 sm:px-0">
                           {otherSchoolProducts.map((item) => {
                             const isLiveFeed =
