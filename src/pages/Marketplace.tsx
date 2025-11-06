@@ -305,14 +305,29 @@ const Marketplace = () => {
     const shuffledVerifiedOther = shuffleSellers(verifiedOther);
     const shuffledNonVerifiedOther = shuffleSellers(nonVerifiedOther);
 
+    // Additional shuffling for other school products to ensure proper mixing
+    const shuffleArray = (array: Product[]) => {
+      const shuffled = [...array];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      return shuffled;
+    };
+
+    const finalShuffledVerifiedOther = shuffleArray(shuffledVerifiedOther);
+    const finalShuffledNonVerifiedOther = shuffleArray(
+      shuffledNonVerifiedOther
+    );
+
     // Combine university products (verified first, then non-verified)
     const finalUniversityProducts = [
       ...shuffledVerifiedUniversity,
       ...shuffledNonVerifiedUniversity,
     ];
     const finalOtherProducts = [
-      ...shuffledVerifiedOther,
-      ...shuffledNonVerifiedOther,
+      ...finalShuffledVerifiedOther,
+      ...finalShuffledNonVerifiedOther,
     ];
 
     // Set separate arrays for rendering
@@ -717,9 +732,19 @@ const Marketplace = () => {
               {/* Other Schools Products - Show first when button is clicked */}
               {showOtherSchools && otherSchoolProducts.length > 0 && (
                 <div>
-                  <h3 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4 text-muted-foreground px-1">
-                    Products from Other Universities
-                  </h3>
+                  <div className="flex items-center justify-between mb-3 sm:mb-4 px-1">
+                    <h3 className="text-base sm:text-lg font-semibold text-muted-foreground">
+                      Products from Other Universities
+                    </h3>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowOtherSchools(false)}
+                      className="text-xs px-2 py-1 bg-green-700 text-white"
+                    >
+                      Hide
+                    </Button>
+                  </div>
                   <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-4 lg:gap-6 px-1 sm:px-0">
                     {otherSchoolProducts.map((product, index) => (
                       <Card
