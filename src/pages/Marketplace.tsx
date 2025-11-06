@@ -653,6 +653,27 @@ const Marketplace = () => {
               Secure Marketplace
             </Badge>
           </div>
+          {/* Show Other Schools Button */}
+          {userUniversity &&
+            otherSchoolProducts.length > 0 &&
+            !showOtherSchools && (
+              <div className="text-center px-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowOtherSchools(true)}
+                  className="px-3 sm:px-6 py-2 sm:py-3 mb-2 text-xs sm:text-sm w-full bg-green-700 text-white sm:w-auto max-w-md"
+                >
+                  <span className="hidden sm:inline">
+                    Can't find what you need? Search from other universities (
+                    {otherSchoolProducts.length})
+                  </span>
+                  <span className="sm:hidden">
+                    Show products from other universities (
+                    {otherSchoolProducts.length})
+                  </span>
+                </Button>
+              </div>
+            )}
 
           {/* Products Grid */}
           {filteredProducts.length === 0 ? (
@@ -693,10 +714,180 @@ const Marketplace = () => {
             </Card>
           ) : (
             <div className="space-y-6">
+              {/* Other Schools Products - Show first when button is clicked */}
+              {showOtherSchools && otherSchoolProducts.length > 0 && (
+                <div>
+                  <h3 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4 text-muted-foreground px-1">
+                    Products from Other Universities
+                  </h3>
+                  <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-4 lg:gap-6 px-1 sm:px-0">
+                    {otherSchoolProducts.map((product, index) => (
+                      <Card
+                        key={product.id}
+                        className="group hover:shadow-lg transition-shadow duration-200 cursor-pointer overflow-hidden border-0 shadow-sm bg-white"
+                        onClick={() => navigate(`/product/${product.id}`)}
+                      >
+                        <div className="relative">
+                          {product.images && product.images[0] ? (
+                            <img
+                              src={product.images[0]}
+                              alt={product.title}
+                              className="w-full h-32 sm:h-40 md:h-44 lg:h-48 object-cover"
+                              onError={(e) => {
+                                e.currentTarget.src = "/placeholder.svg";
+                              }}
+                            />
+                          ) : (
+                            <div className="w-full h-32 sm:h-40 md:h-44 lg:h-48 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
+                              <Package className="h-8 w-8 sm:h-12 sm:w-12 text-gray-400" />
+                            </div>
+                          )}
+
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="absolute top-2 right-2 bg-white/90 hover:bg-white h-7 w-7 sm:h-8 sm:w-8 rounded-full shadow-sm"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleFavorite(product.id);
+                            }}
+                          >
+                            <Heart
+                              className={`h-3 w-3 sm:h-4 sm:w-4 transition-colors ${
+                                favorites.has(product.id)
+                                  ? "fill-red-500 text-red-500"
+                                  : "text-gray-600 hover:text-red-500"
+                              }`}
+                            />
+                          </Button>
+
+                          <div className="absolute top-2 left-2">
+                            <Badge
+                              className={`text-xs px-1.5 py-0.5 sm:px-2 sm:py-1 font-medium ${
+                                product.condition === "new"
+                                  ? "bg-green-500 text-white border-0"
+                                  : "bg-blue-500 text-white border-0"
+                              }`}
+                            >
+                              {product.condition.charAt(0).toUpperCase() +
+                                product.condition.slice(1)}
+                            </Badge>
+                          </div>
+
+                          {product.profiles?.is_verified && (
+                            <div className="absolute bottom-2 left-2">
+                              <div className="w-4 h-4 sm:w-5 sm:h-5 bg-blue-500 rounded-full flex items-center justify-center shadow-sm">
+                                <svg
+                                  className="h-3 w-3 sm:h-4 sm:w-4 text-white"
+                                  fill="currentColor"
+                                  viewBox="0 0 20 20"
+                                >
+                                  <path
+                                    fillRule="evenodd"
+                                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                    clipRule="evenodd"
+                                  />
+                                </svg>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        <CardContent className="p-2 sm:p-3 lg:p-4">
+                          <div className="space-y-2 sm:space-y-3">
+                            <h3 className="font-semibold text-sm sm:text-base lg:text-lg line-clamp-2 text-gray-900 leading-tight">
+                              {product.title}
+                            </h3>
+
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2">
+                              <Badge
+                                variant="outline"
+                                className="text-xs bg-gray-50 border-gray-200 w-fit"
+                              >
+                                {product.category}
+                              </Badge>
+                              <div className="flex items-center gap-1 text-xs text-gray-500">
+                                <MapPin className="h-3 w-3 flex-shrink-0" />
+                                <span className="truncate">
+                                  {(product.profiles as any)?.campus ||
+                                    product.campus}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div
+                              className="flex items-center justify-between p-1.5 sm:p-2 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/seller/${product.seller_id}`);
+                              }}
+                            >
+                              <div className="flex items-center gap-1.5 sm:gap-2 flex-1 min-w-0">
+                                <div className="w-5 h-5 sm:w-6 sm:h-6 bg-university-green/10 rounded-full flex items-center justify-center flex-shrink-0">
+                                  <span className="text-xs font-medium text-university-green">
+                                    {product.profiles?.full_name?.charAt(0) ||
+                                      "U"}
+                                  </span>
+                                </div>
+                                <span className="text-xs sm:text-sm font-medium text-university-green hover:underline truncate">
+                                  {product.profiles?.business_name ||
+                                    product.profiles?.full_name ||
+                                    "Unknown"}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1 flex-shrink-0">
+                                <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                                <span className="text-xs text-gray-600">
+                                  {product.profiles?.rating?.toFixed(1) ||
+                                    "0.0"}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="flex items-end justify-between">
+                              <div>
+                                <div className="text-base sm:text-lg lg:text-xl font-bold text-gray-900">
+                                  ₦{product.price.toLocaleString()}
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                  {product.stock_quantity} left
+                                </div>
+                              </div>
+
+                              <Button
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  addToCart(product.id);
+                                }}
+                                disabled={product.stock_quantity === 0}
+                                className={`text-xs sm:text-sm px-2 sm:px-3 py-1 sm:py-2 ${
+                                  cart.has(product.id)
+                                    ? "bg-green-500 hover:bg-green-600 text-white"
+                                    : "bg-university-green hover:bg-university-green/90 text-white"
+                                }`}
+                              >
+                                <ShoppingCart className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+                                <span className="hidden sm:inline">
+                                  {cart.has(product.id) ? "Added" : "Add"}
+                                </span>
+                                <span className="sm:hidden">
+                                  {cart.has(product.id) ? "✓" : "+"}
+                                </span>
+                              </Button>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* University Products */}
               {userUniversity && universityProducts.length > 0 && (
-                <div>
-                  <h3 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4 text-university-green px-1">
+                <div className="mt-7">
+                  <h3 className="text-base sm:text-lg  font-semibold mb-3 sm:mb-4 text-university-green px-1">
                     Products from {userUniversity}
                   </h3>
                   <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-4 lg:gap-6 px-1 sm:px-0">
@@ -841,197 +1032,6 @@ const Marketplace = () => {
                               </div>
 
                               {/* Add to Cart Button */}
-                              <Button
-                                size="sm"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  addToCart(product.id);
-                                }}
-                                disabled={product.stock_quantity === 0}
-                                className={`text-xs sm:text-sm px-2 sm:px-3 py-1 sm:py-2 ${
-                                  cart.has(product.id)
-                                    ? "bg-green-500 hover:bg-green-600 text-white"
-                                    : "bg-university-green hover:bg-university-green/90 text-white"
-                                }`}
-                              >
-                                <ShoppingCart className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
-                                <span className="hidden sm:inline">
-                                  {cart.has(product.id) ? "Added" : "Add"}
-                                </span>
-                                <span className="sm:hidden">
-                                  {cart.has(product.id) ? "✓" : "+"}
-                                </span>
-                              </Button>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Show Other Schools Button */}
-              {userUniversity &&
-                otherSchoolProducts.length > 0 &&
-                !showOtherSchools && (
-                  <div className="text-center px-2">
-                    <Button
-                      variant="outline"
-                      onClick={() => setShowOtherSchools(true)}
-                      className="px-3 sm:px-6 py-2 sm:py-3 text-xs sm:text-sm w-full sm:w-auto max-w-md"
-                    >
-                      <span className="hidden sm:inline">
-                        Can't find what you need? Search from other universities
-                        ({otherSchoolProducts.length})
-                      </span>
-                      <span className="sm:hidden">
-                        Search other universities ({otherSchoolProducts.length})
-                      </span>
-                    </Button>
-                  </div>
-                )}
-
-              {/* Other Schools Products */}
-              {showOtherSchools && otherSchoolProducts.length > 0 && (
-                <div>
-                  <h3 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4 text-muted-foreground px-1">
-                    Products from Other Universities
-                  </h3>
-                  <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-4 lg:gap-6 px-1 sm:px-0">
-                    {otherSchoolProducts.map((product, index) => (
-                      <Card
-                        key={product.id}
-                        className="group hover:shadow-lg transition-shadow duration-200 cursor-pointer overflow-hidden border-0 shadow-sm bg-white"
-                        onClick={() => navigate(`/product/${product.id}`)}
-                      >
-                        <div className="relative">
-                          {product.images && product.images[0] ? (
-                            <img
-                              src={product.images[0]}
-                              alt={product.title}
-                              className="w-full h-32 sm:h-40 md:h-44 lg:h-48 object-cover"
-                              onError={(e) => {
-                                e.currentTarget.src = "/placeholder.svg";
-                              }}
-                            />
-                          ) : (
-                            <div className="w-full h-32 sm:h-40 md:h-44 lg:h-48 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
-                              <Package className="h-8 w-8 sm:h-12 sm:w-12 text-gray-400" />
-                            </div>
-                          )}
-
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="absolute top-2 right-2 bg-white/90 hover:bg-white h-7 w-7 sm:h-8 sm:w-8 rounded-full shadow-sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              toggleFavorite(product.id);
-                            }}
-                          >
-                            <Heart
-                              className={`h-3 w-3 sm:h-4 sm:w-4 transition-colors ${
-                                favorites.has(product.id)
-                                  ? "fill-red-500 text-red-500"
-                                  : "text-gray-600 hover:text-red-500"
-                              }`}
-                            />
-                          </Button>
-
-                          <div className="absolute top-2 left-2">
-                            <Badge
-                              className={`text-xs px-1.5 py-0.5 sm:px-2 sm:py-1 font-medium ${
-                                product.condition === "new"
-                                  ? "bg-green-500 text-white border-0"
-                                  : "bg-blue-500 text-white border-0"
-                              }`}
-                            >
-                              {product.condition.charAt(0).toUpperCase() +
-                                product.condition.slice(1)}
-                            </Badge>
-                          </div>
-
-                          {product.profiles?.is_verified && (
-                            <div className="absolute bottom-2 left-2">
-                              <div className="w-4 h-4 sm:w-5 sm:h-5 bg-blue-500 rounded-full flex items-center justify-center shadow-sm">
-                                <svg
-                                  className="h-3 w-3 sm:h-4 sm:w-4 text-white"
-                                  fill="currentColor"
-                                  viewBox="0 0 20 20"
-                                >
-                                  <path
-                                    fillRule="evenodd"
-                                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                                    clipRule="evenodd"
-                                  />
-                                </svg>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-
-                        <CardContent className="p-2 sm:p-3 lg:p-4">
-                          <div className="space-y-2 sm:space-y-3">
-                            <h3 className="font-semibold text-sm sm:text-base lg:text-lg line-clamp-2 text-gray-900 leading-tight">
-                              {product.title}
-                            </h3>
-
-                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2">
-                              <Badge
-                                variant="outline"
-                                className="text-xs bg-gray-50 border-gray-200 w-fit"
-                              >
-                                {product.category}
-                              </Badge>
-                              <div className="flex items-center gap-1 text-xs text-gray-500">
-                                <MapPin className="h-3 w-3 flex-shrink-0" />
-                                <span className="truncate">
-                                  {(product.profiles as any)?.campus ||
-                                    product.campus}
-                                </span>
-                              </div>
-                            </div>
-
-                            <div
-                              className="flex items-center justify-between p-1.5 sm:p-2 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                navigate(`/seller/${product.seller_id}`);
-                              }}
-                            >
-                              <div className="flex items-center gap-1.5 sm:gap-2 flex-1 min-w-0">
-                                <div className="w-5 h-5 sm:w-6 sm:h-6 bg-university-green/10 rounded-full flex items-center justify-center flex-shrink-0">
-                                  <span className="text-xs font-medium text-university-green">
-                                    {product.profiles?.full_name?.charAt(0) ||
-                                      "U"}
-                                  </span>
-                                </div>
-                                <span className="text-xs sm:text-sm font-medium text-university-green hover:underline truncate">
-                                  {product.profiles?.business_name ||
-                                    product.profiles?.full_name ||
-                                    "Unknown"}
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-1 flex-shrink-0">
-                                <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                                <span className="text-xs text-gray-600">
-                                  {product.profiles?.rating?.toFixed(1) ||
-                                    "0.0"}
-                                </span>
-                              </div>
-                            </div>
-
-                            <div className="flex items-end justify-between">
-                              <div>
-                                <div className="text-base sm:text-lg lg:text-xl font-bold text-gray-900">
-                                  ₦{product.price.toLocaleString()}
-                                </div>
-                                <div className="text-xs text-gray-500">
-                                  {product.stock_quantity} left
-                                </div>
-                              </div>
-
                               <Button
                                 size="sm"
                                 onClick={(e) => {
