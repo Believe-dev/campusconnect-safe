@@ -705,7 +705,7 @@ const Dashboard = () => {
                       <Card key={product.id}>
                         <CardContent className="p-3 sm:p-4">
                           <div className="flex flex-col gap-3">
-                            <div className="flex gap-3">
+                            <div className="flex gap-3 cursor-pointer" onClick={() => navigate(`/product/${product.id}`)}>
                               {product.images && product.images[0] && (
                                 <img
                                   src={product.images[0]}
@@ -775,7 +775,10 @@ const Dashboard = () => {
                               <Button
                                 variant="outline"
                                 size="sm"
-                                onClick={() => setEditingProduct(product)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingProduct(product);
+                                }}
                                 className="flex-1 md:w-[fit] md:flex-none text-xs lg:text-sm px-2 lg:px-10"
                               >
                                 <Edit3 className="h-3 w-3 lg:h-4 lg:w-4 mr-1 lg:mr-2" />
@@ -786,12 +789,13 @@ const Dashboard = () => {
                                   product.is_active ? "destructive" : "default"
                                 }
                                 size="sm"
-                                onClick={() =>
+                                onClick={(e) => {
+                                  e.stopPropagation();
                                   toggleProductStatus(
                                     product.id,
                                     product.is_active
-                                  )
-                                }
+                                  );
+                                }}
                                 className="flex-1 md:w-[fit] md:flex-none text-xs lg:text-sm px-2 lg:px-10"
                               >
                                 {product.is_active ? "Deactivate" : "Activate"}
