@@ -94,7 +94,9 @@ export const ProductGrid: React.FC<ProductGridProps> = ({
                   {product.title}
                 </h3>
                 <p className="text-gray-600 text-xs sm:text-sm line-clamp-1 hidden sm:block">
-                  {product.description}
+                  {product.description && product.description.length > 50 
+                    ? `${product.description.substring(0, 50)}...` 
+                    : product.description}
                 </p>
               </div>
 
