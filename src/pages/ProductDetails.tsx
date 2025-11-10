@@ -39,6 +39,7 @@ import {
   Flag,
   ChevronDown,
   ChevronUp,
+  ArrowLeft,
 } from "lucide-react";
 
 import ProductCard from "@/components/marketplace/ProductCard";
@@ -644,6 +645,16 @@ const ProductDetails = () => {
 
       <main className="container mx-auto px-4 py-6 sm:py-8 pb-24 md:pb-8">
         <div className="max-w-6xl mx-auto">
+          {/* Back Button */}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => navigate(-1)}
+            className="mb-4 text-university-green hover:text-university-green/80 hover:bg-university-green/10 p-2"
+          >
+            <ArrowLeft className="h-4 w-4 mr-1" />
+            Back
+          </Button>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
             {/* Image Gallery */}
             <div className="space-y-3 sm:space-y-4">
