@@ -47,16 +47,22 @@ export const useSellerSubscription = () => {
       const subscriptionType = 'monthly'; // Always monthly now
       
       let timeUntilExpiry = null;
+      let isExpired = false;
+      
       if (expiresAt) {
         const expiryDate = new Date(expiresAt);
         const now = new Date();
         const diffTime = expiryDate.getTime() - now.getTime();
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
         timeUntilExpiry = { days: diffDays, type: 'days' as const };
+        isExpired = diffTime <= 0; // Check if subscription has expired
       }
 
+      // Subscription is active only if seller_features_active is true AND not expired
+      const isActive = (data.seller_features_active || false) && !isExpired;
+
       setSubscription({
-        isActive: data.seller_features_active || false,
+        isActive,
         expiresAt,
         subscriptionType,
         timeUntilExpiry

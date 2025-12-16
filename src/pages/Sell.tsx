@@ -13,6 +13,7 @@ import { PullToRefresh } from '@/components/common/PullToRefresh';
 import { CompressedImageUpload } from '@/components/ui/CompressedImageUpload';
 
 
+
 const categories = [
   'Books & Textbooks',
   'Electronics',
