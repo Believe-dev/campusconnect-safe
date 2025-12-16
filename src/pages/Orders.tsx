@@ -35,6 +35,7 @@ import { findOrCreateConversation } from "@/utils/conversationUtils";
 import { useNavigate } from "react-router-dom";
 import { ProfileReviewModal } from "@/components/reviews/ProfileReviewModal";
 import { OrderDetailsDialog } from "@/components/orders/OrderDetailsDialog";
+import { useSellerSubscription } from "@/hooks/useSellerSubscription";
 
 interface Order {
   id: string;
@@ -83,6 +84,7 @@ const Orders = () => {
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
   const { toast } = useToast();
+  const { canAccessSellerFeature } = useSellerSubscription();
   useRealTimeOrders();
 
   const [offlineOrders, setOfflineOrders] = useOfflineStorage<Order[]>({
@@ -1207,24 +1209,45 @@ const Orders = () => {
 
               <TabsContent value="seller" className="mt-6">
                 <div>
-                  {orders.filter((order) => order.seller_id === user?.id)
-                    .length === 0 ? (
-                    <Card>
-                      <CardContent className="p-6 sm:pt-6 text-center">
-                        <Package className="h-10 w-10 sm:h-12 sm:w-12 mx-auto mb-3 sm:mb-4 text-muted-foreground" />
-                        <p className="text-base sm:text-lg font-medium">
-                          No sales yet
-                        </p>
-                        <p className="text-sm sm:text-base text-muted-foreground">
-                          Start selling to see your orders here
-                        </p>
-                      </CardContent>
-                    </Card>
-                  ) : (
-                    orders
-                      .filter((order) => order.seller_id === user?.id)
-                      .map((order) => renderOrderCard(order, true))
-                  )}
+                  {(() => {
+                    const sellerAccess = canAccessSellerFeature('seller_orders');
+                    if (!sellerAccess.allowed) {
+                      return (
+                        <Card>
+                          <CardContent className="p-6 sm:pt-6 text-center">
+                            <div className="mx-auto w-16 h-16 bg-gradient-to-br from-university-green to-emerald-600 rounded-full flex items-center justify-center mb-4">
+                              <Package className="h-8 w-8 text-white" />
+                            </div>
+                            <h3 className="text-lg font-semibold mb-2">Subscription Required</h3>
+                            <p className="text-sm text-muted-foreground mb-4">
+                              {sellerAccess.reason}
+                            </p>
+                            <Button onClick={() => navigate('/dashboard')} className="w-full sm:w-auto">
+                              Renew Subscription
+                            </Button>
+                          </CardContent>
+                        </Card>
+                      );
+                    }
+                    
+                    return orders.filter((order) => order.seller_id === user?.id).length === 0 ? (
+                      <Card>
+                        <CardContent className="p-6 sm:pt-6 text-center">
+                          <Package className="h-10 w-10 sm:h-12 sm:w-12 mx-auto mb-3 sm:mb-4 text-muted-foreground" />
+                          <p className="text-base sm:text-lg font-medium">
+                            No sales yet
+                          </p>
+                          <p className="text-sm sm:text-base text-muted-foreground">
+                            Start selling to see your orders here
+                          </p>
+                        </CardContent>
+                      </Card>
+                    ) : (
+                      orders
+                        .filter((order) => order.seller_id === user?.id)
+                        .map((order) => renderOrderCard(order, true))
+                    );
+                  })()}
                 </div>
               </TabsContent>
             </Tabs>
