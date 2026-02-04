@@ -608,6 +608,17 @@ const AuthPage = () => {
                       Forgot your password?
                     </Button>
                   </ForgotPasswordDialog>
+                  <Button 
+                    variant="outline" 
+                    className="w-full text-sm"
+                    onClick={() => {
+                      const message = "Hi! I forgot my password and need help changing it. Can you assist me?";
+                      const whatsappUrl = `https://wa.me/2349133054018?text=${encodeURIComponent(message)}`;
+                      window.open(whatsappUrl, '_blank');
+                    }}
+                  >
+                    Contact Customer Care for Password Reset
+                  </Button>
                   <WhatsAppSupport
                     message="Hi! I'm having trouble signing into my UniMarket account. Can you help me?"
                     className="w-full"

@@ -64,152 +64,157 @@ import "@/styles/bottom-nav.css";
 const Index = React.lazy(() =>
   import("./pages/Index").catch(() => ({
     default: PageLoadError,
-  }))
+  })),
 );
 const NotFound = React.lazy(() =>
   import("./pages/NotFound").catch(() => ({
     default: PageLoadError,
-  }))
+  })),
 );
 const ProductDetails = React.lazy(() =>
   import("./pages/ProductDetails").catch(() => ({
     default: PageLoadError,
-  }))
+  })),
 );
 const Profile = React.lazy(() =>
   import("./pages/Profile").catch(() => ({
     default: PageLoadError,
-  }))
+  })),
 );
 const SellerProfile = React.lazy(() =>
   import("./components/profiles/SellerProfile").catch(() => ({
     default: PageLoadError,
-  }))
+  })),
 );
 const Messages = React.lazy(() =>
   import("./pages/Messages").catch(() => ({
     default: PageLoadError,
-  }))
+  })),
 );
 const Orders = React.lazy(() =>
   import("./pages/Orders").catch(() => ({
     default: PageLoadError,
-  }))
+  })),
 );
 const Search = React.lazy(() =>
   import("./pages/Search").catch(() => ({
     default: PageLoadError,
-  }))
+  })),
 );
 const SellerSearch = React.lazy(() =>
   import("./pages/SellerSearch").catch(() => ({
     default: PageLoadError,
-  }))
+  })),
 );
 const Settings = React.lazy(() =>
   import("./pages/Settings").catch(() => ({
     default: PageLoadError,
-  }))
+  })),
 );
 const Sell = React.lazy(() =>
   import("./pages/Sell").catch(() => ({
     default: PageLoadError,
-  }))
+  })),
 );
 const Dashboard = React.lazy(() =>
   import("./pages/Dashboard").catch(() => ({
     default: PageLoadError,
-  }))
+  })),
 );
 const Marketplace = React.lazy(() =>
   import("./pages/Marketplace").catch(() => ({
     default: PageLoadError,
-  }))
+  })),
 );
 const Cart = React.lazy(() =>
   import("./pages/Cart").catch(() => ({
     default: PageLoadError,
-  }))
+  })),
 );
 const Checkout = React.lazy(() =>
   import("./pages/Checkout").catch(() => ({
     default: PageLoadError,
-  }))
+  })),
 );
 const Favorites = React.lazy(() =>
   import("./pages/Favorites").catch(() => ({
     default: PageLoadError,
-  }))
+  })),
 );
 const AuthPage = React.lazy(() =>
   import("./components/auth/AuthPage").catch(() => ({
     default: PageLoadError,
-  }))
+  })),
 );
 const SignupPage = React.lazy(() =>
   import("./components/auth/SignupPage").catch(() => ({
     default: PageLoadError,
-  }))
+  })),
 );
 const TestSignup = React.lazy(() =>
   import("./pages/TestSignup").catch(() => ({
     default: PageLoadError,
-  }))
+  })),
 );
 const Admin = React.lazy(() =>
   import("./pages/Admin").catch(() => ({
     default: PageLoadError,
-  }))
+  })),
 );
 const LearnMore = React.lazy(() =>
   import("./pages/LearnMore").catch(() => ({
     default: PageLoadError,
-  }))
+  })),
 );
 const Notifications = React.lazy(() =>
   import("./pages/Notifications").catch(() => ({
     default: PageLoadError,
-  }))
+  })),
 );
 const VerificationRequest = React.lazy(() =>
   import("./pages/VerificationRequest").catch(() => ({
     default: PageLoadError,
-  }))
+  })),
 );
 const Wallet = React.lazy(() =>
   import("./pages/Wallet").catch(() => ({
     default: PageLoadError,
-  }))
+  })),
 );
 const Chat = React.lazy(() =>
   import("./pages/Chat").catch(() => ({
     default: PageLoadError,
-  }))
+  })),
 );
 const TermsOfService = React.lazy(() =>
   import("./pages/TermsOfService").catch(() => ({
     default: PageLoadError,
-  }))
+  })),
 );
 const PrivacyPolicy = React.lazy(() =>
   import("./pages/PrivacyPolicy").catch(() => ({
     default: PageLoadError,
-  }))
+  })),
 );
 const Suggestions = React.lazy(() =>
   import("./pages/Suggestions").catch(() => ({
     default: PageLoadError,
-  }))
+  })),
 );
 const LiveFeed = React.lazy(() =>
   import("./pages/LiveFeed").catch(() => ({
     default: PageLoadError,
-  }))
+  })),
 );
 const Games = React.lazy(() =>
   import("./pages/Games").catch(() => ({
     default: PageLoadError,
-  }))
+  })),
+);
+const ReferralLeaderboard = React.lazy(() =>
+  import("./pages/ReferralLeaderboard").catch(() => ({
+    default: PageLoadError,
+  })),
 );
 
 // Clear all caches on app start
@@ -268,7 +273,7 @@ setInterval(
   () => {
     queryClient.clear();
   },
-  isLowMemory ? 60 * 1000 : 5 * 60 * 1000
+  isLowMemory ? 60 * 1000 : 5 * 60 * 1000,
 ); // 1 min vs 5 min
 
 const AppContent = () => {
@@ -333,7 +338,6 @@ const AppContent = () => {
         className={`min-h-screen ${
           metrics.isLowEndDevice ? "low-end-device" : ""
         }`}
-        style={{ overscrollBehaviorY: "none" }}
       >
         <AuthGuard>
           <NavigationPreloader>
@@ -389,6 +393,7 @@ const AppContent = () => {
                   <Route path="/suggestions" element={<Suggestions />} />
                   <Route path="/live-feed" element={<LiveFeed />} />
                   <Route path="/games" element={<Games />} />
+                  <Route path="/referrals" element={<ReferralLeaderboard />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </div>

@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Navigate, Link } from "react-router-dom";
+import { Navigate, Link, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/enhanced-button";
 import { Input } from "@/components/ui/input";
@@ -20,6 +20,7 @@ import {
 
 import { useToast } from "@/hooks/use-toast";
 import { usePaystack } from "@/hooks/usePaystack";
+import { useReferrals } from "@/hooks/useReferrals";
 import { BUSINESS_RULES, NIGERIAN_UNIVERSITIES } from "@/lib/constants";
 import {
   User,
@@ -37,6 +38,7 @@ import {
   Shield,
   Sparkles,
   Star,
+  Gift,
 } from "lucide-react";
 
 import { User as AuthUser } from "@supabase/supabase-js";
@@ -52,6 +54,7 @@ const buyerSchema = z.object({
   email: z.string().email("Invalid email address"),
   password: z.string().min(8, "Password must be at least 8 characters"),
   university: z.string().min(1, "University is required"),
+  referralCode: z.string().optional(),
 });
 
 const sellerPersonalSchema = z.object({
@@ -62,6 +65,7 @@ const sellerPersonalSchema = z.object({
   phone: z.string().min(10, "Valid phone number is required"),
   businessName: z.string().min(2, "Business name is required"),
   studentId: z.string().min(1, "Student ID is required"),
+  referralCode: z.string().optional(),
 });
 
 const sellerVerificationSchema = z.object({
@@ -78,6 +82,7 @@ interface SignupPageProps {
 }
 
 const SignupPage = ({ onSuccess }: SignupPageProps) => {
+  const [searchParams] = useSearchParams();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [accountType, setAccountType] = useState<"buyer" | "seller">("buyer");
   const [currentStep, setCurrentStep] = useState(1);
@@ -86,8 +91,12 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [pendingBuyerData, setPendingBuyerData] = useState<BuyerFormData | null>(null);
+  const [referralCode, setReferralCode] = useState("");
+  const [validatingReferral, setValidatingReferral] = useState(false);
+  const [referralValid, setReferralValid] = useState<boolean | null>(null);
   const { toast } = useToast();
   const { initializePayment } = usePaystack();
+  const { validateReferralCode, createReferral } = useReferrals();
 
   // Form states
   const [buyerData, setBuyerData] = useState<Partial<BuyerFormData>>({});
@@ -129,6 +138,14 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
 
     checkUser();
 
+    // Check for referral code in URL
+    const refParam = searchParams.get('ref');
+    if (refParam) {
+      setReferralCode(refParam);
+      setMode('signup');
+      validateReferral(refParam);
+    }
+
     // Listen for auth state changes
     const {
       data: { subscription },
@@ -137,7 +154,19 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [searchParams]);
+
+  const validateReferral = async (code: string) => {
+    if (!code) {
+      setReferralValid(null);
+      return;
+    }
+    
+    setValidatingReferral(true);
+    const isValid = await validateReferralCode(code);
+    setReferralValid(isValid);
+    setValidatingReferral(false);
+  };
 
   if (user) {
     return <Navigate to="/" replace />;
@@ -215,6 +244,11 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
       });
 
       if (error) throw error;
+
+      // Create referral if code provided
+      if (authData.user && pendingBuyerData.referralCode) {
+        await createReferral(pendingBuyerData.referralCode);
+      }
 
       toast({
         title: "Account Created!",
@@ -321,6 +355,11 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
           expires_at: expiryDate.toISOString(),
           status: "active",
         });
+
+        // Create referral if code provided
+        if (combinedData.referralCode) {
+          await createReferral(combinedData.referralCode);
+        }
       }
 
       toast({
@@ -616,6 +655,20 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
                         "Sign In"
                       )}
                     </Button>
+                    
+                    <div className="text-center mt-3">
+                      <button
+                        type="button"
+                        className="text-green-600 underline hover:text-green-700 transition-colors"
+                        onClick={() => {
+                          const message = "Hi! I forgot my password and need help changing it. Can you assist me?";
+                          const whatsappUrl = `https://wa.me/2349133054018?text=${encodeURIComponent(message)}`;
+                          window.open(whatsappUrl, '_blank');
+                        }}
+                      >
+                        Forgot password?
+                      </button>
+                    </div>
                   </form>
                 </motion.div>
               ) : accountType === "buyer" ? (
@@ -729,6 +782,39 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
                           <p className="text-sm text-red-500">
                             {buyerForm.formState.errors.university.message}
                           </p>
+                        )}
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label
+                          htmlFor="referralCode"
+                          className="text-foreground font-medium flex items-center gap-2"
+                        >
+                          <Gift className="h-4 w-4 text-university-green" />
+                          Referral Code (Optional)
+                        </Label>
+                        <Input
+                          {...buyerForm.register("referralCode")}
+                          value={referralCode}
+                          onChange={(e) => {
+                            const code = e.target.value.toUpperCase();
+                            setReferralCode(code);
+                            buyerForm.setValue('referralCode', code);
+                            validateReferral(code);
+                          }}
+                          placeholder="Enter referral code"
+                          className={`h-12 border-border focus:border-primary focus:ring-primary/20 rounded-xl bg-card ${
+                            referralValid === true ? 'border-green-500' : referralValid === false ? 'border-red-500' : ''
+                          }`}
+                        />
+                        {validatingReferral && (
+                          <p className="text-sm text-muted-foreground">Validating...</p>
+                        )}
+                        {referralValid === true && (
+                          <p className="text-sm text-green-600">✓ Valid referral code</p>
+                        )}
+                        {referralValid === false && referralCode && (
+                          <p className="text-sm text-red-500">Invalid referral code</p>
                         )}
                       </div>
                     </div>
@@ -948,6 +1034,39 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
                               </p>
                             )}
                           </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label
+                            htmlFor="referralCode"
+                            className="text-foreground font-medium flex items-center gap-2"
+                          >
+                            <Gift className="h-4 w-4 text-university-green" />
+                            Referral Code (Optional)
+                          </Label>
+                          <Input
+                            {...sellerPersonalForm.register("referralCode")}
+                            value={referralCode}
+                            onChange={(e) => {
+                              const code = e.target.value.toUpperCase();
+                              setReferralCode(code);
+                              sellerPersonalForm.setValue('referralCode', code);
+                              validateReferral(code);
+                            }}
+                            placeholder="Enter referral code"
+                            className={`h-12 border-border focus:border-primary focus:ring-primary/20 rounded-xl bg-card ${
+                              referralValid === true ? 'border-green-500' : referralValid === false ? 'border-red-500' : ''
+                            }`}
+                          />
+                          {validatingReferral && (
+                            <p className="text-sm text-muted-foreground">Validating...</p>
+                          )}
+                          {referralValid === true && (
+                            <p className="text-sm text-green-600">✓ Valid referral code</p>
+                          )}
+                          {referralValid === false && referralCode && (
+                            <p className="text-sm text-red-500">Invalid referral code</p>
+                          )}
                         </div>
 
                         <Button

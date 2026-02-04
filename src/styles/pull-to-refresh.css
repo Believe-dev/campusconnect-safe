@@ -30,7 +30,8 @@
 }
 
 @keyframes readyBounce {
-  0%, 100% {
+  0%,
+  100% {
     transform: scale(1) translateY(0);
   }
   50% {
@@ -68,9 +69,10 @@
 @media (max-width: 768px) {
   .pull-container {
     -webkit-overflow-scrolling: touch;
-    overscroll-behavior-y: contain;
+    /* Allow natural overscroll behavior */
+    overscroll-behavior-y: auto;
   }
-  
+
   /* Prevent text selection during pull */
   .pull-container * {
     -webkit-user-select: none;
@@ -78,7 +80,7 @@
     -ms-user-select: none;
     user-select: none;
   }
-  
+
   /* Re-enable text selection for inputs */
   .pull-container input,
   .pull-container textarea,
