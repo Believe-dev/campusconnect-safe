@@ -40,6 +40,7 @@ import { useMemoryOptimization } from "@/hooks/useMemoryOptimization";
 import { PremiumGameBadge } from "@/components/games/PremiumGameBadge";
 import { SellerRegistrationCard } from "@/components/seller/SellerRegistrationCard";
 import { SellerSubscriptionCard } from "@/components/seller/SellerSubscriptionCard";
+import { ReferralCard } from "@/components/referrals/ReferralCard";
 
 interface Profile {
   full_name: string;
@@ -61,6 +62,8 @@ interface Profile {
   seller_subscription_expires_at?: string;
   seller_features_active?: boolean;
   seller_subscription_type?: string;
+  referral_code?: string;
+  total_referrals?: number;
 }
 
 interface WalletData {
@@ -204,7 +207,7 @@ const Profile = () => {
 
       const { data, error } = await supabase
         .from("profiles")
-        .select("*")
+        .select("*, referral_code, total_referrals")
         .eq("user_id", user.id)
         .single();
 
@@ -620,6 +623,7 @@ const Profile = () => {
           <SellerDocumentReminder />
           <SellerRegistrationCard />
           <SellerSubscriptionCard />
+          <ReferralCard />
 
           {/* Modern Header Section */}
           <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-university-green to-emerald-600 p-8 text-white">

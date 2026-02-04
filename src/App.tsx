@@ -211,6 +211,11 @@ const Games = React.lazy(() =>
     default: PageLoadError,
   }))
 );
+const ReferralLeaderboard = React.lazy(() =>
+  import("./pages/ReferralLeaderboard").catch(() => ({
+    default: PageLoadError,
+  }))
+);
 
 // Clear all caches on app start
 const clearAllCaches = async () => {
@@ -389,6 +394,7 @@ const AppContent = () => {
                   <Route path="/suggestions" element={<Suggestions />} />
                   <Route path="/live-feed" element={<LiveFeed />} />
                   <Route path="/games" element={<Games />} />
+                  <Route path="/referrals" element={<ReferralLeaderboard />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </div>
