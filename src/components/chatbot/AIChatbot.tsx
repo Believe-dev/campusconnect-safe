@@ -35,8 +35,9 @@ export const AIChatbot = () => {
   const buttonRef = useRef<HTMLButtonElement>(null);
 
   // Hide chatbot on chat pages
-  const shouldHide = location.pathname.startsWith('/chat/') || location.pathname === '/messages';
-  
+  const shouldHide =
+    location.pathname.startsWith("/chat/") || location.pathname === "/messages";
+
   if (shouldHide) {
     return null;
   }
@@ -56,10 +57,10 @@ export const AIChatbot = () => {
         setPosition({ x: window.innerWidth - 76, y: window.innerHeight - 76 });
       }
     };
-    
+
     updatePosition();
-    window.addEventListener('resize', updatePosition);
-    return () => window.removeEventListener('resize', updatePosition);
+    window.addEventListener("resize", updatePosition);
+    return () => window.removeEventListener("resize", updatePosition);
   }, []);
 
   // Save position when it changes
@@ -81,11 +82,11 @@ export const AIChatbot = () => {
 
     const newX = Math.max(
       10,
-      Math.min(window.innerWidth - 66, clientX - dragStart.x)
+      Math.min(window.innerWidth - 66, clientX - dragStart.x),
     );
     const newY = Math.max(
       10,
-      Math.min(window.innerHeight - 66, clientY - dragStart.y)
+      Math.min(window.innerHeight - 66, clientY - dragStart.y),
     );
 
     setPosition({ x: newX, y: newY });
@@ -100,7 +101,7 @@ export const AIChatbot = () => {
   };
 
   const handleTouchStart = (e: React.TouchEvent) => {
-    e.preventDefault();
+    // Don't prevent default - let native scroll work
     const touch = e.touches[0];
     handleStart(touch.clientX, touch.clientY);
   };
@@ -108,7 +109,10 @@ export const AIChatbot = () => {
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => handleMove(e.clientX, e.clientY);
     const handleTouchMove = (e: TouchEvent) => {
-      e.preventDefault();
+      // Only prevent default if actively dragging the chatbot
+      if (isDragging) {
+        e.preventDefault();
+      }
       const touch = e.touches[0];
       handleMove(touch.clientX, touch.clientY);
     };
@@ -116,6 +120,8 @@ export const AIChatbot = () => {
     if (isDragging) {
       document.addEventListener("mousemove", handleMouseMove);
       document.addEventListener("mouseup", handleEnd);
+      // Use passive: true to allow browser optimizations for scroll
+      // Only prevent default when actually dragging within the callback
       document.addEventListener("touchmove", handleTouchMove, {
         passive: false,
       });
@@ -142,7 +148,7 @@ export const AIChatbot = () => {
           parsed.map((msg: any) => ({
             ...msg,
             timestamp: new Date(msg.timestamp),
-          }))
+          })),
         );
       } else {
         // Initial welcome message
@@ -226,7 +232,7 @@ export const AIChatbot = () => {
     try {
       const { text, actionButtons } = await getAIResponse(
         input.trim(),
-        conversationContext
+        conversationContext,
       );
       const botMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -485,7 +491,7 @@ export const AIChatbot = () => {
                                   "/search",
                                 ];
                                 const sanitizedPath = sanitizeInput(
-                                  button.path
+                                  button.path,
                                 );
                                 if (allowedPaths.includes(sanitizedPath)) {
                                   window.location.href = sanitizedPath;

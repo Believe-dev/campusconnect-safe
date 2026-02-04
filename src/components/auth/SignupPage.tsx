@@ -655,6 +655,20 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
                         "Sign In"
                       )}
                     </Button>
+                    
+                    <div className="text-center mt-3">
+                      <button
+                        type="button"
+                        className="text-green-600 underline hover:text-green-700 transition-colors"
+                        onClick={() => {
+                          const message = "Hi! I forgot my password and need help changing it. Can you assist me?";
+                          const whatsappUrl = `https://wa.me/2349133054018?text=${encodeURIComponent(message)}`;
+                          window.open(whatsappUrl, '_blank');
+                        }}
+                      >
+                        Forgot password?
+                      </button>
+                    </div>
                   </form>
                 </motion.div>
               ) : accountType === "buyer" ? (

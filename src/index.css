@@ -180,7 +180,9 @@
     background: var(--gradient-background);
     background-attachment: fixed;
     color: hsl(var(--foreground));
-    font-feature-settings: "rlig" 1, "calt" 1;
+    font-feature-settings:
+      "rlig" 1,
+      "calt" 1;
     opacity: 1;
     transition: opacity 0.1s ease-in-out;
     min-height: 100vh;
@@ -253,7 +255,8 @@
   /* 3D Verification Badges */
   .verified-badge {
     @apply inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-verified-blue/10 text-verified-blue border border-verified-blue/20;
-    box-shadow: 0 2px 4px rgba(59, 130, 246, 0.15),
+    box-shadow:
+      0 2px 4px rgba(59, 130, 246, 0.15),
       inset 0 1px 0 rgba(255, 255, 255, 0.2),
       inset 0 -1px 0 rgba(59, 130, 246, 0.1);
     background: linear-gradient(
@@ -267,14 +270,16 @@
 
   .verified-badge:hover {
     transform: translateY(-1px) translateZ(0);
-    box-shadow: 0 4px 8px rgba(59, 130, 246, 0.2),
+    box-shadow:
+      0 4px 8px rgba(59, 130, 246, 0.2),
       inset 0 1px 0 rgba(255, 255, 255, 0.3),
       inset 0 -1px 0 rgba(59, 130, 246, 0.15);
   }
 
   .trust-badge {
     @apply inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-verified-blue/10 text-verified-blue border border-verified-blue/20;
-    box-shadow: 0 2px 4px rgba(59, 130, 246, 0.15),
+    box-shadow:
+      0 2px 4px rgba(59, 130, 246, 0.15),
       inset 0 1px 0 rgba(255, 255, 255, 0.2),
       inset 0 -1px 0 rgba(59, 130, 246, 0.1);
     background: linear-gradient(
@@ -288,7 +293,8 @@
 
   .trust-badge:hover {
     transform: translateY(-1px) translateZ(0);
-    box-shadow: 0 4px 8px rgba(59, 130, 246, 0.2),
+    box-shadow:
+      0 4px 8px rgba(59, 130, 246, 0.2),
       inset 0 1px 0 rgba(255, 255, 255, 0.3),
       inset 0 -1px 0 rgba(59, 130, 246, 0.15);
   }
@@ -305,7 +311,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 2px 6px rgba(59, 130, 246, 0.4),
+    box-shadow:
+      0 2px 6px rgba(59, 130, 246, 0.4),
       inset 0 1px 0 rgba(255, 255, 255, 0.3),
       inset 0 -1px 0 rgba(37, 99, 235, 0.2);
     transform: translateZ(0);
@@ -314,7 +321,8 @@
 
   .verification-tick:hover {
     transform: translateY(-1px) scale(1.05) translateZ(0);
-    box-shadow: 0 4px 10px rgba(59, 130, 246, 0.5),
+    box-shadow:
+      0 4px 10px rgba(59, 130, 246, 0.5),
       inset 0 1px 0 rgba(255, 255, 255, 0.4),
       inset 0 -1px 0 rgba(37, 99, 235, 0.3);
   }
@@ -335,7 +343,8 @@
     height: 14px;
     background: linear-gradient(135deg, #3b82f6, #2563eb);
     border-radius: 50%;
-    box-shadow: 0 1px 3px rgba(59, 130, 246, 0.3),
+    box-shadow:
+      0 1px 3px rgba(59, 130, 246, 0.3),
       inset 0 1px 0 rgba(255, 255, 255, 0.2);
     transform: translateZ(0);
     transition: all 0.2s ease;
@@ -343,7 +352,8 @@
 
   .verification-badge-inline:hover {
     transform: translateY(-1px) scale(1.05) translateZ(0);
-    box-shadow: 0 2px 6px rgba(59, 130, 246, 0.4),
+    box-shadow:
+      0 2px 6px rgba(59, 130, 246, 0.4),
       inset 0 1px 0 rgba(255, 255, 255, 0.3);
   }
 
@@ -510,7 +520,9 @@
   }
 
   .auth-input {
-    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    transition:
+      border-color 0.15s ease,
+      box-shadow 0.15s ease;
     transform: translateZ(0);
   }
 
@@ -520,7 +532,9 @@
   }
 
   .auth-button {
-    transition: transform 0.1s ease, box-shadow 0.15s ease;
+    transition:
+      transform 0.1s ease,
+      box-shadow 0.15s ease;
     transform: translateZ(0);
   }
 
@@ -534,7 +548,9 @@
   }
 
   .auth-tab {
-    transition: color 0.15s ease, background-color 0.15s ease;
+    transition:
+      color 0.15s ease,
+      background-color 0.15s ease;
     transform: translateZ(0);
   }
 
@@ -775,7 +791,8 @@
   /* Efficient scrolling */
   .efficient-scroll {
     overflow-anchor: auto;
-    overscroll-behavior: contain;
+    /* Allow natural overscroll behavior */
+    overscroll-behavior: auto;
   }
 
   /* GPU-optimized transforms */

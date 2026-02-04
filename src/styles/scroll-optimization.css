@@ -7,10 +7,12 @@
 }
 
 /* Optimize main scrollable containers */
-html, body {
+html,
+body {
   scroll-behavior: smooth;
   -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
+  /* Allow natural overscroll for better UX on all devices */
+  overscroll-behavior: auto;
 }
 
 /* Optimize scrollable areas */
@@ -64,15 +66,16 @@ body {
 @media (max-width: 768px) {
   body {
     -webkit-overflow-scrolling: touch;
-    overscroll-behavior-y: contain;
+    /* Allow natural overscroll for better mobile UX */
+    overscroll-behavior-y: auto;
   }
-  
+
   /* Reduce motion for better performance on mobile */
   .transition-all,
   .transition-transform {
     transition-duration: 0.15s;
   }
-  
+
   /* Optimize mobile scrollable areas */
   .overflow-y-auto,
   .overflow-auto {

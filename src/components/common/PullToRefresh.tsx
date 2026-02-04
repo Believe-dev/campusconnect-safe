@@ -37,7 +37,7 @@ export const PullToRefresh: React.FC<PullToRefreshProps> = ({
       ([entry]) => {
         setIsAtTop(entry.isIntersecting);
       },
-      { threshold: 1.0 }
+      { threshold: 1.0 },
     );
 
     observer.observe(sentinel);
@@ -51,7 +51,7 @@ export const PullToRefresh: React.FC<PullToRefreshProps> = ({
       startY.current = e.touches[0].clientY;
       isDragging.current = true;
     },
-    [disabled, isRefreshing, isAtTop]
+    [disabled, isRefreshing, isAtTop],
   );
 
   const handleTouchMove = useCallback(
@@ -62,6 +62,7 @@ export const PullToRefresh: React.FC<PullToRefreshProps> = ({
       const deltaY = currentY - startY.current;
 
       if (deltaY > 0) {
+        // Only prevent default if we're actually pulling down (not on regular scroll)
         e.preventDefault();
 
         const resistance = Math.min(deltaY * 0.4, threshold * 1.5);
@@ -76,8 +77,9 @@ export const PullToRefresh: React.FC<PullToRefreshProps> = ({
           setRefreshState("pulling");
         }
       }
+      // Allow normal scrolling when not pulling
     },
-    [disabled, isRefreshing, isAtTop, threshold, refreshState]
+    [disabled, isRefreshing, isAtTop, threshold, refreshState],
   );
 
   const handleTouchEnd = useCallback(async () => {
@@ -116,6 +118,7 @@ export const PullToRefresh: React.FC<PullToRefreshProps> = ({
     container.addEventListener("touchstart", handleTouchStart, {
       passive: true,
     });
+    // passive: false needed to call preventDefault() for pull-to-refresh
     container.addEventListener("touchmove", handleTouchMove, {
       passive: false,
     });
@@ -173,8 +176,8 @@ export const PullToRefresh: React.FC<PullToRefreshProps> = ({
               {refreshState === "refreshing"
                 ? "Refreshing..."
                 : refreshState === "ready"
-                ? "Release to refresh"
-                : "Pull to refresh"}
+                  ? "Release to refresh"
+                  : "Pull to refresh"}
             </div>
           )}
         </div>
