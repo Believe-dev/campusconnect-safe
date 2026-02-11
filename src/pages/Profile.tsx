@@ -142,7 +142,7 @@ const Profile = () => {
           if (profileData?.user_id === user.id) {
             fetchProfile();
           }
-        }
+        },
       )
       .on(
         "postgres_changes",
@@ -156,7 +156,7 @@ const Profile = () => {
           if (walletData?.user_id === user.id) {
             fetchProfile(); // Refresh to get updated wallet data
           }
-        }
+        },
       )
       .on(
         "postgres_changes",
@@ -173,7 +173,7 @@ const Profile = () => {
           ) {
             fetchProfile(); // Refresh to get updated stats
           }
-        }
+        },
       )
       .on(
         "postgres_changes",
@@ -187,7 +187,7 @@ const Profile = () => {
           if (reviewData?.reviewed_id === user.id) {
             fetchProfile(); // Refresh to get updated rating
           }
-        }
+        },
       )
       .subscribe();
 
@@ -207,7 +207,7 @@ const Profile = () => {
 
       const { data, error } = await supabase
         .from("profiles")
-        .select("*, referral_code, total_referrals")
+        .select("*")
         .eq("user_id", user.id)
         .single();
 
@@ -324,7 +324,10 @@ const Profile = () => {
       };
 
       // Include business name and phone number if they're a seller and have changed
-      if (profile.account_type === "seller" || profile.account_type === "both") {
+      if (
+        profile.account_type === "seller" ||
+        profile.account_type === "both"
+      ) {
         if (newBusinessName.trim() !== (profile.business_name || "")) {
           updateData.business_name = newBusinessName.trim() || null;
         }
@@ -341,13 +344,23 @@ const Profile = () => {
       if (error) throw error;
 
       // Update local profile state
-      setProfile(prev => prev ? {
-        ...prev,
-        full_name: profile.full_name,
-        bio: profile.bio,
-        business_name: updateData.business_name !== undefined ? updateData.business_name : prev.business_name,
-        phone_number: updateData.phone_number !== undefined ? updateData.phone_number : prev.phone_number
-      } : null);
+      setProfile((prev) =>
+        prev
+          ? {
+              ...prev,
+              full_name: profile.full_name,
+              bio: profile.bio,
+              business_name:
+                updateData.business_name !== undefined
+                  ? updateData.business_name
+                  : prev.business_name,
+              phone_number:
+                updateData.phone_number !== undefined
+                  ? updateData.phone_number
+                  : prev.phone_number,
+            }
+          : null,
+      );
 
       toast({
         title: "Profile Updated",
@@ -448,7 +461,7 @@ const Profile = () => {
       const userId = user.id;
 
       const { data, error } = await supabase.rpc(
-        "delete_user_completely" as any
+        "delete_user_completely" as any,
       );
 
       if (error || !data) {
@@ -500,7 +513,7 @@ const Profile = () => {
             full_name,
             avatar_url
           )
-        `
+        `,
         )
         .eq("reviewed_id", user.id)
         .order("created_at", { ascending: false });
@@ -549,7 +562,7 @@ const Profile = () => {
 
   const openWhatsAppSupport = () => {
     const message = encodeURIComponent(
-      "Hello, I would like to change my profile picture on UniMarket. Please assist me with this request."
+      "Hello, I would like to change my profile picture on UniMarket. Please assist me with this request.",
     );
     window.open(`https://wa.me/2349133054018?text=${message}`, "_blank");
   };
@@ -566,7 +579,7 @@ const Profile = () => {
       if (updateError) throw updateError;
 
       setProfile((prev) =>
-        prev ? { ...prev, student_id_photo_url: url } : null
+        prev ? { ...prev, student_id_photo_url: url } : null,
       );
 
       toast({
@@ -619,968 +632,1044 @@ const Profile = () => {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50">
       <PullToRefresh onRefresh={handleRefresh} className="min-h-screen">
         <main className="container mx-auto px-4 py-6 sm:py-8">
-        <div className="max-w-6xl mx-auto space-y-8">
-          <SellerDocumentReminder />
-          <SellerRegistrationCard />
-          <SellerSubscriptionCard />
-          <ReferralCard />
+          <div className="max-w-6xl mx-auto space-y-8">
+            <SellerDocumentReminder />
+            <SellerRegistrationCard />
+            <SellerSubscriptionCard />
+            <ReferralCard />
 
-          {/* Modern Header Section */}
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-university-green to-emerald-600 p-8 text-white">
-            <div className="absolute inset-0 bg-black/10"></div>
-            <div className="relative z-10">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <div>
-                  <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-2">
-                    My Profile
-                  </h1>
-                  <p className="text-white/90 text-lg">
-                    Manage your UniMarket account
-                  </p>
-                </div>
-                <Dialog open={editing} onOpenChange={setEditing}>
-                  <DialogTrigger asChild>
-                    <Button className="bg-white text-university-green hover:bg-white/90 font-semibold px-6 py-3 rounded-xl shadow-lg">
-                      Edit Profile
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
-                    <DialogHeader>
-                      <DialogTitle>Edit Profile</DialogTitle>
-                    </DialogHeader>
-                    <div className="space-y-4">
-                      <div>
-                        <Label htmlFor="edit_full_name">Full Name *</Label>
-                        <Input
-                          id="edit_full_name"
-                          value={profile?.full_name || ""}
-                          onChange={(e) =>
-                            setProfile(
-                              profile
-                                ? { ...profile, full_name: e.target.value }
-                                : null
-                            )
-                          }
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="edit_bio">Bio</Label>
-                        <Textarea
-                          id="edit_bio"
-                          value={profile?.bio || ""}
-                          onChange={(e) =>
-                            setProfile(
-                              profile
-                                ? { ...profile, bio: e.target.value }
-                                : null
-                            )
-                          }
-                          placeholder="Tell others about yourself..."
-                          rows={3}
-                        />
-                      </div>
-                      
-                      {/* Business Name for Sellers */}
-                      {(profile?.account_type === "seller" || profile?.account_type === "both") && (
-                        <div>
-                          <Label htmlFor="edit_business_name">Business Name</Label>
-                          <Input
-                            id="edit_business_name"
-                            value={newBusinessName}
-                            onChange={(e) => setNewBusinessName(e.target.value)}
-                            placeholder="Enter your business name"
-                          />
-                        </div>
-                      )}
-                      
-                      {/* Phone Number for Sellers */}
-                      {(profile?.account_type === "seller" || profile?.account_type === "both") && (
-                        <div>
-                          <Label htmlFor="edit_phone_number">Phone Number</Label>
-                          <Input
-                            id="edit_phone_number"
-                            value={newPhoneNumber}
-                            onChange={(e) => setNewPhoneNumber(e.target.value)}
-                            placeholder="Enter your phone number"
-                          />
-                        </div>
-                      )}
-                      
-                      {/* Non-editable fields with contact support */}
-                      <div className="space-y-3 pt-4 border-t">
-                        <h4 className="text-sm font-semibold text-gray-700">Need to change other details?</h4>
-                        
-                        <div className="space-y-2">
-                          <div className="flex justify-between items-center text-sm">
-                            <span className="text-gray-600">Email</span>
-                            <a
-                              href={`https://wa.me/2349133054018?text=${encodeURIComponent(
-                                "Hello UniMarket Support,\n\nI would like to change my email address on my account.\n\nCurrent Email: " + (profile?.email || "") + "\nNew Email: [Please specify]\n\nReason: [Please provide a valid reason]\n\nThank you."
-                              )}`}
-                              target="_blank"
-                              className="text-blue-600 hover:text-blue-800 underline"
-                            >
-                              Contact Support
-                            </a>
-                          </div>
-                          
-                          <div className="flex justify-between items-center text-sm">
-                            <span className="text-gray-600">University</span>
-                            <a
-                              href={`https://wa.me/2349133054018?text=${encodeURIComponent(
-                                "Hello UniMarket Support,\n\nI would like to change my university information on my account.\n\nCurrent University: " + (profile?.university_name || "Not set") + "\nNew University: [Please specify]\n\nReason: [Please provide a valid reason such as transfer]\n\nThank you."
-                              )}`}
-                              target="_blank"
-                              className="text-blue-600 hover:text-blue-800 underline"
-                            >
-                              Contact Support
-                            </a>
-                          </div>
-                          
-                          {(profile?.account_type === "seller" || profile?.account_type === "both") && (
-                            <>
-                              <div className="flex justify-between items-center text-sm">
-                                <span className="text-gray-600">Student ID</span>
-                                <a
-                                  href={`https://wa.me/2349133054018?text=${encodeURIComponent(
-                                    "Hello UniMarket Support,\n\nI would like to change my student ID on my account.\n\nCurrent Student ID: " + (profile?.student_id || "Not set") + "\nNew Student ID: [Please specify]\n\nReason: [Please provide a valid reason]\n\nThank you."
-                                  )}`}
-                                  target="_blank"
-                                  className="text-blue-600 hover:text-blue-800 underline"
-                                >
-                                  Contact Support
-                                </a>
-                              </div>
-                              
-
-                            </>
-                          )}
-                          
-                          <div className="flex justify-between items-center text-sm">
-                            <span className="text-gray-600">Account Type</span>
-                            <a
-                              href={`https://wa.me/2349133054018?text=${encodeURIComponent(
-                                "Hello UniMarket Support,\n\nI would like to change my account type.\n\nCurrent Account Type: " + (profile?.account_type || "Not set") + "\nDesired Account Type: [Please specify: buyer/seller/both]\n\nReason: [Please provide a valid reason]\n\nThank you."
-                              )}`}
-                              target="_blank"
-                              className="text-blue-600 hover:text-blue-800 underline"
-                            >
-                              Contact Support
-                            </a>
-                          </div>
-                        </div>
-                      </div>
-                      
-                      <div className="flex gap-2 pt-4">
-                        <Button
-                          onClick={() => {
-                            if ((profile?.account_type === "seller" || profile?.account_type === "both") && newBusinessName.trim() !== (profile?.business_name || "")) {
-                              handleBusinessNameSave();
-                            } else {
-                              handleSave();
-                            }
-                          }}
-                          disabled={saving}
-                          className="flex-1"
-                        >
-                          {saving ? "Saving..." : "Save Changes"}
-                        </Button>
-                        <Button
-                          variant="outline"
-                          onClick={() => {
-                            setEditing(false);
-                            setNewBusinessName(profile?.business_name || "");
-                          }}
-                          className="flex-1"
-                        >
-                          Cancel
-                        </Button>
-                      </div>
-                    </div>
-                  </DialogContent>
-                </Dialog>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Profile Card */}
-            <Card className="lg:col-span-1 border-0 shadow-xl bg-white/80 backdrop-blur-sm">
-              <CardContent className="pt-8">
-                <div className="flex flex-col items-center space-y-4">
-                  <div className="relative group">
-                    <div className="relative">
-                      <Avatar
-                        className="h-32 w-32 cursor-pointer hover:opacity-80 transition-all duration-300 hover:scale-105 ring-4 ring-white shadow-2xl"
-                        onClick={() => setShowAvatarModal(true)}
-                      >
-                        <AvatarImage
-                          src={profile.avatar_url || undefined}
-                          alt={profile.full_name}
-                          className="object-cover"
-                        />
-                        <AvatarFallback className="bg-gradient-to-br from-university-green to-emerald-600 text-white text-2xl font-bold">
-                          {getInitials(profile.full_name || "User")}
-                        </AvatarFallback>
-                      </Avatar>
-                      {profile.is_verified && (
-                        <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center ring-4 ring-white shadow-lg">
-                          <svg
-                            className="h-5 w-5 text-white"
-                            fill="currentColor"
-                            viewBox="0 0 20 20"
-                          >
-                            <path
-                              fillRule="evenodd"
-                              d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                              clipRule="evenodd"
-                            />
-                          </svg>
-                        </div>
-                      )}
-                    </div>
+            {/* Modern Header Section */}
+            <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-university-green to-emerald-600 p-8 text-white">
+              <div className="absolute inset-0 bg-black/10"></div>
+              <div className="relative z-10">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div>
+                    <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-2">
+                      My Profile
+                    </h1>
+                    <p className="text-white/90 text-lg">
+                      Manage your UniMarket account
+                    </p>
                   </div>
+                  <Dialog open={editing} onOpenChange={setEditing}>
+                    <DialogTrigger asChild>
+                      <Button className="bg-white text-university-green hover:bg-white/90 font-semibold px-6 py-3 rounded-xl shadow-lg">
+                        Edit Profile
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
+                      <DialogHeader>
+                        <DialogTitle>Edit Profile</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4">
+                        <div>
+                          <Label htmlFor="edit_full_name">Full Name *</Label>
+                          <Input
+                            id="edit_full_name"
+                            value={profile?.full_name || ""}
+                            onChange={(e) =>
+                              setProfile(
+                                profile
+                                  ? { ...profile, full_name: e.target.value }
+                                  : null,
+                              )
+                            }
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="edit_bio">Bio</Label>
+                          <Textarea
+                            id="edit_bio"
+                            value={profile?.bio || ""}
+                            onChange={(e) =>
+                              setProfile(
+                                profile
+                                  ? { ...profile, bio: e.target.value }
+                                  : null,
+                              )
+                            }
+                            placeholder="Tell others about yourself..."
+                            rows={3}
+                          />
+                        </div>
 
-                  <div className="w-full">
-                    <div className="border-2 border-dashed border-gray-200 rounded-xl p-6 text-center bg-gray-50/50 hover:bg-gray-50 transition-colors">
-                      <div className="text-sm font-semibold mb-3 text-gray-700">
-                        Profile Photo
-                      </div>
-                      {profile.avatar_url ? (
-                        <div className="space-y-2">
-                          <p className="text-xs text-muted-foreground">
-                            Profile photo already uploaded. Contact support to
-                            change.
-                          </p>
+                        {/* Business Name for Sellers */}
+                        {(profile?.account_type === "seller" ||
+                          profile?.account_type === "both") && (
+                          <div>
+                            <Label htmlFor="edit_business_name">
+                              Business Name
+                            </Label>
+                            <Input
+                              id="edit_business_name"
+                              value={newBusinessName}
+                              onChange={(e) =>
+                                setNewBusinessName(e.target.value)
+                              }
+                              placeholder="Enter your business name"
+                            />
+                          </div>
+                        )}
+
+                        {/* Phone Number for Sellers */}
+                        {(profile?.account_type === "seller" ||
+                          profile?.account_type === "both") && (
+                          <div>
+                            <Label htmlFor="edit_phone_number">
+                              Phone Number
+                            </Label>
+                            <Input
+                              id="edit_phone_number"
+                              value={newPhoneNumber}
+                              onChange={(e) =>
+                                setNewPhoneNumber(e.target.value)
+                              }
+                              placeholder="Enter your phone number"
+                            />
+                          </div>
+                        )}
+
+                        {/* Non-editable fields with contact support */}
+                        <div className="space-y-3 pt-4 border-t">
+                          <h4 className="text-sm font-semibold text-gray-700">
+                            Need to change other details?
+                          </h4>
+
+                          <div className="space-y-2">
+                            <div className="flex justify-between items-center text-sm">
+                              <span className="text-gray-600">Email</span>
+                              <a
+                                href={`https://wa.me/2349133054018?text=${encodeURIComponent(
+                                  "Hello UniMarket Support,\n\nI would like to change my email address on my account.\n\nCurrent Email: " +
+                                    (profile?.email || "") +
+                                    "\nNew Email: [Please specify]\n\nReason: [Please provide a valid reason]\n\nThank you.",
+                                )}`}
+                                target="_blank"
+                                className="text-blue-600 hover:text-blue-800 underline"
+                              >
+                                Contact Support
+                              </a>
+                            </div>
+
+                            <div className="flex justify-between items-center text-sm">
+                              <span className="text-gray-600">University</span>
+                              <a
+                                href={`https://wa.me/2349133054018?text=${encodeURIComponent(
+                                  "Hello UniMarket Support,\n\nI would like to change my university information on my account.\n\nCurrent University: " +
+                                    (profile?.university_name || "Not set") +
+                                    "\nNew University: [Please specify]\n\nReason: [Please provide a valid reason such as transfer]\n\nThank you.",
+                                )}`}
+                                target="_blank"
+                                className="text-blue-600 hover:text-blue-800 underline"
+                              >
+                                Contact Support
+                              </a>
+                            </div>
+
+                            {(profile?.account_type === "seller" ||
+                              profile?.account_type === "both") && (
+                              <>
+                                <div className="flex justify-between items-center text-sm">
+                                  <span className="text-gray-600">
+                                    Student ID
+                                  </span>
+                                  <a
+                                    href={`https://wa.me/2349133054018?text=${encodeURIComponent(
+                                      "Hello UniMarket Support,\n\nI would like to change my student ID on my account.\n\nCurrent Student ID: " +
+                                        (profile?.student_id || "Not set") +
+                                        "\nNew Student ID: [Please specify]\n\nReason: [Please provide a valid reason]\n\nThank you.",
+                                    )}`}
+                                    target="_blank"
+                                    className="text-blue-600 hover:text-blue-800 underline"
+                                  >
+                                    Contact Support
+                                  </a>
+                                </div>
+                              </>
+                            )}
+
+                            <div className="flex justify-between items-center text-sm">
+                              <span className="text-gray-600">
+                                Account Type
+                              </span>
+                              <a
+                                href={`https://wa.me/2349133054018?text=${encodeURIComponent(
+                                  "Hello UniMarket Support,\n\nI would like to change my account type.\n\nCurrent Account Type: " +
+                                    (profile?.account_type || "Not set") +
+                                    "\nDesired Account Type: [Please specify: buyer/seller/both]\n\nReason: [Please provide a valid reason]\n\nThank you.",
+                                )}`}
+                                target="_blank"
+                                className="text-blue-600 hover:text-blue-800 underline"
+                              >
+                                Contact Support
+                              </a>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex gap-2 pt-4">
+                          <Button
+                            onClick={() => {
+                              if (
+                                (profile?.account_type === "seller" ||
+                                  profile?.account_type === "both") &&
+                                newBusinessName.trim() !==
+                                  (profile?.business_name || "")
+                              ) {
+                                handleBusinessNameSave();
+                              } else {
+                                handleSave();
+                              }
+                            }}
+                            disabled={saving}
+                            className="flex-1"
+                          >
+                            {saving ? "Saving..." : "Save Changes"}
+                          </Button>
                           <Button
                             variant="outline"
-                            size="sm"
-                            onClick={openWhatsAppSupport}
-                            className="w-full"
+                            onClick={() => {
+                              setEditing(false);
+                              setNewBusinessName(profile?.business_name || "");
+                            }}
+                            className="flex-1"
                           >
-                            Contact Support
+                            Cancel
                           </Button>
                         </div>
-                      ) : (
-                        <>
-                          <CompressedImageUpload
-                            onUpload={handleProfilePhotoUpload}
-                            bucket="verification-photos"
-                            path={`${user?.id}/profile-${Date.now()}.jpg`}
-                            uploading={uploadingPhoto}
-                            setUploading={setUploadingPhoto}
-                            label="Take/Upload Photo"
-                          />
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setShowUploadWarning(true)}
-                            className="mt-2 text-xs text-muted-foreground border-[1px] border-gray-500"
-                          >
-                            ⚠️ Read Warning First
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="text-center">
-                    {profile.business_name ? (
-                      <>
-                        <h2 className="text-2xl font-bold text-gray-900 mb-1">
-                          {profile.business_name}
-                        </h2>
-                        <p className="text-sm text-muted-foreground mb-2">
-                          Owner: {profile.full_name}
-                        </p>
-                      </>
-                    ) : (
-                      <h2 className="text-2xl font-bold text-gray-900 mb-1">
-                        {profile.full_name || "User"}
-                      </h2>
-                    )}
-                    <p className="text-gray-600 mb-4">
-                      {profile.email || user?.email || "No email"}
-                    </p>
-                    {profile.bio && (
-                      <p className="text-center text-sm text-muted-foreground">
-                        {profile.bio}
-                      </p>
-                    )}
-
-                    <div className="flex items-center justify-center gap-3 mt-2 flex-wrap">
-                      <Badge className="bg-university-green/10 text-university-green border-university-green/20 px-3 py-1 font-medium capitalize">
-                        {profile.account_type === 'seller' && profile.seller_status === 'pending' ? 'Buyer waiting to be approved as a seller' : 
-                         profile.account_type === 'seller' ? 'Seller & Buyer' : 
-                         profile.account_type === 'both' ? 'Seller & Buyer' : 
-                         profile.account_type}
-                      </Badge>
-
-                      {profile.is_verified && (
-                        <Badge className="bg-blue-50 text-blue-700 border-blue-200 px-3 py-1 font-medium">
-                          ✓ Verified
-                        </Badge>
-                      )}
-                      {gameBadge && gameBadge.is_premium && (
-                        <PremiumGameBadge
-                          level={gameBadge.overall_level}
-                          badgeType={gameBadge.badge_type}
-                          isPremium={gameBadge.is_premium}
-                          size="sm"
-                        />
-                      )}
-                      {isAdmin && (
-                        <Badge className="bg-purple-50 text-purple-700 border-purple-200 px-3 py-1 font-medium flex items-center gap-1">
-                          <Headphones className="h-3 w-3" />
-                          Support
-                        </Badge>
-                      )}
-                    </div>
-
-                    <div className="flex items-center justify-center gap-6 mt-6">
-                      <div className="flex items-center gap-2 bg-yellow-50 px-4 py-2 rounded-full">
-                        <Star className="h-5 w-5 fill-yellow-400 text-yellow-400" />
-                        <span className="font-semibold text-gray-700">
-                          {(profile.rating || 0).toFixed(1)}
-                        </span>
                       </div>
-                      <button
-                        className="flex items-center gap-2 bg-gray-50 hover:bg-gray-100 px-4 py-2 rounded-full transition-colors"
-                        onClick={() => {
-                          setReviewsOpen(true);
-                          fetchReviews();
-                        }}
-                      >
-                        <MessageCircle className="h-5 w-5 text-gray-600" />
-                        <span className="font-semibold text-gray-700">
-                          {profile.total_reviews || 0} reviews
-                        </span>
-                      </button>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              {/* Profile Card */}
+              <Card className="lg:col-span-1 border-0 shadow-xl bg-white/80 backdrop-blur-sm">
+                <CardContent className="pt-8">
+                  <div className="flex flex-col items-center space-y-4">
+                    <div className="relative group">
+                      <div className="relative">
+                        <Avatar
+                          className="h-32 w-32 cursor-pointer hover:opacity-80 transition-all duration-300 hover:scale-105 ring-4 ring-white shadow-2xl"
+                          onClick={() => setShowAvatarModal(true)}
+                        >
+                          <AvatarImage
+                            src={profile.avatar_url || undefined}
+                            alt={profile.full_name}
+                            className="object-cover"
+                          />
+                          <AvatarFallback className="bg-gradient-to-br from-university-green to-emerald-600 text-white text-2xl font-bold">
+                            {getInitials(profile.full_name || "User")}
+                          </AvatarFallback>
+                        </Avatar>
+                        {profile.is_verified && (
+                          <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center ring-4 ring-white shadow-lg">
+                            <svg
+                              className="h-5 w-5 text-white"
+                              fill="currentColor"
+                              viewBox="0 0 20 20"
+                            >
+                              <path
+                                fillRule="evenodd"
+                                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                clipRule="evenodd"
+                              />
+                            </svg>
+                          </div>
+                        )}
+                      </div>
                     </div>
 
-                    {/* Wallet Summary for Sellers */}
-                    {wallet &&
-                      (profile.account_type === "seller" ||
-                        profile.account_type === "both") && (
-                        <div className="mt-6 p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-100">
-                          <div className="flex items-center justify-between mb-3">
-                            <span className="text-sm font-semibold flex items-center gap-2 text-green-800">
-                              <Wallet className="h-5 w-5" />
-                              Wallet
-                            </span>
-                            <div className="flex items-center gap-1">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() =>
-                                  setWalletBalanceVisible(!walletBalanceVisible)
-                                }
-                                title={
-                                  walletBalanceVisible
-                                    ? "Hide Balance"
-                                    : "Show Balance"
-                                }
-                              >
-                                <Eye
-                                  className={`h-3 w-3 ${
-                                    walletBalanceVisible ? "" : "opacity-50"
-                                  }`}
-                                />
-                              </Button>
-                              <Button variant="ghost" size="sm" asChild>
-                                <a href="/dashboard">
-                                  <ArrowUpRight className="h-3 w-3" />
-                                </a>
-                              </Button>
-                            </div>
-                          </div>
-                          <div className="space-y-2 text-sm">
-                            <div className="flex justify-between items-center">
-                              <span className="text-green-700">Available:</span>
-                              <span className="font-bold text-green-800">
-                                {walletBalanceVisible
-                                  ? `₦${wallet.available_balance.toLocaleString()}`
-                                  : "••••••"}
-                              </span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                              <span className="text-green-700">
-                                Total Earned:
-                              </span>
-                              <span className="font-bold text-green-800">
-                                {walletBalanceVisible
-                                  ? `₦${wallet.total_earnings.toLocaleString()}`
-                                  : "••••••"}
-                              </span>
-                            </div>
-                          </div>
+                    <div className="w-full">
+                      <div className="border-2 border-dashed border-gray-200 rounded-xl p-6 text-center bg-gray-50/50 hover:bg-gray-50 transition-colors">
+                        <div className="text-sm font-semibold mb-3 text-gray-700">
+                          Profile Photo
                         </div>
+                        {profile.avatar_url ? (
+                          <div className="space-y-2">
+                            <p className="text-xs text-muted-foreground">
+                              Profile photo already uploaded. Contact support to
+                              change.
+                            </p>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={openWhatsAppSupport}
+                              className="w-full"
+                            >
+                              Contact Support
+                            </Button>
+                          </div>
+                        ) : (
+                          <>
+                            <CompressedImageUpload
+                              onUpload={handleProfilePhotoUpload}
+                              bucket="verification-photos"
+                              path={`${user?.id}/profile-${Date.now()}.jpg`}
+                              uploading={uploadingPhoto}
+                              setUploading={setUploadingPhoto}
+                              label="Take/Upload Photo"
+                            />
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setShowUploadWarning(true)}
+                              className="mt-2 text-xs text-muted-foreground border-[1px] border-gray-500"
+                            >
+                              ⚠️ Read Warning First
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="text-center">
+                      {profile.business_name ? (
+                        <>
+                          <h2 className="text-2xl font-bold text-gray-900 mb-1">
+                            {profile.business_name}
+                          </h2>
+                          <p className="text-sm text-muted-foreground mb-2">
+                            Owner: {profile.full_name}
+                          </p>
+                        </>
+                      ) : (
+                        <h2 className="text-2xl font-bold text-gray-900 mb-1">
+                          {profile.full_name || "User"}
+                        </h2>
+                      )}
+                      <p className="text-gray-600 mb-4">
+                        {profile.email || user?.email || "No email"}
+                      </p>
+                      {profile.bio && (
+                        <p className="text-center text-sm text-muted-foreground">
+                          {profile.bio}
+                        </p>
                       )}
 
-                    {/* Account Type Display - For All Users */}
-                    <div className="mt-6 space-y-4">
-                      <div className="p-4 bg-gradient-to-r from-university-green/5 to-emerald-50 rounded-xl border border-university-green/20">
-                        <div className="flex items-center justify-between mb-3">
-                          <span className="text-sm font-semibold text-university-green">
-                            Account Type
+                      <div className="flex items-center justify-center gap-3 mt-2 flex-wrap">
+                        <Badge className="bg-university-green/10 text-university-green border-university-green/20 px-3 py-1 font-medium capitalize">
+                          {profile.account_type === "seller" &&
+                          profile.seller_status === "pending"
+                            ? "Buyer waiting to be approved as a seller"
+                            : profile.account_type === "seller"
+                              ? "Seller & Buyer"
+                              : profile.account_type === "both"
+                                ? "Seller & Buyer"
+                                : profile.account_type}
+                        </Badge>
+
+                        {profile.is_verified && (
+                          <Badge className="bg-blue-50 text-blue-700 border-blue-200 px-3 py-1 font-medium">
+                            ✓ Verified
+                          </Badge>
+                        )}
+                        {gameBadge && gameBadge.is_premium && (
+                          <PremiumGameBadge
+                            level={gameBadge.overall_level}
+                            badgeType={gameBadge.badge_type}
+                            isPremium={gameBadge.is_premium}
+                            size="sm"
+                          />
+                        )}
+                        {isAdmin && (
+                          <Badge className="bg-purple-50 text-purple-700 border-purple-200 px-3 py-1 font-medium flex items-center gap-1">
+                            <Headphones className="h-3 w-3" />
+                            Support
+                          </Badge>
+                        )}
+                      </div>
+
+                      <div className="flex items-center justify-center gap-6 mt-6">
+                        <div className="flex items-center gap-2 bg-yellow-50 px-4 py-2 rounded-full">
+                          <Star className="h-5 w-5 fill-yellow-400 text-yellow-400" />
+                          <span className="font-semibold text-gray-700">
+                            {(profile.rating || 0).toFixed(1)}
                           </span>
                         </div>
-                        <div className="text-sm">
-                          <div className="flex items-center gap-2 text-university-green">
-                            <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
-                            </svg>
-                            <span className="capitalize font-medium">
-                              {profile.account_type === 'seller' && profile.seller_status === 'pending' ? 'Buyer waiting to be approved as a seller' : 
-                               profile.account_type === 'seller' ? 'Seller & Buyer' : 
-                               profile.account_type === 'both' ? 'Seller & Buyer' : 
-                               profile.account_type}
-                            </span>
-                          </div>
-                          <div className="text-xs text-university-green/70 mt-1">
-                            {profile.account_type === 'seller' && profile.seller_status === 'pending' && 'You can buy items. Selling access pending approval.'}
-                            {profile.account_type === 'seller' && profile.seller_status === 'approved' && 'You can both buy and sell items on UniMarket'}
-                            {profile.account_type === 'both' && 'You can both buy and sell items on UniMarket'}
-                            {profile.account_type === 'buyer' && 'You can buy items on UniMarket'}
-                          </div>
-                        </div>
+                        <button
+                          className="flex items-center gap-2 bg-gray-50 hover:bg-gray-100 px-4 py-2 rounded-full transition-colors"
+                          onClick={() => {
+                            setReviewsOpen(true);
+                            fetchReviews();
+                          }}
+                        >
+                          <MessageCircle className="h-5 w-5 text-gray-600" />
+                          <span className="font-semibold text-gray-700">
+                            {profile.total_reviews || 0} reviews
+                          </span>
+                        </button>
                       </div>
-                      
-                      {/* Seller Status Display - Only for Sellers */}
-                      {(profile.account_type === "seller" || profile.account_type === "both") && (
-                        <>
-                          <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-100">
+
+                      {/* Wallet Summary for Sellers */}
+                      {wallet &&
+                        (profile.account_type === "seller" ||
+                          profile.account_type === "both") && (
+                          <div className="mt-6 p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-100">
                             <div className="flex items-center justify-between mb-3">
-                              <span className="text-sm font-semibold text-blue-800">
-                                Seller Status
+                              <span className="text-sm font-semibold flex items-center gap-2 text-green-800">
+                                <Wallet className="h-5 w-5" />
+                                Wallet
                               </span>
+                              <div className="flex items-center gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() =>
+                                    setWalletBalanceVisible(
+                                      !walletBalanceVisible,
+                                    )
+                                  }
+                                  title={
+                                    walletBalanceVisible
+                                      ? "Hide Balance"
+                                      : "Show Balance"
+                                  }
+                                >
+                                  <Eye
+                                    className={`h-3 w-3 ${
+                                      walletBalanceVisible ? "" : "opacity-50"
+                                    }`}
+                                  />
+                                </Button>
+                                <Button variant="ghost" size="sm" asChild>
+                                  <a href="/dashboard">
+                                    <ArrowUpRight className="h-3 w-3" />
+                                  </a>
+                                </Button>
+                              </div>
                             </div>
-                            <div className="text-sm">
-                              {profile.seller_status === "approved" && (
-                                <div className="flex items-center gap-2 text-green-600">
-                                  <Shield className="h-4 w-4" />
-                                  <span>Approved - You can sell items</span>
-                                </div>
-                              )}
-                              {profile.seller_status === "pending" && (
-                                <div className="flex items-center gap-2 text-orange-600">
-                                  <Shield className="h-4 w-4" />
-                                  <span>Pending Admin Approval</span>
-                                </div>
-                              )}
-                              {profile.seller_status === "rejected" && (
-                                <div className="flex items-center gap-2 text-red-600">
-                                  <Shield className="h-4 w-4" />
-                                  <span>Application Rejected</span>
-                                </div>
-                              )}
-                              {!profile.seller_status && (
-                                <div className="flex items-center gap-2 text-gray-600">
-                                  <Shield className="h-4 w-4" />
-                                  <span>Not yet submitted for approval</span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                          
-                          {/* Subscription Status - Modern Design */}
-                          <div className="relative overflow-hidden p-4 bg-gradient-to-br from-university-green/10 via-emerald-50 to-university-green/5 rounded-xl border border-university-green/20">
-                            <div className="absolute top-0 right-0 w-20 h-20 bg-university-green/5 rounded-full -translate-y-10 translate-x-10"></div>
-                            <div className="relative">
-                              <div className="flex items-center justify-between mb-3">
-                                <span className="text-sm font-semibold text-university-green flex items-center gap-2">
-                                  <Package className="h-4 w-4" />
-                                  Subscription Status
+                            <div className="space-y-2 text-sm">
+                              <div className="flex justify-between items-center">
+                                <span className="text-green-700">
+                                  Available:
+                                </span>
+                                <span className="font-bold text-green-800">
+                                  {walletBalanceVisible
+                                    ? `₦${wallet.available_balance.toLocaleString()}`
+                                    : "••••••"}
                                 </span>
                               </div>
-                              <div className="text-sm space-y-2">
-                                {profile.seller_features_active && profile.seller_subscription_expires_at ? (
-                                  <>
-                                    <div className="flex items-center gap-2">
-                                      <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                                      <span className="text-green-700 font-medium">
-                                        Active - {profile.seller_subscription_type === 'monthly' ? 'Monthly' : 'Daily'} Plan
-                                      </span>
-                                    </div>
-                                    <div className="text-xs text-university-green/70 ml-4">
-                                      Expires: {new Date(profile.seller_subscription_expires_at).toLocaleDateString()}
-                                    </div>
-                                  </>
-                                ) : profile.seller_subscription_expires_at && new Date(profile.seller_subscription_expires_at) < new Date() ? (
-                                  <div className="flex items-center gap-2">
-                                    <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-                                    <span className="text-red-600 font-medium">
-                                      Expired - Renew to continue selling
-                                    </span>
+                              <div className="flex justify-between items-center">
+                                <span className="text-green-700">
+                                  Total Earned:
+                                </span>
+                                <span className="font-bold text-green-800">
+                                  {walletBalanceVisible
+                                    ? `₦${wallet.total_earnings.toLocaleString()}`
+                                    : "••••••"}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                      {/* Account Type Display - For All Users */}
+                      <div className="mt-6 space-y-4">
+                        <div className="p-4 bg-gradient-to-r from-university-green/5 to-emerald-50 rounded-xl border border-university-green/20">
+                          <div className="flex items-center justify-between mb-3">
+                            <span className="text-sm font-semibold text-university-green">
+                              Account Type
+                            </span>
+                          </div>
+                          <div className="text-sm">
+                            <div className="flex items-center gap-2 text-university-green">
+                              <svg
+                                className="h-4 w-4"
+                                fill="currentColor"
+                                viewBox="0 0 20 20"
+                              >
+                                <path
+                                  fillRule="evenodd"
+                                  d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z"
+                                  clipRule="evenodd"
+                                />
+                              </svg>
+                              <span className="capitalize font-medium">
+                                {profile.account_type === "seller" &&
+                                profile.seller_status === "pending"
+                                  ? "Buyer waiting to be approved as a seller"
+                                  : profile.account_type === "seller"
+                                    ? "Seller & Buyer"
+                                    : profile.account_type === "both"
+                                      ? "Seller & Buyer"
+                                      : profile.account_type}
+                              </span>
+                            </div>
+                            <div className="text-xs text-university-green/70 mt-1">
+                              {profile.account_type === "seller" &&
+                                profile.seller_status === "pending" &&
+                                "You can buy items. Selling access pending approval."}
+                              {profile.account_type === "seller" &&
+                                profile.seller_status === "approved" &&
+                                "You can both buy and sell items on UniMarket"}
+                              {profile.account_type === "both" &&
+                                "You can both buy and sell items on UniMarket"}
+                              {profile.account_type === "buyer" &&
+                                "You can buy items on UniMarket"}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Seller Status Display - Only for Sellers */}
+                        {(profile.account_type === "seller" ||
+                          profile.account_type === "both") && (
+                          <>
+                            <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-100">
+                              <div className="flex items-center justify-between mb-3">
+                                <span className="text-sm font-semibold text-blue-800">
+                                  Seller Status
+                                </span>
+                              </div>
+                              <div className="text-sm">
+                                {profile.seller_status === "approved" && (
+                                  <div className="flex items-center gap-2 text-green-600">
+                                    <Shield className="h-4 w-4" />
+                                    <span>Approved - You can sell items</span>
                                   </div>
-                                ) : (
-                                  <div className="flex items-center gap-2">
-                                    <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
-                                    <span className="text-gray-600 font-medium">
-                                      No active subscription
-                                    </span>
+                                )}
+                                {profile.seller_status === "pending" && (
+                                  <div className="flex items-center gap-2 text-orange-600">
+                                    <Shield className="h-4 w-4" />
+                                    <span>Pending Admin Approval</span>
+                                  </div>
+                                )}
+                                {profile.seller_status === "rejected" && (
+                                  <div className="flex items-center gap-2 text-red-600">
+                                    <Shield className="h-4 w-4" />
+                                    <span>Application Rejected</span>
+                                  </div>
+                                )}
+                                {!profile.seller_status && (
+                                  <div className="flex items-center gap-2 text-gray-600">
+                                    <Shield className="h-4 w-4" />
+                                    <span>Not yet submitted for approval</span>
                                   </div>
                                 )}
                               </div>
                             </div>
-                          </div>
-                        </>
-                      )}
-                    </div>
 
-                    {/* Verification Request Button */}
-                    {!profile.is_verified &&
-                      (profile.account_type === "seller" ||
-                        profile.account_type === "both") &&
-                      profile.seller_status === "approved" && (
-                        <div className="mt-4 w-full space-y-2">
-                          {verificationRequest ? (
-                            <div className="text-center">
-                              {verificationRequest.status === "pending" && (
-                                <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
-                                  <p className="text-sm text-orange-800 font-medium">
-                                    Verification Pending
-                                  </p>
-                                  <p className="text-xs text-orange-600 mt-1">
-                                    Your request is under admin review
-                                  </p>
+                            {/* Subscription Status - Modern Design */}
+                            <div className="relative overflow-hidden p-4 bg-gradient-to-br from-university-green/10 via-emerald-50 to-university-green/5 rounded-xl border border-university-green/20">
+                              <div className="absolute top-0 right-0 w-20 h-20 bg-university-green/5 rounded-full -translate-y-10 translate-x-10"></div>
+                              <div className="relative">
+                                <div className="flex items-center justify-between mb-3">
+                                  <span className="text-sm font-semibold text-university-green flex items-center gap-2">
+                                    <Package className="h-4 w-4" />
+                                    Subscription Status
+                                  </span>
                                 </div>
-                              )}
-                              {verificationRequest.status === "rejected" && (
-                                <div className="space-y-2">
-                                  <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                                    <p className="text-sm text-red-800 font-medium">
-                                      Verification Rejected
+                                <div className="text-sm space-y-2">
+                                  {profile.seller_features_active &&
+                                  profile.seller_subscription_expires_at ? (
+                                    <>
+                                      <div className="flex items-center gap-2">
+                                        <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                                        <span className="text-green-700 font-medium">
+                                          Active -{" "}
+                                          {profile.seller_subscription_type ===
+                                          "monthly"
+                                            ? "Monthly"
+                                            : "Daily"}{" "}
+                                          Plan
+                                        </span>
+                                      </div>
+                                      <div className="text-xs text-university-green/70 ml-4">
+                                        Expires:{" "}
+                                        {new Date(
+                                          profile.seller_subscription_expires_at,
+                                        ).toLocaleDateString()}
+                                      </div>
+                                    </>
+                                  ) : profile.seller_subscription_expires_at &&
+                                    new Date(
+                                      profile.seller_subscription_expires_at,
+                                    ) < new Date() ? (
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                                      <span className="text-red-600 font-medium">
+                                        Expired - Renew to continue selling
+                                      </span>
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+                                      <span className="text-gray-600 font-medium">
+                                        No active subscription
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </>
+                        )}
+                      </div>
+
+                      {/* Verification Request Button */}
+                      {!profile.is_verified &&
+                        (profile.account_type === "seller" ||
+                          profile.account_type === "both") &&
+                        profile.seller_status === "approved" && (
+                          <div className="mt-4 w-full space-y-2">
+                            {verificationRequest ? (
+                              <div className="text-center">
+                                {verificationRequest.status === "pending" && (
+                                  <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                                    <p className="text-sm text-orange-800 font-medium">
+                                      Verification Pending
                                     </p>
-                                    {verificationRequest.admin_notes && (
-                                      <p className="text-xs text-red-600 mt-1">
-                                        {verificationRequest.admin_notes}
-                                      </p>
-                                    )}
+                                    <p className="text-xs text-orange-600 mt-1">
+                                      Your request is under admin review
+                                    </p>
                                   </div>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="w-full"
-                                    onClick={() => {
-                                      window.location.href =
-                                        "/verification-request";
-                                    }}
-                                  >
-                                    <Shield className="h-4 w-4 mr-2" />
-                                    Request Again
-                                  </Button>
-                                </div>
-                              )}
-                            </div>
-                          ) : (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="w-full"
-                              onClick={() => {
-                                // Check if seller has required details
-                                const hasRequiredDetails =
-                                  profile.full_name &&
-                                  profile.university_name &&
-                                  profile.student_id &&
-                                  profile.phone_number;
+                                )}
+                                {verificationRequest.status === "rejected" && (
+                                  <div className="space-y-2">
+                                    <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                                      <p className="text-sm text-red-800 font-medium">
+                                        Verification Rejected
+                                      </p>
+                                      {verificationRequest.admin_notes && (
+                                        <p className="text-xs text-red-600 mt-1">
+                                          {verificationRequest.admin_notes}
+                                        </p>
+                                      )}
+                                    </div>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="w-full"
+                                      onClick={() => {
+                                        window.location.href =
+                                          "/verification-request";
+                                      }}
+                                    >
+                                      <Shield className="h-4 w-4 mr-2" />
+                                      Request Again
+                                    </Button>
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="w-full"
+                                onClick={() => {
+                                  // Check if seller has required details
+                                  const hasRequiredDetails =
+                                    profile.full_name &&
+                                    profile.university_name &&
+                                    profile.student_id &&
+                                    profile.phone_number;
 
-                                if (!hasRequiredDetails) {
-                                  toast({
-                                    title: "Complete Your Profile",
-                                    description:
-                                      "Please fill in all required details (name, university, student ID, phone) before requesting verification.",
-                                    variant: "destructive",
-                                  });
-                                  return;
-                                }
+                                  if (!hasRequiredDetails) {
+                                    toast({
+                                      title: "Complete Your Profile",
+                                      description:
+                                        "Please fill in all required details (name, university, student ID, phone) before requesting verification.",
+                                      variant: "destructive",
+                                    });
+                                    return;
+                                  }
 
-                                window.location.href = "/verification-request";
-                              }}
-                            >
-                              <Shield className="h-4 w-4 mr-2" />
-                              Request Verification
-                            </Button>
-                          )}
-                        </div>
-                      )}
-
-                    {/* Onboarding Button */}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="mt-4 w-full bg-gradient-to-r from-purple-50 to-pink-50 border-purple-200 text-purple-700 hover:bg-purple-100 font-medium"
-                      onClick={() => setShowOnboarding(true)}
-                    >
-                      <Play className="h-4 w-4 mr-2" />
-                      How UniMarket Works
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Profile Details */}
-            <Card className="lg:col-span-2 border-0 shadow-xl bg-white/80 backdrop-blur-sm">
-              <CardHeader className="pb-6">
-                <CardTitle className="text-2xl font-bold text-gray-900 flex items-center gap-3">
-                  <div className="w-8 h-8 bg-gradient-to-r from-university-green to-emerald-600 rounded-lg flex items-center justify-center">
-                    <svg
-                      className="w-5 h-5 text-white"
-                      fill="currentColor"
-                      viewBox="0 0 20 20"
-                    >
-                      <path
-                        fillRule="evenodd"
-                        d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
-                  </div>
-                  Profile Information
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <Label
-                      htmlFor="full_name"
-                      className="text-sm font-semibold text-gray-700"
-                    >
-                      Full Name *
-                    </Label>
-                    <Input
-                      id="full_name"
-                      value={profile.full_name}
-                      disabled
-                      className="bg-gray-50 text-gray-700 cursor-not-allowed border-gray-200 rounded-lg"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label
-                      htmlFor="email"
-                      className="text-sm font-semibold text-gray-700"
-                    >
-                      Email
-                    </Label>
-                    <Input
-                      id="email"
-                      value={profile.email}
-                      disabled
-                      className="bg-gray-50 text-gray-700 cursor-not-allowed border-gray-200 rounded-lg"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      Email cannot be changed
-                    </p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label
-                      htmlFor="university"
-                      className="text-sm font-semibold text-gray-700"
-                    >
-                      University
-                    </Label>
-                    <Input
-                      id="university"
-                      value={profile.university_name || ""}
-                      disabled
-                      className="bg-gray-50 text-gray-700 cursor-not-allowed border-gray-200 rounded-lg"
-                      placeholder="Not set"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">
-                      University cannot be changed after registration
-                    </p>
-                  </div>
-
-                  {profile.account_type === "seller" && (
-                    <>
-                      <div className="space-y-2">
-                        <Label
-                          htmlFor="student_id"
-                          className="text-sm font-semibold text-gray-700"
-                        >
-                          Student ID
-                        </Label>
-                        <Input
-                          id="student_id"
-                          value={profile.student_id || ""}
-                          disabled
-                          className="bg-gray-50 text-gray-700 cursor-not-allowed border-gray-200 rounded-lg"
-                          placeholder="Not set"
-                        />
-                        <p className="text-xs text-gray-500 mt-1">
-                          Student ID cannot be changed after registration
-                        </p>
-                      </div>
-
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <Label
-                            htmlFor="phone"
-                            className="text-sm font-semibold text-gray-700"
-                          >
-                            Phone Number
-                          </Label>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setNewPhoneNumber(profile.phone_number || "");
-                              setEditingPhoneNumber(true);
-                            }}
-                            className="text-xs px-2 py-1 h-6"
-                          >
-                            Edit
-                          </Button>
-                        </div>
-                        <Input
-                          id="phone"
-                          value={profile.phone_number || ""}
-                          disabled
-                          className="bg-gray-50 text-gray-700 cursor-not-allowed border-gray-200 rounded-lg"
-                          placeholder="Not set"
-                        />
-                        <p className="text-xs text-gray-500 mt-1">
-                          Click Edit to change your phone number
-                        </p>
-                      </div>
-
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <Label
-                            htmlFor="business_name"
-                            className="text-sm font-semibold text-gray-700"
-                          >
-                            Business Name
-                          </Label>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setNewBusinessName(profile.business_name || "");
-                              setEditingBusinessName(true);
-                            }}
-                            className="text-xs px-2 py-1 h-6"
-                          >
-                            Edit
-                          </Button>
-                        </div>
-                        <Input
-                          id="business_name"
-                          value={profile.business_name || ""}
-                          disabled
-                          className="bg-gray-50 text-gray-700 cursor-not-allowed border-gray-200 rounded-lg"
-                          placeholder="Not set"
-                        />
-                        <p className="text-xs text-gray-500 mt-1">
-                          Click Edit to change your business name
-                        </p>
-                      </div>
-                    </>
-                  )}
-                </div>
-
-                <div className="space-y-2">
-                  <Label
-                    htmlFor="bio"
-                    className="text-sm font-semibold text-gray-700"
-                  >
-                    Bio
-                  </Label>
-                  <Textarea
-                    id="bio"
-                    value={profile.bio || ""}
-                    disabled
-                    className="bg-gray-50 text-gray-700 cursor-not-allowed border-gray-200 rounded-lg"
-                    placeholder="Tell others about yourself..."
-                    rows={3}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label
-                    htmlFor="account_type"
-                    className="text-sm font-semibold text-gray-700"
-                  >
-                    Account Type
-                  </Label>
-                  <select 
-                    value={profile.account_type === 'seller' && profile.seller_status === 'pending' ? 'pending' : 
-                           profile.account_type === 'seller' ? 'both' : 
-                           profile.account_type} 
-                    disabled={true}
-                    className="w-full h-10 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm cursor-not-allowed"
-                  >
-                    <option value="buyer">Buyer Only</option>
-                    <option value="pending">Buyer waiting to be approved as a seller</option>
-                    <option value="both">Both Buyer & Seller</option>
-                  </select>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Account type cannot be changed. Contact support if you need
-                    assistance.
-                  </p>
-                </div>
-
-                {/* Student ID Photo Section */}
-                {(profile.account_type === "seller" ||
-                  profile.account_type === "both") && (
-                  <div className="space-y-3">
-                    <Label className="text-sm font-semibold text-gray-700">
-                      Student ID Card
-                    </Label>
-                    {profile.student_id_photo_url ? (
-                      <div className="mt-3 p-6 border border-gray-200 rounded-xl bg-gray-50/50">
-                        <img
-                          src={profile.student_id_photo_url}
-                          alt="Student ID Card"
-                          className="max-w-full h-auto rounded border"
-                          style={{ maxHeight: "200px" }}
-                          onError={(e) => {
-                            console.error(
-                              "Failed to load student ID photo:",
-                              profile.student_id_photo_url
-                            );
-                            e.currentTarget.style.display = "none";
-                          }}
-                        />
-                        <p className="text-xs text-gray-500 mt-3">
-                          Student ID card uploaded during registration
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="mt-3 p-6 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50/50">
-                        <div className="text-center">
-                          <p className="text-sm text-gray-600 mb-4">
-                            No student ID card uploaded yet
-                          </p>
-                          <div className="border-2 border-dashed border-gray-200 rounded-xl p-6 text-center bg-white/50">
-                            <div className="text-sm font-semibold mb-3 text-gray-700">
-                              Student ID Card
-                            </div>
-                            <CompressedImageUpload
-                              onUpload={handleStudentIdUpload}
-                              bucket="verification-photos"
-                              path={`${user?.id}/student-id-${Date.now()}.jpg`}
-                              uploading={uploadingStudentId}
-                              setUploading={setUploadingStudentId}
-                              label="Take/Upload ID"
-                            />
+                                  window.location.href =
+                                    "/verification-request";
+                                }}
+                              >
+                                <Shield className="h-4 w-4 mr-2" />
+                                Request Verification
+                              </Button>
+                            )}
                           </div>
-                          <p className="text-xs text-gray-500 mt-3">
-                            Required for seller verification
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
+                        )}
 
-                {/* Account Deletion Section */}
-                <div className="border-t border-gray-200 pt-8 mt-8">
-                  <div className="bg-red-50 border border-red-200 rounded-xl p-6">
-                    <h3 className="text-xl font-bold text-red-700 mb-3 flex items-center gap-2">
+                      {/* Onboarding Button */}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="mt-4 w-full bg-gradient-to-r from-purple-50 to-pink-50 border-purple-200 text-purple-700 hover:bg-purple-100 font-medium"
+                        onClick={() => setShowOnboarding(true)}
+                      >
+                        <Play className="h-4 w-4 mr-2" />
+                        How UniMarket Works
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Profile Details */}
+              <Card className="lg:col-span-2 border-0 shadow-xl bg-white/80 backdrop-blur-sm">
+                <CardHeader className="pb-6">
+                  <CardTitle className="text-2xl font-bold text-gray-900 flex items-center gap-3">
+                    <div className="w-8 h-8 bg-gradient-to-r from-university-green to-emerald-600 rounded-lg flex items-center justify-center">
                       <svg
-                        className="w-6 h-6"
+                        className="w-5 h-5 text-white"
                         fill="currentColor"
                         viewBox="0 0 20 20"
                       >
                         <path
                           fillRule="evenodd"
-                          d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+                          d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z"
                           clipRule="evenodd"
                         />
                       </svg>
-                      Danger Zone
-                    </h3>
-                    <p className="text-sm text-red-600 mb-6">
-                      Once you delete your account, there is no going back.
-                      Please be certain.
-                    </p>
-                    <Dialog
-                      open={deleteModalOpen}
-                      onOpenChange={setDeleteModalOpen}
-                    >
-                      <DialogTrigger asChild>
-                        <Button
-                          variant="destructive"
-                          className="w-full sm:w-auto bg-red-600 hover:bg-red-700 font-semibold px-6 py-3 rounded-xl shadow-lg"
-                        >
-                          <Trash2 className="h-5 w-5 mr-2" />
-                          Delete Account
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent>
-                        <DialogHeader>
-                          <DialogTitle>Delete Account</DialogTitle>
-                        </DialogHeader>
-                        <div className="space-y-4">
-                          <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4">
-                            <p className="text-sm text-destructive font-medium mb-2">
-                              ⚠️ This action cannot be undone!
-                            </p>
-                            <p className="text-sm text-muted-foreground">
-                              This will permanently delete your account and all
-                              associated data including:
-                            </p>
-                            <ul className="text-sm text-muted-foreground mt-2 list-disc list-inside">
-                              <li>All your products and listings</li>
-                              <li>Order history and transactions</li>
-                              <li>Messages and conversations</li>
-                              <li>Reviews and ratings</li>
-                              <li>Wallet and payout history</li>
-                            </ul>
-                          </div>
+                    </div>
+                    Profile Information
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <Label
+                        htmlFor="full_name"
+                        className="text-sm font-semibold text-gray-700"
+                      >
+                        Full Name *
+                      </Label>
+                      <Input
+                        id="full_name"
+                        value={profile.full_name}
+                        disabled
+                        className="bg-gray-50 text-gray-700 cursor-not-allowed border-gray-200 rounded-lg"
+                      />
+                    </div>
 
-                          <div className="space-y-2">
-                            <Label htmlFor="confirm-name">
-                              Type your full name{" "}
-                              <strong>"{profile.full_name}"</strong> to confirm:
+                    <div className="space-y-2">
+                      <Label
+                        htmlFor="email"
+                        className="text-sm font-semibold text-gray-700"
+                      >
+                        Email
+                      </Label>
+                      <Input
+                        id="email"
+                        value={profile.email}
+                        disabled
+                        className="bg-gray-50 text-gray-700 cursor-not-allowed border-gray-200 rounded-lg"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        Email cannot be changed
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label
+                        htmlFor="university"
+                        className="text-sm font-semibold text-gray-700"
+                      >
+                        University
+                      </Label>
+                      <Input
+                        id="university"
+                        value={profile.university_name || ""}
+                        disabled
+                        className="bg-gray-50 text-gray-700 cursor-not-allowed border-gray-200 rounded-lg"
+                        placeholder="Not set"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        University cannot be changed after registration
+                      </p>
+                    </div>
+
+                    {profile.account_type === "seller" && (
+                      <>
+                        <div className="space-y-2">
+                          <Label
+                            htmlFor="student_id"
+                            className="text-sm font-semibold text-gray-700"
+                          >
+                            Student ID
+                          </Label>
+                          <Input
+                            id="student_id"
+                            value={profile.student_id || ""}
+                            disabled
+                            className="bg-gray-50 text-gray-700 cursor-not-allowed border-gray-200 rounded-lg"
+                            placeholder="Not set"
+                          />
+                          <p className="text-xs text-gray-500 mt-1">
+                            Student ID cannot be changed after registration
+                          </p>
+                        </div>
+
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <Label
+                              htmlFor="phone"
+                              className="text-sm font-semibold text-gray-700"
+                            >
+                              Phone Number
                             </Label>
-                            <Input
-                              id="confirm-name"
-                              value={deleteConfirmName}
-                              onChange={(e) =>
-                                setDeleteConfirmName(e.target.value)
-                              }
-                              placeholder="Enter your full name"
-                            />
-                          </div>
-
-                          <div className="flex gap-2 pt-4">
                             <Button
                               variant="outline"
+                              size="sm"
                               onClick={() => {
-                                setDeleteModalOpen(false);
-                                setDeleteConfirmName("");
+                                setNewPhoneNumber(profile.phone_number || "");
+                                setEditingPhoneNumber(true);
                               }}
-                              className="flex-1"
+                              className="text-xs px-2 py-1 h-6"
                             >
-                              Cancel
-                            </Button>
-                            <Button
-                              variant="destructive"
-                              onClick={handleDeleteAccount}
-                              disabled={
-                                deleting ||
-                                deleteConfirmName !== profile.full_name
-                              }
-                              className="flex-1"
-                            >
-                              {deleting ? "Deleting..." : "Delete Account"}
+                              Edit
                             </Button>
                           </div>
+                          <Input
+                            id="phone"
+                            value={profile.phone_number || ""}
+                            disabled
+                            className="bg-gray-50 text-gray-700 cursor-not-allowed border-gray-200 rounded-lg"
+                            placeholder="Not set"
+                          />
+                          <p className="text-xs text-gray-500 mt-1">
+                            Click Edit to change your phone number
+                          </p>
                         </div>
-                      </DialogContent>
-                    </Dialog>
+
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <Label
+                              htmlFor="business_name"
+                              className="text-sm font-semibold text-gray-700"
+                            >
+                              Business Name
+                            </Label>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setNewBusinessName(profile.business_name || "");
+                                setEditingBusinessName(true);
+                              }}
+                              className="text-xs px-2 py-1 h-6"
+                            >
+                              Edit
+                            </Button>
+                          </div>
+                          <Input
+                            id="business_name"
+                            value={profile.business_name || ""}
+                            disabled
+                            className="bg-gray-50 text-gray-700 cursor-not-allowed border-gray-200 rounded-lg"
+                            placeholder="Not set"
+                          />
+                          <p className="text-xs text-gray-500 mt-1">
+                            Click Edit to change your business name
+                          </p>
+                        </div>
+                      </>
+                    )}
                   </div>
-                </div>
-              </CardContent>
-            </Card>
+
+                  <div className="space-y-2">
+                    <Label
+                      htmlFor="bio"
+                      className="text-sm font-semibold text-gray-700"
+                    >
+                      Bio
+                    </Label>
+                    <Textarea
+                      id="bio"
+                      value={profile.bio || ""}
+                      disabled
+                      className="bg-gray-50 text-gray-700 cursor-not-allowed border-gray-200 rounded-lg"
+                      placeholder="Tell others about yourself..."
+                      rows={3}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label
+                      htmlFor="account_type"
+                      className="text-sm font-semibold text-gray-700"
+                    >
+                      Account Type
+                    </Label>
+                    <select
+                      value={
+                        profile.account_type === "seller" &&
+                        profile.seller_status === "pending"
+                          ? "pending"
+                          : profile.account_type === "seller"
+                            ? "both"
+                            : profile.account_type
+                      }
+                      disabled={true}
+                      className="w-full h-10 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm cursor-not-allowed"
+                    >
+                      <option value="buyer">Buyer Only</option>
+                      <option value="pending">
+                        Buyer waiting to be approved as a seller
+                      </option>
+                      <option value="both">Both Buyer & Seller</option>
+                    </select>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Account type cannot be changed. Contact support if you
+                      need assistance.
+                    </p>
+                  </div>
+
+                  {/* Student ID Photo Section */}
+                  {(profile.account_type === "seller" ||
+                    profile.account_type === "both") && (
+                    <div className="space-y-3">
+                      <Label className="text-sm font-semibold text-gray-700">
+                        Student ID Card
+                      </Label>
+                      {profile.student_id_photo_url ? (
+                        <div className="mt-3 p-6 border border-gray-200 rounded-xl bg-gray-50/50">
+                          <img
+                            src={profile.student_id_photo_url}
+                            alt="Student ID Card"
+                            className="max-w-full h-auto rounded border"
+                            style={{ maxHeight: "200px" }}
+                            onError={(e) => {
+                              console.error(
+                                "Failed to load student ID photo:",
+                                profile.student_id_photo_url,
+                              );
+                              e.currentTarget.style.display = "none";
+                            }}
+                          />
+                          <p className="text-xs text-gray-500 mt-3">
+                            Student ID card uploaded during registration
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="mt-3 p-6 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50/50">
+                          <div className="text-center">
+                            <p className="text-sm text-gray-600 mb-4">
+                              No student ID card uploaded yet
+                            </p>
+                            <div className="border-2 border-dashed border-gray-200 rounded-xl p-6 text-center bg-white/50">
+                              <div className="text-sm font-semibold mb-3 text-gray-700">
+                                Student ID Card
+                              </div>
+                              <CompressedImageUpload
+                                onUpload={handleStudentIdUpload}
+                                bucket="verification-photos"
+                                path={`${user?.id}/student-id-${Date.now()}.jpg`}
+                                uploading={uploadingStudentId}
+                                setUploading={setUploadingStudentId}
+                                label="Take/Upload ID"
+                              />
+                            </div>
+                            <p className="text-xs text-gray-500 mt-3">
+                              Required for seller verification
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Account Deletion Section */}
+                  <div className="border-t border-gray-200 pt-8 mt-8">
+                    <div className="bg-red-50 border border-red-200 rounded-xl p-6">
+                      <h3 className="text-xl font-bold text-red-700 mb-3 flex items-center gap-2">
+                        <svg
+                          className="w-6 h-6"
+                          fill="currentColor"
+                          viewBox="0 0 20 20"
+                        >
+                          <path
+                            fillRule="evenodd"
+                            d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                        Danger Zone
+                      </h3>
+                      <p className="text-sm text-red-600 mb-6">
+                        Once you delete your account, there is no going back.
+                        Please be certain.
+                      </p>
+                      <Dialog
+                        open={deleteModalOpen}
+                        onOpenChange={setDeleteModalOpen}
+                      >
+                        <DialogTrigger asChild>
+                          <Button
+                            variant="destructive"
+                            className="w-full sm:w-auto bg-red-600 hover:bg-red-700 font-semibold px-6 py-3 rounded-xl shadow-lg"
+                          >
+                            <Trash2 className="h-5 w-5 mr-2" />
+                            Delete Account
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>Delete Account</DialogTitle>
+                          </DialogHeader>
+                          <div className="space-y-4">
+                            <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4">
+                              <p className="text-sm text-destructive font-medium mb-2">
+                                ⚠️ This action cannot be undone!
+                              </p>
+                              <p className="text-sm text-muted-foreground">
+                                This will permanently delete your account and
+                                all associated data including:
+                              </p>
+                              <ul className="text-sm text-muted-foreground mt-2 list-disc list-inside">
+                                <li>All your products and listings</li>
+                                <li>Order history and transactions</li>
+                                <li>Messages and conversations</li>
+                                <li>Reviews and ratings</li>
+                                <li>Wallet and payout history</li>
+                              </ul>
+                            </div>
+
+                            <div className="space-y-2">
+                              <Label htmlFor="confirm-name">
+                                Type your full name{" "}
+                                <strong>"{profile.full_name}"</strong> to
+                                confirm:
+                              </Label>
+                              <Input
+                                id="confirm-name"
+                                value={deleteConfirmName}
+                                onChange={(e) =>
+                                  setDeleteConfirmName(e.target.value)
+                                }
+                                placeholder="Enter your full name"
+                              />
+                            </div>
+
+                            <div className="flex gap-2 pt-4">
+                              <Button
+                                variant="outline"
+                                onClick={() => {
+                                  setDeleteModalOpen(false);
+                                  setDeleteConfirmName("");
+                                }}
+                                className="flex-1"
+                              >
+                                Cancel
+                              </Button>
+                              <Button
+                                variant="destructive"
+                                onClick={handleDeleteAccount}
+                                disabled={
+                                  deleting ||
+                                  deleteConfirmName !== profile.full_name
+                                }
+                                className="flex-1"
+                              >
+                                {deleting ? "Deleting..." : "Delete Account"}
+                              </Button>
+                            </div>
+                          </div>
+                        </DialogContent>
+                      </Dialog>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </div>
-        </div>
         </main>
       </PullToRefresh>
 
