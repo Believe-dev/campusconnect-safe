@@ -33,6 +33,10 @@ import {
   Wallet,
   Upload,
   X,
+  Share2,
+  Copy,
+  Check,
+  ExternalLink,
 } from "lucide-react";
 import WalletDashboard from "@/components/wallet/WalletDashboard";
 
@@ -85,6 +89,8 @@ const Dashboard = () => {
   const [isRealTimeConnected, setIsRealTimeConnected] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [newImages, setNewImages] = useState<File[]>([]);
+  const [sellerId, setSellerId] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
   const handleRefresh = useCallback(async () => {
@@ -189,6 +195,8 @@ const Dashboard = () => {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) return;
+
+      setSellerId(user.id);
 
       const { data: profile, error } = await supabase
         .from("profiles")
@@ -602,12 +610,55 @@ const Dashboard = () => {
                 <span>Updated {lastUpdated.toLocaleTimeString()}</span>
               </div>
             </div>
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+            {sellerId && (() => {
+              const storeUrl = `https://unimarket.com.ng/seller/${sellerId}`;
+              const handleCopy = async () => {
+                try {
+                  await navigator.clipboard.writeText(storeUrl);
+                } catch {
+                  const ta = document.createElement('textarea');
+                  ta.value = storeUrl;
+                  ta.style.cssText = 'position:fixed;left:-9999px';
+                  document.body.appendChild(ta);
+                  ta.select();
+                  document.execCommand('copy');
+                  ta.remove();
+                }
+                setCopied(true);
+                toast({ title: 'Store link copied!', description: storeUrl });
+                setTimeout(() => setCopied(false), 2000);
+              };
+              const handleShare = async () => {
+                if (navigator.share) {
+                  await navigator.share({ title: 'My UniMarket Store', url: storeUrl });
+                } else {
+                  handleCopy();
+                }
+              };
+              return (
+                <div className="flex items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2 text-sm w-full sm:w-auto">
+                  <span className="text-muted-foreground hidden sm:inline truncate max-w-[180px]">{storeUrl}</span>
+                  <span className="text-muted-foreground sm:hidden text-xs">My Store Link</span>
+                  <button onClick={handleCopy} className="ml-auto shrink-0 p-1 rounded hover:bg-muted transition-colors" title="Copy link">
+                    {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                  </button>
+                  <button onClick={handleShare} className="shrink-0 p-1 rounded hover:bg-muted transition-colors" title="Share">
+                    <Share2 className="h-4 w-4" />
+                  </button>
+                  <button onClick={() => navigate(`/seller/${sellerId}`)} className="shrink-0 p-1 rounded hover:bg-muted transition-colors" title="Preview store">
+                    <ExternalLink className="h-4 w-4" />
+                  </button>
+                </div>
+              );
+            })()}
             <Button variant="brand" asChild className="w-full sm:w-auto">
               <a href="/sell">
                 <Plus className="h-4 w-4" />
                 Add Product
               </a>
             </Button>
+          </div>
           </div>
 
           {/* Overview Cards */}

@@ -24,6 +24,10 @@ import {
   Eye,
   Headphones,
   Edit3,
+  Share2,
+  Copy,
+  Check,
+  ExternalLink,
 } from "lucide-react";
 import {
   Dialog,
@@ -106,6 +110,42 @@ const Profile = () => {
   const [newBusinessName, setNewBusinessName] = useState("");
   const [editingPhoneNumber, setEditingPhoneNumber] = useState(false);
   const [newPhoneNumber, setNewPhoneNumber] = useState("");
+  const [storeLinkCopied, setStoreLinkCopied] = useState(false);
+
+  const storeUrl = user && (profile?.account_type === "seller" || profile?.account_type === "both") && profile?.seller_status === "approved"
+    ? `https://unimarket.com.ng/seller/${user.id}`
+    : null;
+
+  const handleStoreLinkCopy = async () => {
+    if (!storeUrl) return;
+    try {
+      await navigator.clipboard.writeText(storeUrl);
+    } catch {
+      const ta = document.createElement("textarea");
+      ta.value = storeUrl;
+      ta.style.cssText = "position:fixed;left:-9999px";
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      ta.remove();
+    }
+    setStoreLinkCopied(true);
+    toast({ title: "Store link copied!", description: storeUrl });
+    setTimeout(() => setStoreLinkCopied(false), 2000);
+  };
+
+  const handleStoreLinkShare = async () => {
+    if (!storeUrl) return;
+    if (navigator.share) {
+      await navigator.share({
+        title: `${profile?.business_name || profile?.full_name}'s Store`,
+        text: "Check out my store on UniMarket!",
+        url: storeUrl,
+      });
+    } else {
+      handleStoreLinkCopy();
+    }
+  };
   const handleRefresh = useCallback(async () => {
     await fetchProfile();
   }, []);
@@ -1065,6 +1105,32 @@ const Profile = () => {
                             </div>
                           </div>
                         )}
+
+                      {/* Store Link - Only for approved sellers */}
+                      {storeUrl && (
+                        <div className="mt-6 p-4 bg-gradient-to-r from-emerald-50 to-green-50 rounded-xl border border-emerald-200">
+                          <p className="text-xs font-semibold text-emerald-800 mb-2 flex items-center gap-1">
+                            <Share2 className="h-3 w-3" /> My Store Link
+                          </p>
+                          <p className="text-xs text-emerald-700 break-all mb-3 font-mono bg-white/60 px-2 py-1 rounded">
+                            {storeUrl}
+                          </p>
+                          <div className="grid grid-cols-3 gap-2">
+                            <Button size="sm" variant="outline" onClick={handleStoreLinkCopy} className="text-xs border-emerald-300 text-emerald-700 hover:bg-emerald-50">
+                              {storeLinkCopied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                              <span className="ml-1">{storeLinkCopied ? "Copied" : "Copy"}</span>
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={handleStoreLinkShare} className="text-xs border-emerald-300 text-emerald-700 hover:bg-emerald-50">
+                              <Share2 className="h-3 w-3" />
+                              <span className="ml-1">Share</span>
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => window.open(storeUrl, "_blank")} className="text-xs border-emerald-300 text-emerald-700 hover:bg-emerald-50" title="Preview store">
+                              <ExternalLink className="h-3 w-3" />
+                              <span className="ml-1">View</span>
+                            </Button>
+                          </div>
+                        </div>
+                      )}
 
                       {/* Account Type Display - For All Users */}
                       <div className="mt-6 space-y-4">
