@@ -1,20 +1,24 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/enhanced-button";
 import { PullToRefresh } from "@/components/common/PullToRefresh";
-
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   Search as SearchIcon,
-  Filter,
   SlidersHorizontal,
   ShoppingCart,
-  MessageCircle,
-  MapPin,
-  Star,
+  GraduationCap,
+  Globe,
 } from "lucide-react";
 
 import { expandSearchTerms } from "@/utils/searchUtils";
@@ -92,15 +96,15 @@ const Search = () => {
   const userUniversity = profile?.university_name || null;
   const [cartItems, setCartItems] = useState<string[]>([]);
   const [showOtherSchools, setShowOtherSchools] = useState(false);
-  const [universityProducts, setUniversityProducts] = useState<SearchResult[]>(
-    []
-  );
-  const [otherSchoolProducts, setOtherSchoolProducts] = useState<
-    SearchResult[]
-  >([]);
-  const [tryTheseOutProducts, setTryTheseOutProducts] = useState<
-    SearchResult[]
-  >([]);
+  const [universityProducts, setUniversityProducts] = useState<SearchResult[]>([]);
+  const [otherSchoolProducts, setOtherSchoolProducts] = useState<SearchResult[]>([]);
+  const [tryTheseOutProducts, setTryTheseOutProducts] = useState<SearchResult[]>([]);
+  // Popup: ask user on first search whether to scope to their uni or all
+  const [showScopeDialog, setShowScopeDialog] = useState(false);
+  const [pendingQuery, setPendingQuery] = useState("");
+  // Sentinel ref for end-of-results banner
+  const endOfResultsRef = useRef<HTMLDivElement>(null);
+  const [showEndBanner, setShowEndBanner] = useState(false);
 
   useEffect(() => {
     checkAuth();
@@ -137,11 +141,20 @@ const Search = () => {
 
   useEffect(() => {
     const query = searchParams.get("q");
-    if (query) {
-      setSearchQuery(query);
-    }
+    if (query) setSearchQuery(query);
     searchProducts();
   }, [searchParams, showOtherSchools]);
+
+  // IntersectionObserver — show end-of-results banner when user reaches bottom
+  useEffect(() => {
+    if (!endOfResultsRef.current) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting && products.length > 0 && !showOtherSchools) setShowEndBanner(true); },
+      { threshold: 0.5 }
+    );
+    observer.observe(endOfResultsRef.current);
+    return () => observer.disconnect();
+  }, [products, showOtherSchools]);
 
   const handleRefresh = useCallback(async () => {
     await searchProducts();
@@ -659,12 +672,27 @@ const Search = () => {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    const params = new URLSearchParams(searchParams);
-    if (searchQuery.trim()) {
-      params.set("q", searchQuery.trim());
+    const q = searchQuery.trim();
+    if (!q) return;
+    // Read university directly from profile at call time — never stale
+    const uni = profile?.university_name || null;
+    if (uni) {
+      setPendingQuery(q);
+      setShowScopeDialog(true);
+      // Do NOT touch searchParams here — confirmScope will do it
     } else {
-      params.delete("q");
+      const params = new URLSearchParams(searchParams);
+      params.set("q", q);
+      setSearchParams(params);
     }
+  };
+
+  const confirmScope = (allSchools: boolean) => {
+    setShowScopeDialog(false);
+    setShowOtherSchools(allSchools);
+    setShowEndBanner(false);
+    const params = new URLSearchParams(searchParams);
+    params.set("q", pendingQuery);
     setSearchParams(params);
   };
 
@@ -733,6 +761,36 @@ const Search = () => {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Scope picker dialog — shown when user searches and has a university */}
+      <Dialog open={showScopeDialog} onOpenChange={setShowScopeDialog}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Where should we search?</DialogTitle>
+            <DialogDescription>
+              Search for "{pendingQuery}" — choose your scope.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-3 pt-2">
+            <button
+              onClick={() => confirmScope(false)}
+              className="flex flex-col items-center gap-2 rounded-xl border-2 border-primary bg-primary/5 p-4 hover:bg-primary/10 transition-colors"
+            >
+              <GraduationCap className="h-7 w-7 text-primary" />
+              <span className="text-sm font-semibold text-center leading-tight">My University Only</span>
+              <span className="text-xs text-muted-foreground text-center">{userUniversity}</span>
+            </button>
+            <button
+              onClick={() => confirmScope(true)}
+              className="flex flex-col items-center gap-2 rounded-xl border-2 border-muted p-4 hover:border-primary hover:bg-muted/50 transition-colors"
+            >
+              <Globe className="h-7 w-7 text-muted-foreground" />
+              <span className="text-sm font-semibold text-center leading-tight">All Universities</span>
+              <span className="text-xs text-muted-foreground text-center">Search everywhere</span>
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <PullToRefresh onRefresh={handleRefresh} className="min-h-screen">
         <main className="container mx-auto px-4 py-8">
           <div className="max-w-7xl mx-auto">
@@ -745,12 +803,6 @@ const Search = () => {
                     placeholder="Describe what you're looking for (e.g., 'red bag', 'black laptop')..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    onKeyPress={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        handleSearch(e);
-                      }
-                    }}
                     className="pl-10"
                   />
                 </div>
@@ -769,26 +821,10 @@ const Search = () => {
 
               {searchParams.get("q") && (
                 <p className="text-muted-foreground">
-                  Search results for "
-                  <span className="font-medium">{searchParams.get("q")}</span>"
-                  {!loading && (
-                    <span>
-                      {" "}
-                      • {products.length} product
-                      {products.length !== 1 ? "s" : ""} found
-                    </span>
-                  )}
-                  <br />
-                  <span className="text-xs text-muted-foreground mt-1 block">
-                    {userUniversity
-                      ? `Showing products from ${userUniversity} first`
-                      : "Showing matching results first, followed by other products"}
-                  </span>
+                  Results for "<span className="font-medium">{searchParams.get("q")}</span>"
+                  {!loading && <span> • {products.length} found{userUniversity && !showOtherSchools ? ` at ${userUniversity}` : " across all universities"}</span>}
                 </p>
               )}
-              <div className="mt-2 text-xs mb-2 text-muted-foreground bg-muted/30 p-2 rounded border">
-                📌 Verified sellers' products are shown first in search results
-              </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -930,14 +966,21 @@ const Search = () => {
                       <CardContent className="pt-6 text-center mb-7">
                         <SearchIcon className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
                         <h3 className="text-lg font-medium mb-2">
-                          {searchParams.get("q")
-                            ? `No product "${searchParams.get("q")}" found`
-                            : "No products found"}
+                          {searchParams.get("q") ? `No results for "${searchParams.get("q")}"${userUniversity && !showOtherSchools ? ` at ${userUniversity}` : ""}` : "No products found"}
                         </h3>
-                        <p className="text-muted-foreground mb-4">
-                          Try adjusting your search terms or filters
-                        </p>
-                        <Button onClick={clearFilters}>Clear Filters</Button>
+                        {userUniversity && !showOtherSchools ? (
+                          <>
+                            <p className="text-muted-foreground mb-4">Nothing found at your university. Try searching across all schools.</p>
+                            <Button onClick={() => confirmScope(true)} className="gap-2">
+                              <Globe className="h-4 w-4" /> Search All Universities
+                            </Button>
+                          </>
+                        ) : (
+                          <>
+                            <p className="text-muted-foreground mb-4">Try adjusting your search terms or filters.</p>
+                            <Button onClick={clearFilters}>Clear Filters</Button>
+                          </>
+                        )}
                       </CardContent>
                     </Card>
 
@@ -1096,19 +1139,14 @@ const Search = () => {
                   </div>
                 ) : (
                   <div className="space-y-6">
-                    {/* Other Schools Products - Show first when button is clicked */}
+                    {/* Other Schools Products */}
                     {showOtherSchools && otherSchoolProducts.length > 0 && (
                       <div>
                         <div className="flex items-center justify-between mb-3 sm:mb-4 px-1">
                           <h3 className="text-base sm:text-lg font-semibold text-muted-foreground">
                             Products from Other Schools
                           </h3>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setShowOtherSchools(false)}
-                            className="text-xs px-2 py-1"
-                          >
+                          <Button variant="outline" size="sm" onClick={() => { setShowOtherSchools(false); setShowEndBanner(false); }} className="text-xs px-2 py-1">
                             Hide
                           </Button>
                         </div>
@@ -1262,36 +1300,10 @@ const Search = () => {
                     {/* University Products */}
                     {userUniversity && universityProducts.length > 0 && (
                       <div>
-                        <div className="flex items-center gap-2 mb-6">
-                          <h3 className="text-base sm:text-lg font-semibold h-fit text-university-green px-1">
+                        <div className="flex items-center gap-2 mb-4 px-1">
+                          <h3 className="text-base sm:text-lg font-semibold text-university-green flex-1">
                             Products from {userUniversity}
                           </h3>
-                          {/* Show Other Schools Button */}
-                          {userUniversity &&
-                            otherSchoolProducts.length >= 0 && (
-                              <div className="text-center">
-                                <Button
-                                  variant="outline"
-                                  onClick={() =>
-                                    setShowOtherSchools(!showOtherSchools)
-                                  }
-                                  className="w-full sm:w-auto px-4 sm:px-8 py-2 text-xs sm:text-sm bg-green-500 text-white"
-                                >
-                                  <span className="sm:hidden">
-                                    {showOtherSchools
-                                      ? "Hide"
-                                      : "Show Products from Other Schools"}{" "}
-                                    ({otherSchoolProducts.length})
-                                  </span>
-                                  <span className="hidden sm:inline">
-                                    {showOtherSchools
-                                      ? "Hide Products from Other Schools"
-                                      : "Show Products from Other Schools"}{" "}
-                                    ({otherSchoolProducts.length})
-                                  </span>
-                                </Button>
-                              </div>
-                            )}
                         </div>
                         <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-4 px-1 sm:px-0">
                           {universityProducts.map((item) => {
@@ -1434,10 +1446,23 @@ const Search = () => {
                       </div>
                     )}
 
+                    {/* End-of-results sentinel + banner */}
+                    <div ref={endOfResultsRef} className="h-1" />
+                    {showEndBanner && !showOtherSchools && userUniversity && otherSchoolProducts.length > 0 && (
+                      <div className="rounded-xl border bg-muted/50 p-5 text-center space-y-3 my-4">
+                        <Globe className="h-8 w-8 mx-auto text-muted-foreground" />
+                        <p className="font-semibold">Can't find what you need?</p>
+                        <p className="text-sm text-muted-foreground">There are {otherSchoolProducts.length} more result{otherSchoolProducts.length !== 1 ? "s" : ""} from other universities.</p>
+                        <Button onClick={() => { setShowOtherSchools(true); setShowEndBanner(false); }} className="gap-2">
+                          <Globe className="h-4 w-4" /> Search Other Universities
+                        </Button>
+                      </div>
+                    )}
+
                     {/* Try These Out Section */}
                     {tryTheseOutProducts.length > 0 && (
                       <div>
-                        <h3 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4 mt-28 text-muted-foreground px-1">
+                        <h3 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4 mt-8 text-muted-foreground px-1">
                           You can try these out
                         </h3>
                         <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-4 px-1 sm:px-0">
