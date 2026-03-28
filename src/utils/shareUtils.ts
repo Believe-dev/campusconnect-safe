@@ -103,6 +103,50 @@ export const generateFacebookShareUrl = (product: Product): string => {
 };
 
 /**
+ * Generate shareable seller profile URL
+ */
+export const generateSellerProfileUrl = (sellerId: string): string => {
+  return `https://unimarket.com.ng/seller/${sellerId}`;
+};
+
+/**
+ * Share seller profile with native Web Share API or fallback to clipboard
+ */
+export const shareSellerProfile = async (seller: { user_id: string; full_name: string; business_name?: string }): Promise<boolean> => {
+  const url = generateSellerProfileUrl(seller.user_id);
+  const name = seller.business_name || seller.full_name;
+  const title = `${name} on UniMarket`;
+  const text = `Check out ${name}'s store on UniMarket!`;
+
+  if (navigator.share) {
+    try {
+      await navigator.share({ title, text, url });
+      return true;
+    } catch (error: any) {
+      if (error.name === 'AbortError') return false;
+    }
+  }
+
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(url);
+    } else {
+      const textArea = document.createElement('textarea');
+      textArea.value = url;
+      textArea.style.cssText = 'position:fixed;left:-999999px;top:-999999px';
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      document.execCommand('copy');
+      textArea.remove();
+    }
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+/**
  * Test if URL generates proper OG tags (for debugging)
  */
 export const testOGTags = (productId: string): void => {

@@ -11,13 +11,13 @@ import {
   MessageCircle,
   MapPin,
   GraduationCap,
-  ShieldCheck,
   User,
   Package,
-  Heart,
-  ShoppingCart,
   Phone,
   Headphones,
+  Share2,
+  Copy,
+  Check,
 } from "lucide-react";
 import { PremiumGameBadge } from "@/components/games/PremiumGameBadge";
 import {
@@ -29,6 +29,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { Textarea } from "@/components/ui/textarea";
+import { shareSellerProfile, generateSellerProfileUrl } from "@/utils/shareUtils";
 
 interface SellerProfile {
   id: string;
@@ -92,6 +93,19 @@ const SellerProfile = () => {
   const [showAvatarModal, setShowAvatarModal] = useState(false);
   const [gameBadge, setGameBadge] = useState<GameBadgeData | null>(null);
   const [isSellerAdmin, setIsSellerAdmin] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const handleShare = async () => {
+    if (!seller) return;
+    const shared = await shareSellerProfile(seller);
+    if (shared) {
+      setCopied(true);
+      toast({ title: navigator.share ? 'Shared!' : 'Link copied!', description: generateSellerProfileUrl(seller.user_id) });
+      setTimeout(() => setCopied(false), 2000);
+    } else {
+      toast({ title: 'Could not share', variant: 'destructive' });
+    }
+  };
 
   useEffect(() => {
     if (sellerId) {
@@ -525,15 +539,25 @@ const SellerProfile = () => {
                     </p>
                   )}
 
-                  {user && user.id !== seller.user_id && (
+                  <div className="flex flex-wrap gap-2">
+                    {user && user.id !== seller.user_id && (
+                      <Button
+                        onClick={startConversation}
+                        className="flex items-center gap-2"
+                      >
+                        <MessageCircle className="h-4 w-4" />
+                        Message Seller
+                      </Button>
+                    )}
                     <Button
-                      onClick={startConversation}
-                      className="flex items-center gap-2 w-full sm:w-auto"
+                      onClick={handleShare}
+                      variant="outline"
+                      className="flex items-center gap-2"
                     >
-                      <MessageCircle className="h-4 w-4" />
-                      Message Seller
+                      {copied ? <Check className="h-4 w-4" /> : <Share2 className="h-4 w-4" />}
+                      {copied ? 'Copied!' : 'Share Profile'}
                     </Button>
-                  )}
+                  </div>
                 </div>
               </div>
             </CardHeader>
