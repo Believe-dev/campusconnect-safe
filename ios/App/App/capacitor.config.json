@@ -1,0 +1,80 @@
+{
+	"appId": "com.unimarket.app",
+	"appName": "UniMarket",
+	"webDir": "dist",
+	"server": {
+		"androidScheme": "https",
+		"iosScheme": "capacitor",
+		"hostname": "unimarket.com.ng",
+		"allowNavigation": [
+			"unimarket.com.ng",
+			"*.unimarket.com.ng",
+			"https://unimarket.com.ng",
+			"js.paystack.co",
+			"*.supabase.co",
+			"fonts.googleapis.com",
+			"fonts.gstatic.com"
+		]
+	},
+	"ios": {
+		"contentInset": "never",
+		"scrollEnabled": true,
+		"allowsInlineMediaPlayback": true,
+		"suppressesIncrementalRendering": false,
+		"limitsNavigationsToAppBoundDomains": false,
+		"preferredContentMode": "mobile"
+	},
+	"android": {
+		"allowMixedContent": false,
+		"captureInput": true,
+		"webContentsDebuggingEnabled": false,
+		"backgroundColor": "#ffffff",
+		"resizeOnFullScreen": true
+	},
+	"plugins": {
+		"SplashScreen": {
+			"launchShowDuration": 2000,
+			"launchAutoHide": true,
+			"launchFadeOutDuration": 300,
+			"backgroundColor": "#ffffff",
+			"androidSplashResourceName": "splash",
+			"androidScaleType": "FIT_CENTER",
+			"showSpinner": false,
+			"androidSpinnerStyle": "large",
+			"iosSpinnerStyle": "small",
+			"spinnerColor": "#16a34a",
+			"splashFullScreen": false,
+			"splashImmersive": false
+		},
+		"StatusBar": {
+			"style": "LIGHT",
+			"backgroundColor": "#16a34a"
+		},
+		"Keyboard": {
+			"resize": "body",
+			"style": "DARK",
+			"resizeOnFullScreen": true
+		},
+		"PushNotifications": {
+			"presentationOptions": [
+				"badge",
+				"sound",
+				"alert"
+			]
+		}
+	},
+	"packageClassList": [
+		"AppPlugin",
+		"CAPBrowserPlugin",
+		"CAPCameraPlugin",
+		"FilesystemPlugin",
+		"HapticsPlugin",
+		"KeyboardPlugin",
+		"LocalNotificationsPlugin",
+		"CAPNetworkPlugin",
+		"PushNotificationsPlugin",
+		"SharePlugin",
+		"SplashScreenPlugin",
+		"StatusBarPlugin"
+	]
+}
