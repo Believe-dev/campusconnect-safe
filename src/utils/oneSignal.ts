@@ -11,6 +11,12 @@ export const initializeOneSignal = async () => {
       return;
     }
     
+    // Skip OneSignal on native mobile apps (Capacitor)
+    if ((window as any).Capacitor) {
+      console.log('OneSignal skipped on native mobile app - using Capacitor LocalNotifications instead');
+      return;
+    }
+    
     await OneSignal.init({
       appId: ONESIGNAL_APP_ID,
       allowLocalhostAsSecureOrigin: true,
@@ -45,6 +51,7 @@ export const initializeOneSignal = async () => {
     return true;
   } catch (error) {
     console.error('OneSignal initialization failed:', error);
+    return false;
   }
 };
 

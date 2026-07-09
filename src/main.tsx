@@ -59,16 +59,38 @@ const Chat = React.lazy(() => import('./pages/Chat').catch(() => ({ default: () 
 const TermsOfService = React.lazy(() => import('./pages/TermsOfService').catch(() => ({ default: () => <div>Error loading page</div> })));
 const PrivacyPolicy = React.lazy(() => import('./pages/PrivacyPolicy').catch(() => ({ default: () => <div>Error loading page</div> })));
 
-// Clear all caches on app start
+// Clear all caches on app start (skip on native mobile)
 const clearAllCaches = async () => {
-  if ('caches' in window) {
-    const cacheNames = await caches.keys();
-    await Promise.all(cacheNames.map(name => caches.delete(name)));
+  try {
+    // Skip cache clearing on native mobile apps
+    if ((window as any).Capacitor) {
+      console.log('Cache clearing skipped on native mobile app');
+      return;
+    }
+    
+    if ('caches' in window) {
+      const cacheNames = await caches.keys();
+      await Promise.all(cacheNames.map(name => caches.delete(name)));
+      console.log('Caches cleared');
+    }
+  } catch (error) {
+    console.error('Cache clearing error:', error);
   }
 };
 
 // Clear caches on load
 clearAllCaches();
+
+// Global error handler for debugging
+window.addEventListener('error', (event) => {
+  console.error('Global error:', event.error);
+  console.error('Error message:', event.message);
+  console.error('Error source:', event.filename, 'Line:', event.lineno);
+});
+
+window.addEventListener('unhandledrejection', (event) => {
+  console.error('Unhandled promise rejection:', event.reason);
+});
 
 // Memory-optimized query client for low memory devices
 const isLowMemory = (navigator as any).deviceMemory < 2 || navigator.hardwareConcurrency < 4;
@@ -122,17 +144,27 @@ const AppContent = () => {
   
   useEffect(() => {
     const setupNotifications = async () => {
-      // Register service worker
-      if ('serviceWorker' in navigator) {
-        try {
-          await navigator.serviceWorker.register('/sw.js');
-        } catch (error) {
-          // Service worker registration failed silently
+      try {
+        // Skip service worker on native mobile apps
+        if (!(window as any).Capacitor) {
+          // Register service worker only on web
+          if ('serviceWorker' in navigator) {
+            try {
+              await navigator.serviceWorker.register('/sw.js');
+              console.log('Service worker registered');
+            } catch (error) {
+              console.log('Service worker registration failed:', error);
+            }
+          }
+          
+          await requestNotificationPermission();
+          await initializeOneSignal();
+        } else {
+          console.log('Running on native mobile app - using Capacitor notifications');
         }
+      } catch (error) {
+        console.error('Notification setup error:', error);
       }
-      
-      await requestNotificationPermission();
-      await initializeOneSignal();
     };
     setupNotifications();
   }, []);
