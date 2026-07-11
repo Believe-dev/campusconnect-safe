@@ -25,6 +25,7 @@ import { expandSearchTerms } from "@/utils/searchUtils";
 import { performAISearch, expandAISearchTerms } from "@/utils/aiSearch";
 import { NIGERIAN_UNIVERSITIES } from "@/lib/constants";
 import { useProfile } from "@/contexts/ProfileContext";
+import { useCartCount } from "@/contexts/CartCountContext";
 
 interface SearchProduct {
   id: string;
@@ -81,6 +82,7 @@ const universities = ["All Universities", ...NIGERIAN_UNIVERSITIES];
 
 const Search = () => {
   const navigate = useNavigate();
+  const { refetch: refetchCartCount } = useCartCount();
   const [searchParams, setSearchParams] = useSearchParams();
   const [products, setProducts] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(true);
@@ -751,9 +753,7 @@ const Search = () => {
       setCartItems((prev) => [...prev, productId]);
 
       // Trigger cart count refresh
-      if (window.refreshCartCount) {
-        window.refreshCartCount();
-      }
+      refetchCartCount();
     } catch (error) {
       // Error handled silently
     }

@@ -41,13 +41,21 @@ export const BUSINESS_RULES = {
     disputeWindowDays: 14,
   },
   delivery: {
-    flatRate: 0, // ₦2,000
+    // Flat fee for delivery anywhere around Igbinedion University. Paid
+    // directly to the delivery driver, not collected through checkout — only
+    // offered to students at IGBINEDION_UNIVERSITY (see below); other campuses
+    // have no delivery pricing configured, so pickup is their only option.
+    flatRate: 1500,
   },
   pagination: {
     defaultLimit: (navigator as any).deviceMemory < 2 ? 10 : 20,
     maxLimit: (navigator as any).deviceMemory < 2 ? 50 : 100,
   },
 } as const;
+
+// Exact string used across the UNIVERSITIES list, signup form, and profile
+// records — the flat delivery rate above only applies to this campus.
+export const IGBINEDION_UNIVERSITY = "Igbinedion University";
 
 export const UI_CONFIG = {
   breakpoints: {

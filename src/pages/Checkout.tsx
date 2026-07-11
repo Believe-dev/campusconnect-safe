@@ -2,34 +2,43 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
-import { Button } from "@/components/ui/enhanced-button";
-import { SAFE_PROFILE_SELECT } from "@/lib/profileSecurity";
-import { API_CONFIG } from "@/lib/constants";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
+import { API_CONFIG, BUSINESS_RULES, IGBINEDION_UNIVERSITY } from "@/lib/constants";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
+import { Tag } from "@/components/ui/tag";
+import { IconButton } from "@/components/ui/icon-button";
 import { useToast } from "@/hooks/use-toast";
 import {
   CreditCard,
   MapPin,
   Package,
+  Truck,
   Lock,
-  ArrowLeft,
-  CheckCircle,
+  ChevronLeft,
   Shield,
   Info,
 } from "lucide-react";
 import { User } from "@supabase/supabase-js";
+
+const formatPrice = (price: number) =>
+  new Intl.NumberFormat("en-NG", {
+    style: "currency",
+    currency: "NGN",
+    maximumFractionDigits: 0,
+  }).format(price);
+
+// Matches Marketplace's filter-select treatment — rounded-2xl bordered
+// fields rather than the fully-pill rounded-full inputs the auth page
+// uses, since a dense multi-field form reads better at this size than
+// pill-shaped fields would.
+const fieldClass =
+  "h-11 w-full rounded-2xl border border-flora-ink/10 bg-white px-3.5 text-sm text-flora-ink placeholder:text-flora-muted focus:border-flora-leaf focus:outline-none focus-visible:ring-0";
+const labelClass = "text-sm font-medium text-flora-ink";
+const sectionCardClass = "rounded-3xl bg-white p-5 shadow-card sm:p-6";
+const sectionHeadingClass =
+  "mb-4 flex items-center gap-2 text-base font-semibold text-flora-ink sm:text-lg";
 
 interface CartItem {
   id: string;
@@ -52,6 +61,7 @@ interface CheckoutForm {
   email: string;
   phone: string;
   universityName: string;
+  deliveryMethod: "delivery" | "pickup";
   address: string;
   city: string;
   state: string;
@@ -69,6 +79,7 @@ const Checkout = () => {
     email: "",
     phone: "",
     universityName: "",
+    deliveryMethod: "delivery",
     address: "",
     city: "",
     state: "",
@@ -184,9 +195,9 @@ const Checkout = () => {
       "email",
       "phone",
       "universityName",
-      "address",
-      "city",
-      "state",
+      ...(formData.deliveryMethod === "delivery"
+        ? ["address", "city", "state"]
+        : []),
     ];
     for (const field of required) {
       if (!formData[field as keyof CheckoutForm]) {
@@ -294,7 +305,11 @@ const Checkout = () => {
               selected_size: items[0].selected_size || null,
               total_amount: totalAmount,
               commission_amount: commissionAmount,
-              shipping_address: `${formData.address}, ${formData.city}, ${formData.state}`,
+              delivery_method: formData.deliveryMethod,
+              shipping_address:
+                formData.deliveryMethod === "pickup"
+                  ? "Pickup"
+                  : `${formData.address}, ${formData.city}, ${formData.state}`,
               university_name: formData.universityName,
               payment_method: "paystack",
               payment_reference: paymentRef,
@@ -336,10 +351,6 @@ const Checkout = () => {
               order.id
             );
 
-            if (sellerNotifError) {
-              // Error handled silently
-            }
-
             // Send email notification to seller
             try {
               await supabase.functions.invoke("send-email", {
@@ -377,10 +388,6 @@ const Checkout = () => {
             `Your order for ${productTitles} has been placed. Total: ₦${orderTotal.toLocaleString()}`,
             order.id
           );
-
-          if (buyerNotifError) {
-            // Error handled silently
-          }
 
           // Send email confirmation to buyer
           if (buyerProfile) {
@@ -489,11 +496,11 @@ const Checkout = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background">
-        <main className="container mx-auto px-4 py-8">
+      <div className="min-h-screen bg-gradient-to-b from-flora-bgFrom to-flora-bgTo">
+        <main className="mx-auto max-w-6xl px-3 pt-6 pb-10 sm:px-6 sm:pt-8">
           <div className="animate-pulse space-y-4">
-            <div className="h-8 bg-muted rounded w-1/4"></div>
-            <div className="h-96 bg-muted rounded"></div>
+            <div className="h-8 w-1/4 rounded bg-flora-chip" />
+            <div className="h-96 rounded-3xl bg-white shadow-card" />
           </div>
         </main>
       </div>
@@ -501,334 +508,338 @@ const Checkout = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <main className="container mx-auto px-4 py-6 sm:py-8 pb-24 md:pb-8">
-        <div className="max-w-6xl mx-auto">
-          <div className="flex items-center gap-2 mb-6 sm:mb-8">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => navigate("/cart")}
-              className="h-9 w-9 sm:h-10 sm:w-10"
-            >
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-            <h1 className="text-2xl sm:text-3xl font-bold text-primary">
-              Checkout
-            </h1>
-          </div>
+    <div className="min-h-screen bg-gradient-to-b from-flora-bgFrom to-flora-bgTo">
+      <main className="mx-auto max-w-6xl px-3 pt-6 pb-10 sm:px-6 sm:pt-8">
+        <div className="flex items-center gap-3">
+          <IconButton
+            icon={ChevronLeft}
+            label="Back to cart"
+            tone="light"
+            size="sm"
+            onClick={() => navigate("/cart")}
+          />
+          <h1 className="text-3xl font-extrabold leading-tight tracking-tight text-flora-ink sm:text-4xl">
+            Checkout
+          </h1>
+        </div>
 
-          <form onSubmit={handleSubmit}>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
-              {/* Checkout Form */}
-              <div className="space-y-4 sm:space-y-6">
-                {/* Contact Information */}
-                <Card>
-                  <CardHeader className="pb-4">
-                    <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
-                      <Package className="h-4 w-4 sm:h-5 sm:w-5" />
-                      Contact Information
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-3 sm:space-y-4">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                      <div>
-                        <Label
-                          htmlFor="fullName"
-                          className="text-sm sm:text-base"
-                        >
-                          Full Name *
-                        </Label>
-                        <Input
-                          id="fullName"
-                          value={formData.fullName}
-                          onChange={(e) =>
-                            handleInputChange("fullName", e.target.value)
-                          }
-                          required
-                          className="text-sm sm:text-base"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="email" className="text-sm sm:text-base">
-                          Email *
-                        </Label>
-                        <Input
-                          id="email"
-                          type="email"
-                          value={formData.email}
-                          onChange={(e) =>
-                            handleInputChange("email", e.target.value)
-                          }
-                          required
-                          className="text-sm sm:text-base"
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <Label htmlFor="phone" className="text-sm sm:text-base">
-                        Phone Number *
-                      </Label>
-                      <Input
-                        id="phone"
-                        type="tel"
-                        value={formData.phone}
-                        onChange={(e) =>
-                          handleInputChange("phone", e.target.value)
-                        }
-                        placeholder="+234 801 234 5678"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label
-                        htmlFor="universityName"
-                        className="text-sm sm:text-base"
-                      >
-                        University Name *
-                      </Label>
-                      <Input
-                        id="universityName"
-                        value={formData.universityName}
-                        onChange={(e) =>
-                          handleInputChange("universityName", e.target.value)
-                        }
-                        placeholder="Enter your university name"
-                        required
-                      />
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Delivery Address */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <MapPin className="h-5 w-5" />
-                      Delivery Address
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div>
-                      <Label htmlFor="address">School/hostel Address *</Label>
-                      <Textarea
-                        id="address"
-                        value={formData.address}
-                        onChange={(e) =>
-                          handleInputChange("address", e.target.value)
-                        }
-                        placeholder="Enter your full address"
-                        rows={3}
-                        required
-                      />
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <Label htmlFor="city">City *</Label>
-                        <Input
-                          id="city"
-                          value={formData.city}
-                          onChange={(e) =>
-                            handleInputChange("city", e.target.value)
-                          }
-                          required
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="state">State *</Label>
-                        <div className="relative">
-                          <select
-                            value={formData.state}
-                            onChange={(e) =>
-                              handleInputChange("state", e.target.value)
-                            }
-                            className="w-full h-10 px-3 text-sm border border-input bg-background rounded-md"
-                            required
-                          >
-                            <option value="">Select or search state</option>
-                            <option value="Abia">Abia</option>
-                            <option value="Adamawa">Adamawa</option>
-                            <option value="Akwa Ibom">Akwa Ibom</option>
-                            <option value="Anambra">Anambra</option>
-                            <option value="Bauchi">Bauchi</option>
-                            <option value="Bayelsa">Bayelsa</option>
-                            <option value="Benue">Benue</option>
-                            <option value="Borno">Borno</option>
-                            <option value="Cross River">Cross River</option>
-                            <option value="Delta">Delta</option>
-                            <option value="Ebonyi">Ebonyi</option>
-                            <option value="Edo">Edo</option>
-                            <option value="Ekiti">Ekiti</option>
-                            <option value="Enugu">Enugu</option>
-                            <option value="FCT">FCT (Abuja)</option>
-                            <option value="Gombe">Gombe</option>
-                            <option value="Imo">Imo</option>
-                            <option value="Jigawa">Jigawa</option>
-                            <option value="Kaduna">Kaduna</option>
-                            <option value="Kano">Kano</option>
-                            <option value="Katsina">Katsina</option>
-                            <option value="Kebbi">Kebbi</option>
-                            <option value="Kogi">Kogi</option>
-                            <option value="Kwara">Kwara</option>
-                            <option value="Lagos">Lagos</option>
-                            <option value="Nasarawa">Nasarawa</option>
-                            <option value="Niger">Niger</option>
-                            <option value="Ogun">Ogun</option>
-                            <option value="Ondo">Ondo</option>
-                            <option value="Osun">Osun</option>
-                            <option value="Oyo">Oyo</option>
-                            <option value="Plateau">Plateau</option>
-                            <option value="Rivers">Rivers</option>
-                            <option value="Sokoto">Sokoto</option>
-                            <option value="Taraba">Taraba</option>
-                            <option value="Yobe">Yobe</option>
-                            <option value="Zamfara">Zamfara</option>
-                          </select>
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Payment Method */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <CreditCard className="h-5 w-5" />
-                      Payment Method
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="relative">
-                      <select
-                        value={formData.paymentMethod}
-                        onChange={(e) =>
-                          handleInputChange("paymentMethod", e.target.value)
-                        }
-                        className="w-full h-10 px-3 text-sm border border-input bg-background rounded-md"
-                      >
-                        <option value="paystack">
-                          Paystack (Card/Bank/Transfer)
-                        </option>
-                      </select>
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-2">
-                      Secure payment via Paystack - supports cards, bank
-                      transfers, and USSD
-                    </p>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Order Summary */}
-              <div>
-                <Card className="sticky top-4">
-                  <CardHeader>
-                    <CardTitle>Order Summary</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-3">
-                      {cartItems
-                        .filter((item) => item.products?.id)
-                        .map((item) => (
-                          <div
-                            key={item.id}
-                            className="flex items-center gap-3"
-                          >
-                            {item.products?.images?.[0] && (
-                              <img
-                                src={item.products.images[0]}
-                                alt={item.products?.title || "Product image"}
-                                className="w-12 h-12 object-cover rounded"
-                                onError={(e) => {
-                                  e.currentTarget.style.display = "none";
-                                }}
-                              />
-                            )}
-                            <div className="flex-1">
-                              <h4 className="font-medium text-sm line-clamp-1">
-                                {item.products?.title || "Unknown Product"}
-                              </h4>
-                              <p className="text-xs text-muted-foreground">
-                                by{" "}
-                                {item.products?.profiles?.full_name ||
-                                  "Unknown Seller"}
-                              </p>
-                              <div className="flex items-center gap-2 mt-1">
-                                <Badge variant="outline" className="text-xs">
-                                  Qty: {item.quantity}
-                                </Badge>
-                                {item.selected_size && (
-                                  <Badge variant="outline" className="text-xs">
-                                    Size: {item.selected_size}
-                                  </Badge>
-                                )}
-                              </div>
-                            </div>
-                            <div className="text-right">
-                              <div className="font-medium">
-                                ₦
-                                {(
-                                  (item.products?.price || 0) * item.quantity
-                                ).toLocaleString()}
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                    </div>
-
-                    <Separator />
-
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <Info className="h-3 w-3" />
-                        <span>No platform fees - Full amount goes to seller</span>
-                      </div>
-                      <div className="flex items-center gap-1 text-xs text-orange-600 bg-orange-50 p-2 rounded">
-                        <Info className="h-3 w-3" />
-                        <span>You will pay your delivery fee to the driver on delivery</span>
-                      </div>
-                    </div>
-
-                    <Separator />
-
-                    <div className="flex justify-between text-lg font-bold">
-                      <span>Total</span>
-                      <span>₦{getFinalTotal().toLocaleString()}</span>
-                    </div>
-
-                    <Button
-                      type="submit"
-                      variant="brand"
-                      className="w-full"
-                      disabled={processing}
-                    >
-                      {processing ? (
-                        <>Processing...</>
-                      ) : (
-                        <>
-                          <Lock className="h-4 w-4 mr-2" />
-                          Pay with Paystack
-                        </>
-                      )}
-                    </Button>
-
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-center gap-1 text-xs text-green-600">
-                        <Shield className="h-3 w-3" />
-                        <span>Protected by Escrow System</span>
-                      </div>
-                      <div className="text-xs text-muted-foreground text-center">
-                        <Lock className="h-3 w-3 inline mr-1" />
-                        Your payment is held securely until you confirm receipt
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+        <form onSubmit={handleSubmit} className="mt-6 lg:grid lg:grid-cols-[1fr_380px] lg:items-start lg:gap-8">
+          {/* Checkout form */}
+          <div className="space-y-5">
+            {/* Contact Information */}
+            <div className={sectionCardClass}>
+              <h2 className={sectionHeadingClass}>
+                <Package className="h-5 w-5 text-flora-leaf" aria-hidden="true" />
+                Contact Information
+              </h2>
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="fullName" className={labelClass}>
+                      Full Name *
+                    </Label>
+                    <Input
+                      id="fullName"
+                      value={formData.fullName}
+                      onChange={(e) => handleInputChange("fullName", e.target.value)}
+                      required
+                      className={fieldClass}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="email" className={labelClass}>
+                      Email *
+                    </Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      value={formData.email}
+                      onChange={(e) => handleInputChange("email", e.target.value)}
+                      required
+                      className={fieldClass}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="phone" className={labelClass}>
+                    Phone Number *
+                  </Label>
+                  <Input
+                    id="phone"
+                    type="tel"
+                    value={formData.phone}
+                    onChange={(e) => handleInputChange("phone", e.target.value)}
+                    placeholder="+234 801 234 5678"
+                    required
+                    className={fieldClass}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="universityName" className={labelClass}>
+                    University Name *
+                  </Label>
+                  <Input
+                    id="universityName"
+                    value={formData.universityName}
+                    onChange={(e) => handleInputChange("universityName", e.target.value)}
+                    placeholder="Enter your university name"
+                    required
+                    className={fieldClass}
+                  />
+                </div>
               </div>
             </div>
-          </form>
-        </div>
+
+            {/* Pickup or Delivery */}
+            <div className={sectionCardClass}>
+              <h2 className={sectionHeadingClass}>
+                <Truck className="h-5 w-5 text-flora-leaf" aria-hidden="true" />
+                Pickup or Delivery
+              </h2>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => handleInputChange("deliveryMethod", "delivery")}
+                  className={cn(
+                    "flex flex-col items-center gap-2 rounded-2xl border-2 p-4 text-sm font-medium transition",
+                    formData.deliveryMethod === "delivery"
+                      ? "border-flora-leaf bg-flora-tagBg text-flora-tagText"
+                      : "border-flora-ink/10 text-flora-muted hover:border-flora-leaf/40"
+                  )}
+                >
+                  <Truck className="h-5 w-5" aria-hidden="true" />
+                  Delivery
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleInputChange("deliveryMethod", "pickup")}
+                  className={cn(
+                    "flex flex-col items-center gap-2 rounded-2xl border-2 p-4 text-sm font-medium transition",
+                    formData.deliveryMethod === "pickup"
+                      ? "border-flora-leaf bg-flora-tagBg text-flora-tagText"
+                      : "border-flora-ink/10 text-flora-muted hover:border-flora-leaf/40"
+                  )}
+                >
+                  <Package className="h-5 w-5" aria-hidden="true" />
+                  Pickup from Seller
+                </button>
+              </div>
+              {formData.deliveryMethod === "delivery" &&
+                formData.universityName === IGBINEDION_UNIVERSITY && (
+                  <p className="mt-3 flex items-start gap-1.5 rounded-2xl bg-flora-chip p-3 text-xs text-flora-muted">
+                    <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                    {formatPrice(BUSINESS_RULES.delivery.flatRate)} delivery fee, paid
+                    directly to the driver on delivery — not charged here.
+                  </p>
+                )}
+              {formData.deliveryMethod === "pickup" && (
+                <p className="mt-3 flex items-start gap-1.5 rounded-2xl bg-flora-chip p-3 text-xs text-flora-muted">
+                  <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                  The seller will confirm a pickup location and time after payment.
+                </p>
+              )}
+            </div>
+
+            {/* Delivery Address */}
+            {formData.deliveryMethod === "delivery" && (
+              <div className={sectionCardClass}>
+                <h2 className={sectionHeadingClass}>
+                  <MapPin className="h-5 w-5 text-flora-leaf" aria-hidden="true" />
+                  Delivery Address
+                </h2>
+                <div className="space-y-4">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="address" className={labelClass}>
+                      School/hostel Address *
+                    </Label>
+                    <Textarea
+                      id="address"
+                      value={formData.address}
+                      onChange={(e) => handleInputChange("address", e.target.value)}
+                      placeholder="Enter your full address"
+                      rows={3}
+                      required
+                      className={cn(fieldClass, "h-auto py-3")}
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="city" className={labelClass}>
+                        City *
+                      </Label>
+                      <Input
+                        id="city"
+                        value={formData.city}
+                        onChange={(e) => handleInputChange("city", e.target.value)}
+                        required
+                        className={fieldClass}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="state" className={labelClass}>
+                        State *
+                      </Label>
+                      <select
+                        id="state"
+                        value={formData.state}
+                        onChange={(e) => handleInputChange("state", e.target.value)}
+                        className={fieldClass}
+                        required
+                      >
+                        <option value="">Select state</option>
+                        <option value="Abia">Abia</option>
+                        <option value="Adamawa">Adamawa</option>
+                        <option value="Akwa Ibom">Akwa Ibom</option>
+                        <option value="Anambra">Anambra</option>
+                        <option value="Bauchi">Bauchi</option>
+                        <option value="Bayelsa">Bayelsa</option>
+                        <option value="Benue">Benue</option>
+                        <option value="Borno">Borno</option>
+                        <option value="Cross River">Cross River</option>
+                        <option value="Delta">Delta</option>
+                        <option value="Ebonyi">Ebonyi</option>
+                        <option value="Edo">Edo</option>
+                        <option value="Ekiti">Ekiti</option>
+                        <option value="Enugu">Enugu</option>
+                        <option value="FCT">FCT (Abuja)</option>
+                        <option value="Gombe">Gombe</option>
+                        <option value="Imo">Imo</option>
+                        <option value="Jigawa">Jigawa</option>
+                        <option value="Kaduna">Kaduna</option>
+                        <option value="Kano">Kano</option>
+                        <option value="Katsina">Katsina</option>
+                        <option value="Kebbi">Kebbi</option>
+                        <option value="Kogi">Kogi</option>
+                        <option value="Kwara">Kwara</option>
+                        <option value="Lagos">Lagos</option>
+                        <option value="Nasarawa">Nasarawa</option>
+                        <option value="Niger">Niger</option>
+                        <option value="Ogun">Ogun</option>
+                        <option value="Ondo">Ondo</option>
+                        <option value="Osun">Osun</option>
+                        <option value="Oyo">Oyo</option>
+                        <option value="Plateau">Plateau</option>
+                        <option value="Rivers">Rivers</option>
+                        <option value="Sokoto">Sokoto</option>
+                        <option value="Taraba">Taraba</option>
+                        <option value="Yobe">Yobe</option>
+                        <option value="Zamfara">Zamfara</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Payment Method — Paystack is the only option and the order
+                logic always hardcodes it regardless, so this is shown as a
+                plain fact instead of a dropdown with nothing to choose. */}
+            <div className={sectionCardClass}>
+              <h2 className={sectionHeadingClass}>
+                <CreditCard className="h-5 w-5 text-flora-leaf" aria-hidden="true" />
+                Payment Method
+              </h2>
+              <div className="flex items-center gap-3 rounded-2xl border border-flora-ink/10 bg-flora-chip p-4">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white shadow-card">
+                  <CreditCard className="h-5 w-5 text-flora-leaf" aria-hidden="true" />
+                </span>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-flora-ink">
+                    Paystack (Card / Bank / Transfer)
+                  </p>
+                  <p className="text-xs text-flora-muted">
+                    Secure payment via Paystack — supports cards, bank transfers, and USSD
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Order Summary */}
+          <div className="mt-6 lg:sticky lg:top-24 lg:mt-0">
+            <div className="rounded-3xl bg-flora-chip p-5 sm:p-6">
+              <h2 className="text-base font-semibold text-flora-ink sm:text-lg">
+                Order Summary
+              </h2>
+
+              <div className="mt-4 space-y-3">
+                {cartItems
+                  .filter((item) => item.products?.id)
+                  .map((item) => (
+                    <div key={item.id} className="flex items-center gap-3">
+                      <img
+                        src={item.products.images?.[0] || "/placeholder.svg"}
+                        alt={item.products.title}
+                        className="h-14 w-14 shrink-0 rounded-2xl bg-white object-cover"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <h3 className="truncate text-sm font-medium text-flora-ink">
+                          {item.products.title}
+                        </h3>
+                        <p className="truncate text-xs text-flora-muted">
+                          by {item.products.profiles?.full_name || "Unknown seller"}
+                        </p>
+                        <div className="mt-1 flex flex-wrap gap-1.5">
+                          <Tag variant="outline" className="px-2.5 py-0.5 text-[11px]">
+                            Qty: {item.quantity}
+                          </Tag>
+                          {item.selected_size && (
+                            <Tag variant="outline" className="px-2.5 py-0.5 text-[11px]">
+                              Size: {item.selected_size}
+                            </Tag>
+                          )}
+                        </div>
+                      </div>
+                      <div className="shrink-0 text-sm font-semibold text-flora-ink">
+                        {formatPrice((item.products.price || 0) * item.quantity)}
+                      </div>
+                    </div>
+                  ))}
+              </div>
+
+              <div className="mt-4 space-y-2 border-t border-flora-ink/10 pt-4 text-xs text-flora-muted">
+                <p className="flex items-start gap-1.5">
+                  <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                  No platform fees — full amount goes to the seller
+                </p>
+                <p className="flex items-start gap-1.5 rounded-xl bg-flora-tagBg p-2.5 text-flora-tagText">
+                  <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                  You'll pay your delivery fee directly to the driver on delivery
+                </p>
+              </div>
+
+              <div className="mt-4 flex items-center justify-between border-t border-flora-ink/10 pt-4 text-base font-semibold text-flora-ink">
+                <span>Total</span>
+                <span>{formatPrice(getFinalTotal())}</span>
+              </div>
+
+              <button
+                type="submit"
+                disabled={processing}
+                className="mt-5 flex w-full items-center justify-center gap-2 rounded-full bg-flora-ink py-4 text-base font-medium text-white transition hover:brightness-110 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {processing ? (
+                  "Processing..."
+                ) : (
+                  <>
+                    <Lock className="h-4 w-4" aria-hidden="true" />
+                    Pay with Paystack
+                  </>
+                )}
+              </button>
+
+              <div className="mt-4 space-y-1.5 text-center">
+                <p className="flex items-center justify-center gap-1.5 text-xs font-medium text-flora-leaf">
+                  <Shield className="h-3.5 w-3.5" aria-hidden="true" />
+                  Protected by Escrow System
+                </p>
+                <p className="text-xs text-flora-muted">
+                  Your payment is held securely until you confirm receipt
+                </p>
+              </div>
+            </div>
+          </div>
+        </form>
       </main>
     </div>
   );

@@ -1,5 +1,4 @@
 import type { Config } from "tailwindcss";
-import { fontFamily } from "tailwindcss/defaultTheme";
 
 export default {
 	darkMode: ["class"],
@@ -20,7 +19,11 @@ export default {
 		},
     extend: {
       fontFamily: {
-        sans: ["Inter", ...fontFamily.sans],
+        sans: ["Outfit", "Helvetica Neue", "Arial", "sans-serif"],
+        // Editorial serif for marketing headlines only (home page hero +
+        // section titles) — everything else (nav, body, buttons, forms)
+        // stays on Outfit. Used via `font-display`.
+        display: ["Playfair Display", "Georgia", "serif"],
       },
       screens: {
         'xs': '475px',
@@ -81,12 +84,30 @@ export default {
 					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
+				},
+				flora: {
+					bgFrom: "#eef1e7",
+					bgTo: "#e2e8dc",
+					ink: "#1c211d",
+					leaf: "#5f9a3f",
+					leafBright: "#8ed957",
+					tagBg: "#dcefc7",
+					tagText: "#3f6b2a",
+					card: "#ffffff",
+					muted: "#6b7568",
+					chip: "#f2f4ee",
 				}
 			},
 			borderRadius: {
 				lg: 'var(--radius)',
 				md: 'calc(var(--radius) - 2px)',
-				sm: 'calc(var(--radius) - 4px)'
+				sm: 'calc(var(--radius) - 4px)',
+				'4xl': '2rem',
+				'5xl': '2.5rem'
+			},
+			boxShadow: {
+				floating: "0 10px 30px -10px rgba(28, 33, 29, 0.25)",
+				card: "0 8px 24px -8px rgba(28, 33, 29, 0.18)",
 			},
 			keyframes: {
 				'accordion-down': {
@@ -104,11 +125,22 @@ export default {
 					to: {
 						height: '0'
 					}
+				},
+				'deal-flip-in': {
+					'0%': { opacity: '0', transform: 'perspective(1400px) rotateY(75deg) rotate(var(--tilt, 0deg)) translateX(24px)' },
+					'60%': { opacity: '1', transform: 'perspective(1400px) rotateY(-8deg) rotate(var(--tilt, 0deg)) translateX(-4px)' },
+					'100%': { opacity: '1', transform: 'perspective(1400px) rotateY(0deg) rotate(var(--tilt, 0deg)) translateX(0)' }
+				},
+				'ring-in': {
+					'0%': { strokeDashoffset: 'var(--ring-circumference)' },
+					'100%': { strokeDashoffset: 'var(--ring-offset)' }
 				}
 			},
 			animation: {
 				'accordion-down': 'accordion-down 0.2s ease-out',
-				'accordion-up': 'accordion-up 0.2s ease-out'
+				'accordion-up': 'accordion-up 0.2s ease-out',
+				'deal-flip-in': 'deal-flip-in 700ms cubic-bezier(0.22,1,0.36,1) both',
+				'ring-in': 'ring-in 1s ease-out forwards'
 			}
 		}
 	},

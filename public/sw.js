@@ -1,6 +1,14 @@
-const CACHE_NAME = 'unimarket-v1';
-const STATIC_CACHE = 'unimarket-static-v1';
-const DYNAMIC_CACHE = 'unimarket-dynamic-v1';
+// Bumping these version suffixes (v1 -> v2) is what makes the activate
+// handler below actually purge anything — it only deletes caches whose name
+// doesn't match these constants, so as long as the constants stay the same,
+// every entry ever cached under them persists forever, un-evictable, even
+// across new deploys. This bump clears out everything cached under the old
+// cache-first strategy (see the fetch handler) that was serving the same
+// stale JS/CSS bundle indefinitely regardless of how many times the app
+// code changed.
+const CACHE_NAME = 'unimarket-v2';
+const STATIC_CACHE = 'unimarket-static-v2';
+const DYNAMIC_CACHE = 'unimarket-dynamic-v2';
 
 // Assets to cache immediately
 const STATIC_ASSETS = [
@@ -43,40 +51,61 @@ self.addEventListener('fetch', (event) => {
   
   // Skip non-GET requests
   if (request.method !== 'GET') return;
-  
+
   // Skip external requests
   if (!request.url.startsWith(self.location.origin)) return;
-  
+
+  // Never intercept Vite's dev-server-only endpoints. This matters even
+  // though registration is production-only (see App.tsx) — a service worker
+  // from an earlier prod build/preview can still be active on this origin,
+  // and without this bypass it tries to cache/serve these as normal assets,
+  // which breaks HMR and throws "Failed to convert value to 'Response'".
+  const { pathname } = new URL(request.url);
+  if (
+    pathname.startsWith('/@vite') ||
+    pathname.startsWith('/@react-refresh') ||
+    pathname.startsWith('/@id/') ||
+    pathname.startsWith('/src/') ||
+    pathname.startsWith('/node_modules/')
+  ) {
+    return;
+  }
+
+  // Network-first, not cache-first: a cached copy is only ever a fallback
+  // for when the network request fails (i.e. actually offline), never a
+  // substitute for a reachable network. The previous cache-first order
+  // meant that once any bundle was cached, it was served forever — the
+  // network was never even consulted again as long as a cache entry
+  // existed, so new deploys were invisible to anyone who'd already loaded
+  // the app once.
   event.respondWith(
-    caches.match(request)
-      .then(cachedResponse => {
-        if (cachedResponse) {
-          return cachedResponse;
+    fetch(request)
+      .then(response => {
+        if (!response || response.status !== 200 || response.type !== 'basic') {
+          return response;
         }
-        
-        return fetch(request)
-          .then(response => {
-            // Don't cache non-successful responses
-            if (!response || response.status !== 200 || response.type !== 'basic') {
-              return response;
+
+        const responseToCache = response.clone();
+        caches.open(DYNAMIC_CACHE)
+          .then(cache => {
+            cache.put(request, responseToCache);
+          });
+
+        return response;
+      })
+      .catch(() => {
+        return caches.match(request)
+          .then(cachedResponse => {
+            if (cachedResponse) {
+              return cachedResponse;
             }
-            
-            // Clone response for caching
-            const responseToCache = response.clone();
-            
-            // Cache dynamic content
-            caches.open(DYNAMIC_CACHE)
-              .then(cache => {
-                cache.put(request, responseToCache);
-              });
-            
-            return response;
-          })
-          .catch(() => {
-            // Offline fallback
             if (request.destination === 'document') {
               return caches.match('/offline.html');
             }
+            // event.respondWith() requires a Response — returning undefined
+            // here throws "Failed to convert value to 'Response'" for every
+            // non-document request that fails offline (scripts, styles, etc).
+            return Response.error();
           });
       })
   );

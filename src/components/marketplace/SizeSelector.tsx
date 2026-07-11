@@ -1,8 +1,3 @@
-import { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
-
 interface SizeSelectorProps {
   availableSizes: string[];
   selectedSize?: string;
@@ -21,29 +16,31 @@ export const SizeSelector: React.FC<SizeSelectorProps> = ({
   }
 
   return (
-    <div className="space-y-3">
-      <Label className="text-sm font-medium">
+    <div>
+      <span className="text-sm font-medium text-flora-ink">
         Select Size {required && <span className="text-red-500">*</span>}
-      </Label>
-      <div className="flex flex-wrap gap-2">
-        {availableSizes.map((size) => (
-          <Button
-            key={size}
-            variant={selectedSize === size ? "default" : "outline"}
-            size="sm"
-            onClick={() => onSizeSelect(size)}
-            className="min-w-[60px]"
-          >
-            {size}
-          </Button>
-        ))}
+      </span>
+      <div className="mt-2 flex flex-wrap gap-2" role="radiogroup" aria-label="Available sizes">
+        {availableSizes.map((size) => {
+          const isSelected = selectedSize === size;
+          return (
+            <button
+              key={size}
+              type="button"
+              role="radio"
+              aria-checked={isSelected}
+              onClick={() => onSizeSelect(size)}
+              className={`min-w-[48px] rounded-full border px-4 py-2 text-sm font-medium transition ${
+                isSelected
+                  ? "border-flora-ink bg-flora-ink text-white"
+                  : "border-flora-ink/10 bg-white/70 text-flora-ink hover:bg-white"
+              }`}
+            >
+              {size}
+            </button>
+          );
+        })}
       </div>
-      {selectedSize && (
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">Selected:</span>
-          <Badge variant="secondary">{selectedSize}</Badge>
-        </div>
-      )}
     </div>
   );
 };

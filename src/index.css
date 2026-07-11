@@ -186,12 +186,25 @@
     opacity: 1;
     transition: opacity 0.1s ease-in-out;
     min-height: 100vh;
+  }
+
+  /* Reserve space for the fixed header/bottom-nav only when they're
+     actually rendered — Header.tsx and BottomNav.tsx each toggle their
+     class in a useEffect matching their own hide/show logic. A flat,
+     unconditional body padding here caused a real gap (top *and* bottom)
+     on any page that legitimately hides both, e.g. the auth page, or any
+     page at all for a logged-out mobile visitor (BottomNav never renders
+     when signed out). */
+  body.has-fixed-header {
     padding-top: 60px;
+  }
+
+  body.has-fixed-bottom-nav {
     padding-bottom: 68px;
   }
 
   @media (min-width: 1024px) {
-    body {
+    body.has-fixed-bottom-nav {
       padding-bottom: 0;
     }
   }
@@ -491,6 +504,15 @@
       animation-duration: 0.01ms !important;
       animation-iteration-count: 1 !important;
       transition-duration: 0.01ms !important;
+    }
+
+    /* The bottom nav's active-tab slide is a functional navigation cue
+       (which tab you're on), not decorative motion — exempted from the
+       blanket reduced-motion override above by request. A class selector
+       always outweighs the `*` above regardless of source order, so this
+       doesn't need to be more specific than that. */
+    .bottom-nav-force-motion {
+      transition-duration: 300ms !important;
     }
   }
 

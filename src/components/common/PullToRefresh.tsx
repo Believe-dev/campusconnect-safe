@@ -134,7 +134,11 @@ export const PullToRefresh: React.FC<PullToRefreshProps> = ({
   return (
     <div
       ref={containerRef}
-      className={`relative overflow-auto h-full mt-4 ${className}`}
+      // No top margin here — this wrapper sits directly under the fixed
+      // site header on every page that uses it (18+ pages), so an
+      // unconditional mt-4 meant a visible gap of bare page background
+      // between the header and the actual page content everywhere at once.
+      className={`relative overflow-auto h-full ${className}`}
       style={{
         transform: `translateY(${Math.min(pullDistance * 0.3, 50)}px)`,
         transition:

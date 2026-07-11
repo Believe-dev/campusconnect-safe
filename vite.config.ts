@@ -14,6 +14,20 @@ export default defineConfig(({ mode }) => ({
     react(),
     removeConsole(),
     mode === "development" && componentTagger(),
+    // Only inject upgrade-insecure-requests in production builds — it's served
+    // over real HTTPS there. In dev (especially `--host` on a LAN IP), the page
+    // is plain HTTP and this directive forces the browser to try (and fail) to
+    // load every asset over HTTPS, producing a blank page.
+    {
+      name: "inject-production-csp",
+      apply: "build",
+      transformIndexHtml(html: string) {
+        return html.replace(
+          "</head>",
+          '    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests" />\n  </head>'
+        );
+      },
+    },
   ].filter(Boolean),
   resolve: {
     alias: {

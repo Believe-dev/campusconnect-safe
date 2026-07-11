@@ -48,6 +48,7 @@ interface Order {
   commission_amount: number;
   status: string;
   payment_method?: string;
+  delivery_method?: string;
   shipping_address?: string;
   university_name?: string;
   tracking_info?: string;
@@ -802,12 +803,16 @@ const Orders = () => {
                     You'll receive: ₦{escrow.seller_amount.toLocaleString()}
                   </p>
                 )}
-                {isSeller && order.shipping_address && (
+                {isSeller && (order.shipping_address || order.delivery_method) && (
                   <div className="mt-2 p-2 bg-muted/50 rounded text-xs">
                     <p className="font-medium text-primary">
-                      📍 Shipping Details:
+                      {order.delivery_method === "pickup"
+                        ? "📦 Pickup — buyer will collect from you"
+                        : "🚚 Delivery"}
                     </p>
-                    <p>{order.shipping_address}</p>
+                    {order.delivery_method !== "pickup" && order.shipping_address && (
+                      <p>{order.shipping_address}</p>
+                    )}
                     {order.university_name && (
                       <p className="text-blue-600">
                         🏫 {order.university_name}

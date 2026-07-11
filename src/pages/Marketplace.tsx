@@ -1,30 +1,19 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/enhanced-button";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { PullToRefresh } from "@/components/common/PullToRefresh";
-
-import { useToast } from "@/hooks/use-toast";
-import {
-  Heart,
-  ShoppingCart,
-  Search,
-  Filter,
-  Star,
-  MapPin,
-  Package,
-  Shield,
-  TrendingUp,
-  Users,
-  Zap,
-} from "lucide-react";
 import { OfflineNotice } from "@/components/ui/offline-notice";
-import { User } from "@supabase/supabase-js";
-import { searchProducts } from "@/utils/searchUtils";
+import { FilterChip } from "@/components/ui/filter-chip";
+import ProductCard, {
+  type ProductCardProduct,
+} from "@/components/marketplace/ProductCard";
+import { DealOfTheDay } from "@/components/marketplace/DealOfTheDay";
+import { pickDealsOfTheDay } from "@/lib/dealsOfTheDay";
+import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/contexts/ProfileContext";
+import { useCartCount } from "@/contexts/CartCountContext";
+import { Package, RotateCcw, AlertCircle } from "lucide-react";
 import "@/styles/animations.css";
 
 interface Product {
@@ -44,11 +33,23 @@ interface Product {
     business_name?: string;
     rating: number;
     is_verified: boolean;
+    campus?: string;
   };
 }
 
-const categories = [
-  "All Categories",
+const sellerName = (product: Product) =>
+  product.profiles?.business_name || product.profiles?.full_name || "Unknown seller";
+
+const toCardProduct = (product: Product): ProductCardProduct => ({
+  id: product.id,
+  title: product.title,
+  price: product.price,
+  stock_quantity: product.stock_quantity,
+  images: product.images,
+  sellerName: sellerName(product),
+});
+
+const CATEGORIES = [
   "Books & Textbooks",
   "Electronics",
   "Fashion & Accessories",
@@ -59,22 +60,45 @@ const categories = [
   "Other",
 ];
 
-const conditions = ["All Conditions", "new", "excellent", "good", "fair"];
+const CONDITIONS = ["All Conditions", "new", "excellent", "good", "fair"];
+
+interface ProductGridProps {
+  products: Product[];
+  cart: Set<string>;
+  onSelect: (productId: string) => void;
+  onToggleCart: (productId: string) => void;
+}
+
+const ProductGrid = ({ products, cart, onSelect, onToggleCart }: ProductGridProps) => (
+  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 lg:gap-6">
+    {products.map((product) => (
+      <ProductCard
+        key={product.id}
+        product={toCardProduct(product)}
+        isInCart={cart.has(product.id)}
+        onSelect={onSelect}
+        onToggleCart={onToggleCart}
+      />
+    ))}
+  </div>
+);
 
 const Marketplace = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
-  const [user, setUser] = useState<User | null>(null);
+  const { user } = useAuth();
   const { profile } = useProfile();
+  const { updateOptimistically: updateCartCountOptimistically } = useCartCount();
   const userUniversity = profile?.university_name || null;
-  const [showOtherSchools, setShowOtherSchools] = useState(false);
-  const [universityProducts, setUniversityProducts] = useState<Product[]>([]);
-  const [otherSchoolProducts, setOtherSchoolProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("All Categories");
+  const [loadError, setLoadError] = useState(false);
+  // All categories are active (shown, removable) by default. Removing one
+  // hides that category's products; it moves into the "Filters" panel where
+  // it can be added back.
+  const [excludedCategories, setExcludedCategories] = useState<Set<string>>(new Set());
   const [selectedCondition, setSelectedCondition] = useState("All Conditions");
   const [sortBy, setSortBy] = useState("newest");
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const [cart, setCart] = useState<Set<string>>(new Set());
   const navigate = useNavigate();
@@ -90,30 +114,26 @@ const Marketplace = () => {
   }, [user]);
 
   useEffect(() => {
-    // Check authentication
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      setUser(user);
-      if (user) {
-        fetchUserData(user.id);
-        // Removed university fetching
-      }
-    });
-
     fetchProducts();
   }, []);
 
+  // Re-fetch favorites/cart whenever the signed-in user changes, so switching
+  // accounts in the same session doesn't leave a previous user's state behind.
+  useEffect(() => {
+    if (user) {
+      fetchUserData(user.id);
+    } else {
+      setFavorites(new Set());
+      setCart(new Set());
+    }
+  }, [user]);
+
   useEffect(() => {
     filterProducts();
-  }, [
-    products,
-    searchQuery,
-    selectedCategory,
-    selectedCondition,
-    sortBy,
-    showOtherSchools,
-  ]);
+  }, [products, excludedCategories, selectedCondition, sortBy, userUniversity]);
 
   const fetchProducts = async () => {
+    setLoadError(false);
     try {
       // Optimize for slow connections - fetch only essential fields
       const { data, error } = await supabase
@@ -147,6 +167,7 @@ const Marketplace = () => {
       if (error) throw error;
       setProducts(data || []);
     } catch (error) {
+      setLoadError(true);
       toast({
         title: "Error",
         description: "Failed to load products",
@@ -183,20 +204,19 @@ const Marketplace = () => {
     }
   };
 
-  // Removed university fetching to show all products
-
   const filterProducts = () => {
     let filtered = [...products];
 
-    // Enhanced search filter with synonyms
-    if (searchQuery) {
-      filtered = searchProducts(filtered, searchQuery);
+    // Products only ever come from the signed-in user's own university —
+    // there is no toggle to opt into seeing other campuses.
+    if (userUniversity) {
+      filtered = filtered.filter((product) => product.campus === userUniversity);
     }
 
-    // Category filter
-    if (selectedCategory !== "All Categories") {
+    // Category filter — exclude products whose category the user removed
+    if (excludedCategories.size > 0) {
       filtered = filtered.filter(
-        (product) => product.category === selectedCategory
+        (product) => !excludedCategories.has(product.category)
       );
     }
 
@@ -207,35 +227,9 @@ const Marketplace = () => {
       );
     }
 
-    // Separate products by university
-    let universityResults = [];
-    let otherSchoolResults = [];
-
-    if (userUniversity) {
-      universityResults = filtered.filter(
-        (product) => product.campus === userUniversity
-      );
-      otherSchoolResults = filtered.filter(
-        (product) => product.campus !== userUniversity
-      );
-    } else {
-      universityResults = filtered;
-      otherSchoolResults = [];
-    }
-
-    // Separate verified and non-verified products within each group
-    const verifiedUniversity = universityResults.filter(
-      (p) => p.profiles?.is_verified
-    );
-    const nonVerifiedUniversity = universityResults.filter(
-      (p) => !p.profiles?.is_verified
-    );
-    const verifiedOther = otherSchoolResults.filter(
-      (p) => p.profiles?.is_verified
-    );
-    const nonVerifiedOther = otherSchoolResults.filter(
-      (p) => !p.profiles?.is_verified
-    );
+    // Separate verified and non-verified products
+    const verified = filtered.filter((p) => p.profiles?.is_verified);
+    const nonVerified = filtered.filter((p) => !p.profiles?.is_verified);
 
     // Sort function for products
     const sortFunction = (a: Product, b: Product) => {
@@ -299,50 +293,11 @@ const Marketplace = () => {
       return result;
     };
 
-    // Shuffle products within each group
-    const shuffledVerifiedUniversity = shuffleSellers(verifiedUniversity);
-    const shuffledNonVerifiedUniversity = shuffleSellers(nonVerifiedUniversity);
-    const shuffledVerifiedOther = shuffleSellers(verifiedOther);
-    const shuffledNonVerifiedOther = shuffleSellers(nonVerifiedOther);
+    // Shuffle each group, verified first
+    const shuffledVerified = shuffleSellers(verified);
+    const shuffledNonVerified = shuffleSellers(nonVerified);
 
-    // Additional shuffling for other school products to ensure proper mixing
-    const shuffleArray = (array: Product[]) => {
-      const shuffled = [...array];
-      for (let i = shuffled.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-      }
-      return shuffled;
-    };
-
-    const finalShuffledVerifiedOther = shuffleArray(shuffledVerifiedOther);
-    const finalShuffledNonVerifiedOther = shuffleArray(
-      shuffledNonVerifiedOther
-    );
-
-    // Combine university products (verified first, then non-verified)
-    const finalUniversityProducts = [
-      ...shuffledVerifiedUniversity,
-      ...shuffledNonVerifiedUniversity,
-    ];
-    const finalOtherProducts = [
-      ...finalShuffledVerifiedOther,
-      ...finalShuffledNonVerifiedOther,
-    ];
-
-    // Set separate arrays for rendering
-    setUniversityProducts(finalUniversityProducts);
-    setOtherSchoolProducts(finalOtherProducts);
-
-    // Combine for main filtered products (university first, then others if toggled)
-    const productsToShow = userUniversity
-      ? [
-          ...finalUniversityProducts,
-          ...(showOtherSchools ? finalOtherProducts : []),
-        ]
-      : [...finalUniversityProducts, ...finalOtherProducts];
-
-    setFilteredProducts(productsToShow);
+    setFilteredProducts([...shuffledVerified, ...shuffledNonVerified]);
   };
 
   const toggleFavorite = async (productId: string) => {
@@ -410,21 +365,9 @@ const Marketplace = () => {
     }
 
     try {
-      const isInCart = cart.has(productId);
-
-      if (isInCart) {
-        toast({
-          title: "Already in cart",
-          description: "This item is already in your cart",
-        });
-        return;
-      }
-
       // Optimistic update - update UI immediately
       setCart((prev) => new Set([...prev, productId]));
-      if (window.updateCartCountOptimistically) {
-        window.updateCartCountOptimistically(1);
-      }
+      updateCartCountOptimistically(1);
 
       toast({
         title: "Added to cart",
@@ -443,9 +386,7 @@ const Marketplace = () => {
           newSet.delete(productId);
           return newSet;
         });
-        if (window.updateCartCountOptimistically) {
-          window.updateCartCountOptimistically(-1);
-        }
+        updateCartCountOptimistically(-1);
         throw error;
       }
 
@@ -457,6 +398,52 @@ const Marketplace = () => {
         description: "Failed to add to cart",
         variant: "destructive",
       });
+    }
+  };
+
+  const removeFromCart = async (productId: string) => {
+    if (!user) return;
+
+    try {
+      // Optimistic update - update UI immediately
+      setCart((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(productId);
+        return newSet;
+      });
+      updateCartCountOptimistically(-1);
+
+      toast({
+        title: "Removed from cart",
+        description: "Product removed from your cart",
+      });
+
+      const { error } = await supabase
+        .from("cart")
+        .delete()
+        .eq("user_id", user.id)
+        .eq("product_id", productId);
+
+      if (error) {
+        // Revert optimistic update on error
+        setCart((prev) => new Set([...prev, productId]));
+        updateCartCountOptimistically(1);
+        throw error;
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to remove from cart",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const toggleCart = (productId: string) => {
+    if (cart.has(productId)) {
+      removeFromCart(productId);
+    } else {
+      addToCart(productId);
     }
   };
 
@@ -494,17 +481,60 @@ const Marketplace = () => {
     }
   };
 
+  const clearFilters = () => {
+    setExcludedCategories(new Set());
+    setSelectedCondition("All Conditions");
+    setSortBy("newest");
+  };
+
+  const removeCategory = (category: string) => {
+    setExcludedCategories((prev) => new Set(prev).add(category));
+  };
+
+  const restoreCategory = (category: string) => {
+    setExcludedCategories((prev) => {
+      const next = new Set(prev);
+      next.delete(category);
+      return next;
+    });
+  };
+
+  const hasActiveFilters =
+    excludedCategories.size > 0 ||
+    selectedCondition !== "All Conditions" ||
+    sortBy !== "newest";
+
+  // Deal of the day lineup is drawn from the university's full catalog,
+  // independent of the current search/category/condition filters, so it
+  // stays put as a stable daily pick rather than disappearing whenever
+  // someone searches.
+  const dealProducts = useMemo(() => {
+    const pool = userUniversity
+      ? products.filter((p) => p.campus === userUniversity)
+      : products;
+    return pickDealsOfTheDay(pool, 5);
+  }, [products, userUniversity]);
+
+  const dealProductIds = useMemo(
+    () => new Set(dealProducts.map((p) => p.id)),
+    [dealProducts]
+  );
+
+  const gridProducts = filteredProducts.filter((p) => !dealProductIds.has(p.id));
+
+  const handleSelect = (productId: string) => navigate(`/product/${productId}`);
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-background">
-        <main className="container mx-auto px-4 py-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      <div className="min-h-screen bg-gradient-to-b from-flora-bgFrom to-flora-bgTo">
+        <main className="mx-auto max-w-6xl px-3 py-6 sm:px-6">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 lg:gap-6">
             {Array.from({ length: 8 }).map((_, i) => (
-              <div key={i} className="animate-pulse">
-                <div className="bg-muted rounded-lg h-64 mb-4"></div>
-                <div className="space-y-2">
-                  <div className="h-4 bg-muted rounded w-3/4"></div>
-                  <div className="h-4 bg-muted rounded w-1/2"></div>
+              <div key={i} className="animate-pulse overflow-hidden rounded-3xl bg-white shadow-card">
+                <div className="h-32 bg-flora-chip sm:h-40" />
+                <div className="space-y-2 p-4">
+                  <div className="h-4 w-3/4 rounded bg-flora-chip" />
+                  <div className="h-4 w-1/2 rounded bg-flora-chip" />
                 </div>
               </div>
             ))}
@@ -515,746 +545,177 @@ const Marketplace = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50">
+    <div className="min-h-screen bg-gradient-to-b from-flora-bgFrom to-flora-bgTo">
       <PullToRefresh onRefresh={handleRefresh} className="min-h-screen">
-        <main className="container mx-auto px-4 py-6 sm:py-8">
+        <main className="mx-auto max-w-6xl px-3 pt-6 sm:px-6 sm:pt-8">
           <OfflineNotice />
 
-          {/* Enhanced Search & Filters */}
-          <Card className="mb-8 border-0 shadow-lg animate-fade-in-up">
-            <CardContent className="p-6">
-              <div className="space-y-6">
-                {/* Search Bar */}
-                <div className="marketplace-search-container">
-                  <form
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      navigate(`/search?q=${encodeURIComponent(searchQuery)}`);
-                    }}
-                    className="relative"
-                  >
-                    <div className="relative">
-                      <Search className="absolute left-3 sm:left-4 top-1/2 transform -translate-y-1/2 h-4 w-4 sm:h-5 sm:w-5 text-gray-400 z-10" />
-                      <Input
-                        placeholder="Search for anything..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="pl-10 sm:pl-12 pr-20 sm:pr-24 h-12 sm:h-14 text-base sm:text-lg border-2 border-gray-200 focus:border-university-green rounded-xl w-full"
-                      />
-                      <Button
-                        type="submit"
-                        className="absolute right-1 sm:right-2 top-1/2 transform -translate-y-1/2 bg-university-green hover:bg-university-green/90 rounded-lg px-3 sm:px-6 h-10 sm:h-auto text-sm sm:text-base"
-                      >
-                        Search
-                      </Button>
-                    </div>
-                  </form>
-                </div>
+          <h1 className="text-3xl font-semibold leading-tight text-flora-ink sm:text-4xl">
+            Buy &amp; Sell
+            <br className="sm:hidden" /> Around Campus
+          </h1>
 
-                {/* Filter Pills */}
-                <div className="flex flex-wrap gap-3 justify-center">
-                  <div className="marketplace-filter-grid">
-                    {/* Native HTML select elements for all devices */}
-                    <select
-                      value={selectedCategory}
-                      onChange={(e) => setSelectedCategory(e.target.value)}
-                      className="h-12 px-3 pr-10 border-2 border-gray-200 rounded-lg bg-white text-gray-900 focus:border-university-green focus:outline-none appearance-none"
-                      style={{
-                        backgroundImage: `url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIiIGhlaWdodD0iOCIgdmlld0JveD0iMCAwIDEyIDgiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxwYXRoIGQ9Ik0xIDFMNiA2TDExIDEiIHN0cm9rZT0iIzZCNzI4MCIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz4KPC9zdmc+')`,
-                        backgroundRepeat: "no-repeat",
-                        backgroundPosition: "right 12px center",
-                        backgroundSize: "12px 8px",
-                      }}
-                    >
-                      {categories.map((category) => (
-                        <option key={category} value={category}>
-                          {category}
-                        </option>
-                      ))}
-                    </select>
-
-                    <select
-                      value={selectedCondition}
-                      onChange={(e) => setSelectedCondition(e.target.value)}
-                      className="h-12 px-3 pr-10 border-2 border-gray-200 rounded-lg bg-white text-gray-900 focus:border-university-green focus:outline-none appearance-none"
-                      style={{
-                        backgroundImage: `url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIiIGhlaWdodD0iOCIgdmlld0JveD0iMCAwIDEyIDgiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxwYXRoIGQ9Ik0xIDFMNiA2TDExIDEiIHN0cm9rZT0iIzZCNzI4MCIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz4KPC9zdmc+')`,
-                        backgroundRepeat: "no-repeat",
-                        backgroundPosition: "right 12px center",
-                        backgroundSize: "12px 8px",
-                      }}
-                    >
-                      {conditions.map((condition) => (
-                        <option key={condition} value={condition}>
-                          {condition === "All Conditions"
-                            ? condition
-                            : condition.charAt(0).toUpperCase() +
-                              condition.slice(1)}
-                        </option>
-                      ))}
-                    </select>
-
-                    <select
-                      value={sortBy}
-                      onChange={(e) => setSortBy(e.target.value)}
-                      className="h-12 px-3 pr-10 border-2 border-gray-200 rounded-lg bg-white text-gray-900 focus:border-university-green focus:outline-none appearance-none"
-                      style={{
-                        backgroundImage: `url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIiIGhlaWdodD0iOCIgdmlld0JveD0iMCAwIDEyIDgiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxwYXRoIGQ9Ik0xIDFMNiA2TDExIDEiIHN0cm9rZT0iIzZCNzI4MCIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiLz4KPC9zdmc+')`,
-                        backgroundRepeat: "no-repeat",
-                        backgroundPosition: "right 12px center",
-                        backgroundSize: "12px 8px",
-                      }}
-                    >
-                      <option value="newest">Newest First</option>
-                      <option value="oldest">Oldest First</option>
-                      <option value="price_low">Price: Low to High</option>
-                      <option value="price_high">Price: High to Low</option>
-                    </select>
-
-                    <Button
-                      variant="outline"
-                      className="h-12 border-2 border-gray-200 rounded-lg hover:bg-gray-50"
-                      onClick={() => {
-                        setSelectedCategory("All Categories");
-                        setSelectedCondition("All Conditions");
-                        setSortBy("newest");
-                        setSearchQuery("");
-                        setShowOtherSchools(false);
-                      }}
-                    >
-                      <Filter className="h-4 w-4 mr-2" />
-                      Clear
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Results Header */}
-          <div className="flex items-center justify-between mb-6 animate-fade-in">
-            <div>
-              <h2 className="text-xl font-semibold text-gray-900">
-                {filteredProducts.length} Products Found
-              </h2>
-              <p className="text-sm text-gray-600 mt-1">
-                {userUniversity
-                  ? `🏫 Showing products from ${userUniversity} first • 🏆 Verified sellers prioritized`
-                  : "🏆 Verified sellers shown first • 🔒 All transactions protected"}
-              </p>
-              <div className="text-sm text-gray-600 mt-1 flex gap-1 items-center">
-                Products with{" "}
-                <span className="w-4 h-4 sm:w-5 sm:h-5 bg-blue-500 rounded-full flex items-center justify-center shadow-sm">
-                  <svg
-                    className="h-3 w-3 sm:h-4 sm:w-4 text-white"
-                    fill="currentColor"
-                    viewBox="0 0 20 20"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                </span>{" "}
-                are from verified sellers
-              </div>
-            </div>
-            <Badge
-              variant="outline"
-              className="hidden sm:flex items-center gap-1"
-            >
-              <Shield className="h-3 w-3" />
-              Secure Marketplace
-            </Badge>
+          {/* Filters — chip row matching the reference exactly: a "Filters"
+              toggle plus removable chips. Every category is active (and
+              removable) by default; removing one hides its products and
+              parks it in the "Filters" panel to be added back. */}
+          <div className="mt-5 flex gap-2.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <FilterChip
+              label="Filters"
+              active
+              onClick={() => setFiltersOpen((open) => !open)}
+            />
+            {CATEGORIES.filter((category) => !excludedCategories.has(category)).map(
+              (category) => (
+                <FilterChip
+                  key={category}
+                  label={category}
+                  removable
+                  onRemove={() => removeCategory(category)}
+                />
+              )
+            )}
           </div>
 
-          {/* Products Grid */}
-          {filteredProducts.length === 0 ? (
-            <Card className="border-0 shadow-lg">
-              <CardContent className="py-12 sm:py-16 text-center">
-                <div className="max-w-md mx-auto">
-                  <div className="w-16 h-16 sm:w-20 sm:h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4 sm:mb-6">
-                    <Package className="h-8 w-8 sm:h-10 sm:w-10 text-gray-400" />
-                  </div>
-                  <h3 className="text-lg sm:text-xl font-semibold text-gray-900 mb-2">
-                    No products found
-                  </h3>
-                  <p className="text-sm sm:text-base text-gray-600 mb-4 sm:mb-6">
-                    We couldn't find any products matching your criteria. Try
-                    adjusting your filters or search terms.
+          {filtersOpen && (
+            <div className="mt-3 rounded-3xl border border-flora-ink/10 bg-white/70 p-4">
+              {excludedCategories.size > 0 && (
+                <div className="mb-4">
+                  <p className="mb-2 text-xs font-medium text-flora-muted">
+                    Removed categories — tap to add back
                   </p>
-                  <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                    <Button
-                      onClick={() => {
-                        setSelectedCategory("All Categories");
-                        setSelectedCondition("All Conditions");
-                        setSortBy("newest");
-                        setSearchQuery("");
-                      }}
-                      className="bg-university-green hover:bg-university-green/90"
-                    >
-                      Clear All Filters
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => navigate("/search")}
-                    >
-                      Try Advanced Search
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-6">
-              {/* Other Schools Products - Show first when button is clicked */}
-              {showOtherSchools && otherSchoolProducts.length > 0 && (
-                <div>
-                  <div className="flex items-center justify-between mb-3 sm:mb-4 px-1">
-                    <h3 className="text-base sm:text-lg font-semibold text-muted-foreground">
-                      Products from Other Universities
-                    </h3>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowOtherSchools(false)}
-                      className="text-xs px-2 py-1 bg-green-700 text-white"
-                    >
-                      Hide
-                    </Button>
-                  </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-4 lg:gap-6 px-1 sm:px-0">
-                    {otherSchoolProducts.map((product, index) => (
-                      <Card
-                        key={product.id}
-                        className="group hover:shadow-lg transition-shadow duration-200 cursor-pointer overflow-hidden border-0 shadow-sm bg-white"
-                        onClick={() => navigate(`/product/${product.id}`)}
-                      >
-                        <div className="relative">
-                          {product.images && product.images[0] ? (
-                            <img
-                              src={product.images[0]}
-                              alt={product.title}
-                              className="w-full h-32 sm:h-40 md:h-44 lg:h-48 object-cover"
-                              onError={(e) => {
-                                e.currentTarget.src = "/placeholder.svg";
-                              }}
-                            />
-                          ) : (
-                            <div className="w-full h-32 sm:h-40 md:h-44 lg:h-48 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
-                              <Package className="h-8 w-8 sm:h-12 sm:w-12 text-gray-400" />
-                            </div>
-                          )}
-
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="absolute top-2 right-2 bg-white/90 hover:bg-white h-7 w-7 sm:h-8 sm:w-8 rounded-full shadow-sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              toggleFavorite(product.id);
-                            }}
-                          >
-                            <Heart
-                              className={`h-3 w-3 sm:h-4 sm:w-4 transition-colors ${
-                                favorites.has(product.id)
-                                  ? "fill-red-500 text-red-500"
-                                  : "text-gray-600 hover:text-red-500"
-                              }`}
-                            />
-                          </Button>
-
-                          <div className="absolute top-2 left-2">
-                            <Badge
-                              className={`text-xs px-1.5 py-0.5 sm:px-2 sm:py-1 font-medium ${
-                                product.condition === "new"
-                                  ? "bg-green-500 text-white border-0"
-                                  : "bg-blue-500 text-white border-0"
-                              }`}
-                            >
-                              {product.condition.charAt(0).toUpperCase() +
-                                product.condition.slice(1)}
-                            </Badge>
-                          </div>
-
-                          {product.profiles?.is_verified && (
-                            <div className="absolute bottom-2 left-2">
-                              <div className="w-4 h-4 sm:w-5 sm:h-5 bg-blue-500 rounded-full flex items-center justify-center shadow-sm">
-                                <svg
-                                  className="h-3 w-3 sm:h-4 sm:w-4 text-white"
-                                  fill="currentColor"
-                                  viewBox="0 0 20 20"
-                                >
-                                  <path
-                                    fillRule="evenodd"
-                                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                                    clipRule="evenodd"
-                                  />
-                                </svg>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-
-                        <CardContent className="p-2 sm:p-3 lg:p-4">
-                          <div className="space-y-2 sm:space-y-3">
-                            <h3 className="font-semibold text-sm sm:text-base lg:text-lg line-clamp-2 text-gray-900 leading-tight">
-                              {product.title}
-                            </h3>
-
-                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2">
-                              <Badge
-                                variant="outline"
-                                className="text-xs bg-gray-50 border-gray-200 w-fit"
-                              >
-                                {product.category}
-                              </Badge>
-                              <div className="flex items-center gap-1 text-xs text-gray-500">
-                                <MapPin className="h-3 w-3 flex-shrink-0" />
-                                <span className="truncate">
-                                  {(product.profiles as any)?.campus ||
-                                    product.campus}
-                                </span>
-                              </div>
-                            </div>
-
-                            <div
-                              className="flex items-center justify-between p-1.5 sm:p-2 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                navigate(`/seller/${product.seller_id}`);
-                              }}
-                            >
-                              <div className="flex items-center gap-1.5 sm:gap-2 flex-1 min-w-0">
-                                <div className="w-5 h-5 sm:w-6 sm:h-6 bg-university-green/10 rounded-full flex items-center justify-center flex-shrink-0">
-                                  <span className="text-xs font-medium text-university-green">
-                                    {product.profiles?.full_name?.charAt(0) ||
-                                      "U"}
-                                  </span>
-                                </div>
-                                <span className="text-xs sm:text-sm font-medium text-university-green hover:underline truncate">
-                                  {product.profiles?.business_name ||
-                                    product.profiles?.full_name ||
-                                    "Unknown"}
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-1 flex-shrink-0">
-                                <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                                <span className="text-xs text-gray-600">
-                                  {product.profiles?.rating?.toFixed(1) ||
-                                    "0.0"}
-                                </span>
-                              </div>
-                            </div>
-
-                            <div className="flex items-end justify-between">
-                              <div>
-                                <div className="text-base sm:text-lg lg:text-xl font-bold text-gray-900">
-                                  ₦{product.price.toLocaleString()}
-                                </div>
-                                <div className="text-xs text-gray-500">
-                                  {product.stock_quantity} left
-                                </div>
-                              </div>
-
-                              <Button
-                                size="sm"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  addToCart(product.id);
-                                }}
-                                disabled={product.stock_quantity === 0}
-                                className={`text-xs sm:text-sm px-2 sm:px-3 py-1 sm:py-2 ${
-                                  cart.has(product.id)
-                                    ? "bg-green-500 hover:bg-green-600 text-white"
-                                    : "bg-university-green hover:bg-university-green/90 text-white"
-                                }`}
-                              >
-                                <ShoppingCart className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
-                                <span className="hidden sm:inline">
-                                  {cart.has(product.id) ? "Added" : "Add"}
-                                </span>
-                                <span className="sm:hidden">
-                                  {cart.has(product.id) ? "✓" : "+"}
-                                </span>
-                              </Button>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
+                  <div className="flex flex-wrap gap-2">
+                    {CATEGORIES.filter((category) => excludedCategories.has(category)).map(
+                      (category) => (
+                        <FilterChip
+                          key={category}
+                          label={category}
+                          onClick={() => restoreCategory(category)}
+                        />
+                      )
+                    )}
                   </div>
                 </div>
               )}
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <select
+                aria-label="Filter by condition"
+                value={selectedCondition}
+                onChange={(e) => setSelectedCondition(e.target.value)}
+                className="h-11 rounded-2xl border border-flora-ink/10 bg-white px-3 text-sm text-flora-ink focus:border-flora-leaf focus:outline-none"
+              >
+                {CONDITIONS.map((condition) => (
+                  <option key={condition} value={condition}>
+                    {condition === "All Conditions"
+                      ? condition
+                      : condition.charAt(0).toUpperCase() + condition.slice(1)}
+                  </option>
+                ))}
+              </select>
 
-              {/* University Products */}
-              {userUniversity && universityProducts.length > 0 && (
-                <div className="mt-7">
-                  <div className=" flex items-center mb-5 flex-wrap">
-                    <h3 className="text-base sm:text-lg  font-semibold h-fit text-university-green px-1">
-                      Products from {userUniversity}
-                    </h3>
-                    {/* Show Other Schools Button */}
-                    {userUniversity &&
-                      otherSchoolProducts.length > 0 &&
-                      !showOtherSchools && (
-                        <div className="text-center px-2">
-                          <Button
-                            variant="outline"
-                            onClick={() => setShowOtherSchools(true)}
-                            className="px-3 sm:px-6 py-2 sm:py-3 mb-2 text-xs sm:text-sm w-full bg-green-700 text-white sm:w-auto max-w-md"
-                          >
-                            <span className="hidden sm:inline">
-                              Show products from other universities (
-                              {otherSchoolProducts.length})
-                            </span>
-                            <span className="sm:hidden">
-                              Show products from other universities (
-                              {otherSchoolProducts.length})
-                            </span>
-                          </Button>
-                        </div>
-                      )}
-                  </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-4 lg:gap-6 px-1 sm:px-0">
-                    {universityProducts.map((product, index) => (
-                      <Card
-                        key={product.id}
-                        className="group hover:shadow-lg transition-shadow duration-200 cursor-pointer overflow-hidden border-0 shadow-sm bg-white"
-                        onClick={() => navigate(`/product/${product.id}`)}
-                      >
-                        <div className="relative">
-                          {product.images && product.images[0] ? (
-                            <img
-                              src={product.images[0]}
-                              alt={product.title}
-                              className="w-full h-32 sm:h-40 md:h-44 lg:h-48 object-cover"
-                              onError={(e) => {
-                                e.currentTarget.src = "/placeholder.svg";
-                              }}
-                            />
-                          ) : (
-                            <div className="w-full h-32 sm:h-40 md:h-44 lg:h-48 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
-                              <Package className="h-8 w-8 sm:h-12 sm:w-12 text-gray-400" />
-                            </div>
-                          )}
+              <select
+                aria-label="Sort products"
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="h-11 rounded-2xl border border-flora-ink/10 bg-white px-3 text-sm text-flora-ink focus:border-flora-leaf focus:outline-none"
+              >
+                <option value="newest">Newest First</option>
+                <option value="oldest">Oldest First</option>
+                <option value="price_low">Price: Low to High</option>
+                <option value="price_high">Price: High to Low</option>
+              </select>
 
-                          {/* Favorite Button */}
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="absolute top-2 right-2 bg-white/90 hover:bg-white h-7 w-7 sm:h-8 sm:w-8 rounded-full shadow-sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              toggleFavorite(product.id);
-                            }}
-                          >
-                            <Heart
-                              className={`h-3 w-3 sm:h-4 sm:w-4 transition-colors ${
-                                favorites.has(product.id)
-                                  ? "fill-red-500 text-red-500"
-                                  : "text-gray-600 hover:text-red-500"
-                              }`}
-                            />
-                          </Button>
-
-                          {/* Condition Badge */}
-                          <div className="absolute top-2 left-2">
-                            <Badge
-                              className={`text-xs px-1.5 py-0.5 sm:px-2 sm:py-1 font-medium ${
-                                product.condition === "new"
-                                  ? "bg-green-500 text-white border-0"
-                                  : "bg-blue-500 text-white border-0"
-                              }`}
-                            >
-                              {product.condition.charAt(0).toUpperCase() +
-                                product.condition.slice(1)}
-                            </Badge>
-                          </div>
-
-                          {/* Verified Seller Badge */}
-                          {product.profiles?.is_verified && (
-                            <div className="absolute bottom-2 left-2">
-                              <div className="w-4 h-4 sm:w-5 sm:h-5 bg-blue-500 rounded-full flex items-center justify-center shadow-sm">
-                                <svg
-                                  className="h-3 w-3 sm:h-4 sm:w-4 text-white"
-                                  fill="currentColor"
-                                  viewBox="0 0 20 20"
-                                >
-                                  <path
-                                    fillRule="evenodd"
-                                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                                    clipRule="evenodd"
-                                  />
-                                </svg>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-
-                        <CardContent className="p-2 sm:p-3 lg:p-4">
-                          <div className="space-y-2 sm:space-y-3">
-                            {/* Title */}
-                            <h3 className="font-semibold text-sm sm:text-base lg:text-lg line-clamp-2 text-gray-900 leading-tight">
-                              {product.title}
-                            </h3>
-
-                            {/* Category & Location */}
-                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2">
-                              <Badge
-                                variant="outline"
-                                className="text-xs bg-gray-50 border-gray-200 w-fit"
-                              >
-                                {product.category}
-                              </Badge>
-                              <div className="flex items-center gap-1 text-xs text-gray-500">
-                                <MapPin className="h-3 w-3 flex-shrink-0" />
-                                <span className="truncate">
-                                  {(product.profiles as any)?.campus ||
-                                    product.campus}
-                                </span>
-                              </div>
-                            </div>
-
-                            {/* Seller Info */}
-                            <div
-                              className="flex items-center justify-between p-1.5 sm:p-2 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                navigate(`/seller/${product.seller_id}`);
-                              }}
-                            >
-                              <div className="flex items-center gap-1.5 sm:gap-2 flex-1 min-w-0">
-                                <div className="w-5 h-5 sm:w-6 sm:h-6 bg-university-green/10 rounded-full flex items-center justify-center flex-shrink-0">
-                                  <span className="text-xs font-medium text-university-green">
-                                    {product.profiles?.full_name?.charAt(0) ||
-                                      "U"}
-                                  </span>
-                                </div>
-                                <span className="text-xs sm:text-sm font-medium text-university-green hover:underline truncate">
-                                  {product.profiles?.business_name ||
-                                    product.profiles?.full_name ||
-                                    "Unknown"}
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-1 flex-shrink-0">
-                                <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                                <span className="text-xs text-gray-600">
-                                  {product.profiles?.rating?.toFixed(1) ||
-                                    "0.0"}
-                                </span>
-                              </div>
-                            </div>
-
-                            {/* Price & Stock */}
-                            <div className="flex items-end justify-between">
-                              <div>
-                                <div className="text-base sm:text-lg lg:text-xl font-bold text-gray-900">
-                                  ₦{product.price.toLocaleString()}
-                                </div>
-                                <div className="text-xs text-gray-500">
-                                  {product.stock_quantity} left
-                                </div>
-                              </div>
-
-                              {/* Add to Cart Button */}
-                              <Button
-                                size="sm"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  addToCart(product.id);
-                                }}
-                                disabled={product.stock_quantity === 0}
-                                className={`text-xs sm:text-sm px-2 sm:px-3 py-1 sm:py-2 ${
-                                  cart.has(product.id)
-                                    ? "bg-green-500 hover:bg-green-600 text-white"
-                                    : "bg-university-green hover:bg-university-green/90 text-white"
-                                }`}
-                              >
-                                <ShoppingCart className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
-                                <span className="hidden sm:inline">
-                                  {cart.has(product.id) ? "Added" : "Add"}
-                                </span>
-                                <span className="sm:hidden">
-                                  {cart.has(product.id) ? "✓" : "+"}
-                                </span>
-                              </Button>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Fallback: Show all products if no university or no separation needed */}
-              {(!userUniversity ||
-                (universityProducts.length === 0 &&
-                  otherSchoolProducts.length === 0)) && (
-                <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-4 lg:gap-6 px-1 sm:px-0">
-                  {filteredProducts.map((product, index) => (
-                    <Card
-                      key={product.id}
-                      className="group hover:shadow-lg transition-shadow duration-200 cursor-pointer overflow-hidden border-0 shadow-sm bg-white"
-                      onClick={() => navigate(`/product/${product.id}`)}
-                    >
-                      <div className="relative">
-                        {product.images && product.images[0] ? (
-                          <img
-                            src={product.images[0]}
-                            alt={product.title}
-                            className="w-full h-32 sm:h-40 md:h-44 lg:h-48 object-cover"
-                            onError={(e) => {
-                              e.currentTarget.src = "/placeholder.svg";
-                            }}
-                          />
-                        ) : (
-                          <div className="w-full h-32 sm:h-40 md:h-44 lg:h-48 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
-                            <Package className="h-8 w-8 sm:h-12 sm:w-12 text-gray-400" />
-                          </div>
-                        )}
-
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="absolute top-2 right-2 bg-white/90 hover:bg-white h-7 w-7 sm:h-8 sm:w-8 rounded-full shadow-sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleFavorite(product.id);
-                          }}
-                        >
-                          <Heart
-                            className={`h-3 w-3 sm:h-4 sm:w-4 transition-colors ${
-                              favorites.has(product.id)
-                                ? "fill-red-500 text-red-500"
-                                : "text-gray-600 hover:text-red-500"
-                            }`}
-                          />
-                        </Button>
-
-                        <div className="absolute top-2 left-2">
-                          <Badge
-                            className={`text-xs px-1.5 py-0.5 sm:px-2 sm:py-1 font-medium ${
-                              product.condition === "new"
-                                ? "bg-green-500 text-white border-0"
-                                : "bg-blue-500 text-white border-0"
-                            }`}
-                          >
-                            {product.condition.charAt(0).toUpperCase() +
-                              product.condition.slice(1)}
-                          </Badge>
-                        </div>
-
-                        {product.profiles?.is_verified && (
-                          <div className="absolute bottom-2 left-2">
-                            <div className="w-4 h-4 sm:w-5 sm:h-5 bg-blue-500 rounded-full flex items-center justify-center shadow-sm">
-                              <svg
-                                className="h-3 w-3 sm:h-4 sm:w-4 text-white"
-                                fill="currentColor"
-                                viewBox="0 0 20 20"
-                              >
-                                <path
-                                  fillRule="evenodd"
-                                  d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                                  clipRule="evenodd"
-                                />
-                              </svg>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      <CardContent className="p-2 sm:p-3 lg:p-4">
-                        <div className="space-y-2 sm:space-y-3">
-                          <h3 className="font-semibold text-sm sm:text-base lg:text-lg line-clamp-2 text-gray-900 leading-tight">
-                            {product.title}
-                          </h3>
-
-                          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2">
-                            <Badge
-                              variant="outline"
-                              className="text-xs bg-gray-50 border-gray-200 w-fit"
-                            >
-                              {product.category}
-                            </Badge>
-                            <div className="flex items-center gap-1 text-xs text-gray-500">
-                              <MapPin className="h-3 w-3 flex-shrink-0" />
-                              <span className="truncate">
-                                {(product.profiles as any)?.campus ||
-                                  product.campus}
-                              </span>
-                            </div>
-                          </div>
-
-                          <div
-                            className="flex items-center justify-between p-1.5 sm:p-2 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              navigate(`/seller/${product.seller_id}`);
-                            }}
-                          >
-                            <div className="flex items-center gap-1.5 sm:gap-2 flex-1 min-w-0">
-                              <div className="w-5 h-5 sm:w-6 sm:h-6 bg-university-green/10 rounded-full flex items-center justify-center flex-shrink-0">
-                                <span className="text-xs font-medium text-university-green">
-                                  {product.profiles?.full_name?.charAt(0) ||
-                                    "U"}
-                                </span>
-                              </div>
-                              <span className="text-xs sm:text-sm font-medium text-university-green hover:underline truncate">
-                                {product.profiles?.business_name ||
-                                  product.profiles?.full_name ||
-                                  "Unknown"}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-1 flex-shrink-0">
-                              <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                              <span className="text-xs text-gray-600">
-                                {product.profiles?.rating?.toFixed(1) || "0.0"}
-                              </span>
-                            </div>
-                          </div>
-
-                          <div className="flex items-end justify-between">
-                            <div>
-                              <div className="text-base sm:text-lg lg:text-xl font-bold text-gray-900">
-                                ₦{product.price.toLocaleString()}
-                              </div>
-                              <div className="text-xs text-gray-500">
-                                {product.stock_quantity} left
-                              </div>
-                            </div>
-
-                            <Button
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                addToCart(product.id);
-                              }}
-                              disabled={product.stock_quantity === 0}
-                              className={`text-xs sm:text-sm px-2 sm:px-3 py-1 sm:py-2 ${
-                                cart.has(product.id)
-                                  ? "bg-green-500 hover:bg-green-600 text-white"
-                                  : "bg-university-green hover:bg-university-green/90 text-white"
-                              }`}
-                            >
-                              <ShoppingCart className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
-                              <span className="hidden sm:inline">
-                                {cart.has(product.id) ? "Added" : "Add"}
-                              </span>
-                              <span className="sm:hidden">
-                                {cart.has(product.id) ? "✓" : "+"}
-                              </span>
-                            </Button>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              )}
+              <button
+                type="button"
+                onClick={clearFilters}
+                disabled={!hasActiveFilters}
+                className="flex h-11 items-center justify-center gap-2 rounded-2xl border border-flora-ink/10 bg-white text-sm font-medium text-flora-ink transition hover:bg-flora-chip disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                Clear filters
+              </button>
+              </div>
             </div>
+          )}
+
+          {loadError ? (
+            <div className="mt-8 rounded-4xl bg-white/70 py-12 text-center shadow-card sm:py-16">
+              <div className="mx-auto max-w-md">
+                <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-flora-chip sm:h-20 sm:w-20">
+                  <AlertCircle className="h-8 w-8 text-flora-muted sm:h-10 sm:w-10" aria-hidden="true" />
+                </div>
+                <h3 className="mb-2 text-lg font-semibold text-flora-ink sm:text-xl">
+                  Couldn't load products
+                </h3>
+                <p className="mb-6 text-sm text-flora-muted sm:text-base">
+                  Something went wrong fetching the marketplace. Check your connection and try again.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLoading(true);
+                    fetchProducts();
+                  }}
+                  className="rounded-full bg-flora-leaf px-6 py-2.5 text-sm font-medium text-white transition hover:brightness-105"
+                >
+                  Retry
+                </button>
+              </div>
+            </div>
+          ) : filteredProducts.length === 0 ? (
+            <div className="mt-8 rounded-4xl bg-white/70 py-12 text-center shadow-card sm:py-16">
+              <div className="mx-auto max-w-md">
+                <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-flora-chip sm:h-20 sm:w-20">
+                  <Package className="h-8 w-8 text-flora-muted sm:h-10 sm:w-10" aria-hidden="true" />
+                </div>
+                <h3 className="mb-2 text-lg font-semibold text-flora-ink sm:text-xl">
+                  No products found
+                </h3>
+                <p className="mb-6 text-sm text-flora-muted sm:text-base">
+                  {userUniversity
+                    ? `We couldn't find anything at ${userUniversity} matching your criteria.`
+                    : "We couldn't find any products matching your criteria."}
+                </p>
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="rounded-full bg-flora-leaf px-6 py-2.5 text-sm font-medium text-white transition hover:brightness-105"
+                >
+                  Clear All Filters
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              {dealProducts.length > 0 && (
+                <DealOfTheDay
+                  products={dealProducts.map((p) => ({
+                    id: p.id,
+                    title: p.title,
+                    price: p.price,
+                    images: p.images,
+                    sellerName: sellerName(p),
+                  }))}
+                  isFavorited={(id) => favorites.has(id)}
+                  onSelect={handleSelect}
+                  onToggleFavorite={toggleFavorite}
+                />
+              )}
+
+              <section className="mt-10 pb-10">
+                <h2 className="text-xl font-semibold text-flora-ink">
+                  {userUniversity ? `Trending at ${userUniversity}` : "Trending on Campus"}
+                </h2>
+                <div className="mt-4">
+                  <ProductGrid
+                    products={gridProducts}
+                    cart={cart}
+                    onSelect={handleSelect}
+                    onToggleCart={toggleCart}
+                  />
+                </div>
+              </section>
+            </>
           )}
         </main>
       </PullToRefresh>

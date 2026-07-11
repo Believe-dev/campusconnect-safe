@@ -13,7 +13,6 @@ import {
   AlertCircle,
   Clock,
   Shield,
-  MapPin,
   Calendar,
   User,
   Phone,
@@ -32,6 +31,7 @@ interface Order {
   commission_amount: number;
   status: string;
   payment_method?: string;
+  delivery_method?: string;
   shipping_address?: string;
   university_name?: string;
   tracking_info?: string;
@@ -220,18 +220,30 @@ export const OrderDetailsDialog: React.FC<OrderDetailsDialogProps> = ({
           </Card>
 
           {/* Shipping Information */}
-          {order.shipping_address && (
+          {(order.shipping_address || order.delivery_method) && (
             <Card>
               <CardContent className="p-4">
                 <h3 className="font-semibold mb-3 flex items-center gap-2">
-                  <MapPin className="h-4 w-4" />
-                  Shipping Information
+                  {order.delivery_method === "pickup" ? (
+                    <Package className="h-4 w-4" />
+                  ) : (
+                    <Truck className="h-4 w-4" />
+                  )}
+                  {order.delivery_method === "pickup" ? "Pickup" : "Shipping Information"}
                 </h3>
                 <div className="text-sm space-y-2">
-                  <div>
-                    <p className="text-muted-foreground">Delivery Address:</p>
-                    <p className="font-medium">{order.shipping_address}</p>
-                  </div>
+                  {order.delivery_method === "pickup" ? (
+                    <p className="text-muted-foreground">
+                      Buyer chose to pick this up from you directly — no delivery required.
+                    </p>
+                  ) : (
+                    order.shipping_address && (
+                      <div>
+                        <p className="text-muted-foreground">Delivery Address:</p>
+                        <p className="font-medium">{order.shipping_address}</p>
+                      </div>
+                    )
+                  )}
                   {order.university_name && (
                     <div>
                       <p className="text-muted-foreground">University:</p>

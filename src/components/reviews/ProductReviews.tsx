@@ -1,11 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
 import { Star } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
+import { Tag } from '@/components/ui/tag';
 import { useToast } from '@/hooks/use-toast';
 
 interface Review {
@@ -23,9 +19,20 @@ interface Review {
 interface ProductReviewsProps {
   productId: string;
   sellerId?: string;
+  // Lets a page style the outer surface itself (e.g. a card only from a
+  // given breakpoint up) without this component needing to know about it.
+  className?: string;
 }
 
-export const ProductReviews = ({ productId, sellerId }: ProductReviewsProps) => {
+const getInitials = (name: string) =>
+  name
+    .split(' ')
+    .map((word) => word[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
+
+export const ProductReviews = ({ productId, sellerId, className }: ProductReviewsProps) => {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
   const [averageRating, setAverageRating] = useState(0);
@@ -63,7 +70,7 @@ export const ProductReviews = ({ productId, sellerId }: ProductReviewsProps) => 
         .eq('buyer_id', user.id)
         .eq('status', 'completed')
         .limit(1);
-      
+
       if (error) throw error;
       setCanReview(data && data.length > 0);
     } catch (error) {
@@ -99,14 +106,14 @@ export const ProductReviews = ({ productId, sellerId }: ProductReviewsProps) => 
           .select('*')
           .eq('product_id', productId)
           .order('created_at', { ascending: false });
-        
+
         if (altError) {
           console.error('Alternative query also failed:', altError);
           setReviews([]);
           setLoading(false);
           return;
         }
-        
+
         // Manually fetch profile data for each review
         const reviewsWithProfiles = await Promise.all(
           (altData || []).map(async (review) => {
@@ -115,7 +122,7 @@ export const ProductReviews = ({ productId, sellerId }: ProductReviewsProps) => 
               .select('full_name, avatar_url, is_verified')
               .eq('user_id', review.reviewer_id)
               .single();
-            
+
             return {
               id: review.id,
               rating: review.rating,
@@ -129,9 +136,9 @@ export const ProductReviews = ({ productId, sellerId }: ProductReviewsProps) => 
             };
           })
         );
-        
+
         setReviews(reviewsWithProfiles);
-        
+
         // Calculate average rating
         if (reviewsWithProfiles.length > 0) {
           const avg = reviewsWithProfiles.reduce((sum, review) => sum + review.rating, 0) / reviewsWithProfiles.length;
@@ -155,7 +162,7 @@ export const ProductReviews = ({ productId, sellerId }: ProductReviewsProps) => 
       }));
 
       setReviews(transformedReviews);
-      
+
       // Calculate average rating
       if (transformedReviews.length > 0) {
         const avg = transformedReviews.reduce((sum, review) => sum + review.rating, 0) / transformedReviews.length;
@@ -204,7 +211,7 @@ export const ProductReviews = ({ productId, sellerId }: ProductReviewsProps) => 
       setRating(0);
       setComment('');
       setShowReviewForm(false);
-      
+
       // Refresh reviews
       fetchReviews();
     } catch (error) {
@@ -218,164 +225,72 @@ export const ProductReviews = ({ productId, sellerId }: ProductReviewsProps) => 
     }
   };
 
-  const getInitials = (name: string) => {
-    return name
-      .split(' ')
-      .map(word => word[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2);
+  const handleReviewToggle = () => {
+    if (!canReview) {
+      toast({
+        title: "Cannot Review",
+        description: "You must have purchased this product before leaving a review.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setShowReviewForm((v) => !v);
   };
 
   if (loading) {
     return (
-      <Card>
-        <CardContent className="p-6">
-          <div className="animate-pulse space-y-4">
-            <div className="h-4 bg-muted rounded w-1/3"></div>
-            <div className="h-20 bg-muted rounded"></div>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (reviews.length === 0) {
-    return (
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-lg">Reviews</CardTitle>
-            <Button 
-              onClick={() => {
-                if (!canReview) {
-                  toast({
-                    title: "Cannot Review",
-                    description: "You must have purchased this product before leaving a review.",
-                    variant: "destructive",
-                  });
-                  return;
-                }
-                setShowReviewForm(!showReviewForm);
-              }}
-              variant={canReview ? "outline" : "secondary"}
-              size="sm"
-            >
-              {showReviewForm ? 'Cancel' : 'Review'}
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {showReviewForm && (
-            <div className="border rounded-lg p-4 bg-muted/50">
-              <h4 className="font-medium mb-3">Write a Review</h4>
-              <div className="mb-3">
-                <label className="text-sm font-medium mb-2 block">Rating</label>
-                <div className="flex gap-1">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <button
-                      key={star}
-                      onClick={() => setRating(star)}
-                      className="p-1 hover:scale-110 transition-transform"
-                    >
-                      <Star
-                        className={`h-6 w-6 ${
-                          star <= rating
-                            ? 'fill-yellow-400 text-yellow-400'
-                            : 'text-gray-300 hover:text-yellow-300'
-                        }`}
-                      />
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="mb-3">
-                <label className="text-sm font-medium mb-2 block">Comment (optional)</label>
-                <Textarea
-                  value={comment}
-                  onChange={(e) => setComment(e.target.value)}
-                  placeholder="Share your experience with this product..."
-                  rows={3}
-                />
-              </div>
-              <div className="flex gap-2">
-                <Button 
-                  onClick={submitReview}
-                  disabled={submitting || rating === 0}
-                  size="sm"
-                >
-                  {submitting ? 'Submitting...' : 'Submit Review'}
-                </Button>
-                <Button 
-                  onClick={() => {
-                    setShowReviewForm(false);
-                    setRating(0);
-                    setComment('');
-                  }}
-                  variant="outline"
-                  size="sm"
-                >
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          )}
-          <p className="text-muted-foreground">No reviews yet. Be the first to review this product!</p>
-        </CardContent>
-      </Card>
+      <div className={className}>
+        <div className="animate-pulse space-y-3 p-6">
+          <div className="h-4 w-1/3 rounded bg-flora-chip" />
+          <div className="h-16 rounded bg-flora-chip" />
+        </div>
+      </div>
     );
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-lg flex items-center gap-2">
-            Reviews ({reviews.length})
+    <div className={className}>
+      <div className="p-6">
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="flex items-center gap-2 text-lg font-semibold text-flora-ink">
+            Reviews
+            {reviews.length > 0 && ` (${reviews.length})`}
             {averageRating > 0 && (
-              <div className="flex items-center gap-1">
-                <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                <span className="text-sm font-medium">{averageRating.toFixed(1)}</span>
-              </div>
+              <span className="flex items-center gap-1 text-sm font-medium text-flora-ink">
+                <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" aria-hidden="true" />
+                {averageRating.toFixed(1)}
+              </span>
             )}
-          </CardTitle>
-          <Button 
-            onClick={() => {
-              if (!canReview) {
-                toast({
-                  title: "Cannot Review",
-                  description: "You must have purchased this product before leaving a review.",
-                  variant: "destructive",
-                });
-                return;
-              }
-              setShowReviewForm(!showReviewForm);
-            }}
-            variant={canReview ? "outline" : "secondary"}
-            size="sm"
+          </h3>
+          <button
+            type="button"
+            onClick={handleReviewToggle}
+            className="flex-shrink-0 rounded-full border border-flora-ink/10 px-4 py-2 text-xs font-semibold text-flora-ink transition hover:bg-flora-chip"
           >
             {showReviewForm ? 'Cancel' : 'Review'}
-          </Button>
+          </button>
         </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
+
         {showReviewForm && (
-          <div className="border rounded-lg p-4 bg-muted/50">
-            <h4 className="font-medium mb-3">Write a Review</h4>
+          <div className="mt-4 rounded-2xl border border-flora-ink/10 bg-flora-chip p-4">
+            <h4 className="mb-3 text-sm font-semibold text-flora-ink">Write a Review</h4>
             <div className="mb-3">
-              <label className="text-sm font-medium mb-2 block">Rating</label>
+              <p className="mb-2 text-xs font-medium text-flora-muted">Rating</p>
               <div className="flex gap-1">
                 {[1, 2, 3, 4, 5].map((star) => (
                   <button
                     key={star}
+                    type="button"
                     onClick={() => setRating(star)}
-                    className="p-1 hover:scale-110 transition-transform"
+                    aria-label={`Rate ${star} star${star > 1 ? 's' : ''}`}
+                    aria-pressed={star <= rating}
+                    className="p-0.5 transition hover:scale-110"
                   >
                     <Star
                       className={`h-6 w-6 ${
                         star <= rating
                           ? 'fill-yellow-400 text-yellow-400'
-                          : 'text-gray-300 hover:text-yellow-300'
+                          : 'text-flora-ink/20'
                       }`}
                     />
                   </button>
@@ -383,80 +298,107 @@ export const ProductReviews = ({ productId, sellerId }: ProductReviewsProps) => 
               </div>
             </div>
             <div className="mb-3">
-              <label className="text-sm font-medium mb-2 block">Comment (optional)</label>
-              <Textarea
+              <label htmlFor="review-comment" className="mb-2 block text-xs font-medium text-flora-muted">
+                Comment (optional)
+              </label>
+              <textarea
+                id="review-comment"
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
                 placeholder="Share your experience with this product..."
                 rows={3}
+                className="w-full rounded-xl border border-flora-ink/10 bg-white px-3 py-2 text-sm text-flora-ink placeholder:text-flora-muted focus:border-flora-leaf focus:outline-none"
               />
             </div>
             <div className="flex gap-2">
-              <Button 
+              <button
+                type="button"
                 onClick={submitReview}
                 disabled={submitting || rating === 0}
-                size="sm"
+                className="rounded-full bg-flora-leaf px-4 py-2 text-xs font-semibold text-white transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {submitting ? 'Submitting...' : 'Submit Review'}
-              </Button>
-              <Button 
+              </button>
+              <button
+                type="button"
                 onClick={() => {
                   setShowReviewForm(false);
                   setRating(0);
                   setComment('');
                 }}
-                variant="outline"
-                size="sm"
+                className="rounded-full border border-flora-ink/10 bg-white px-4 py-2 text-xs font-semibold text-flora-ink transition hover:bg-flora-chip"
               >
                 Cancel
-              </Button>
+              </button>
             </div>
           </div>
         )}
-        {reviews.map((review) => (
-          <div key={review.id} className="border-b pb-4 last:border-b-0">
-            <div className="flex items-start gap-3">
-              <Avatar className="h-10 w-10">
-                <AvatarImage src={review.reviewer.avatar_url} />
-                <AvatarFallback className="bg-university-green text-white">
-                  {getInitials(review.reviewer.full_name)}
-                </AvatarFallback>
-              </Avatar>
-              
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="font-medium">{review.reviewer.full_name}</span>
-                  {review.reviewer.is_verified && (
-                    <Badge variant="outline" className="text-xs">
-                      Verified
-                    </Badge>
-                  )}
-                </div>
-                
-                <div className="flex items-center gap-1 mb-2">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <Star
-                      key={star}
-                      className={`h-4 w-4 ${
-                        star <= review.rating
-                          ? 'fill-yellow-400 text-yellow-400'
-                          : 'text-gray-300'
-                      }`}
+
+        {reviews.length === 0 ? (
+          <p className="mt-4 text-sm text-flora-muted">
+            No reviews yet. Be the first to review this product!
+          </p>
+        ) : (
+          <div className="mt-4 space-y-5">
+            {reviews.map((review) => (
+              <div
+                key={review.id}
+                className="border-t border-flora-ink/10 pt-5 first:border-t-0 first:pt-0"
+              >
+                <div className="flex items-start gap-3">
+                  {review.reviewer.avatar_url ? (
+                    <img
+                      src={review.reviewer.avatar_url}
+                      alt=""
+                      className="h-10 w-10 flex-shrink-0 rounded-full object-cover"
                     />
-                  ))}
-                  <span className="text-sm text-muted-foreground ml-2">
-                    {new Date(review.created_at).toLocaleDateString()}
-                  </span>
+                  ) : (
+                    <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-flora-leaf text-sm font-medium text-white">
+                      {getInitials(review.reviewer.full_name)}
+                    </div>
+                  )}
+
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="truncate font-medium text-flora-ink">
+                        {review.reviewer.full_name}
+                      </span>
+                      {review.reviewer.is_verified && (
+                        <Tag variant="outline" className="px-2 py-0.5 text-[10px]">
+                          Verified
+                        </Tag>
+                      )}
+                    </div>
+
+                    <div className="mt-1 flex items-center gap-1">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <Star
+                          key={star}
+                          className={`h-3.5 w-3.5 ${
+                            star <= review.rating
+                              ? 'fill-yellow-400 text-yellow-400'
+                              : 'text-flora-ink/15'
+                          }`}
+                          aria-hidden="true"
+                        />
+                      ))}
+                      <span className="ml-1.5 text-xs text-flora-muted">
+                        {new Date(review.created_at).toLocaleDateString()}
+                      </span>
+                    </div>
+
+                    {review.comment && (
+                      <p className="mt-2 text-sm leading-relaxed text-flora-muted">
+                        {review.comment}
+                      </p>
+                    )}
+                  </div>
                 </div>
-                
-                {review.comment && (
-                  <p className="text-sm text-muted-foreground">{review.comment}</p>
-                )}
               </div>
-            </div>
+            ))}
           </div>
-        ))}
-      </CardContent>
-    </Card>
+        )}
+      </div>
+    </div>
   );
 };

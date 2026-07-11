@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import { ToastAction } from '@/components/ui/toast';
 
 export const useAutoReload = () => {
   const [updateAvailable, setUpdateAvailable] = useState(false);
@@ -13,10 +14,11 @@ export const useAutoReload = () => {
         toast({
           title: "Update Available",
           description: "A new version is available. Refresh to update.",
-          action: {
-            label: "Refresh",
-            onClick: () => window.location.reload(),
-          },
+          action: (
+            <ToastAction altText="Refresh" onClick={() => window.location.reload()}>
+              Refresh
+            </ToastAction>
+          ),
         });
       });
 
@@ -34,7 +36,7 @@ export const useAutoReload = () => {
 
       // Check for updates every 30 minutes
       const interval = setInterval(checkForUpdates, 30 * 60 * 1000);
-      
+
       // Initial check
       checkForUpdates();
 
@@ -47,19 +49,23 @@ export const useAutoReload = () => {
         const response = await fetch('/manifest.json?' + Date.now());
         const manifest = await response.json();
         const currentVersion = localStorage.getItem('app_version');
-        
+
         if (currentVersion && currentVersion !== manifest.version) {
           setUpdateAvailable(true);
           toast({
             title: "Update Available",
             description: "A new version is available. Refresh to update.",
-            action: {
-              label: "Refresh",
-              onClick: () => {
-                localStorage.setItem('app_version', manifest.version);
-                window.location.reload();
-              },
-            },
+            action: (
+              <ToastAction
+                altText="Refresh"
+                onClick={() => {
+                  localStorage.setItem('app_version', manifest.version);
+                  window.location.reload();
+                }}
+              >
+                Refresh
+              </ToastAction>
+            ),
           });
         } else if (!currentVersion) {
           localStorage.setItem('app_version', manifest.version || '1.0.0');

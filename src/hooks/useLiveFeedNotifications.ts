@@ -1,10 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
+import { generateId } from "@/lib/utils";
 
 export const useLiveFeedNotifications = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const { user } = useAuth();
+  const instanceId = useRef(generateId()).current;
 
   const fetchUnreadCount = async () => {
     if (!user) {
@@ -46,9 +48,11 @@ export const useLiveFeedNotifications = () => {
   useEffect(() => {
     fetchUnreadCount();
 
+    if (!user) return;
+
     // Set up real-time subscription for new live feed items
     const subscription = supabase
-      .channel("live_feed_notifications")
+      .channel(`live_feed_notifications_${user.id}_${instanceId}`)
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "live_feed" },

@@ -1,18 +1,20 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { generateId } from '@/lib/utils';
 
 export const useOrdersCount = () => {
   const { user } = useAuth();
   const [ordersCount, setOrdersCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const instanceId = useRef(generateId()).current;
 
   useEffect(() => {
     if (user) {
       fetchOrdersCount();
-      
+
       const channel = supabase
-        .channel('orders-changes')
+        .channel(`orders_count_${user.id}_${instanceId}`)
         .on(
           'postgres_changes',
           {
