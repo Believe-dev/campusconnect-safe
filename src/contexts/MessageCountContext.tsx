@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
+import { getUnreadCounts } from '@/utils/conversationUtils';
 
 interface MessageCountContextType {
   messagesCount: number;
@@ -32,34 +33,14 @@ export const MessageCountProvider: React.FC<{ children: React.ReactNode }> = ({ 
       }
 
       const convIds = conversations.map(c => c.id);
-      
-      // Batch fetch all read timestamps
-      const { data: readData } = await supabase
-        .from('conversation_reads')
-        .select('conversation_id, last_read_at')
-        .eq('user_id', user.id)
-        .in('conversation_id', convIds);
-      
-      // Create lookup map for read timestamps
-      const readTimestamps = {};
-      readData?.forEach(read => {
-        readTimestamps[read.conversation_id] = read.last_read_at;
-      });
-      
-      let totalCount = 0;
-      // Count unread messages for each conversation
-      for (const convId of convIds) {
-        const lastReadAt = readTimestamps[convId] || '1970-01-01T00:00:00Z';
-        
-        const { count } = await supabase
-          .from('messages')
-          .select('*', { count: 'exact', head: true })
-          .eq('conversation_id', convId)
-          .neq('sender_id', user.id)
-          .gt('created_at', lastReadAt);
-        
-        totalCount += count || 0;
-      }
+
+      // Single query for unread counts across all conversations instead of
+      // one count-query per conversation (was N+1, and an independent copy
+      // of the same pattern Messages.tsx's list had — sharing this helper
+      // keeps the header badge and the conversation list from drifting out
+      // of sync again).
+      const unreadCounts = await getUnreadCounts(user.id, convIds);
+      const totalCount = Object.values(unreadCounts).reduce((sum, count) => sum + count, 0);
 
       setMessagesCount(Math.min(totalCount, 99));
     } catch (error) {

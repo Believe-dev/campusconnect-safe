@@ -13,7 +13,7 @@ serve(async (req) => {
         'Authorization': `Bearer ${RESEND_API_KEY}`,
       },
       body: JSON.stringify({
-        from: 'UniMarket <noreply@unimarket.app>',
+        from: 'UniMarket <notifications@mail.unimarket.com.ng>',
         to: [to],
         subject: subject,
         html: html,

@@ -1,5 +1,6 @@
-import { useLocation } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { useEffect } from "react";
+import { Compass } from "lucide-react";
 
 const NotFound = () => {
   const location = useLocation();
@@ -12,25 +13,43 @@ const NotFound = () => {
   }, [location.pathname]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="text-center space-y-6">
-        <div className="flex items-center justify-center gap-3 mb-8">
-          <img 
-            src="/logo.png" 
-            alt="UniMarket Logo" 
-            className="h-12 w-12 object-contain"
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-flora-bgFrom to-flora-bgTo px-4">
+      <div className="w-full max-w-md text-center">
+        <Link to="/" className="mb-8 inline-flex items-center gap-2">
+          <img
+            src="/logo.png"
+            alt="UniMarket Logo"
+            className="h-10 w-10 object-contain"
           />
-          <h2 className="text-2xl font-bold text-university-green">UniMarket</h2>
+          <span className="text-lg font-bold text-flora-leaf">UniMarket</span>
+        </Link>
+
+        <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-flora-chip">
+          <Compass className="h-8 w-8 text-flora-muted" aria-hidden="true" />
         </div>
-        <h1 className="text-6xl font-bold text-gray-900 mb-4">404</h1>
-        <p className="text-xl text-gray-600 mb-6">Oops! This page doesn't exist</p>
-        <p className="text-gray-500 mb-8">The page you're looking for might have been moved or deleted.</p>
-        <a 
-          href="/" 
-          className="inline-block bg-university-green text-white px-6 py-3 rounded-lg hover:bg-university-green/90 transition-colors font-medium"
-        >
-          Return to Home
-        </a>
+
+        <p className="text-6xl font-extrabold tracking-tight text-flora-ink">
+          404
+        </p>
+        <h1 className="mt-2 text-xl font-semibold text-flora-ink">
+          This page doesn't exist
+        </h1>
+        <p className="mt-2 text-sm text-flora-muted">
+          The page you're looking for might have been moved or deleted.
+        </p>
+
+        <div className="mt-8 flex flex-col gap-2 sm:flex-row sm:justify-center">
+          <Link
+            to="/"
+            className="rounded-full bg-flora-ink px-6 py-2.5 text-sm font-medium text-white transition hover:brightness-110">
+            Back to Home
+          </Link>
+          <Link
+            to="/marketplace"
+            className="rounded-full border border-flora-ink/15 px-6 py-2.5 text-sm font-medium text-flora-ink transition hover:bg-flora-chip">
+            Browse Marketplace
+          </Link>
+        </div>
       </div>
     </div>
   );

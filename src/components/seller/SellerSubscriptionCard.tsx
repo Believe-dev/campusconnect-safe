@@ -1,14 +1,19 @@
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/enhanced-button";
-import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { SellerRegistrationPayment } from "./SellerRegistrationPayment";
-import { CreditCard, AlertTriangle, Clock, CheckCircle, X } from "lucide-react";
+import { CreditCard, X, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const FIRST_TIME_SELLER_WARNING_KEY = "unimarket:firstTimeSellerWarningShown";
+
+const PREMIUM_FEATURES = [
+  "Unlimited product listings",
+  "Live feed bidding participation",
+  "Advanced sales dashboard",
+  "Marketing tools and promotions",
+  "Priority customer support",
+];
 
 export const SellerSubscriptionCard = () => {
   const { user } = useAuth();
@@ -53,11 +58,6 @@ export const SellerSubscriptionCard = () => {
     }
   };
 
-  const getTimeUntilExpiry = () => {
-    // For now, return null since subscription columns don't exist yet
-    return null;
-  };
-
   const handleRenewal = async (paymentReference: string) => {
     try {
       // For now, just show success message since RPC function doesn't exist yet
@@ -80,14 +80,10 @@ export const SellerSubscriptionCard = () => {
 
   if (loading) {
     return (
-      <Card>
-        <CardContent className="p-6">
-          <div className="animate-pulse">
-            <div className="h-4 bg-muted rounded w-3/4 mb-2"></div>
-            <div className="h-4 bg-muted rounded w-1/2"></div>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="animate-pulse rounded-3xl bg-white p-6 shadow-card">
+        <div className="mb-2 h-4 w-3/4 rounded-full bg-flora-chip" />
+        <div className="h-4 w-1/2 rounded-full bg-flora-chip" />
+      </div>
     );
   }
 
@@ -109,14 +105,9 @@ export const SellerSubscriptionCard = () => {
     return null;
   }
 
-  // For now, show subscription card for all sellers since migration hasn't been run
-  const timeUntilExpiry = getTimeUntilExpiry();
-  const isExpired = false; // Default to not expired until migration is run
-  const isExpiringSoon = false;
-
   if (showPayment) {
     return (
-      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+      <div className="fixed inset-0 z-50 flex animate-in items-center justify-center bg-flora-ink/60 p-4 fade-in duration-200">
         <div className="w-full animate-in slide-in-from-bottom-4 duration-300">
           <SellerRegistrationPayment
             userEmail={user?.email || ""}
@@ -131,81 +122,62 @@ export const SellerSubscriptionCard = () => {
   }
 
   return (
-    <Card className="border-2 border-blue-200 bg-blue-50">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-blue-800">
+    <div className="overflow-hidden rounded-3xl bg-white shadow-card">
+      <div className="flex items-center gap-3 bg-flora-ink px-6 py-4 text-white">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/15">
           <CreditCard className="h-5 w-5" />
-          Monthly Seller Subscription
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="flex items-center gap-2">
-          <Badge variant="outline" className="text-blue-700 border-blue-300">
-            <CreditCard className="h-3 w-3 mr-1" />
-            Subscription Available
-          </Badge>
+        </span>
+        <div>
+          <p className="font-semibold">Monthly Seller Subscription</p>
+          <p className="text-xs text-white/70">₦1,000/month · Subscription available</p>
         </div>
+      </div>
 
+      <div className="space-y-4 p-6">
         {showFirstTimeWarning && (
-          <div className="bg-orange-50 border-2 border-orange-200 rounded-lg p-4 relative">
+          <div className="relative rounded-2xl bg-amber-50 p-4">
             <button
+              type="button"
+              aria-label="Dismiss"
               onClick={dismissFirstTimeWarning}
-              className="absolute top-2 right-2 text-orange-400 hover:text-orange-600"
+              className="absolute right-3 top-3 text-amber-500 transition hover:text-amber-700"
             >
               <X className="h-4 w-4" />
             </button>
-            <div className="flex items-start gap-2">
-              <AlertTriangle className="h-5 w-5 text-orange-600 mt-0.5 flex-shrink-0" />
-              <div>
-                <p className="text-sm font-semibold text-orange-800 mb-1">
-                  ⚠️ First-time sellers - READ THIS!
-                </p>
-                <p className="text-sm text-orange-700">
-                  <strong>
-                    Don't pay this if you are a first-time user and you already
-                    paid the registration fee.
-                  </strong>{" "}
-                  The registration fee covers your first month. This
-                  subscription is only for renewals after your first month
-                  expires. This payment modal be removed soon...
-                </p>
-              </div>
-            </div>
+            <p className="pr-6 text-sm font-semibold text-amber-800">
+              First-time sellers — read this first
+            </p>
+            <p className="mt-1 text-sm text-amber-700">
+              <strong>Don't pay this if you're a first-time seller who already paid the registration fee</strong> — that fee covers your first month. This subscription is only for renewals after your first month expires.
+            </p>
           </div>
         )}
 
-        <div className="space-y-3">
-          <p className="text-sm text-blue-800">
-            <strong>Upgrade to Monthly Subscription!</strong> Get premium seller
-            features for just ₦1,000 per month.
-          </p>
-          <div className="bg-white border border-blue-200 rounded-lg p-3">
-            <p className="text-sm font-medium text-blue-900 mb-1">
-              Premium features included:
-            </p>
-            <ul className="text-sm text-blue-800 space-y-1">
-              <li>• Unlimited product listings</li>
-              <li>• Live feed bidding participation</li>
-              <li>• Advanced sales dashboard</li>
-              <li>• Marketing tools and promotions</li>
-              <li>• Priority customer support</li>
-            </ul>
-          </div>
+        <div className="rounded-2xl bg-flora-chip p-4">
+          <p className="text-sm font-semibold text-flora-ink">Premium features included</p>
+          <ul className="mt-2 space-y-1.5">
+            {PREMIUM_FEATURES.map((feature) => (
+              <li key={feature} className="flex items-center gap-2 text-sm text-flora-muted">
+                <Check className="h-3.5 w-3.5 shrink-0 text-flora-leaf" />
+                {feature}
+              </li>
+            ))}
+          </ul>
         </div>
 
-        <Button
+        <button
+          type="button"
           onClick={() => setShowPayment(true)}
-          className="w-full"
-          variant="default"
+          className="flex w-full items-center justify-center gap-2 rounded-full bg-flora-ink px-4 py-3 text-sm font-medium text-white transition hover:brightness-110"
         >
-          <CreditCard className="h-4 w-4 mr-2" />
+          <CreditCard className="h-4 w-4" />
           Subscribe Now (₦1,000/month)
-        </Button>
+        </button>
 
-        <p className="text-xs text-muted-foreground text-center">
+        <p className="text-center text-xs text-flora-muted">
           Secure payment powered by Paystack
         </p>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 };

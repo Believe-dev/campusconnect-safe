@@ -13,12 +13,13 @@ interface RealTimeState {
 interface RealTimeContextType {
   state: RealTimeState;
   subscribeToMessages: (conversationId: string, callback: (message: any) => void) => () => void;
+  subscribeToConversationReads: (conversationId: string, callback: (read: any) => void) => () => void;
   subscribeToNotifications: (callback: (notification: any) => void) => () => void;
   subscribeToOrders: (callback: (order: any) => void) => () => void;
   subscribeToProducts: (callback: (product: any) => void) => () => void;
-  subscribeToPresence: (callback: (presence: any) => void) => () => void;
+  subscribeToPresence: (conversationId: string, callback: (presence: any) => void) => () => void;
   optimisticUpdate: (type: string, data: any) => void;
-  broadcastPresence: (data: any) => void;
+  broadcastPresence: (conversationId: string, data: any) => void;
 }
 
 const RealTimeContext = createContext<RealTimeContextType | undefined>(undefined);
@@ -147,6 +148,30 @@ export const RealTimeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     };
   }, [user, createChannel]);
 
+  const subscribeToConversationReads = useCallback((conversationId: string, callback: (read: any) => void) => {
+    if (!user) return () => {};
+
+    const channelName = `reads_${conversationId}`;
+    const channel = createChannel(channelName);
+
+    channel
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'conversation_reads',
+        filter: `conversation_id=eq.${conversationId}`
+      }, (payload) => {
+        callback(payload.new);
+        setState(prev => ({ ...prev, lastActivity: new Date() }));
+      })
+      .subscribe();
+
+    return () => {
+      channel.unsubscribe();
+      channelsRef.current.delete(channelName);
+    };
+  }, [user, createChannel]);
+
   const subscribeToNotifications = useCallback((callback: (notification: any) => void) => {
     if (!user) return () => {};
 
@@ -240,10 +265,15 @@ export const RealTimeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }));
   }, []);
 
-  const subscribeToPresence = useCallback((callback: (presence: any) => void) => {
+  const subscribeToPresence = useCallback((conversationId: string, callback: (presence: any) => void) => {
     if (!user) return () => {};
 
-    const channelName = 'presence';
+    // Scoped per-conversation instead of one global 'presence' channel —
+    // the old shared channel meant any component calling this tore down
+    // and replaced the app's single presence subscription, and typing
+    // broadcasts from one conversation had no way to avoid leaking into
+    // another if two chats were ever open in the same session.
+    const channelName = `presence_${conversationId}`;
     const channel = createChannel(channelName);
 
     channel
@@ -279,15 +309,16 @@ export const RealTimeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     };
   }, [user, createChannel]);
 
-  const broadcastPresence = useCallback(async (data: any) => {
+  const broadcastPresence = useCallback(async (conversationId: string, data: any) => {
     if (!user) return;
 
-    let channel = channelsRef.current.get('presence');
+    const channelName = `presence_${conversationId}`;
+    let channel = channelsRef.current.get(channelName);
     if (!channel) {
-      channel = createChannel('presence');
+      channel = createChannel(channelName);
       await channel.subscribe();
     }
-    
+
     try {
       await channel.track({ user_id: user.id, ...data });
     } catch (error) {
@@ -340,6 +371,7 @@ export const RealTimeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const contextValue: RealTimeContextType = {
     state,
     subscribeToMessages,
+    subscribeToConversationReads,
     subscribeToNotifications,
     subscribeToOrders,
     subscribeToProducts,

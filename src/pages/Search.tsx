@@ -21,6 +21,8 @@ import {
   Globe,
 } from "lucide-react";
 
+import { toast } from "sonner";
+import { findOrCreateConversation } from "@/utils/conversationUtils";
 import { expandSearchTerms } from "@/utils/searchUtils";
 import { performAISearch, expandAISearchTerms } from "@/utils/aiSearch";
 import { NIGERIAN_UNIVERSITIES } from "@/lib/constants";
@@ -711,8 +713,19 @@ const Search = () => {
     navigate(`/product/${productId}`);
   };
 
-  const handleMessageSeller = (sellerId: string) => {
-    navigate(`/messages?seller=${sellerId}`);
+  const handleMessageSeller = async (sellerId: string) => {
+    if (!user) {
+      navigate("/auth");
+      return;
+    }
+
+    try {
+      const conversationId = await findOrCreateConversation(user.id, sellerId);
+      if (!conversationId) throw new Error("Failed to start chat");
+      navigate(`/chat/${conversationId}`);
+    } catch (error) {
+      toast.error("Failed to start chat. Please try again.");
+    }
   };
 
   const addToCart = async (productId: string) => {

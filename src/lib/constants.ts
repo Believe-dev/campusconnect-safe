@@ -43,8 +43,10 @@ export const BUSINESS_RULES = {
   delivery: {
     // Flat fee for delivery anywhere around Igbinedion University. Paid
     // directly to the delivery driver, not collected through checkout — only
-    // offered to students at IGBINEDION_UNIVERSITY (see below); other campuses
-    // have no delivery pricing configured, so pickup is their only option.
+    // priced for students at IGBINEDION_UNIVERSITY (see below); other campuses
+    // still get delivery, just without a fixed quoted amount here — buyers
+    // there are told they'll pay the driver directly, same as everywhere,
+    // just without a specific number attached.
     flatRate: 1500,
   },
   pagination: {

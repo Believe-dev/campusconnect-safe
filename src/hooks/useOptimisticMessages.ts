@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useRealTime } from '@/contexts/RealTimeContext';
+import { markMessagesDelivered } from '@/utils/conversationUtils';
 
 interface Message {
   id: string;
@@ -9,6 +10,7 @@ interface Message {
   conversation_id: string;
   created_at: string;
   is_read?: boolean;
+  delivered_at?: string | null;
   sender?: {
     full_name: string;
     avatar_url?: string;
@@ -20,12 +22,14 @@ interface Message {
 interface UseOptimisticMessagesProps {
   conversationId: string;
   currentUserId: string;
+  otherUserId?: string | null;
 }
 
-export const useOptimisticMessages = ({ conversationId, currentUserId }: UseOptimisticMessagesProps) => {
+export const useOptimisticMessages = ({ conversationId, currentUserId, otherUserId }: UseOptimisticMessagesProps) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
-  const { subscribeToMessages, optimisticUpdate } = useRealTime();
+  const [otherUserLastReadAt, setOtherUserLastReadAt] = useState<string | null>(null);
+  const { subscribeToMessages, subscribeToConversationReads, optimisticUpdate } = useRealTime();
   const retryQueueRef = useRef<Map<string, Message>>(new Map());
 
   // Fetch initial messages
@@ -52,19 +56,29 @@ export const useOptimisticMessages = ({ conversationId, currentUserId }: UseOpti
       })) || [];
 
       setMessages(processedMessages);
+
+      // Opening/re-opening a conversation means this client has now
+      // actually received any of the other participant's messages that
+      // weren't marked delivered yet (e.g. they were sent while offline).
+      const hasUndelivered = processedMessages.some(
+        (msg) => msg.sender_id !== currentUserId && !msg.delivered_at
+      );
+      if (hasUndelivered) {
+        markMessagesDelivered(conversationId);
+      }
     } catch (error) {
       console.error('Failed to fetch messages:', error);
     } finally {
       setLoading(false);
     }
-  }, [conversationId]);
+  }, [conversationId, currentUserId]);
 
   // Handle real-time message updates
   useEffect(() => {
     const unsubscribe = subscribeToMessages(conversationId, (newMessage) => {
       if (newMessage._isUpdate) {
-        // Handle message updates (read status, etc.)
-        setMessages(prev => prev.map(msg => 
+        // Handle message updates (delivered_at, is_read, etc.)
+        setMessages(prev => prev.map(msg =>
           msg.id === newMessage.id ? { ...msg, ...newMessage } : msg
         ));
       } else {
@@ -74,18 +88,54 @@ export const useOptimisticMessages = ({ conversationId, currentUserId }: UseOpti
           setMessages(prev => {
             const exists = prev.some(msg => msg.id === newMessage.id);
             if (exists) return prev;
-            
+
             return [...prev, {
               ...newMessage,
               sender: newMessage.sender || { full_name: 'Unknown User' }
             }];
           });
+          // This client just received the message live — mark it delivered.
+          markMessagesDelivered(conversationId);
         }
       }
     });
 
     return unsubscribe;
   }, [conversationId, currentUserId, subscribeToMessages]);
+
+  // Track the other participant's last_read_at so outgoing messages can
+  // show a real "seen" (blue tick) state instead of a fake always-on one.
+  useEffect(() => {
+    if (!otherUserId) return;
+
+    let cancelled = false;
+
+    const fetchOtherUserReadState = async () => {
+      const { data } = await supabase
+        .from('conversation_reads')
+        .select('last_read_at')
+        .eq('conversation_id', conversationId)
+        .eq('user_id', otherUserId)
+        .maybeSingle();
+
+      if (!cancelled && data) {
+        setOtherUserLastReadAt(data.last_read_at);
+      }
+    };
+
+    fetchOtherUserReadState();
+
+    const unsubscribe = subscribeToConversationReads(conversationId, (read) => {
+      if (read.user_id === otherUserId) {
+        setOtherUserLastReadAt(read.last_read_at);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [conversationId, otherUserId, subscribeToConversationReads]);
 
   // Send message with optimistic updates
   const sendMessage = useCallback(async (content: string) => {
@@ -267,6 +317,7 @@ export const useOptimisticMessages = ({ conversationId, currentUserId }: UseOpti
     markAsRead,
     deleteMessage,
     retryAllFailed,
-    hasFailedMessages: retryQueueRef.current.size > 0
+    hasFailedMessages: retryQueueRef.current.size > 0,
+    otherUserLastReadAt
   };
 };

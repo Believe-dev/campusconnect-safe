@@ -9,10 +9,11 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { ShoppingCart, Bell, Plus } from "lucide-react";
+import { ShoppingCart, Bell, MessageCircle, Plus } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useCartCount } from "@/contexts/CartCountContext";
 import { useNotifications } from "@/contexts/NotificationCountContext";
+import { useMessageCount } from "@/contexts/MessageCountContext";
 import { useProfile } from "@/contexts/ProfileContext";
 import SmartSearchInput from "@/components/search/SmartSearchInput";
 import MobileExpandableSearch from "@/components/search/MobileExpandableSearch";
@@ -49,6 +50,7 @@ const Header = () => {
   const location = useLocation();
   const { cartCount } = useCartCount();
   const { unreadCount } = useNotifications();
+  const { messagesCount } = useMessageCount();
   // Same check BottomNav's floating "Sell" FAB and the ProfileSheet's Sell
   // tile already use — an approved seller, not just anyone who signed up
   // as one (seller_status still needs to clear verification first).
@@ -64,25 +66,36 @@ const Header = () => {
   const isHidden =
     location.pathname.startsWith("/chat/") || location.pathname === "/auth";
 
-  // index.css only reserves the fixed header's height on body when this
-  // class is present — without it, pages where the header is hidden (above)
-  // were left with a dead 60px gap at the top from body's own padding.
+  // Product detail pages have their own back button (over the gallery
+  // image) instead of the site header on mobile — the header comes back at
+  // sm: since desktop uses a normal in-flow image, not the mobile
+  // full-width treatment that the back button is designed to sit on top of.
+  const isProductDetail = location.pathname.startsWith("/product/");
+
+  // index.css only reserves the fixed header's height on body when one of
+  // these classes is present. Plain has-fixed-header reserves it at every
+  // breakpoint; has-fixed-header-sm (product detail pages) only reserves it
+  // from sm: up, matching the header's own "hidden sm:block" above — without
+  // this split, mobile product-detail pages reserved 60px of body padding
+  // for a header that CSS was hiding at that breakpoint, showing up as a
+  // dead white bar above the gallery image.
   useEffect(() => {
-    document.body.classList.toggle("has-fixed-header", !isHidden);
+    document.body.classList.toggle(
+      "has-fixed-header",
+      !isHidden && !isProductDetail,
+    );
+    document.body.classList.toggle(
+      "has-fixed-header-sm",
+      !isHidden && isProductDetail,
+    );
     return () => {
-      document.body.classList.remove("has-fixed-header");
+      document.body.classList.remove("has-fixed-header", "has-fixed-header-sm");
     };
-  }, [isHidden]);
+  }, [isHidden, isProductDetail]);
 
   if (isHidden) {
     return null;
   }
-
-  // Product detail pages have their own back button (over the fixed hero
-  // image) instead of the site header on mobile — the header comes back at
-  // sm: since desktop uses a normal in-flow image, not the mobile full-
-  // screen treatment that the back button is designed to sit on top of.
-  const isProductDetail = location.pathname.startsWith("/product/");
 
   const handleSearch = (query: string) => {
     if (query.trim()) {
@@ -207,6 +220,28 @@ const Header = () => {
                     </TooltipTrigger>
                     <TooltipContent>
                       <p>Notifications</p>
+                    </TooltipContent>
+                  </Tooltip>
+
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        asChild
+                        className={iconButtonClass}>
+                        <Link to="/messages">
+                          <MessageCircle className="h-5 w-5" />
+                          {messagesCount > 0 && (
+                            <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold text-white">
+                              {messagesCount > 99 ? "99+" : messagesCount}
+                            </span>
+                          )}
+                        </Link>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Messages</p>
                     </TooltipContent>
                   </Tooltip>
 

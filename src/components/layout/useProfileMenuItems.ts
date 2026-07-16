@@ -3,26 +3,19 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   User,
   Package,
-  Store,
   Heart,
-  Settings,
   Shield,
   Lightbulb,
   LogOut,
   Bell,
-  Zap,
-  MessageCircle,
-  Plus,
   LayoutDashboard,
 } from "lucide-react";
-import { WalletIcon, GamesIcon, LearnMoreIcon } from "@/components/ui/heroicons";
+import { GamesIcon, LearnMoreIcon } from "@/components/ui/heroicons";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/contexts/ProfileContext";
 import { useOrdersCount } from "@/hooks/useOrdersCount";
 import { useNotifications } from "@/contexts/NotificationCountContext";
-import { useLiveFeedNotifications } from "@/hooks/useLiveFeedNotifications";
-import { useMessageCount } from "@/contexts/MessageCountContext";
 
 export interface ProfileMenuItem {
   key: string;
@@ -36,51 +29,40 @@ export interface ProfileMenuItem {
 /**
  * Single source of truth for the profile menu's content, shared by the
  * desktop avatar trigger and the mobile "Profile" tab — both open the same
- * full-page ProfileSheet now, so there's one item list instead of two
- * (previously a small desktop dropdown vs. a mobile full-page sheet with
- * duplicated content). Shop/Live/Chat/Notifications/Sell moved in here
- * from the desktop header's icon bar, which now only keeps Cart standalone.
+ * full-page ProfileSheet, so there's one item list instead of two.
+ *
+ * Deliberately account-scoped only: Shop/Live/Chat/Sell are already reachable
+ * from the header and bottom nav, so they don't belong here too — repeating
+ * them added noise, not access. Wallet and "My Store" are folded into the
+ * single promoted `sellerDashboard` entry instead of being separate rows.
  */
 export const useProfileMenuItems = () => {
   const { user, isAdmin } = useAuth();
   const { profile } = useProfile();
   const { ordersCount } = useOrdersCount();
   const { unreadCount } = useNotifications();
-  const { unreadCount: liveFeedUnreadCount, markAsRead: markLiveFeedAsRead } =
-    useLiveFeedNotifications();
-  const { messagesCount } = useMessageCount();
   const { toast } = useToast();
 
   const isSeller = profile?.account_type !== "buyer";
-  const canSell = isSeller && profile?.seller_status === "approved";
+
+  // Rendered as its own promoted card above the list, not a row within it —
+  // gated on isSeller (not the stricter "approved" canSell) so a pending
+  // seller still has one click back to their dashboard, where
+  // SellerRegistrationCard/SellerSubscriptionCard already surface the
+  // pending-approval state.
+  const sellerDashboard: ProfileMenuItem | null = isSeller
+    ? { key: "seller-dashboard", to: "/dashboard", label: "Seller Dashboard", icon: LayoutDashboard }
+    : null;
 
   const primary: ProfileMenuItem[] = [
     { key: "profile", to: "/profile", label: "Profile", icon: User },
-    { key: "shop", to: "/marketplace", label: "Shop", icon: Store },
-    {
-      key: "live",
-      to: "/live-feed",
-      label: "Live",
-      icon: Zap,
-      badge: liveFeedUnreadCount,
-      onClick: markLiveFeedAsRead,
-    },
-    { key: "chat", to: "/messages", label: "Chat", icon: MessageCircle, badge: messagesCount },
     { key: "notifications", to: "/notifications", label: "Notifications", icon: Bell, badge: unreadCount },
     { key: "orders", to: "/orders", label: "Orders", icon: Package, badge: ordersCount },
-    ...(canSell ? [{ key: "sell", to: "/sell", label: "Sell", icon: Plus }] : []),
   ];
 
   const secondary: ProfileMenuItem[] = [
-    ...(isSeller
-      ? [{ key: "store", to: "/dashboard", label: "My Store", icon: LayoutDashboard }]
-      : []),
     { key: "saved", to: "/favorites", label: "Saved Items", icon: Heart },
-    { key: "settings", to: "/settings", label: "Settings", icon: Settings },
     ...(isAdmin ? [{ key: "admin", to: "/admin", label: "Admin Panel", icon: Shield }] : []),
-    ...(isSeller
-      ? [{ key: "wallet", to: "/dashboard?tab=wallet", label: "Wallet", icon: WalletIcon }]
-      : []),
     { key: "sellers", to: "/sellers", label: "Find Sellers", icon: User },
     { key: "games", to: "/games", label: "UniGames", icon: GamesIcon },
     { key: "learn-more", to: "/learn-more", label: "Learn More", icon: LearnMoreIcon },
@@ -112,5 +94,5 @@ export const useProfileMenuItems = () => {
     }
   };
 
-  return { user, profile, primary, secondary, handleSignOut, SignOutIcon: LogOut };
+  return { user, profile, sellerDashboard, primary, secondary, handleSignOut, SignOutIcon: LogOut };
 };

@@ -199,6 +199,16 @@
     padding-top: 60px;
   }
 
+  /* Product detail pages: the header itself is CSS-hidden below sm: (see
+     Header.tsx's isProductDetail branch), so this only reserves space once
+     it's actually visible — otherwise mobile got a dead 60px white gap
+     above the gallery image for a header that wasn't there. */
+  @media (min-width: 640px) {
+    body.has-fixed-header-sm {
+      padding-top: 60px;
+    }
+  }
+
   body.has-fixed-bottom-nav {
     padding-bottom: 68px;
   }

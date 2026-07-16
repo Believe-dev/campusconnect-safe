@@ -670,9 +670,7 @@ const Orders = () => {
           order.product?.title
         }.`;
         navigate(
-          `/messages?conversation=${conversationId}&draft=${encodeURIComponent(
-            draftMessage
-          )}`
+          `/chat/${conversationId}?draft=${encodeURIComponent(draftMessage)}`
         );
       }
     } catch (error) {

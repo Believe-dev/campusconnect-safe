@@ -13,12 +13,11 @@ import { useToast } from "@/hooks/use-toast";
 import {
   CreditCard,
   MapPin,
-  Package,
-  Truck,
   Lock,
   ChevronLeft,
   Shield,
   Info,
+  User as UserIcon,
 } from "lucide-react";
 import { User } from "@supabase/supabase-js";
 
@@ -29,16 +28,17 @@ const formatPrice = (price: number) =>
     maximumFractionDigits: 0,
   }).format(price);
 
-// Matches Marketplace's filter-select treatment — rounded-2xl bordered
-// fields rather than the fully-pill rounded-full inputs the auth page
-// uses, since a dense multi-field form reads better at this size than
-// pill-shaped fields would.
+// Filled instead of outlined — a soft flora-chip fill at rest that lifts to
+// white with a flora-leaf focus ring, rather than a bordered box. Same
+// tokens as the rest of the app (flora-chip, flora-leaf), just a different
+// resting/focus relationship: the field itself carries the surface instead
+// of a border doing the work.
 const fieldClass =
-  "h-11 w-full rounded-2xl border border-flora-ink/10 bg-white px-3.5 text-sm text-flora-ink placeholder:text-flora-muted focus:border-flora-leaf focus:outline-none focus-visible:ring-0";
+  "h-12 w-full rounded-2xl border border-transparent bg-flora-chip px-4 text-sm text-flora-ink placeholder:text-flora-muted transition focus:border-transparent focus:bg-white focus:shadow-card focus:outline-none focus-visible:ring-2 focus-visible:ring-flora-leaf/50";
 const labelClass = "text-sm font-medium text-flora-ink";
-const sectionCardClass = "rounded-3xl bg-white p-5 shadow-card sm:p-6";
-const sectionHeadingClass =
-  "mb-4 flex items-center gap-2 text-base font-semibold text-flora-ink sm:text-lg";
+// Circular icon badge anchoring each step of the timeline.
+const stepIconClass =
+  "flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-flora-leaf text-white shadow-card";
 
 interface CartItem {
   id: string;
@@ -61,7 +61,6 @@ interface CheckoutForm {
   email: string;
   phone: string;
   universityName: string;
-  deliveryMethod: "delivery" | "pickup";
   address: string;
   city: string;
   state: string;
@@ -79,7 +78,6 @@ const Checkout = () => {
     email: "",
     phone: "",
     universityName: "",
-    deliveryMethod: "delivery",
     address: "",
     city: "",
     state: "",
@@ -181,6 +179,12 @@ const Checkout = () => {
       );
   };
 
+  const getItemCount = () => {
+    return cartItems
+      .filter((item) => item.products?.id)
+      .reduce((total, item) => total + item.quantity, 0);
+  };
+
   const getFinalTotal = () => {
     return getTotalPrice();
   };
@@ -195,9 +199,9 @@ const Checkout = () => {
       "email",
       "phone",
       "universityName",
-      ...(formData.deliveryMethod === "delivery"
-        ? ["address", "city", "state"]
-        : []),
+      "address",
+      "city",
+      "state",
     ];
     for (const field of required) {
       if (!formData[field as keyof CheckoutForm]) {
@@ -305,11 +309,8 @@ const Checkout = () => {
               selected_size: items[0].selected_size || null,
               total_amount: totalAmount,
               commission_amount: commissionAmount,
-              delivery_method: formData.deliveryMethod,
-              shipping_address:
-                formData.deliveryMethod === "pickup"
-                  ? "Pickup"
-                  : `${formData.address}, ${formData.city}, ${formData.state}`,
+              delivery_method: "delivery",
+              shipping_address: `${formData.address}, ${formData.city}, ${formData.state}`,
               university_name: formData.universityName,
               payment_method: "paystack",
               payment_reference: paymentRef,
@@ -523,13 +524,24 @@ const Checkout = () => {
           </h1>
         </div>
 
-        <form onSubmit={handleSubmit} className="mt-6 lg:grid lg:grid-cols-[1fr_380px] lg:items-start lg:gap-8">
-          {/* Checkout form */}
-          <div className="space-y-5">
+        <form onSubmit={handleSubmit} className="mt-8 lg:grid lg:grid-cols-[1fr_380px] lg:items-start lg:gap-8">
+          {/* Checkout form — a numbered flow instead of a stacked form.
+              Checkout genuinely is a sequence (contact, then delivery,
+              then address, then payment), so a connected step timeline
+              earns its place here rather than being decorative scaffolding.
+              No card boundary at all: the icon badges and connecting line
+              carry the structure, so the surface itself can stay quiet. */}
+          <div>
             {/* Contact Information */}
-            <div className={sectionCardClass}>
-              <h2 className={sectionHeadingClass}>
-                <Package className="h-5 w-5 text-flora-leaf" aria-hidden="true" />
+            <div className="flex gap-4">
+              <div className="flex flex-col items-center">
+                <span className={stepIconClass}>
+                  <UserIcon className="h-5 w-5" aria-hidden="true" />
+                </span>
+                <span className="mt-2 w-px flex-1 bg-flora-ink/15" aria-hidden="true" />
+              </div>
+              <div className="flex-1 pb-8">
+              <h2 className="mb-4 text-lg font-semibold text-flora-ink">
                 Contact Information
               </h2>
               <div className="space-y-4">
@@ -588,65 +600,38 @@ const Checkout = () => {
                   />
                 </div>
               </div>
+              </div>
             </div>
 
-            {/* Pickup or Delivery */}
-            <div className={sectionCardClass}>
-              <h2 className={sectionHeadingClass}>
-                <Truck className="h-5 w-5 text-flora-leaf" aria-hidden="true" />
-                Pickup or Delivery
-              </h2>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => handleInputChange("deliveryMethod", "delivery")}
-                  className={cn(
-                    "flex flex-col items-center gap-2 rounded-2xl border-2 p-4 text-sm font-medium transition",
-                    formData.deliveryMethod === "delivery"
-                      ? "border-flora-leaf bg-flora-tagBg text-flora-tagText"
-                      : "border-flora-ink/10 text-flora-muted hover:border-flora-leaf/40"
-                  )}
-                >
-                  <Truck className="h-5 w-5" aria-hidden="true" />
-                  Delivery
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleInputChange("deliveryMethod", "pickup")}
-                  className={cn(
-                    "flex flex-col items-center gap-2 rounded-2xl border-2 p-4 text-sm font-medium transition",
-                    formData.deliveryMethod === "pickup"
-                      ? "border-flora-leaf bg-flora-tagBg text-flora-tagText"
-                      : "border-flora-ink/10 text-flora-muted hover:border-flora-leaf/40"
-                  )}
-                >
-                  <Package className="h-5 w-5" aria-hidden="true" />
-                  Pickup from Seller
-                </button>
+            {/* Delivery Address — the only fulfillment method now, so this
+                is unconditional instead of gated behind a pickup/delivery
+                choice. The fee notice that used to live in its own step
+                folds in here: the specific amount only for students at the
+                one campus it's actually priced for, a generic line for
+                everyone else. */}
+            <div className="flex gap-4">
+              <div className="flex flex-col items-center">
+                <span className={stepIconClass}>
+                  <MapPin className="h-5 w-5" aria-hidden="true" />
+                </span>
+                <span className="mt-2 w-px flex-1 bg-flora-ink/15" aria-hidden="true" />
               </div>
-              {formData.deliveryMethod === "delivery" &&
-                formData.universityName === IGBINEDION_UNIVERSITY && (
-                  <p className="mt-3 flex items-start gap-1.5 rounded-2xl bg-flora-chip p-3 text-xs text-flora-muted">
+              <div className="flex-1 pb-8">
+                <h2 className="mb-4 text-lg font-semibold text-flora-ink">
+                  Delivery Address
+                </h2>
+                {formData.universityName === IGBINEDION_UNIVERSITY ? (
+                  <p className="mb-4 flex items-start gap-1.5 text-xs text-flora-muted">
                     <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                     {formatPrice(BUSINESS_RULES.delivery.flatRate)} delivery fee, paid
                     directly to the driver on delivery — not charged here.
                   </p>
+                ) : (
+                  <p className="mb-4 flex items-start gap-1.5 text-xs text-flora-muted">
+                    <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                    You'll pay the delivery fee to the driver on delivery.
+                  </p>
                 )}
-              {formData.deliveryMethod === "pickup" && (
-                <p className="mt-3 flex items-start gap-1.5 rounded-2xl bg-flora-chip p-3 text-xs text-flora-muted">
-                  <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                  The seller will confirm a pickup location and time after payment.
-                </p>
-              )}
-            </div>
-
-            {/* Delivery Address */}
-            {formData.deliveryMethod === "delivery" && (
-              <div className={sectionCardClass}>
-                <h2 className={sectionHeadingClass}>
-                  <MapPin className="h-5 w-5 text-flora-leaf" aria-hidden="true" />
-                  Delivery Address
-                </h2>
                 <div className="space-y-4">
                   <div className="space-y-1.5">
                     <Label htmlFor="address" className={labelClass}>
@@ -728,15 +713,21 @@ const Checkout = () => {
                     </div>
                   </div>
                 </div>
+                </div>
               </div>
-            )}
 
             {/* Payment Method — Paystack is the only option and the order
                 logic always hardcodes it regardless, so this is shown as a
-                plain fact instead of a dropdown with nothing to choose. */}
-            <div className={sectionCardClass}>
-              <h2 className={sectionHeadingClass}>
-                <CreditCard className="h-5 w-5 text-flora-leaf" aria-hidden="true" />
+                plain fact instead of a dropdown with nothing to choose.
+                Last step: no connecting line drawn below its badge. */}
+            <div className="flex gap-4">
+              <div className="flex flex-col items-center">
+                <span className={stepIconClass}>
+                  <CreditCard className="h-5 w-5" aria-hidden="true" />
+                </span>
+              </div>
+              <div className="flex-1">
+              <h2 className="mb-4 text-lg font-semibold text-flora-ink">
                 Payment Method
               </h2>
               <div className="flex items-center gap-3 rounded-2xl border border-flora-ink/10 bg-flora-chip p-4">
@@ -752,12 +743,17 @@ const Checkout = () => {
                   </p>
                 </div>
               </div>
+              </div>
             </div>
           </div>
 
-          {/* Order Summary */}
+          {/* Order Summary — the one panel that gets shadow-floating instead
+              of shadow-card, the same elevation ProductDetails reserves for
+              its primary action surface. Everything else on the page is
+              flat by comparison, which is the point: this is the surface
+              the eye should land on. */}
           <div className="mt-6 lg:sticky lg:top-24 lg:mt-0">
-            <div className="rounded-3xl bg-flora-chip p-5 sm:p-6">
+            <div className="rounded-3xl bg-flora-chip p-5 shadow-floating sm:p-6">
               <h2 className="text-base font-semibold text-flora-ink sm:text-lg">
                 Order Summary
               </h2>
@@ -776,7 +772,7 @@ const Checkout = () => {
                         <h3 className="truncate text-sm font-medium text-flora-ink">
                           {item.products.title}
                         </h3>
-                        <p className="truncate text-xs text-flora-muted">
+                        <p className="truncate text-xs text-flora-ink/70">
                           by {item.products.profiles?.full_name || "Unknown seller"}
                         </p>
                         <div className="mt-1 flex flex-wrap gap-1.5">
@@ -797,7 +793,7 @@ const Checkout = () => {
                   ))}
               </div>
 
-              <div className="mt-4 space-y-2 border-t border-flora-ink/10 pt-4 text-xs text-flora-muted">
+              <div className="mt-4 space-y-2 border-t border-flora-ink/10 pt-4 text-xs text-flora-ink/70">
                 <p className="flex items-start gap-1.5">
                   <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                   No platform fees — full amount goes to the seller
@@ -808,15 +804,25 @@ const Checkout = () => {
                 </p>
               </div>
 
-              <div className="mt-4 flex items-center justify-between border-t border-flora-ink/10 pt-4 text-base font-semibold text-flora-ink">
-                <span>Total</span>
-                <span>{formatPrice(getFinalTotal())}</span>
+              <div className="mt-4 space-y-2 border-t border-flora-ink/10 pt-4">
+                <div className="flex items-center justify-between text-sm text-flora-ink">
+                  <span>
+                    Subtotal ({getItemCount()} {getItemCount() === 1 ? "item" : "items"})
+                  </span>
+                  <span className="font-medium">{formatPrice(getTotalPrice())}</span>
+                </div>
+                <div className="flex items-baseline justify-between">
+                  <span className="text-sm font-medium text-flora-ink">Total</span>
+                  <span className="text-2xl font-bold tracking-tight text-flora-ink">
+                    {formatPrice(getFinalTotal())}
+                  </span>
+                </div>
               </div>
 
               <button
                 type="submit"
                 disabled={processing}
-                className="mt-5 flex w-full items-center justify-center gap-2 rounded-full bg-flora-ink py-4 text-base font-medium text-white transition hover:brightness-110 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
+                className="mt-5 flex w-full items-center justify-center gap-2 rounded-full bg-flora-ink py-4 text-base font-medium text-white shadow-floating transition hover:brightness-110 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {processing ? (
                   "Processing..."
@@ -833,7 +839,7 @@ const Checkout = () => {
                   <Shield className="h-3.5 w-3.5" aria-hidden="true" />
                   Protected by Escrow System
                 </p>
-                <p className="text-xs text-flora-muted">
+                <p className="text-xs text-flora-ink/70">
                   Your payment is held securely until you confirm receipt
                 </p>
               </div>

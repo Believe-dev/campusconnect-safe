@@ -642,10 +642,10 @@ const Cart = () => {
                     ) : (
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-flora-ink">
-                          Calculated at checkout
+                          Pay on delivery
                         </p>
                         <p className="text-xs text-flora-muted">
-                          Delivery or pickup is chosen and paid separately there
+                          You'll pay the delivery fee to the driver on delivery
                         </p>
                       </div>
                     )}

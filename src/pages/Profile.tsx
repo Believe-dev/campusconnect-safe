@@ -7,7 +7,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { PullToRefresh } from "@/components/common/PullToRefresh";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
@@ -23,19 +22,27 @@ import {
   Play,
   Eye,
   Headphones,
-  Edit3,
   Share2,
   Copy,
   Check,
   ExternalLink,
+  ChevronRight,
+  Heart,
+  User as UserIcon,
+  Image as ImageIcon,
 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { User as SupabaseUser } from "@supabase/supabase-js";
 import { OnboardingModal } from "@/components/onboarding/OnboardingModal";
 import { SellerDocumentReminder } from "@/components/seller/SellerDocumentReminder";
@@ -81,6 +88,55 @@ interface GameBadgeData {
   is_premium: boolean;
 }
 
+// Row icon used in the accordion lists on both breakpoints. "seller" tone
+// gives the Seller section's rows a green-tinted accent (its own store
+// identity) distinct from Account's neutral chip — the visual language the
+// two sections are supposed to be told apart by, without resorting to a
+// heavy full-section background tint that would compete with the CTA card.
+const SectionIcon = ({
+  icon: Icon,
+  tone = "default",
+}: {
+  icon: typeof Shield;
+  tone?: "default" | "seller" | "danger";
+}) => (
+  <span
+    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
+      tone === "danger"
+        ? "bg-red-50 text-red-600"
+        : tone === "seller"
+          ? "bg-flora-tagBg text-flora-tagText"
+          : "bg-flora-chip text-flora-muted"
+    }`}
+  >
+    <Icon className="h-4 w-4" />
+  </span>
+);
+
+// Heading above each of the two page sections. Deliberately typographic
+// instead of an icon-in-a-box — that pattern is the generic default for
+// "section header" in basically every settings UI; a colored lead word plus
+// a plain-language subtitle reads as more considered and ties directly to
+// the section's own accent color instead of just repeating an icon.
+const GroupHeading = ({
+  lead,
+  rest,
+  subtitle,
+  tone = "default",
+}: {
+  lead: string;
+  rest: string;
+  subtitle: string;
+  tone?: "default" | "seller";
+}) => (
+  <div>
+    <h2 className="text-xl font-extrabold tracking-tight text-flora-ink">
+      <span className={tone === "seller" ? "text-flora-leaf" : ""}>{lead}</span> {rest}
+    </h2>
+    <p className="mt-0.5 text-sm text-flora-muted">{subtitle}</p>
+  </div>
+);
+
 const Profile = () => {
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -102,7 +158,6 @@ const Profile = () => {
   const { toast } = useToast();
   const { isLowMemory } = useMemoryOptimization();
   const [uploadingStudentId, setUploadingStudentId] = useState(false);
-  const [showUploadWarning, setShowUploadWarning] = useState(false);
   const [verificationRequest, setVerificationRequest] = useState<any>(null);
   const [gameBadge, setGameBadge] = useState<GameBadgeData | null>(null);
   const [walletBalanceVisible, setWalletBalanceVisible] = useState(false);
@@ -306,7 +361,6 @@ const Profile = () => {
         student_id_photo_url: data.student_id_photo_url || null,
       };
 
-      console.log("Profile data loaded:", fixedData);
       setProfile(fixedData);
 
       // Fetch wallet data if user is a seller
@@ -360,7 +414,7 @@ const Profile = () => {
     try {
       const updateData: any = {
         full_name: profile.full_name,
-        bio: profile.bio,
+        bio: profile.bio?.trim() || null,
       };
 
       // Include business name and phone number if they're a seller and have changed
@@ -389,7 +443,7 @@ const Profile = () => {
           ? {
               ...prev,
               full_name: profile.full_name,
-              bio: profile.bio,
+              bio: updateData.bio,
               business_name:
                 updateData.business_name !== undefined
                   ? updateData.business_name
@@ -600,13 +654,6 @@ const Profile = () => {
     }
   };
 
-  const openWhatsAppSupport = () => {
-    const message = encodeURIComponent(
-      "Hello, I would like to change my profile picture on UniMarket. Please assist me with this request.",
-    );
-    window.open(`https://wa.me/2349133054018?text=${message}`, "_blank");
-  };
-
   const handleStudentIdUpload = async (url: string) => {
     if (!user) return;
 
@@ -651,6 +698,565 @@ const Profile = () => {
       .slice(0, 2);
   };
 
+  // ---- Shared content renderers ----
+  // Called from both the mobile accordion and the desktop grid so the two
+  // layouts never drift out of sync with two copies of the same markup.
+
+  const renderBadgesAndStats = () => (
+    <>
+      <div className="flex flex-wrap items-center justify-center gap-2">
+        <Badge className="bg-flora-chip text-flora-ink border-transparent px-3 py-1 font-medium capitalize">
+          {profile!.account_type === "seller" &&
+          profile!.seller_status === "pending"
+            ? "Buyer waiting to be approved as a seller"
+            : profile!.account_type === "seller"
+              ? "Seller & Buyer"
+              : profile!.account_type === "both"
+                ? "Seller & Buyer"
+                : profile!.account_type}
+        </Badge>
+        {profile!.is_verified && (
+          <Badge className="bg-verified-blue/10 text-verified-blue border-verified-blue/20 px-3 py-1 font-medium">
+            ✓ Verified
+          </Badge>
+        )}
+        {gameBadge && gameBadge.is_premium && (
+          <PremiumGameBadge
+            level={gameBadge.overall_level}
+            badgeType={gameBadge.badge_type}
+            isPremium={gameBadge.is_premium}
+            size="sm"
+          />
+        )}
+        {isAdmin && (
+          <Badge className="bg-flora-ink text-white border-transparent px-3 py-1 font-medium flex items-center gap-1">
+            <Headphones className="h-3 w-3" />
+            Support
+          </Badge>
+        )}
+      </div>
+      <div className="flex items-center justify-center gap-6 mt-4">
+        <div className="flex items-center gap-2 bg-flora-chip px-4 py-2 rounded-full">
+          <Star className="h-5 w-5 fill-yellow-400 text-yellow-400" />
+          <span className="font-semibold text-flora-ink">
+            {(profile!.rating || 0).toFixed(1)}
+          </span>
+        </div>
+        <button
+          className="flex items-center gap-2 bg-flora-chip hover:brightness-95 px-4 py-2 rounded-full transition"
+          onClick={() => {
+            setReviewsOpen(true);
+            fetchReviews();
+          }}
+        >
+          <MessageCircle className="h-5 w-5 text-flora-muted" />
+          <span className="font-semibold text-flora-ink">
+            {profile!.total_reviews || 0} reviews
+          </span>
+        </button>
+      </div>
+    </>
+  );
+
+  // No backend restriction actually backs "upload once, contact support to
+  // change" — handleProfilePhotoUpload does an unconditional update and the
+  // RLS policy has no column-level check. It was UI-only friction with zero
+  // real enforcement, so the upload control is always available now.
+  const renderPhotoUpload = () => (
+    <div className="rounded-2xl border-2 border-dashed border-flora-ink/15 bg-flora-chip/50 p-6 text-center transition-colors hover:bg-flora-chip">
+      <CompressedImageUpload
+        onUpload={handleProfilePhotoUpload}
+        bucket="verification-photos"
+        path={`${user?.id}/profile-${Date.now()}.jpg`}
+        uploading={uploadingPhoto}
+        setUploading={setUploadingPhoto}
+        label="Take/Upload Photo"
+      />
+    </div>
+  );
+
+  // Fields every account type has, regardless of buyer/seller.
+  const renderAccountDetails = () => (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="space-y-2">
+          <Label htmlFor="full_name" className="text-sm font-semibold text-flora-ink">
+            Full Name *
+          </Label>
+          <Input
+            id="full_name"
+            value={profile!.full_name}
+            disabled
+            className="bg-flora-chip text-flora-ink cursor-not-allowed border-0 rounded-2xl"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="email" className="text-sm font-semibold text-flora-ink">
+            Email
+          </Label>
+          <Input
+            id="email"
+            value={profile!.email}
+            disabled
+            className="bg-flora-chip text-flora-ink cursor-not-allowed border-0 rounded-2xl"
+          />
+          <p className="text-xs text-flora-muted mt-1">Email cannot be changed</p>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="university" className="text-sm font-semibold text-flora-ink">
+            University
+          </Label>
+          <Input
+            id="university"
+            value={profile!.university_name || ""}
+            disabled
+            className="bg-flora-chip text-flora-ink cursor-not-allowed border-0 rounded-2xl"
+            placeholder="Not set"
+          />
+          <p className="text-xs text-flora-muted mt-1">
+            University cannot be changed after registration
+          </p>
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="account_type" className="text-sm font-semibold text-flora-ink">
+          Account Type
+        </Label>
+        <select
+          value={
+            profile!.account_type === "seller" &&
+            profile!.seller_status === "pending"
+              ? "pending"
+              : profile!.account_type === "seller"
+                ? "both"
+                : profile!.account_type
+          }
+          disabled={true}
+          className="w-full h-10 bg-flora-chip border-0 rounded-2xl px-3 py-2 text-sm cursor-not-allowed"
+        >
+          <option value="buyer">Buyer Only</option>
+          <option value="pending">
+            Buyer waiting to be approved as a seller
+          </option>
+          <option value="both">Both Buyer & Seller</option>
+        </select>
+        <p className="text-xs text-flora-muted mt-1">
+          Account type cannot be changed. Contact support if you need
+          assistance.
+        </p>
+      </div>
+    </div>
+  );
+
+  // Fields specific to running a store — seller-only, same fields that were
+  // already gated seller-only before, just regrouped under the Seller
+  // section instead of living inside a generic "Account Details" block.
+  const renderStoreDetails = () => (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="space-y-2">
+        <Label htmlFor="student_id" className="text-sm font-semibold text-flora-ink">
+          Student ID
+        </Label>
+        <Input
+          id="student_id"
+          value={profile!.student_id || ""}
+          disabled
+          className="bg-flora-chip text-flora-ink cursor-not-allowed border-0 rounded-2xl"
+          placeholder="Not set"
+        />
+        <p className="text-xs text-flora-muted mt-1">
+          Student ID cannot be changed after registration
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <Label htmlFor="phone" className="text-sm font-semibold text-flora-ink">
+            Phone Number
+          </Label>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setNewPhoneNumber(profile!.phone_number || "");
+              setEditingPhoneNumber(true);
+            }}
+            className="text-xs px-2 py-1 h-6"
+          >
+            Edit
+          </Button>
+        </div>
+        <Input
+          id="phone"
+          value={profile!.phone_number || ""}
+          disabled
+          className="bg-flora-chip text-flora-ink cursor-not-allowed border-0 rounded-2xl"
+          placeholder="Not set"
+        />
+        <p className="text-xs text-flora-muted mt-1">
+          Click Edit to change your phone number
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <Label htmlFor="business_name" className="text-sm font-semibold text-flora-ink">
+            Business Name
+          </Label>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setNewBusinessName(profile!.business_name || "");
+              setEditingBusinessName(true);
+            }}
+            className="text-xs px-2 py-1 h-6"
+          >
+            Edit
+          </Button>
+        </div>
+        <Input
+          id="business_name"
+          value={profile!.business_name || ""}
+          disabled
+          className="bg-flora-chip text-flora-ink cursor-not-allowed border-0 rounded-2xl"
+          placeholder="Not set"
+        />
+        <p className="text-xs text-flora-muted mt-1">
+          Click Edit to change your business name
+        </p>
+      </div>
+    </div>
+  );
+
+  const renderWalletCard = () =>
+    !wallet ? null : (
+      <div className="p-4 bg-flora-chip rounded-2xl">
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-sm font-semibold flex items-center gap-2 text-flora-ink">
+            <Wallet className="h-5 w-5" />
+            Wallet
+          </span>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setWalletBalanceVisible(!walletBalanceVisible)}
+              title={walletBalanceVisible ? "Hide Balance" : "Show Balance"}
+              className="flex h-7 w-7 items-center justify-center rounded-full text-flora-muted transition hover:bg-white hover:text-flora-ink"
+            >
+              <Eye className={`h-3.5 w-3.5 ${walletBalanceVisible ? "" : "opacity-50"}`} />
+            </button>
+            <a
+              href="/dashboard"
+              className="flex h-7 w-7 items-center justify-center rounded-full text-flora-muted transition hover:bg-white hover:text-flora-ink"
+            >
+              <ArrowUpRight className="h-3.5 w-3.5" />
+            </a>
+          </div>
+        </div>
+        <div className="space-y-2 text-sm">
+          <div className="flex justify-between items-center">
+            <span className="text-flora-muted">Available:</span>
+            <span className="font-bold text-flora-ink">
+              {walletBalanceVisible
+                ? `₦${wallet.available_balance.toLocaleString()}`
+                : "••••••"}
+            </span>
+          </div>
+          <div className="flex justify-between items-center">
+            <span className="text-flora-muted">Total Earned:</span>
+            <span className="font-bold text-flora-ink">
+              {walletBalanceVisible
+                ? `₦${wallet.total_earnings.toLocaleString()}`
+                : "••••••"}
+            </span>
+          </div>
+        </div>
+      </div>
+    );
+
+  const renderStoreLinkCard = () =>
+    !storeUrl ? null : (
+      <div className="p-4 bg-flora-chip rounded-2xl">
+        <p className="text-xs font-semibold text-flora-ink mb-2 flex items-center gap-1">
+          <Share2 className="h-3 w-3" /> My Store Link
+        </p>
+        <p className="text-xs text-flora-muted break-all mb-3 font-mono bg-white px-2 py-1 rounded-lg">
+          {storeUrl}
+        </p>
+        <div className="grid grid-cols-3 gap-2">
+          <button
+            type="button"
+            onClick={handleStoreLinkCopy}
+            className="flex items-center justify-center gap-1 rounded-full border border-flora-ink/10 bg-white py-1.5 text-xs font-medium text-flora-ink transition hover:bg-flora-chip"
+          >
+            {storeLinkCopied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+            {storeLinkCopied ? "Copied" : "Copy"}
+          </button>
+          <button
+            type="button"
+            onClick={handleStoreLinkShare}
+            className="flex items-center justify-center gap-1 rounded-full border border-flora-ink/10 bg-white py-1.5 text-xs font-medium text-flora-ink transition hover:bg-flora-chip"
+          >
+            <Share2 className="h-3 w-3" />
+            Share
+          </button>
+          <button
+            type="button"
+            onClick={() => window.open(storeUrl, "_blank")}
+            title="Preview store"
+            className="flex items-center justify-center gap-1 rounded-full border border-flora-ink/10 bg-white py-1.5 text-xs font-medium text-flora-ink transition hover:bg-flora-chip"
+          >
+            <ExternalLink className="h-3 w-3" />
+            View
+          </button>
+        </div>
+      </div>
+    );
+
+  const renderSellerStatusPanel = () => (
+    <div className="divide-y divide-flora-ink/8 rounded-2xl bg-flora-chip p-4">
+      <div className="pb-4">
+        <span className="text-sm font-semibold text-flora-ink">Seller Status</span>
+        <div className="mt-1.5 text-sm">
+          {profile!.seller_status === "approved" && (
+            <div className="flex items-center gap-2 text-flora-leaf">
+              <Shield className="h-4 w-4 shrink-0" />
+              <span>Approved - You can sell items</span>
+            </div>
+          )}
+          {profile!.seller_status === "pending" && (
+            <div className="flex items-center gap-2 text-amber-600">
+              <Shield className="h-4 w-4 shrink-0" />
+              <span>Pending Admin Approval</span>
+            </div>
+          )}
+          {profile!.seller_status === "rejected" && (
+            <div className="flex items-center gap-2 text-red-600">
+              <Shield className="h-4 w-4 shrink-0" />
+              <span>Application Rejected</span>
+            </div>
+          )}
+          {!profile!.seller_status && (
+            <div className="flex items-center gap-2 text-flora-muted">
+              <Shield className="h-4 w-4 shrink-0" />
+              <span>Not yet submitted for approval</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="pt-4">
+        <span className="text-sm font-semibold text-flora-ink flex items-center gap-2">
+          <Package className="h-4 w-4" />
+          Subscription Status
+        </span>
+        <div className="mt-1.5 text-sm space-y-1.5">
+          {profile!.seller_features_active &&
+          profile!.seller_subscription_expires_at ? (
+            <>
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-flora-leaf rounded-full animate-pulse"></div>
+                <span className="text-flora-ink font-medium">
+                  Active -{" "}
+                  {profile!.seller_subscription_type === "monthly"
+                    ? "Monthly"
+                    : "Daily"}{" "}
+                  Plan
+                </span>
+              </div>
+              <div className="text-xs text-flora-muted ml-4">
+                Expires:{" "}
+                {new Date(
+                  profile!.seller_subscription_expires_at,
+                ).toLocaleDateString()}
+              </div>
+            </>
+          ) : profile!.seller_subscription_expires_at &&
+            new Date(profile!.seller_subscription_expires_at) < new Date() ? (
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+              <span className="text-red-600 font-medium">
+                Expired - Renew to continue selling
+              </span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-flora-muted rounded-full"></div>
+              <span className="text-flora-muted font-medium">
+                No active subscription
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderVerificationSection = () =>
+    !profile!.is_verified &&
+    (profile!.account_type === "seller" || profile!.account_type === "both") &&
+    profile!.seller_status === "approved" ? (
+      <div className="w-full space-y-2">
+        {verificationRequest ? (
+          <div className="text-center">
+            {verificationRequest.status === "pending" && (
+              <div className="p-3 bg-orange-50 border border-orange-200 rounded-2xl">
+                <p className="text-sm text-orange-800 font-medium">
+                  Verification Pending
+                </p>
+                <p className="text-xs text-orange-600 mt-1">
+                  Your request is under admin review
+                </p>
+              </div>
+            )}
+            {verificationRequest.status === "rejected" && (
+              <div className="space-y-2">
+                <div className="p-3 bg-red-50 border border-red-200 rounded-2xl">
+                  <p className="text-sm text-red-800 font-medium">
+                    Verification Rejected
+                  </p>
+                  {verificationRequest.admin_notes && (
+                    <p className="text-xs text-red-600 mt-1">
+                      {verificationRequest.admin_notes}
+                    </p>
+                  )}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => {
+                    window.location.href = "/verification-request";
+                  }}
+                >
+                  <Shield className="h-4 w-4 mr-2" />
+                  Request Again
+                </Button>
+              </div>
+            )}
+          </div>
+        ) : (
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full"
+            onClick={() => {
+              const hasRequiredDetails =
+                profile!.full_name &&
+                profile!.university_name &&
+                profile!.student_id &&
+                profile!.phone_number;
+
+              if (!hasRequiredDetails) {
+                toast({
+                  title: "Complete Your Profile",
+                  description:
+                    "Please fill in all required details (name, university, student ID, phone) before requesting verification.",
+                  variant: "destructive",
+                });
+                return;
+              }
+
+              window.location.href = "/verification-request";
+            }}
+          >
+            <Shield className="h-4 w-4 mr-2" />
+            Request Verification
+          </Button>
+        )}
+      </div>
+    ) : null;
+
+  const renderStudentIdSection = () =>
+    !(profile!.account_type === "seller" || profile!.account_type === "both") ? null : (
+      <>
+        {profile!.student_id_photo_url ? (
+          <div className="p-6 rounded-2xl bg-flora-chip/50">
+            <img
+              src={profile!.student_id_photo_url}
+              alt="Student ID Card"
+              className="max-w-full h-auto rounded-lg"
+              style={{ maxHeight: "200px" }}
+              onError={(e) => {
+                console.error(
+                  "Failed to load student ID photo:",
+                  profile!.student_id_photo_url,
+                );
+                e.currentTarget.style.display = "none";
+              }}
+            />
+            <p className="text-xs text-flora-muted mt-3">
+              Student ID card uploaded during registration
+            </p>
+          </div>
+        ) : (
+          <div className="p-6 border-2 border-dashed border-flora-ink/15 rounded-2xl bg-flora-chip/50">
+            <div className="text-center">
+              <p className="text-sm text-flora-muted mb-4">
+                No student ID card uploaded yet
+              </p>
+              <div className="border-2 border-dashed border-flora-ink/15 rounded-2xl p-6 text-center bg-white/50">
+                <div className="text-sm font-semibold mb-3 text-flora-ink">
+                  Student ID Card
+                </div>
+                <CompressedImageUpload
+                  onUpload={handleStudentIdUpload}
+                  bucket="verification-photos"
+                  path={`${user?.id}/student-id-${Date.now()}.jpg`}
+                  uploading={uploadingStudentId}
+                  setUploading={setUploadingStudentId}
+                  label="Take/Upload ID"
+                />
+              </div>
+              <p className="text-xs text-flora-muted mt-3">
+                Required for seller verification
+              </p>
+            </div>
+          </div>
+        )}
+      </>
+    );
+
+  const renderDangerZoneContent = () => (
+    <div className="space-y-3">
+      <p className="text-sm text-red-600">
+        Once you delete your account, there is no going back. Please be
+        certain.
+      </p>
+      <Button
+        variant="destructive"
+        onClick={() => setDeleteModalOpen(true)}
+        className="w-full bg-red-600 hover:bg-red-700 font-semibold px-6 py-3 rounded-xl shadow-lg"
+      >
+        <Trash2 className="h-5 w-5 mr-2" />
+        Delete Account
+      </Button>
+    </div>
+  );
+
+  // The one-click path to the dashboard this whole redesign is centered on
+  // — a real CTA, not a row buried in a settings list. Flat ink card
+  // instead of a gradient, and the arrow button itself carries the accent
+  // color rather than a decorative icon-in-a-translucent-circle.
+  const renderSellerDashboardCTA = () => (
+    <a
+      href="/dashboard"
+      className="group flex items-center justify-between gap-4 rounded-4xl bg-flora-ink px-6 py-5 text-white shadow-floating transition hover:brightness-110 active:scale-[0.99]"
+    >
+      <div className="min-w-0">
+        <p className="text-lg font-bold">Seller Dashboard</p>
+        <p className="mt-0.5 text-sm text-white/70">Orders, wallet & listings in one place</p>
+      </div>
+      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-flora-leafBright text-flora-ink transition group-hover:translate-x-0.5">
+        <ArrowUpRight className="h-5 w-5" />
+      </span>
+    </a>
+  );
+
   if (loading) {
     return (
       <div className="min-h-screen bg-background">
@@ -668,1103 +1274,768 @@ const Profile = () => {
 
   if (!profile) return null;
 
+  const showSellerFields =
+    profile.account_type === "seller" || profile.account_type === "both";
+  const showVerification =
+    !profile.is_verified && showSellerFields && profile.seller_status === "approved";
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50">
+    <div className="min-h-screen bg-gradient-to-b from-flora-bgFrom to-flora-bgTo">
       <PullToRefresh onRefresh={handleRefresh} className="min-h-screen">
-        <main className="container mx-auto px-4 py-6 sm:py-8">
-          <div className="max-w-6xl mx-auto space-y-8">
-            <SellerDocumentReminder />
-            <SellerRegistrationCard />
-            <SellerSubscriptionCard />
-            <ReferralCard />
+        <div className="container mx-auto px-4 pt-4 lg:pt-8 space-y-4">
+          <SellerDocumentReminder />
+          <SellerRegistrationCard />
+          <SellerSubscriptionCard />
+          <ReferralCard />
+        </div>
 
-            {/* Modern Header Section */}
-            <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-university-green to-emerald-600 p-8 text-white">
-              <div className="absolute inset-0 bg-black/10"></div>
-              <div className="relative z-10">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                  <div>
-                    <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-2">
-                      My Profile
-                    </h1>
-                    <p className="text-white/90 text-lg">
-                      Manage your UniMarket account
-                    </p>
-                  </div>
-                  <Dialog open={editing} onOpenChange={setEditing}>
-                    <DialogTrigger asChild>
-                      <Button className="bg-white text-university-green hover:bg-white/90 font-semibold px-6 py-3 rounded-xl shadow-lg">
-                        Edit Profile
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
-                      <DialogHeader>
-                        <DialogTitle>Edit Profile</DialogTitle>
-                      </DialogHeader>
-                      <div className="space-y-4">
-                        <div>
-                          <Label htmlFor="edit_full_name">Full Name *</Label>
-                          <Input
-                            id="edit_full_name"
-                            value={profile?.full_name || ""}
-                            onChange={(e) =>
-                              setProfile(
-                                profile
-                                  ? { ...profile, full_name: e.target.value }
-                                  : null,
-                              )
-                            }
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="edit_bio">Bio</Label>
-                          <Textarea
-                            id="edit_bio"
-                            value={profile?.bio || ""}
-                            onChange={(e) =>
-                              setProfile(
-                                profile
-                                  ? { ...profile, bio: e.target.value }
-                                  : null,
-                              )
-                            }
-                            placeholder="Tell others about yourself..."
-                            rows={3}
-                          />
-                        </div>
-
-                        {/* Business Name for Sellers */}
-                        {(profile?.account_type === "seller" ||
-                          profile?.account_type === "both") && (
-                          <div>
-                            <Label htmlFor="edit_business_name">
-                              Business Name
-                            </Label>
-                            <Input
-                              id="edit_business_name"
-                              value={newBusinessName}
-                              onChange={(e) =>
-                                setNewBusinessName(e.target.value)
-                              }
-                              placeholder="Enter your business name"
-                            />
-                          </div>
-                        )}
-
-                        {/* Phone Number for Sellers */}
-                        {(profile?.account_type === "seller" ||
-                          profile?.account_type === "both") && (
-                          <div>
-                            <Label htmlFor="edit_phone_number">
-                              Phone Number
-                            </Label>
-                            <Input
-                              id="edit_phone_number"
-                              value={newPhoneNumber}
-                              onChange={(e) =>
-                                setNewPhoneNumber(e.target.value)
-                              }
-                              placeholder="Enter your phone number"
-                            />
-                          </div>
-                        )}
-
-                        {/* Non-editable fields with contact support */}
-                        <div className="space-y-3 pt-4 border-t">
-                          <h4 className="text-sm font-semibold text-gray-700">
-                            Need to change other details?
-                          </h4>
-
-                          <div className="space-y-2">
-                            <div className="flex justify-between items-center text-sm">
-                              <span className="text-gray-600">Email</span>
-                              <a
-                                href={`https://wa.me/2349133054018?text=${encodeURIComponent(
-                                  "Hello UniMarket Support,\n\nI would like to change my email address on my account.\n\nCurrent Email: " +
-                                    (profile?.email || "") +
-                                    "\nNew Email: [Please specify]\n\nReason: [Please provide a valid reason]\n\nThank you.",
-                                )}`}
-                                target="_blank"
-                                className="text-blue-600 hover:text-blue-800 underline"
-                              >
-                                Contact Support
-                              </a>
-                            </div>
-
-                            <div className="flex justify-between items-center text-sm">
-                              <span className="text-gray-600">University</span>
-                              <a
-                                href={`https://wa.me/2349133054018?text=${encodeURIComponent(
-                                  "Hello UniMarket Support,\n\nI would like to change my university information on my account.\n\nCurrent University: " +
-                                    (profile?.university_name || "Not set") +
-                                    "\nNew University: [Please specify]\n\nReason: [Please provide a valid reason such as transfer]\n\nThank you.",
-                                )}`}
-                                target="_blank"
-                                className="text-blue-600 hover:text-blue-800 underline"
-                              >
-                                Contact Support
-                              </a>
-                            </div>
-
-                            {(profile?.account_type === "seller" ||
-                              profile?.account_type === "both") && (
-                              <>
-                                <div className="flex justify-between items-center text-sm">
-                                  <span className="text-gray-600">
-                                    Student ID
-                                  </span>
-                                  <a
-                                    href={`https://wa.me/2349133054018?text=${encodeURIComponent(
-                                      "Hello UniMarket Support,\n\nI would like to change my student ID on my account.\n\nCurrent Student ID: " +
-                                        (profile?.student_id || "Not set") +
-                                        "\nNew Student ID: [Please specify]\n\nReason: [Please provide a valid reason]\n\nThank you.",
-                                    )}`}
-                                    target="_blank"
-                                    className="text-blue-600 hover:text-blue-800 underline"
-                                  >
-                                    Contact Support
-                                  </a>
-                                </div>
-                              </>
-                            )}
-
-                            <div className="flex justify-between items-center text-sm">
-                              <span className="text-gray-600">
-                                Account Type
-                              </span>
-                              <a
-                                href={`https://wa.me/2349133054018?text=${encodeURIComponent(
-                                  "Hello UniMarket Support,\n\nI would like to change my account type.\n\nCurrent Account Type: " +
-                                    (profile?.account_type || "Not set") +
-                                    "\nDesired Account Type: [Please specify: buyer/seller/both]\n\nReason: [Please provide a valid reason]\n\nThank you.",
-                                )}`}
-                                target="_blank"
-                                className="text-blue-600 hover:text-blue-800 underline"
-                              >
-                                Contact Support
-                              </a>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="flex gap-2 pt-4">
-                          <Button
-                            onClick={() => {
-                              if (
-                                (profile?.account_type === "seller" ||
-                                  profile?.account_type === "both") &&
-                                newBusinessName.trim() !==
-                                  (profile?.business_name || "")
-                              ) {
-                                handleBusinessNameSave();
-                              } else {
-                                handleSave();
-                              }
-                            }}
-                            disabled={saving}
-                            className="flex-1"
-                          >
-                            {saving ? "Saving..." : "Save Changes"}
-                          </Button>
-                          <Button
-                            variant="outline"
-                            onClick={() => {
-                              setEditing(false);
-                              setNewBusinessName(profile?.business_name || "");
-                            }}
-                            className="flex-1"
-                          >
-                            Cancel
-                          </Button>
-                        </div>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
-                </div>
+        {/* ================= MOBILE ================= */}
+        <div className="lg:hidden pb-24">
+          <div className="px-4 pt-4">
+            <h1 className="mb-3 text-2xl font-extrabold tracking-tight text-flora-ink">
+              My Profile
+            </h1>
+            <div className="overflow-hidden rounded-3xl bg-white shadow-card">
+              <div className="relative h-14 bg-gradient-to-r from-flora-ink to-[#3a4436]">
+                {/* Absolutely positioned instead of a negative margin on the
+                    row below — a shared -mt on the whole row previously
+                    dragged the name/email up into the banner along with the
+                    avatar. This decouples the avatar's overlap from the
+                    text's position entirely. */}
+                <Avatar
+                  className="absolute -bottom-8 left-4 h-16 w-16 cursor-pointer ring-4 ring-white transition hover:opacity-90"
+                  onClick={() => setShowAvatarModal(true)}
+                >
+                  <AvatarImage
+                    src={profile.avatar_url || undefined}
+                    alt={profile.full_name}
+                    className="object-cover"
+                  />
+                  <AvatarFallback className="bg-flora-leaf text-lg font-bold text-white">
+                    {getInitials(profile.full_name || "User")}
+                  </AvatarFallback>
+                </Avatar>
               </div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              {/* Profile Card */}
-              <Card className="lg:col-span-1 border-0 shadow-xl bg-white/80 backdrop-blur-sm">
-                <CardContent className="pt-8">
-                  <div className="flex flex-col items-center space-y-4">
-                    <div className="relative group">
-                      <div className="relative">
-                        <Avatar
-                          className="h-32 w-32 cursor-pointer hover:opacity-80 transition-all duration-300 hover:scale-105 ring-4 ring-white shadow-2xl"
-                          onClick={() => setShowAvatarModal(true)}
-                        >
-                          <AvatarImage
-                            src={profile.avatar_url || undefined}
-                            alt={profile.full_name}
-                            className="object-cover"
-                          />
-                          <AvatarFallback className="bg-gradient-to-br from-university-green to-emerald-600 text-white text-2xl font-bold">
-                            {getInitials(profile.full_name || "User")}
-                          </AvatarFallback>
-                        </Avatar>
-                        {profile.is_verified && (
-                          <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center ring-4 ring-white shadow-lg">
-                            <svg
-                              className="h-5 w-5 text-white"
-                              fill="currentColor"
-                              viewBox="0 0 20 20"
-                            >
-                              <path
-                                fillRule="evenodd"
-                                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                                clipRule="evenodd"
-                              />
-                            </svg>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="w-full">
-                      <div className="border-2 border-dashed border-gray-200 rounded-xl p-6 text-center bg-gray-50/50 hover:bg-gray-50 transition-colors">
-                        <div className="text-sm font-semibold mb-3 text-gray-700">
-                          Profile Photo
-                        </div>
-                        {profile.avatar_url ? (
-                          <div className="space-y-2">
-                            <p className="text-xs text-muted-foreground">
-                              Profile photo already uploaded. Contact support to
-                              change.
-                            </p>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={openWhatsAppSupport}
-                              className="w-full"
-                            >
-                              Contact Support
-                            </Button>
-                          </div>
-                        ) : (
-                          <>
-                            <CompressedImageUpload
-                              onUpload={handleProfilePhotoUpload}
-                              bucket="verification-photos"
-                              path={`${user?.id}/profile-${Date.now()}.jpg`}
-                              uploading={uploadingPhoto}
-                              setUploading={setUploadingPhoto}
-                              label="Take/Upload Photo"
-                            />
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setShowUploadWarning(true)}
-                              className="mt-2 text-xs text-muted-foreground border-[1px] border-gray-500"
-                            >
-                              ⚠️ Read Warning First
-                            </Button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="text-center">
-                      {profile.business_name ? (
-                        <>
-                          <h2 className="text-2xl font-bold text-gray-900 mb-1">
-                            {profile.business_name}
-                          </h2>
-                          <p className="text-sm text-muted-foreground mb-2">
-                            Owner: {profile.full_name}
-                          </p>
-                        </>
-                      ) : (
-                        <h2 className="text-2xl font-bold text-gray-900 mb-1">
-                          {profile.full_name || "User"}
-                        </h2>
-                      )}
-                      <p className="text-gray-600 mb-4">
-                        {profile.email || user?.email || "No email"}
-                      </p>
-                      {profile.bio && (
-                        <p className="text-center text-sm text-muted-foreground">
-                          {profile.bio}
-                        </p>
-                      )}
-
-                      <div className="flex items-center justify-center gap-3 mt-2 flex-wrap">
-                        <Badge className="bg-university-green/10 text-university-green border-university-green/20 px-3 py-1 font-medium capitalize">
-                          {profile.account_type === "seller" &&
-                          profile.seller_status === "pending"
-                            ? "Buyer waiting to be approved as a seller"
-                            : profile.account_type === "seller"
-                              ? "Seller & Buyer"
-                              : profile.account_type === "both"
-                                ? "Seller & Buyer"
-                                : profile.account_type}
-                        </Badge>
-
-                        {profile.is_verified && (
-                          <Badge className="bg-blue-50 text-blue-700 border-blue-200 px-3 py-1 font-medium">
-                            ✓ Verified
-                          </Badge>
-                        )}
-                        {gameBadge && gameBadge.is_premium && (
-                          <PremiumGameBadge
-                            level={gameBadge.overall_level}
-                            badgeType={gameBadge.badge_type}
-                            isPremium={gameBadge.is_premium}
-                            size="sm"
-                          />
-                        )}
-                        {isAdmin && (
-                          <Badge className="bg-purple-50 text-purple-700 border-purple-200 px-3 py-1 font-medium flex items-center gap-1">
-                            <Headphones className="h-3 w-3" />
-                            Support
-                          </Badge>
-                        )}
-                      </div>
-
-                      <div className="flex items-center justify-center gap-6 mt-6">
-                        <div className="flex items-center gap-2 bg-yellow-50 px-4 py-2 rounded-full">
-                          <Star className="h-5 w-5 fill-yellow-400 text-yellow-400" />
-                          <span className="font-semibold text-gray-700">
-                            {(profile.rating || 0).toFixed(1)}
-                          </span>
-                        </div>
-                        <button
-                          className="flex items-center gap-2 bg-gray-50 hover:bg-gray-100 px-4 py-2 rounded-full transition-colors"
-                          onClick={() => {
-                            setReviewsOpen(true);
-                            fetchReviews();
-                          }}
-                        >
-                          <MessageCircle className="h-5 w-5 text-gray-600" />
-                          <span className="font-semibold text-gray-700">
-                            {profile.total_reviews || 0} reviews
-                          </span>
-                        </button>
-                      </div>
-
-                      {/* Wallet Summary for Sellers */}
-                      {wallet &&
-                        (profile.account_type === "seller" ||
-                          profile.account_type === "both") && (
-                          <div className="mt-6 p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-100">
-                            <div className="flex items-center justify-between mb-3">
-                              <span className="text-sm font-semibold flex items-center gap-2 text-green-800">
-                                <Wallet className="h-5 w-5" />
-                                Wallet
-                              </span>
-                              <div className="flex items-center gap-1">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() =>
-                                    setWalletBalanceVisible(
-                                      !walletBalanceVisible,
-                                    )
-                                  }
-                                  title={
-                                    walletBalanceVisible
-                                      ? "Hide Balance"
-                                      : "Show Balance"
-                                  }
-                                >
-                                  <Eye
-                                    className={`h-3 w-3 ${
-                                      walletBalanceVisible ? "" : "opacity-50"
-                                    }`}
-                                  />
-                                </Button>
-                                <Button variant="ghost" size="sm" asChild>
-                                  <a href="/dashboard">
-                                    <ArrowUpRight className="h-3 w-3" />
-                                  </a>
-                                </Button>
-                              </div>
-                            </div>
-                            <div className="space-y-2 text-sm">
-                              <div className="flex justify-between items-center">
-                                <span className="text-green-700">
-                                  Available:
-                                </span>
-                                <span className="font-bold text-green-800">
-                                  {walletBalanceVisible
-                                    ? `₦${wallet.available_balance.toLocaleString()}`
-                                    : "••••••"}
-                                </span>
-                              </div>
-                              <div className="flex justify-between items-center">
-                                <span className="text-green-700">
-                                  Total Earned:
-                                </span>
-                                <span className="font-bold text-green-800">
-                                  {walletBalanceVisible
-                                    ? `₦${wallet.total_earnings.toLocaleString()}`
-                                    : "••••••"}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-
-                      {/* Store Link - Only for approved sellers */}
-                      {storeUrl && (
-                        <div className="mt-6 p-4 bg-gradient-to-r from-emerald-50 to-green-50 rounded-xl border border-emerald-200">
-                          <p className="text-xs font-semibold text-emerald-800 mb-2 flex items-center gap-1">
-                            <Share2 className="h-3 w-3" /> My Store Link
-                          </p>
-                          <p className="text-xs text-emerald-700 break-all mb-3 font-mono bg-white/60 px-2 py-1 rounded">
-                            {storeUrl}
-                          </p>
-                          <div className="grid grid-cols-3 gap-2">
-                            <Button size="sm" variant="outline" onClick={handleStoreLinkCopy} className="text-xs border-emerald-300 text-emerald-700 hover:bg-emerald-50">
-                              {storeLinkCopied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-                              <span className="ml-1">{storeLinkCopied ? "Copied" : "Copy"}</span>
-                            </Button>
-                            <Button size="sm" variant="outline" onClick={handleStoreLinkShare} className="text-xs border-emerald-300 text-emerald-700 hover:bg-emerald-50">
-                              <Share2 className="h-3 w-3" />
-                              <span className="ml-1">Share</span>
-                            </Button>
-                            <Button size="sm" variant="outline" onClick={() => window.open(storeUrl, "_blank")} className="text-xs border-emerald-300 text-emerald-700 hover:bg-emerald-50" title="Preview store">
-                              <ExternalLink className="h-3 w-3" />
-                              <span className="ml-1">View</span>
-                            </Button>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Account Type Display - For All Users */}
-                      <div className="mt-6 space-y-4">
-                        <div className="p-4 bg-gradient-to-r from-university-green/5 to-emerald-50 rounded-xl border border-university-green/20">
-                          <div className="flex items-center justify-between mb-3">
-                            <span className="text-sm font-semibold text-university-green">
-                              Account Type
-                            </span>
-                          </div>
-                          <div className="text-sm">
-                            <div className="flex items-center gap-2 text-university-green">
-                              <svg
-                                className="h-4 w-4"
-                                fill="currentColor"
-                                viewBox="0 0 20 20"
-                              >
-                                <path
-                                  fillRule="evenodd"
-                                  d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z"
-                                  clipRule="evenodd"
-                                />
-                              </svg>
-                              <span className="capitalize font-medium">
-                                {profile.account_type === "seller" &&
-                                profile.seller_status === "pending"
-                                  ? "Buyer waiting to be approved as a seller"
-                                  : profile.account_type === "seller"
-                                    ? "Seller & Buyer"
-                                    : profile.account_type === "both"
-                                      ? "Seller & Buyer"
-                                      : profile.account_type}
-                              </span>
-                            </div>
-                            <div className="text-xs text-university-green/70 mt-1">
-                              {profile.account_type === "seller" &&
-                                profile.seller_status === "pending" &&
-                                "You can buy items. Selling access pending approval."}
-                              {profile.account_type === "seller" &&
-                                profile.seller_status === "approved" &&
-                                "You can both buy and sell items on UniMarket"}
-                              {profile.account_type === "both" &&
-                                "You can both buy and sell items on UniMarket"}
-                              {profile.account_type === "buyer" &&
-                                "You can buy items on UniMarket"}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Seller Status Display - Only for Sellers */}
-                        {(profile.account_type === "seller" ||
-                          profile.account_type === "both") && (
-                          <>
-                            <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-100">
-                              <div className="flex items-center justify-between mb-3">
-                                <span className="text-sm font-semibold text-blue-800">
-                                  Seller Status
-                                </span>
-                              </div>
-                              <div className="text-sm">
-                                {profile.seller_status === "approved" && (
-                                  <div className="flex items-center gap-2 text-green-600">
-                                    <Shield className="h-4 w-4" />
-                                    <span>Approved - You can sell items</span>
-                                  </div>
-                                )}
-                                {profile.seller_status === "pending" && (
-                                  <div className="flex items-center gap-2 text-orange-600">
-                                    <Shield className="h-4 w-4" />
-                                    <span>Pending Admin Approval</span>
-                                  </div>
-                                )}
-                                {profile.seller_status === "rejected" && (
-                                  <div className="flex items-center gap-2 text-red-600">
-                                    <Shield className="h-4 w-4" />
-                                    <span>Application Rejected</span>
-                                  </div>
-                                )}
-                                {!profile.seller_status && (
-                                  <div className="flex items-center gap-2 text-gray-600">
-                                    <Shield className="h-4 w-4" />
-                                    <span>Not yet submitted for approval</span>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-
-                            {/* Subscription Status - Modern Design */}
-                            <div className="relative overflow-hidden p-4 bg-gradient-to-br from-university-green/10 via-emerald-50 to-university-green/5 rounded-xl border border-university-green/20">
-                              <div className="absolute top-0 right-0 w-20 h-20 bg-university-green/5 rounded-full -translate-y-10 translate-x-10"></div>
-                              <div className="relative">
-                                <div className="flex items-center justify-between mb-3">
-                                  <span className="text-sm font-semibold text-university-green flex items-center gap-2">
-                                    <Package className="h-4 w-4" />
-                                    Subscription Status
-                                  </span>
-                                </div>
-                                <div className="text-sm space-y-2">
-                                  {profile.seller_features_active &&
-                                  profile.seller_subscription_expires_at ? (
-                                    <>
-                                      <div className="flex items-center gap-2">
-                                        <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                                        <span className="text-green-700 font-medium">
-                                          Active -{" "}
-                                          {profile.seller_subscription_type ===
-                                          "monthly"
-                                            ? "Monthly"
-                                            : "Daily"}{" "}
-                                          Plan
-                                        </span>
-                                      </div>
-                                      <div className="text-xs text-university-green/70 ml-4">
-                                        Expires:{" "}
-                                        {new Date(
-                                          profile.seller_subscription_expires_at,
-                                        ).toLocaleDateString()}
-                                      </div>
-                                    </>
-                                  ) : profile.seller_subscription_expires_at &&
-                                    new Date(
-                                      profile.seller_subscription_expires_at,
-                                    ) < new Date() ? (
-                                    <div className="flex items-center gap-2">
-                                      <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-                                      <span className="text-red-600 font-medium">
-                                        Expired - Renew to continue selling
-                                      </span>
-                                    </div>
-                                  ) : (
-                                    <div className="flex items-center gap-2">
-                                      <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
-                                      <span className="text-gray-600 font-medium">
-                                        No active subscription
-                                      </span>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          </>
-                        )}
-                      </div>
-
-                      {/* Verification Request Button */}
-                      {!profile.is_verified &&
-                        (profile.account_type === "seller" ||
-                          profile.account_type === "both") &&
-                        profile.seller_status === "approved" && (
-                          <div className="mt-4 w-full space-y-2">
-                            {verificationRequest ? (
-                              <div className="text-center">
-                                {verificationRequest.status === "pending" && (
-                                  <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
-                                    <p className="text-sm text-orange-800 font-medium">
-                                      Verification Pending
-                                    </p>
-                                    <p className="text-xs text-orange-600 mt-1">
-                                      Your request is under admin review
-                                    </p>
-                                  </div>
-                                )}
-                                {verificationRequest.status === "rejected" && (
-                                  <div className="space-y-2">
-                                    <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                                      <p className="text-sm text-red-800 font-medium">
-                                        Verification Rejected
-                                      </p>
-                                      {verificationRequest.admin_notes && (
-                                        <p className="text-xs text-red-600 mt-1">
-                                          {verificationRequest.admin_notes}
-                                        </p>
-                                      )}
-                                    </div>
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      className="w-full"
-                                      onClick={() => {
-                                        window.location.href =
-                                          "/verification-request";
-                                      }}
-                                    >
-                                      <Shield className="h-4 w-4 mr-2" />
-                                      Request Again
-                                    </Button>
-                                  </div>
-                                )}
-                              </div>
-                            ) : (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="w-full"
-                                onClick={() => {
-                                  // Check if seller has required details
-                                  const hasRequiredDetails =
-                                    profile.full_name &&
-                                    profile.university_name &&
-                                    profile.student_id &&
-                                    profile.phone_number;
-
-                                  if (!hasRequiredDetails) {
-                                    toast({
-                                      title: "Complete Your Profile",
-                                      description:
-                                        "Please fill in all required details (name, university, student ID, phone) before requesting verification.",
-                                      variant: "destructive",
-                                    });
-                                    return;
-                                  }
-
-                                  window.location.href =
-                                    "/verification-request";
-                                }}
-                              >
-                                <Shield className="h-4 w-4 mr-2" />
-                                Request Verification
-                              </Button>
-                            )}
-                          </div>
-                        )}
-
-                      {/* Onboarding Button */}
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="mt-4 w-full bg-gradient-to-r from-purple-50 to-pink-50 border-purple-200 text-purple-700 hover:bg-purple-100 font-medium"
-                        onClick={() => setShowOnboarding(true)}
-                      >
-                        <Play className="h-4 w-4 mr-2" />
-                        How UniMarket Works
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Profile Details */}
-              <Card className="lg:col-span-2 border-0 shadow-xl bg-white/80 backdrop-blur-sm">
-                <CardHeader className="pb-6">
-                  <CardTitle className="text-2xl font-bold text-gray-900 flex items-center gap-3">
-                    <div className="w-8 h-8 bg-gradient-to-r from-university-green to-emerald-600 rounded-lg flex items-center justify-center">
-                      <svg
-                        className="w-5 h-5 text-white"
-                        fill="currentColor"
-                        viewBox="0 0 20 20"
-                      >
-                        <path
-                          fillRule="evenodd"
-                          d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z"
-                          clipRule="evenodd"
-                        />
-                      </svg>
-                    </div>
-                    Profile Information
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-2">
-                      <Label
-                        htmlFor="full_name"
-                        className="text-sm font-semibold text-gray-700"
-                      >
-                        Full Name *
-                      </Label>
-                      <Input
-                        id="full_name"
-                        value={profile.full_name}
-                        disabled
-                        className="bg-gray-50 text-gray-700 cursor-not-allowed border-gray-200 rounded-lg"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label
-                        htmlFor="email"
-                        className="text-sm font-semibold text-gray-700"
-                      >
-                        Email
-                      </Label>
-                      <Input
-                        id="email"
-                        value={profile.email}
-                        disabled
-                        className="bg-gray-50 text-gray-700 cursor-not-allowed border-gray-200 rounded-lg"
-                      />
-                      <p className="text-xs text-gray-500 mt-1">
-                        Email cannot be changed
-                      </p>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label
-                        htmlFor="university"
-                        className="text-sm font-semibold text-gray-700"
-                      >
-                        University
-                      </Label>
-                      <Input
-                        id="university"
-                        value={profile.university_name || ""}
-                        disabled
-                        className="bg-gray-50 text-gray-700 cursor-not-allowed border-gray-200 rounded-lg"
-                        placeholder="Not set"
-                      />
-                      <p className="text-xs text-gray-500 mt-1">
-                        University cannot be changed after registration
-                      </p>
-                    </div>
-
-                    {profile.account_type === "seller" && (
-                      <>
-                        <div className="space-y-2">
-                          <Label
-                            htmlFor="student_id"
-                            className="text-sm font-semibold text-gray-700"
-                          >
-                            Student ID
-                          </Label>
-                          <Input
-                            id="student_id"
-                            value={profile.student_id || ""}
-                            disabled
-                            className="bg-gray-50 text-gray-700 cursor-not-allowed border-gray-200 rounded-lg"
-                            placeholder="Not set"
-                          />
-                          <p className="text-xs text-gray-500 mt-1">
-                            Student ID cannot be changed after registration
-                          </p>
-                        </div>
-
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between">
-                            <Label
-                              htmlFor="phone"
-                              className="text-sm font-semibold text-gray-700"
-                            >
-                              Phone Number
-                            </Label>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                setNewPhoneNumber(profile.phone_number || "");
-                                setEditingPhoneNumber(true);
-                              }}
-                              className="text-xs px-2 py-1 h-6"
-                            >
-                              Edit
-                            </Button>
-                          </div>
-                          <Input
-                            id="phone"
-                            value={profile.phone_number || ""}
-                            disabled
-                            className="bg-gray-50 text-gray-700 cursor-not-allowed border-gray-200 rounded-lg"
-                            placeholder="Not set"
-                          />
-                          <p className="text-xs text-gray-500 mt-1">
-                            Click Edit to change your phone number
-                          </p>
-                        </div>
-
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between">
-                            <Label
-                              htmlFor="business_name"
-                              className="text-sm font-semibold text-gray-700"
-                            >
-                              Business Name
-                            </Label>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                setNewBusinessName(profile.business_name || "");
-                                setEditingBusinessName(true);
-                              }}
-                              className="text-xs px-2 py-1 h-6"
-                            >
-                              Edit
-                            </Button>
-                          </div>
-                          <Input
-                            id="business_name"
-                            value={profile.business_name || ""}
-                            disabled
-                            className="bg-gray-50 text-gray-700 cursor-not-allowed border-gray-200 rounded-lg"
-                            placeholder="Not set"
-                          />
-                          <p className="text-xs text-gray-500 mt-1">
-                            Click Edit to change your business name
-                          </p>
-                        </div>
-                      </>
-                    )}
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label
-                      htmlFor="bio"
-                      className="text-sm font-semibold text-gray-700"
-                    >
-                      Bio
-                    </Label>
-                    <Textarea
-                      id="bio"
-                      value={profile.bio || ""}
-                      disabled
-                      className="bg-gray-50 text-gray-700 cursor-not-allowed border-gray-200 rounded-lg"
-                      placeholder="Tell others about yourself..."
-                      rows={3}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label
-                      htmlFor="account_type"
-                      className="text-sm font-semibold text-gray-700"
-                    >
-                      Account Type
-                    </Label>
-                    <select
-                      value={
-                        profile.account_type === "seller" &&
-                        profile.seller_status === "pending"
-                          ? "pending"
-                          : profile.account_type === "seller"
-                            ? "both"
-                            : profile.account_type
-                      }
-                      disabled={true}
-                      className="w-full h-10 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm cursor-not-allowed"
-                    >
-                      <option value="buyer">Buyer Only</option>
-                      <option value="pending">
-                        Buyer waiting to be approved as a seller
-                      </option>
-                      <option value="both">Both Buyer & Seller</option>
-                    </select>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Account type cannot be changed. Contact support if you
-                      need assistance.
-                    </p>
-                  </div>
-
-                  {/* Student ID Photo Section */}
-                  {(profile.account_type === "seller" ||
-                    profile.account_type === "both") && (
-                    <div className="space-y-3">
-                      <Label className="text-sm font-semibold text-gray-700">
-                        Student ID Card
-                      </Label>
-                      {profile.student_id_photo_url ? (
-                        <div className="mt-3 p-6 border border-gray-200 rounded-xl bg-gray-50/50">
-                          <img
-                            src={profile.student_id_photo_url}
-                            alt="Student ID Card"
-                            className="max-w-full h-auto rounded border"
-                            style={{ maxHeight: "200px" }}
-                            onError={(e) => {
-                              console.error(
-                                "Failed to load student ID photo:",
-                                profile.student_id_photo_url,
-                              );
-                              e.currentTarget.style.display = "none";
-                            }}
-                          />
-                          <p className="text-xs text-gray-500 mt-3">
-                            Student ID card uploaded during registration
-                          </p>
-                        </div>
-                      ) : (
-                        <div className="mt-3 p-6 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50/50">
-                          <div className="text-center">
-                            <p className="text-sm text-gray-600 mb-4">
-                              No student ID card uploaded yet
-                            </p>
-                            <div className="border-2 border-dashed border-gray-200 rounded-xl p-6 text-center bg-white/50">
-                              <div className="text-sm font-semibold mb-3 text-gray-700">
-                                Student ID Card
-                              </div>
-                              <CompressedImageUpload
-                                onUpload={handleStudentIdUpload}
-                                bucket="verification-photos"
-                                path={`${user?.id}/student-id-${Date.now()}.jpg`}
-                                uploading={uploadingStudentId}
-                                setUploading={setUploadingStudentId}
-                                label="Take/Upload ID"
-                              />
-                            </div>
-                            <p className="text-xs text-gray-500 mt-3">
-                              Required for seller verification
-                            </p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Account Deletion Section */}
-                  <div className="border-t border-gray-200 pt-8 mt-8">
-                    <div className="bg-red-50 border border-red-200 rounded-xl p-6">
-                      <h3 className="text-xl font-bold text-red-700 mb-3 flex items-center gap-2">
-                        <svg
-                          className="w-6 h-6"
-                          fill="currentColor"
-                          viewBox="0 0 20 20"
-                        >
+              <div className="flex items-center gap-3 px-4 pb-4 pt-2">
+                <div className="w-16 shrink-0" aria-hidden="true" />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <h2 className="truncate text-base font-bold text-flora-ink">
+                      {profile.business_name || profile.full_name || "User"}
+                    </h2>
+                    {profile.is_verified && (
+                      <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-verified-blue">
+                        <svg className="h-2.5 w-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
                           <path
                             fillRule="evenodd"
-                            d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+                            d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
                             clipRule="evenodd"
                           />
                         </svg>
-                        Danger Zone
-                      </h3>
-                      <p className="text-sm text-red-600 mb-6">
-                        Once you delete your account, there is no going back.
-                        Please be certain.
-                      </p>
-                      <Dialog
-                        open={deleteModalOpen}
-                        onOpenChange={setDeleteModalOpen}
-                      >
-                        <DialogTrigger asChild>
-                          <Button
-                            variant="destructive"
-                            className="w-full sm:w-auto bg-red-600 hover:bg-red-700 font-semibold px-6 py-3 rounded-xl shadow-lg"
-                          >
-                            <Trash2 className="h-5 w-5 mr-2" />
-                            Delete Account
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                          <DialogHeader>
-                            <DialogTitle>Delete Account</DialogTitle>
-                          </DialogHeader>
-                          <div className="space-y-4">
-                            <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4">
-                              <p className="text-sm text-destructive font-medium mb-2">
-                                ⚠️ This action cannot be undone!
-                              </p>
-                              <p className="text-sm text-muted-foreground">
-                                This will permanently delete your account and
-                                all associated data including:
-                              </p>
-                              <ul className="text-sm text-muted-foreground mt-2 list-disc list-inside">
-                                <li>All your products and listings</li>
-                                <li>Order history and transactions</li>
-                                <li>Messages and conversations</li>
-                                <li>Reviews and ratings</li>
-                                <li>Wallet and payout history</li>
-                              </ul>
-                            </div>
-
-                            <div className="space-y-2">
-                              <Label htmlFor="confirm-name">
-                                Type your full name{" "}
-                                <strong>"{profile.full_name}"</strong> to
-                                confirm:
-                              </Label>
-                              <Input
-                                id="confirm-name"
-                                value={deleteConfirmName}
-                                onChange={(e) =>
-                                  setDeleteConfirmName(e.target.value)
-                                }
-                                placeholder="Enter your full name"
-                              />
-                            </div>
-
-                            <div className="flex gap-2 pt-4">
-                              <Button
-                                variant="outline"
-                                onClick={() => {
-                                  setDeleteModalOpen(false);
-                                  setDeleteConfirmName("");
-                                }}
-                                className="flex-1"
-                              >
-                                Cancel
-                              </Button>
-                              <Button
-                                variant="destructive"
-                                onClick={handleDeleteAccount}
-                                disabled={
-                                  deleting ||
-                                  deleteConfirmName !== profile.full_name
-                                }
-                                className="flex-1"
-                              >
-                                {deleting ? "Deleting..." : "Delete Account"}
-                              </Button>
-                            </div>
-                          </div>
-                        </DialogContent>
-                      </Dialog>
-                    </div>
+                      </span>
+                    )}
                   </div>
-                </CardContent>
-              </Card>
+                  <p className="truncate text-sm text-flora-muted">
+                    {profile.email || user?.email || "No email"}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEditing(true)}
+                  className="shrink-0 rounded-full bg-flora-chip px-3.5 py-2 text-xs font-semibold text-flora-ink transition hover:brightness-95"
+                >
+                  Edit
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 px-4">
+            <div className="rounded-3xl bg-white p-5 shadow-card">
+              {renderBadgesAndStats()}
+            </div>
+          </div>
+
+          {showSellerFields && (
+            <div className="mt-4 px-4">{renderSellerDashboardCTA()}</div>
+          )}
+
+          {showSellerFields && (
+            <div className="mt-6 px-4">
+              <GroupHeading
+                lead="Store"
+                rest="settings"
+                subtitle="Your listings, wallet, and verification status"
+                tone="seller"
+              />
+              <div className="mt-3 overflow-hidden rounded-3xl bg-flora-tagBg/40 shadow-card">
+                <Accordion type="single" collapsible>
+                  <AccordionItem value="store-details" className="border-b border-flora-leaf/15 px-4">
+                    <AccordionTrigger className="py-3.5 hover:no-underline [&>svg]:text-flora-muted">
+                      <span className="flex items-center gap-3 text-sm font-medium text-flora-ink">
+                        <SectionIcon icon={UserIcon} tone="seller" />
+                        Store Details
+                      </span>
+                    </AccordionTrigger>
+                    <AccordionContent className="pb-4 pt-1">
+                      <div className="rounded-2xl bg-white p-4 shadow-card">{renderStoreDetails()}</div>
+                    </AccordionContent>
+                  </AccordionItem>
+
+                  {wallet && (
+                    <AccordionItem value="wallet" className="border-b border-flora-leaf/15 px-4">
+                      <AccordionTrigger className="py-3.5 hover:no-underline [&>svg]:text-flora-muted">
+                        <span className="flex items-center gap-3 text-sm font-medium text-flora-ink">
+                          <SectionIcon icon={Wallet} tone="seller" />
+                          Wallet
+                        </span>
+                      </AccordionTrigger>
+                      <AccordionContent className="pb-4 pt-1">
+                        <div className="rounded-2xl bg-white p-4 shadow-card">{renderWalletCard()}</div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  )}
+
+                  {storeUrl && (
+                    <AccordionItem value="store-link" className="border-b border-flora-leaf/15 px-4">
+                      <AccordionTrigger className="py-3.5 hover:no-underline [&>svg]:text-flora-muted">
+                        <span className="flex items-center gap-3 text-sm font-medium text-flora-ink">
+                          <SectionIcon icon={Share2} tone="seller" />
+                          Store Link
+                        </span>
+                      </AccordionTrigger>
+                      <AccordionContent className="pb-4 pt-1">
+                        <div className="rounded-2xl bg-white p-4 shadow-card">{renderStoreLinkCard()}</div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  )}
+
+                  <AccordionItem value="seller-status" className="border-b border-flora-leaf/15 px-4">
+                    <AccordionTrigger className="py-3.5 hover:no-underline [&>svg]:text-flora-muted">
+                      <span className="flex items-center gap-3 text-sm font-medium text-flora-ink">
+                        <SectionIcon icon={Shield} tone="seller" />
+                        Seller &amp; Subscription Status
+                      </span>
+                    </AccordionTrigger>
+                    <AccordionContent className="pb-4 pt-1">
+                      <div className="rounded-2xl bg-white p-4 shadow-card">{renderSellerStatusPanel()}</div>
+                    </AccordionContent>
+                  </AccordionItem>
+
+                  <AccordionItem value="student-id" className="border-b border-flora-leaf/15 px-4">
+                    <AccordionTrigger className="py-3.5 hover:no-underline [&>svg]:text-flora-muted">
+                      <span className="flex items-center gap-3 text-sm font-medium text-flora-ink">
+                        <SectionIcon icon={Package} tone="seller" />
+                        Student ID Card
+                      </span>
+                    </AccordionTrigger>
+                    <AccordionContent className="pb-4 pt-1">
+                      <div className="rounded-2xl bg-white p-4 shadow-card">{renderStudentIdSection()}</div>
+                    </AccordionContent>
+                  </AccordionItem>
+
+                  {showVerification && (
+                    <AccordionItem value="verification" className="px-4">
+                      <AccordionTrigger className="py-3.5 hover:no-underline [&>svg]:text-flora-muted">
+                        <span className="flex items-center gap-3 text-sm font-medium text-flora-ink">
+                          <SectionIcon icon={Shield} tone="seller" />
+                          Verification
+                        </span>
+                      </AccordionTrigger>
+                      <AccordionContent className="pb-4 pt-1">
+                        <div className="rounded-2xl bg-white p-4 shadow-card">{renderVerificationSection()}</div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  )}
+                </Accordion>
+              </div>
+            </div>
+          )}
+
+          <div className="mt-6 px-4">
+            <GroupHeading
+              lead="Account"
+              rest="details"
+              subtitle="Your personal info, saved items, and security"
+            />
+            {/* Deliberately no card wrapper here — the Seller section above
+                gets the elevated, branded card treatment; Account stays flat
+                on the page background so the two visually read as different
+                zones instead of two more identical white cards. */}
+            <div className="mt-3">
+              <Accordion type="single" collapsible>
+                <AccordionItem value="photo" className="border-b border-flora-ink/10">
+                  <AccordionTrigger className="py-3.5 hover:no-underline [&>svg]:text-flora-muted">
+                    <span className="flex items-center gap-3 text-sm font-medium text-flora-ink">
+                      <SectionIcon icon={ImageIcon} />
+                      Profile Photo
+                    </span>
+                  </AccordionTrigger>
+                  <AccordionContent className="pb-4 pt-1">
+                    <div className="rounded-2xl bg-white p-4 shadow-card">{renderPhotoUpload()}</div>
+                  </AccordionContent>
+                </AccordionItem>
+
+                <AccordionItem value="details" className="border-b border-flora-ink/10">
+                  <AccordionTrigger className="py-3.5 hover:no-underline [&>svg]:text-flora-muted">
+                    <span className="flex items-center gap-3 text-sm font-medium text-flora-ink">
+                      <SectionIcon icon={UserIcon} />
+                      Account Details
+                    </span>
+                  </AccordionTrigger>
+                  <AccordionContent className="pb-4 pt-1">
+                    <div className="rounded-2xl bg-white p-4 shadow-card">{renderAccountDetails()}</div>
+                  </AccordionContent>
+                </AccordionItem>
+
+                <button
+                  type="button"
+                  onClick={() => (window.location.href = "/favorites")}
+                  className="flex w-full items-center justify-between border-b border-flora-ink/10 py-3.5 text-left"
+                >
+                  <span className="flex items-center gap-3 text-sm font-medium text-flora-ink">
+                    <SectionIcon icon={Heart} />
+                    Saved Items
+                  </span>
+                  <ChevronRight className="h-4 w-4 text-flora-muted" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowOnboarding(true)}
+                  className="flex w-full items-center justify-between border-b border-flora-ink/10 py-3.5 text-left"
+                >
+                  <span className="flex items-center gap-3 text-sm font-medium text-flora-ink">
+                    <SectionIcon icon={Play} />
+                    How UniMarket Works
+                  </span>
+                </button>
+
+                <AccordionItem value="danger">
+                  <AccordionTrigger className="py-3.5 hover:no-underline [&>svg]:text-flora-muted">
+                    <span className="flex items-center gap-3 text-sm font-medium text-red-600">
+                      <SectionIcon icon={Trash2} tone="danger" />
+                      Danger Zone
+                    </span>
+                  </AccordionTrigger>
+                  <AccordionContent className="pb-4 pt-1">
+                    <div className="rounded-2xl bg-white p-4 shadow-card">{renderDangerZoneContent()}</div>
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
+            </div>
+          </div>
+        </div>
+
+        {/* ================= DESKTOP ================= */}
+        <main className="hidden lg:block container mx-auto px-4 py-6 sm:py-8">
+          <div className="max-w-6xl mx-auto space-y-8">
+            <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+              <div>
+                <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-flora-ink mb-1">
+                  My Profile
+                </h1>
+                <p className="text-flora-muted">Manage your UniMarket account</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditing(true)}
+                className="rounded-full bg-flora-ink px-6 py-2.5 text-sm font-medium text-white transition hover:brightness-110"
+              >
+                Edit Profile
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              {/* Identity card */}
+              <div className="lg:col-span-1 lg:sticky lg:top-24 lg:self-start overflow-hidden rounded-3xl bg-white shadow-card">
+                <div className="h-20 bg-gradient-to-r from-flora-ink to-[#3a4436]" />
+                <div className="flex flex-col items-center space-y-4 p-6 sm:p-8">
+                  <div className="relative -mt-16">
+                    <Avatar
+                      className="h-32 w-32 cursor-pointer hover:opacity-80 transition-all duration-300 hover:scale-105 ring-4 ring-white shadow-2xl"
+                      onClick={() => setShowAvatarModal(true)}
+                    >
+                      <AvatarImage
+                        src={profile.avatar_url || undefined}
+                        alt={profile.full_name}
+                        className="object-cover"
+                      />
+                      <AvatarFallback className="bg-flora-leaf text-white text-2xl font-bold">
+                        {getInitials(profile.full_name || "User")}
+                      </AvatarFallback>
+                    </Avatar>
+                    {profile.is_verified && (
+                      <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-verified-blue rounded-full flex items-center justify-center ring-4 ring-white shadow-card">
+                        <svg className="h-5 w-5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                          <path
+                            fillRule="evenodd"
+                            d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                            clipRule="evenodd"
+                          />
+                        </svg>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="w-full">{renderPhotoUpload()}</div>
+
+                  <div className="text-center">
+                    {profile.business_name ? (
+                      <>
+                        <h2 className="text-2xl font-bold text-flora-ink mb-1">
+                          {profile.business_name}
+                        </h2>
+                        <p className="text-sm text-flora-muted mb-2">
+                          Owner: {profile.full_name}
+                        </p>
+                      </>
+                    ) : (
+                      <h2 className="text-2xl font-bold text-flora-ink mb-1">
+                        {profile.full_name || "User"}
+                      </h2>
+                    )}
+                    <p className="text-flora-muted mb-4">
+                      {profile.email || user?.email || "No email"}
+                    </p>
+                    {profile.bio && (
+                      <p className="text-center text-sm text-flora-muted">{profile.bio}</p>
+                    )}
+
+                    {renderBadgesAndStats()}
+
+                    <button
+                      type="button"
+                      className="mt-4 flex w-full items-center justify-center gap-2 rounded-full border border-flora-ink/10 bg-flora-chip py-2.5 text-sm font-medium text-flora-ink transition hover:brightness-95"
+                      onClick={() => setShowOnboarding(true)}
+                    >
+                      <Play className="h-4 w-4" />
+                      How UniMarket Works
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Two sections */}
+              <div className="lg:col-span-2 space-y-6">
+                {showSellerFields && renderSellerDashboardCTA()}
+
+                {showSellerFields && (
+                  <div className="rounded-3xl bg-flora-tagBg/40 p-6 shadow-card sm:p-8 space-y-4">
+                    <GroupHeading
+                      lead="Store"
+                      rest="settings"
+                      subtitle="Your listings, wallet, and verification status"
+                      tone="seller"
+                    />
+                    <Accordion type="single" collapsible defaultValue="store-details">
+                      <AccordionItem value="store-details" className="border-b border-flora-leaf/15">
+                        <AccordionTrigger className="py-4 hover:no-underline [&>svg]:text-flora-muted">
+                          <span className="flex items-center gap-3 text-sm font-semibold text-flora-ink">
+                            <SectionIcon icon={UserIcon} tone="seller" />
+                            Store Details
+                          </span>
+                        </AccordionTrigger>
+                        <AccordionContent className="pb-5 pt-1">
+                          <div className="rounded-2xl bg-white p-5 shadow-card">{renderStoreDetails()}</div>
+                        </AccordionContent>
+                      </AccordionItem>
+
+                      {wallet && (
+                        <AccordionItem value="wallet" className="border-b border-flora-leaf/15">
+                          <AccordionTrigger className="py-4 hover:no-underline [&>svg]:text-flora-muted">
+                            <span className="flex items-center gap-3 text-sm font-semibold text-flora-ink">
+                              <SectionIcon icon={Wallet} tone="seller" />
+                              Wallet
+                            </span>
+                          </AccordionTrigger>
+                          <AccordionContent className="pb-5 pt-1">
+                            <div className="rounded-2xl bg-white p-5 shadow-card">{renderWalletCard()}</div>
+                          </AccordionContent>
+                        </AccordionItem>
+                      )}
+
+                      {storeUrl && (
+                        <AccordionItem value="store-link" className="border-b border-flora-leaf/15">
+                          <AccordionTrigger className="py-4 hover:no-underline [&>svg]:text-flora-muted">
+                            <span className="flex items-center gap-3 text-sm font-semibold text-flora-ink">
+                              <SectionIcon icon={Share2} tone="seller" />
+                              Store Link
+                            </span>
+                          </AccordionTrigger>
+                          <AccordionContent className="pb-5 pt-1">
+                            <div className="rounded-2xl bg-white p-5 shadow-card">{renderStoreLinkCard()}</div>
+                          </AccordionContent>
+                        </AccordionItem>
+                      )}
+
+                      <AccordionItem value="seller-status" className="border-b border-flora-leaf/15">
+                        <AccordionTrigger className="py-4 hover:no-underline [&>svg]:text-flora-muted">
+                          <span className="flex items-center gap-3 text-sm font-semibold text-flora-ink">
+                            <SectionIcon icon={Shield} tone="seller" />
+                            Seller &amp; Subscription Status
+                          </span>
+                        </AccordionTrigger>
+                        <AccordionContent className="pb-5 pt-1">
+                          <div className="rounded-2xl bg-white p-5 shadow-card">{renderSellerStatusPanel()}</div>
+                        </AccordionContent>
+                      </AccordionItem>
+
+                      <AccordionItem value="student-id" className="border-b border-flora-leaf/15">
+                        <AccordionTrigger className="py-4 hover:no-underline [&>svg]:text-flora-muted">
+                          <span className="flex items-center gap-3 text-sm font-semibold text-flora-ink">
+                            <SectionIcon icon={Package} tone="seller" />
+                            Student ID Card
+                          </span>
+                        </AccordionTrigger>
+                        <AccordionContent className="pb-5 pt-1">
+                          <div className="rounded-2xl bg-white p-5 shadow-card">{renderStudentIdSection()}</div>
+                        </AccordionContent>
+                      </AccordionItem>
+
+                      {showVerification && (
+                        <AccordionItem value="verification">
+                          <AccordionTrigger className="py-4 hover:no-underline [&>svg]:text-flora-muted">
+                            <span className="flex items-center gap-3 text-sm font-semibold text-flora-ink">
+                              <SectionIcon icon={Shield} tone="seller" />
+                              Verification
+                            </span>
+                          </AccordionTrigger>
+                          <AccordionContent className="pb-5 pt-1">
+                            <div className="rounded-2xl bg-white p-5 shadow-card">{renderVerificationSection()}</div>
+                          </AccordionContent>
+                        </AccordionItem>
+                      )}
+                    </Accordion>
+                  </div>
+                )}
+
+                {/* No card wrapper — same "plain vs branded" contrast as
+                    mobile between Account and the Seller section above. */}
+                <div className="space-y-4">
+                  <GroupHeading
+                    lead="Account"
+                    rest="details"
+                    subtitle="Your personal info, saved items, and security"
+                  />
+                  <Accordion type="single" collapsible defaultValue="details">
+                    <AccordionItem value="details" className="border-b border-flora-ink/10">
+                      <AccordionTrigger className="py-4 hover:no-underline [&>svg]:text-flora-muted">
+                        <span className="flex items-center gap-3 text-sm font-semibold text-flora-ink">
+                          <SectionIcon icon={UserIcon} />
+                          Account Details
+                        </span>
+                      </AccordionTrigger>
+                      <AccordionContent className="pb-5 pt-1">
+                        <div className="rounded-2xl bg-white p-5 shadow-card">{renderAccountDetails()}</div>
+                      </AccordionContent>
+                    </AccordionItem>
+
+                    <a
+                      href="/favorites"
+                      className="flex items-center justify-between border-b border-flora-ink/10 py-4"
+                    >
+                      <span className="flex items-center gap-3 text-sm font-semibold text-flora-ink">
+                        <SectionIcon icon={Heart} />
+                        Saved Items
+                      </span>
+                      <ChevronRight className="h-4 w-4 text-flora-muted" />
+                    </a>
+
+                    <AccordionItem value="danger">
+                      <AccordionTrigger className="py-4 hover:no-underline [&>svg]:text-flora-muted">
+                        <span className="flex items-center gap-3 text-sm font-semibold text-red-600">
+                          <SectionIcon icon={Trash2} tone="danger" />
+                          Danger Zone
+                        </span>
+                      </AccordionTrigger>
+                      <AccordionContent className="pb-5 pt-1">
+                        <div className="rounded-2xl bg-white p-5 shadow-card">{renderDangerZoneContent()}</div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  </Accordion>
+                </div>
+              </div>
             </div>
           </div>
         </main>
       </PullToRefresh>
+
+      {/* Edit Profile Dialog — shared trigger from mobile header + desktop button */}
+      <Dialog open={editing} onOpenChange={setEditing}>
+        <DialogContent className="max-w-md max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-flora-chip text-flora-leaf">
+                <UserIcon className="h-4 w-4" />
+              </span>
+              Edit Profile
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="edit_full_name" className="text-sm font-semibold text-flora-ink">
+                Full Name *
+              </Label>
+              <Input
+                id="edit_full_name"
+                value={profile?.full_name || ""}
+                onChange={(e) =>
+                  setProfile(profile ? { ...profile, full_name: e.target.value } : null)
+                }
+                className="rounded-2xl border-0 bg-flora-chip focus-visible:ring-flora-leaf/40"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="edit_bio" className="text-sm font-semibold text-flora-ink">
+                Bio
+              </Label>
+              <Textarea
+                id="edit_bio"
+                value={profile?.bio || ""}
+                onChange={(e) =>
+                  setProfile(profile ? { ...profile, bio: e.target.value } : null)
+                }
+                placeholder="Tell others about yourself..."
+                rows={3}
+                maxLength={280}
+                className="rounded-2xl border-0 bg-flora-chip focus-visible:ring-flora-leaf/40"
+              />
+              <p className="text-right text-xs text-flora-muted">
+                {(profile?.bio || "").length}/280
+              </p>
+            </div>
+
+            {showSellerFields && (
+              <div className="space-y-1.5">
+                <Label htmlFor="edit_business_name" className="text-sm font-semibold text-flora-ink">
+                  Business Name
+                </Label>
+                <Input
+                  id="edit_business_name"
+                  value={newBusinessName}
+                  onChange={(e) => setNewBusinessName(e.target.value)}
+                  placeholder="Enter your business name"
+                  className="rounded-2xl border-0 bg-flora-chip focus-visible:ring-flora-leaf/40"
+                />
+              </div>
+            )}
+
+            {showSellerFields && (
+              <div className="space-y-1.5">
+                <Label htmlFor="edit_phone_number" className="text-sm font-semibold text-flora-ink">
+                  Phone Number
+                </Label>
+                <Input
+                  id="edit_phone_number"
+                  value={newPhoneNumber}
+                  onChange={(e) => setNewPhoneNumber(e.target.value)}
+                  placeholder="Enter your phone number"
+                  className="rounded-2xl border-0 bg-flora-chip focus-visible:ring-flora-leaf/40"
+                />
+              </div>
+            )}
+
+            <div className="rounded-2xl bg-flora-chip p-4 space-y-2.5">
+              <h4 className="text-sm font-semibold text-flora-ink">
+                Need to change other details?
+              </h4>
+
+              <div className="space-y-1.5">
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-flora-muted">Email</span>
+                  <a
+                    href={`https://wa.me/2349133054018?text=${encodeURIComponent(
+                      "Hello UniMarket Support,\n\nI would like to change my email address on my account.\n\nCurrent Email: " +
+                        (profile?.email || "") +
+                        "\nNew Email: [Please specify]\n\nReason: [Please provide a valid reason]\n\nThank you.",
+                    )}`}
+                    target="_blank"
+                    className="rounded-full bg-white px-3 py-1 text-xs font-medium text-flora-ink shadow-card transition hover:brightness-95"
+                  >
+                    Contact Support
+                  </a>
+                </div>
+
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-flora-muted">University</span>
+                  <a
+                    href={`https://wa.me/2349133054018?text=${encodeURIComponent(
+                      "Hello UniMarket Support,\n\nI would like to change my university information on my account.\n\nCurrent University: " +
+                        (profile?.university_name || "Not set") +
+                        "\nNew University: [Please specify]\n\nReason: [Please provide a valid reason such as transfer]\n\nThank you.",
+                    )}`}
+                    target="_blank"
+                    className="rounded-full bg-white px-3 py-1 text-xs font-medium text-flora-ink shadow-card transition hover:brightness-95"
+                  >
+                    Contact Support
+                  </a>
+                </div>
+
+                {showSellerFields && (
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-flora-muted">Student ID</span>
+                    <a
+                      href={`https://wa.me/2349133054018?text=${encodeURIComponent(
+                        "Hello UniMarket Support,\n\nI would like to change my student ID on my account.\n\nCurrent Student ID: " +
+                          (profile?.student_id || "Not set") +
+                          "\nNew Student ID: [Please specify]\n\nReason: [Please provide a valid reason]\n\nThank you.",
+                      )}`}
+                      target="_blank"
+                      className="rounded-full bg-white px-3 py-1 text-xs font-medium text-flora-ink shadow-card transition hover:brightness-95"
+                    >
+                      Contact Support
+                    </a>
+                  </div>
+                )}
+
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-flora-muted">Account Type</span>
+                  <a
+                    href={`https://wa.me/2349133054018?text=${encodeURIComponent(
+                      "Hello UniMarket Support,\n\nI would like to change my account type.\n\nCurrent Account Type: " +
+                        (profile?.account_type || "Not set") +
+                        "\nDesired Account Type: [Please specify: buyer/seller/both]\n\nReason: [Please provide a valid reason]\n\nThank you.",
+                    )}`}
+                    target="_blank"
+                    className="rounded-full bg-white px-3 py-1 text-xs font-medium text-flora-ink shadow-card transition hover:brightness-95"
+                  >
+                    Contact Support
+                  </a>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  if (
+                    showSellerFields &&
+                    newBusinessName.trim() !== (profile?.business_name || "")
+                  ) {
+                    handleBusinessNameSave();
+                  } else {
+                    handleSave();
+                  }
+                }}
+                disabled={saving}
+                className="flex-1 rounded-full bg-flora-ink px-4 py-2.5 text-sm font-medium text-white transition hover:brightness-110 disabled:opacity-50"
+              >
+                {saving ? "Saving..." : "Save Changes"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditing(false);
+                  setNewBusinessName(profile?.business_name || "");
+                }}
+                className="flex-1 rounded-full border border-flora-ink/10 px-4 py-2.5 text-sm font-medium text-flora-ink transition hover:bg-flora-chip"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Account Dialog — shared trigger from both accordion + desktop danger zone */}
+      <Dialog open={deleteModalOpen} onOpenChange={setDeleteModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-red-50 text-red-600">
+                <Trash2 className="h-4 w-4" />
+              </span>
+              Delete Account
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="rounded-2xl bg-red-50 p-4">
+              <p className="text-sm font-semibold text-red-700 mb-2">
+                This action cannot be undone.
+              </p>
+              <p className="text-sm text-red-700/80">
+                This will permanently delete your account and all associated
+                data, including:
+              </p>
+              <ul className="mt-2 space-y-1 text-sm text-red-700/80">
+                <li>• All your products and listings</li>
+                <li>• Order history and transactions</li>
+                <li>• Messages and conversations</li>
+                <li>• Reviews and ratings</li>
+                <li>• Wallet and payout history</li>
+              </ul>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="confirm-name" className="text-sm font-semibold text-flora-ink">
+                Type your full name <strong>"{profile.full_name}"</strong> to
+                confirm:
+              </Label>
+              <Input
+                id="confirm-name"
+                value={deleteConfirmName}
+                onChange={(e) => setDeleteConfirmName(e.target.value)}
+                placeholder="Enter your full name"
+                className="rounded-2xl border-0 bg-flora-chip focus-visible:ring-red-400/40"
+              />
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setDeleteModalOpen(false);
+                  setDeleteConfirmName("");
+                }}
+                className="flex-1 rounded-full border border-flora-ink/10 px-4 py-2.5 text-sm font-medium text-flora-ink transition hover:bg-flora-chip"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteAccount}
+                disabled={deleting || deleteConfirmName !== profile.full_name}
+                className="flex-1 rounded-full bg-red-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-red-700 disabled:opacity-50"
+              >
+                {deleting ? "Deleting..." : "Delete Account"}
+              </button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Reviews Dialog */}
       <Dialog open={reviewsOpen} onOpenChange={setReviewsOpen}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Star className="h-5 w-5" />
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-flora-chip text-yellow-500">
+                <Star className="h-4 w-4 fill-yellow-400" />
+              </span>
               My Reviews ({reviews.length})
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             {loadingReviews ? (
               <div className="text-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-                <p className="mt-2 text-muted-foreground">Loading reviews...</p>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-flora-leaf mx-auto"></div>
+                <p className="mt-2 text-flora-muted">Loading reviews...</p>
               </div>
             ) : reviews.length === 0 ? (
               <div className="text-center py-8">
-                <MessageCircle className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <p className="text-muted-foreground">No reviews yet</p>
-                <p className="text-sm text-muted-foreground">
+                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-flora-chip">
+                  <MessageCircle className="h-8 w-8 text-flora-muted" />
+                </div>
+                <p className="font-medium text-flora-ink">No reviews yet</p>
+                <p className="text-sm text-flora-muted">
                   Reviews from buyers will appear here
                 </p>
               </div>
             ) : (
               reviews.map((review) => (
-                <div key={review.id} className="border rounded-lg p-4">
+                <div key={review.id} className="rounded-2xl bg-flora-chip p-4">
                   <div className="flex items-start gap-3">
                     <Avatar className="h-10 w-10">
                       <AvatarImage src={review.reviewer?.avatar_url} />
@@ -1775,7 +2046,7 @@ const Profile = () => {
 
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2">
-                        <span className="font-medium">
+                        <span className="font-medium text-flora-ink">
                           {review.reviewer?.full_name || "Anonymous"}
                         </span>
                         <div className="flex items-center">
@@ -1785,20 +2056,18 @@ const Profile = () => {
                               className={`h-4 w-4 ${
                                 i < review.rating
                                   ? "fill-yellow-400 text-yellow-400"
-                                  : "text-gray-300"
+                                  : "text-flora-ink/15"
                               }`}
                             />
                           ))}
                         </div>
-                        <span className="text-sm text-muted-foreground">
+                        <span className="text-sm text-flora-muted">
                           {new Date(review.created_at).toLocaleDateString()}
                         </span>
                       </div>
 
                       {review.comment && (
-                        <p className="text-sm text-muted-foreground">
-                          {review.comment}
-                        </p>
+                        <p className="text-sm text-flora-muted">{review.comment}</p>
                       )}
                     </div>
                   </div>
@@ -1810,82 +2079,33 @@ const Profile = () => {
       </Dialog>
 
       {/* Onboarding Modal */}
-      <OnboardingModal
-        open={showOnboarding}
-        onClose={() => setShowOnboarding(false)}
-      />
+      <OnboardingModal open={showOnboarding} onClose={() => setShowOnboarding(false)} />
 
       {/* Avatar Modal */}
       <Dialog open={showAvatarModal} onOpenChange={setShowAvatarModal}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Profile Picture</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-flora-chip text-flora-leaf">
+                <ImageIcon className="h-4 w-4" />
+              </span>
+              Profile Picture
+            </DialogTitle>
           </DialogHeader>
           <div className="flex justify-center">
             {profile.avatar_url ? (
               <img
                 src={profile.avatar_url}
                 alt={profile.full_name}
-                className="max-w-full max-h-96 object-contain rounded-lg"
+                className="max-w-full max-h-96 rounded-2xl object-contain"
               />
             ) : (
-              <div className="w-64 h-64 bg-muted rounded-lg flex items-center justify-center">
-                <span className="text-4xl text-muted-foreground">
+              <div className="flex h-64 w-64 items-center justify-center rounded-2xl bg-flora-chip">
+                <span className="text-4xl font-bold text-flora-muted">
                   {getInitials(profile.full_name || "User")}
                 </span>
               </div>
             )}
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Upload Warning Modal */}
-      <Dialog open={showUploadWarning} onOpenChange={setShowUploadWarning}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-orange-600">
-              ⚠️ Important Warning
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-              <p className="text-sm text-orange-800 font-medium mb-2">
-                Profile Picture Upload Policy
-              </p>
-              <ul className="text-sm text-orange-700 space-y-1">
-                <li>• You can only upload your profile picture ONCE</li>
-                <li>• After uploading, you cannot change it yourself</li>
-                <li>• To change it later, you must contact customer support</li>
-                <li>• Make sure your photo is clear and appropriate</li>
-              </ul>
-            </div>
-
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-              <p className="text-sm text-blue-800">
-                <strong>Need to change later?</strong>
-                <br />
-                Contact support on WhatsApp: +234 913 305 4018
-              </p>
-            </div>
-
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                onClick={() => setShowUploadWarning(false)}
-                className="flex-1"
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={() => {
-                  setShowUploadWarning(false);
-                  // User can now proceed with upload
-                }}
-                className="flex-1"
-              >
-                I Understand
-              </Button>
-            </div>
           </div>
         </DialogContent>
       </Dialog>
@@ -1897,34 +2117,37 @@ const Profile = () => {
             <DialogTitle>Edit Business Name</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div>
-              <Label htmlFor="new_business_name">Business Name</Label>
+            <div className="space-y-1.5">
+              <Label htmlFor="new_business_name" className="text-sm font-semibold text-flora-ink">
+                Business Name
+              </Label>
               <Input
                 id="new_business_name"
                 value={newBusinessName}
                 onChange={(e) => setNewBusinessName(e.target.value)}
                 placeholder="Enter your business name"
-                className="mt-1"
+                className="rounded-2xl border-0 bg-flora-chip focus-visible:ring-flora-leaf/40"
               />
             </div>
-            <div className="flex gap-2 pt-4">
-              <Button
-                variant="outline"
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
                 onClick={() => {
                   setEditingBusinessName(false);
                   setNewBusinessName("");
                 }}
-                className="flex-1"
+                className="flex-1 rounded-full border border-flora-ink/10 px-4 py-2.5 text-sm font-medium text-flora-ink transition hover:bg-flora-chip"
               >
                 Cancel
-              </Button>
-              <Button
+              </button>
+              <button
+                type="button"
                 onClick={handleBusinessNameSave}
                 disabled={saving || !newBusinessName.trim()}
-                className="flex-1"
+                className="flex-1 rounded-full bg-flora-ink px-4 py-2.5 text-sm font-medium text-white transition hover:brightness-110 disabled:opacity-50"
               >
                 {saving ? "Saving..." : "Save"}
-              </Button>
+              </button>
             </div>
           </div>
         </DialogContent>
@@ -1937,34 +2160,37 @@ const Profile = () => {
             <DialogTitle>Edit Phone Number</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div>
-              <Label htmlFor="new_phone_number">Phone Number</Label>
+            <div className="space-y-1.5">
+              <Label htmlFor="new_phone_number" className="text-sm font-semibold text-flora-ink">
+                Phone Number
+              </Label>
               <Input
                 id="new_phone_number"
                 value={newPhoneNumber}
                 onChange={(e) => setNewPhoneNumber(e.target.value)}
                 placeholder="Enter your phone number"
-                className="mt-1"
+                className="rounded-2xl border-0 bg-flora-chip focus-visible:ring-flora-leaf/40"
               />
             </div>
-            <div className="flex gap-2 pt-4">
-              <Button
-                variant="outline"
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
                 onClick={() => {
                   setEditingPhoneNumber(false);
                   setNewPhoneNumber("");
                 }}
-                className="flex-1"
+                className="flex-1 rounded-full border border-flora-ink/10 px-4 py-2.5 text-sm font-medium text-flora-ink transition hover:bg-flora-chip"
               >
                 Cancel
-              </Button>
-              <Button
+              </button>
+              <button
+                type="button"
                 onClick={handlePhoneNumberSave}
                 disabled={saving || !newPhoneNumber.trim()}
-                className="flex-1"
+                className="flex-1 rounded-full bg-flora-ink px-4 py-2.5 text-sm font-medium text-white transition hover:brightness-110 disabled:opacity-50"
               >
                 {saving ? "Saving..." : "Save"}
-              </Button>
+              </button>
             </div>
           </div>
         </DialogContent>

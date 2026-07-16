@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Star } from 'lucide-react';
 import { Tag } from '@/components/ui/tag';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 
 interface Review {
   id: string;
@@ -42,11 +43,15 @@ export const ProductReviews = ({ productId, sellerId, className }: ProductReview
   const [submitting, setSubmitting] = useState(false);
   const [canReview, setCanReview] = useState(false);
   const { toast } = useToast();
+  const { isAdmin } = useAuth();
 
   useEffect(() => {
     fetchReviews();
     checkCanReview();
-  }, [productId]);
+    // isAdmin starts false and flips true once useAuth's own role lookup
+    // resolves — re-run so an admin viewing this component doesn't stay
+    // stuck on the buyer-only result from before that lookup finished.
+  }, [productId, isAdmin]);
 
   const checkCanReview = async () => {
     try {
@@ -56,19 +61,29 @@ export const ProductReviews = ({ productId, sellerId, className }: ProductReview
         return;
       }
 
+      // Admins can review any product — skips the seller-exclusion and
+      // purchase-history checks below entirely.
+      if (isAdmin) {
+        setCanReview(true);
+        return;
+      }
+
       // Don't allow sellers to review their own products
       if (sellerId && user.id === sellerId) {
         setCanReview(false);
         return;
       }
 
-      // Check if user has a completed order with this product
+      // Check if user has a confirmed order with this product. 'confirmed'
+      // (not 'completed' — that was never a real value here) is the actual
+      // terminal status in the orders table's own CHECK constraint: pending
+      // -> paid -> shipped -> delivered -> confirmed.
       const { data, error } = await supabase
         .from('orders')
         .select('id, status')
         .eq('product_id', productId)
         .eq('buyer_id', user.id)
-        .eq('status', 'completed')
+        .eq('status', 'confirmed')
         .limit(1);
 
       if (error) throw error;

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { findOrCreateConversation } from "@/utils/conversationUtils";
 import {
   Dialog,
   DialogContent,
@@ -11,13 +12,6 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/contexts/ProfileContext";
@@ -33,6 +27,12 @@ import {
   Flag,
   ChevronDown,
   ChevronUp,
+  X,
+  Copy,
+  Twitter,
+  Facebook,
+  Instagram,
+  Send,
 } from "lucide-react";
 import {
   HeartIcon,
@@ -40,6 +40,7 @@ import {
   ShieldCheckIcon,
   CheckBadgeIcon,
   UserIcon,
+  TikTokIcon,
 } from "@/components/ui/heroicons";
 import { IconButton } from "@/components/ui/icon-button";
 import { StatBadge } from "@/components/ui/stat-badge";
@@ -48,6 +49,12 @@ import { Tag } from "@/components/ui/tag";
 import ProductCard, {
   type ProductCardProduct,
 } from "@/components/marketplace/ProductCard";
+import {
+  generateShareableUrl,
+  generateWhatsAppShareUrl,
+  generateTwitterShareUrl,
+  generateFacebookShareUrl,
+} from "@/utils/shareUtils";
 
 import { ProductReviews } from "@/components/reviews/ProductReviews";
 import { ProductSEO } from "@/components/common/ProductSEO";
@@ -95,6 +102,19 @@ const getInitials = (name: string) =>
     .toUpperCase()
     .slice(0, 2);
 
+// A fixed, short set of mutually-exclusive reasons — a tappable list reads
+// faster than a dropdown here (every option visible at once, no extra tap
+// to open it) and matches the radio-list treatment SizeSelector already
+// uses for a similarly small option set elsewhere in this file.
+const REPORT_REASONS = [
+  { value: "misleading_description", label: "Misleading Description" },
+  { value: "wrong_price", label: "Wrong Price" },
+  { value: "fake_product", label: "Fake/Counterfeit Product" },
+  { value: "inappropriate_content", label: "Inappropriate Content" },
+  { value: "spam", label: "Spam" },
+  { value: "other", label: "Other" },
+] as const;
+
 const ProductDetails = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -108,10 +128,12 @@ const ProductDetails = () => {
   const [similarCart, setSimilarCart] = useState<Set<string>>(new Set());
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isAutoSliding, setIsAutoSliding] = useState(true);
+  const [isFullscreenOpen, setIsFullscreenOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [similarLoading, setSimilarLoading] = useState(true);
   const [quantity, setQuantity] = useState(1);
   const [copied, setCopied] = useState(false);
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [reportReason, setReportReason] = useState("");
   const [reportDescription, setReportDescription] = useState("");
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
@@ -444,25 +466,21 @@ const ProductDetails = () => {
     if (!product) return;
 
     try {
-      // Use the same function as ProductCard to find or create consolidated conversation
-      const { data: conversationId, error } = await supabase.rpc(
-        "find_or_create_conversation",
-        {
-          p_buyer_id: user.id,
-          p_seller_id: product.seller_id,
-          p_product_id: product.id,
-        },
+      // Consolidated (bidirectional, product_id nulled out) so this never
+      // creates a duplicate of an existing conversation with this seller.
+      const conversationId = await findOrCreateConversation(
+        user.id,
+        product.seller_id,
+        product.id,
       );
 
-      if (error) throw error;
+      if (!conversationId) throw new Error("Failed to start chat");
 
       const draftMessage = `Hi! I'm interested in your ${
         product.title
       } listed for ₦${product.price.toLocaleString()}. Is it still available?`;
       navigate(
-        `/messages?conversation=${conversationId}&draft=${encodeURIComponent(
-          draftMessage,
-        )}`,
+        `/chat/${conversationId}?draft=${encodeURIComponent(draftMessage)}`,
       );
     } catch (error) {
       toast({
@@ -473,24 +491,15 @@ const ProductDetails = () => {
     }
   };
 
-  const handleShare = async () => {
+  // Explicit per-platform buttons in a dialog instead of going straight to
+  // navigator.share: Web Share API isn't available on most desktop
+  // browsers at all, which left desktop users with only the silent
+  // clipboard fallback and no visible confirmation of what had actually
+  // happened. This works the same everywhere and always shows the link.
+  const handleCopyLink = async () => {
     if (!product) return;
+    const url = generateShareableUrl(product.id);
 
-    const url = window.location.href;
-    const title = `${product.title} - ₦${product.price.toLocaleString()}`;
-    const text = `Check out this ${product.title} on UniMarket! Only ₦${product.price.toLocaleString()}`;
-
-    // Try Web Share API first
-    if (navigator.share) {
-      try {
-        await navigator.share({ title, text, url });
-        return;
-      } catch (error) {
-        if (error instanceof Error && error.name === "AbortError") return;
-      }
-    }
-
-    // Fallback to clipboard
     try {
       await navigator.clipboard.writeText(url);
       setCopied(true);
@@ -504,6 +513,26 @@ const ProductDetails = () => {
         title: "Share Link",
         description: url,
       });
+    }
+  };
+
+  // Instagram and TikTok have no public web "share this link" intent the
+  // way WhatsApp/Twitter/Facebook do (no https://instagram.com/sharer?...
+  // equivalent exists) — both are fundamentally app-based, so the honest
+  // move is copying the link and telling people where to paste it, not
+  // linking to a URL that won't actually do anything useful.
+  const handlePlatformCopyShare = async (platform: string, hint: string) => {
+    if (!product) return;
+    const url = generateShareableUrl(product.id);
+
+    try {
+      await navigator.clipboard.writeText(url);
+      toast({
+        title: `Link copied for ${platform}`,
+        description: hint,
+      });
+    } catch (error) {
+      toast({ title: "Share Link", description: url });
     }
   };
 
@@ -706,24 +735,36 @@ const ProductDetails = () => {
 
   const maxQuantity = Math.min(10, product.stock_quantity);
 
-  // Shared between the mobile fixed-background layer and the desktop card —
-  // same controls, two different containers.
+  // Shared between mobile (full-width, plain block) and desktop (rounded
+  // card) — same overlay, two differently-sized containers. Prev/next and
+  // the dot indicator used to live here, overlaid on the photo itself;
+  // they're their own control row now (see galleryControls) instead of
+  // floating circular buttons on top of the image, which also frees the
+  // whole image up to be a single tap target for the fullscreen viewer.
   const galleryOverlay = (
     <>
       <img
         src={images[currentImageIndex]}
         alt={product.title}
-        className="h-full w-full object-cover transition-all duration-300"
+        role="button"
+        tabIndex={0}
+        aria-label="View image full screen"
+        onClick={() => setIsFullscreenOpen(true)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            setIsFullscreenOpen(true);
+          }
+        }}
+        className="h-full w-full cursor-zoom-in object-cover transition-all duration-300"
         onError={(e) => {
           e.currentTarget.src = "/placeholder.svg";
         }}
       />
 
-      {/* On mobile this now sits at the very top of the screen (no site
-          header above it anymore), so its top offset accounts for the
-          notch/status-bar safe area instead of the fixed top-4 that was
-          fine when a header used to occupy that space. Desktop still has
-          the header, so it reverts to a plain top-4 there. */}
+      {/* Accounts for the notch/status-bar safe area on mobile, where this
+          sits at the very top of the screen; desktop still has the site
+          header above it, so it reverts to a plain top-4 there. */}
       <IconButton
         icon={ChevronLeft}
         label="Go back"
@@ -731,50 +772,6 @@ const ProductDetails = () => {
         className="absolute left-4 top-[max(1rem,calc(env(safe-area-inset-top)+0.5rem))] z-20 sm:top-4"
         onClick={() => navigate(-1)}
       />
-
-      {images.length > 1 && (
-        <>
-          <IconButton
-            icon={ChevronLeft}
-            label="Previous image"
-            size="sm"
-            tone="light"
-            className="absolute left-3 top-1/2 -translate-y-1/2"
-            onClick={goPrevImage}
-          />
-          <IconButton
-            icon={ChevronRight}
-            label="Next image"
-            size="sm"
-            tone="light"
-            className="absolute right-3 top-1/2 -translate-y-1/2"
-            onClick={goNextImage}
-          />
-
-          <div className="absolute bottom-3 right-3 hidden rounded-lg bg-flora-ink/70 px-2 py-1 text-xs font-medium text-white sm:block">
-            {currentImageIndex + 1} / {images.length}
-          </div>
-
-          <div className="absolute bottom-3 left-1/2 hidden -translate-x-1/2 gap-1.5 sm:flex">
-            {images.map((_, index) => (
-              <button
-                key={index}
-                type="button"
-                aria-label={`View image ${index + 1} of ${images.length}`}
-                aria-current={index === currentImageIndex}
-                onClick={() => {
-                  setCurrentImageIndex(index);
-                  setIsAutoSliding(false);
-                  setTimeout(() => setIsAutoSliding(true), 5000);
-                }}
-                className={`h-2 w-2 rounded-full transition-all ${
-                  index === currentImageIndex ? "bg-white" : "bg-white/50"
-                }`}
-              />
-            ))}
-          </div>
-        </>
-      )}
 
       <StatBadge
         icon={StarIcon}
@@ -799,34 +796,146 @@ const ProductDetails = () => {
     onMouseLeave: () => setIsAutoSliding(true),
   };
 
+  // One shared tile style for every option in the share sheet grid — same
+  // footprint whether it's a real link (<a>, opens the platform) or a
+  // button (Instagram/TikTok/Copy, which have no such link to open).
+  const shareTileClass =
+    "flex flex-col items-center gap-2 rounded-2xl border border-flora-ink/10 py-4 text-xs font-medium text-flora-ink transition hover:bg-flora-chip";
+
+  // Below the image, not floating on top of it — plain chevrons (no
+  // circular button background) either side of the dot indicator, shared
+  // by mobile and desktop.
+  const galleryControls = images.length > 1 && (
+    <div className="mt-3 flex items-center justify-center gap-4">
+      <button
+        type="button"
+        aria-label="Previous image"
+        onClick={goPrevImage}
+        className="flex h-8 w-8 items-center justify-center text-flora-ink transition hover:text-flora-leaf">
+        <ChevronLeft className="h-5 w-5" aria-hidden="true" />
+      </button>
+      <div className="flex items-center gap-1.5">
+        {images.map((_, index) => (
+          <button
+            key={index}
+            type="button"
+            aria-label={`View image ${index + 1} of ${images.length}`}
+            aria-current={index === currentImageIndex}
+            onClick={() => {
+              setCurrentImageIndex(index);
+              setIsAutoSliding(false);
+              setTimeout(() => setIsAutoSliding(true), 5000);
+            }}
+            className={`h-1.5 rounded-full transition-all ${
+              index === currentImageIndex
+                ? "w-4 bg-flora-ink"
+                : "w-1.5 bg-flora-ink/20"
+            }`}
+          />
+        ))}
+      </div>
+      <button
+        type="button"
+        aria-label="Next image"
+        onClick={goNextImage}
+        className="flex h-8 w-8 items-center justify-center text-flora-ink transition hover:text-flora-leaf">
+        <ChevronRight className="h-5 w-5" aria-hidden="true" />
+      </button>
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-flora-bgFrom to-flora-bgTo">
       <ProductSEO product={product} />
 
-      {/* Mobile: image is truly fixed to the viewport (not sticky — it never
-          scrolls away), filling the screen behind everything. Starts below
-          the app's own fixed navbar (h-16, z-40) so the back button and
-          stat badges aren't hidden underneath it. This spacer sets how much
-          of the initial viewport is image vs. info sheet — taller spacer
-          means more image and less of the sheet's content (description,
-          tags, stepper) visible before the user scrolls or drags it up. */}
+      {/* Mobile: the photo just takes the full width of the screen, no
+          colored frame or inset tile around it — normal document flow (not
+          position:fixed, which is what caused the scroll jank before), so
+          it's just its own section at the top, and everything else follows
+          as its own section after it. */}
       <div
-        className="fixed inset-x-0 bottom-0 top-0 z-0 overflow-hidden bg-white/40 sm:hidden"
+        className="relative aspect-square w-full overflow-hidden sm:hidden"
         {...galleryTouchHandlers}>
         {galleryOverlay}
       </div>
-      <div className="h-[calc(58dvh+15px)] sm:hidden" aria-hidden="true" />
+      <div className="sm:hidden">{galleryControls}</div>
+
+      {/* Full-screen viewer — opened by tapping the gallery image. Same
+          prev/next + swipe handlers as the inline gallery, just over a
+          dark backdrop with the photo shown uncropped (object-contain). */}
+      {isFullscreenOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-flora-ink"
+          onClick={() => setIsFullscreenOpen(false)}
+          {...galleryTouchHandlers}>
+          <IconButton
+            icon={X}
+            label="Close full screen view"
+            tone="ghost"
+            className="absolute right-4 top-[max(1rem,calc(env(safe-area-inset-top)+0.5rem))] z-10"
+            onClick={() => setIsFullscreenOpen(false)}
+          />
+          {images.length > 1 && (
+            <div className="absolute top-[max(1rem,calc(env(safe-area-inset-top)+0.5rem))] left-1/2 -translate-x-1/2 rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-white">
+              {currentImageIndex + 1} / {images.length}
+            </div>
+          )}
+          <img
+            src={images[currentImageIndex]}
+            alt={product.title}
+            className="max-h-full max-w-full object-contain"
+            onClick={(e) => e.stopPropagation()}
+            onError={(e) => {
+              e.currentTarget.src = "/placeholder.svg";
+            }}
+          />
+          {images.length > 1 && (
+            <>
+              <button
+                type="button"
+                aria-label="Previous image"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  goPrevImage();
+                }}
+                className="absolute left-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center text-white transition hover:text-flora-leaf">
+                <ChevronLeft className="h-7 w-7" aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                aria-label="Next image"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  goNextImage();
+                }}
+                className="absolute right-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center text-white transition hover:text-flora-leaf">
+                <ChevronRight className="h-7 w-7" aria-hidden="true" />
+              </button>
+            </>
+          )}
+        </div>
+      )}
 
       <main className="relative z-10 mx-auto max-w-6xl pb-10 sm:px-6 sm:pt-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-12 lg:px-6 lg:pt-6">
-        {/* Tablet/desktop: image is a normal card in the flow (sticky only
-            once the two-column grid kicks in at lg:) — the mobile fixed
-            treatment above is hidden here. */}
-        <div className="relative hidden sm:block lg:sticky lg:top-24">
+        {/* Tablet/desktop: image is a normal card in the grid flow — the
+            mobile treatment above is hidden here. Deliberately NOT sticky:
+            position:sticky only diverges from the grid's own natural
+            items-start alignment once its `top` offset happens to exactly
+            match the column's real resting position (header height + this
+            main's own top padding) — get that even slightly wrong and the
+            image snaps to the wrong spot the instant the page loads,
+            visibly misaligned against the text column beside it from first
+            paint. A plain, non-sticky column has no such threshold to get
+            wrong: items-start on the grid guarantees both columns start at
+            the same line, full stop. Losing "image stays in view while you
+            scroll a long description" is the trade-off. */}
+        <div className="relative hidden sm:block">
           <div
             className="relative aspect-[4/3] w-full overflow-hidden rounded-4xl bg-white/40 lg:aspect-square"
             {...galleryTouchHandlers}>
             {galleryOverlay}
           </div>
+          {galleryControls}
 
           {images.length > 1 && (
             <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
@@ -857,16 +966,13 @@ const ProductDetails = () => {
           )}
         </div>
 
-        {/* Info panel — a solid white sheet that peeks up from the bottom of
-            the fixed image on mobile and slides over it as the page scrolls.
-            Reverts to a normal card in the two-column desktop layout. Flows
-            straight into the seller and reviews sections below (no card
-            boundary between them) so the whole thing reads as one surface. */}
-        <section className="relative rounded-t-4xl bg-flora-bgFrom px-6 pb-6 pt-3 shadow-floating sm:rounded-4xl sm:bg-white/70 sm:px-8 sm:py-8 sm:shadow-card sm:backdrop-blur-sm">
-          <div
-            className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-flora-ink/15 sm:hidden"
-            aria-hidden="true"
-          />
+        {/* Info panel — on mobile this is just the next plain section of
+            the page (same background as everything else, no white sheet,
+            no rounded-top overlap trick), flowing straight into the seller
+            and reviews sections below it. Reverts to a normal white card
+            in the two-column desktop layout, matching that column's own
+            treatment. */}
+        <section className="relative px-6 py-5 sm:rounded-4xl sm:bg-white/70 sm:px-8 sm:py-8 sm:shadow-card sm:backdrop-blur-sm">
           <div className="flex items-center justify-between gap-2">
             <button
               type="button"
@@ -892,49 +998,60 @@ const ProductDetails = () => {
                     tone="light"
                   />
                 </DialogTrigger>
-                <DialogContent>
+                <DialogContent className="max-h-[85vh] overflow-y-auto rounded-3xl sm:max-w-md">
                   <DialogHeader>
-                    <DialogTitle>Report Issue with Product</DialogTitle>
-                    <DialogDescription>
+                    <DialogTitle className="flex items-center gap-2 text-flora-ink">
+                      <Flag className="h-5 w-5 text-flora-leaf" aria-hidden="true" />
+                      Report Issue with Product
+                    </DialogTitle>
+                    <DialogDescription className="text-flora-muted">
                       Report any issues with this product. The seller will be
                       notified.
                     </DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4">
-                    <div>
-                      <Label htmlFor="reason">Reason for Report</Label>
-                      <Select
-                        value={reportReason}
-                        onValueChange={setReportReason}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select a reason" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="misleading_description">
-                            Misleading Description
-                          </SelectItem>
-                          <SelectItem value="wrong_price">
-                            Wrong Price
-                          </SelectItem>
-                          <SelectItem value="fake_product">
-                            Fake/Counterfeit Product
-                          </SelectItem>
-                          <SelectItem value="inappropriate_content">
-                            Inappropriate Content
-                          </SelectItem>
-                          <SelectItem value="spam">Spam</SelectItem>
-                          <SelectItem value="other">Other</SelectItem>
-                        </SelectContent>
-                      </Select>
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-flora-ink">
+                        Reason for Report
+                      </Label>
+                      <div
+                        role="radiogroup"
+                        aria-label="Reason for report"
+                        className="space-y-2">
+                        {REPORT_REASONS.map((reason) => {
+                          const isSelected = reportReason === reason.value;
+                          return (
+                            <button
+                              key={reason.value}
+                              type="button"
+                              role="radio"
+                              aria-checked={isSelected}
+                              onClick={() => setReportReason(reason.value)}
+                              className={`flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left text-sm font-medium transition ${
+                                isSelected
+                                  ? "border-flora-ink bg-flora-ink text-white"
+                                  : "border-flora-ink/10 bg-white text-flora-ink hover:bg-flora-chip"
+                              }`}>
+                              {reason.label}
+                              {isSelected && (
+                                <Check className="h-4 w-4 shrink-0" aria-hidden="true" />
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
-                    <div>
-                      <Label htmlFor="description">Description</Label>
+                    <div className="space-y-2">
+                      <Label htmlFor="description" className="text-sm font-medium text-flora-ink">
+                        Description
+                      </Label>
                       <Textarea
                         id="description"
                         placeholder="Please provide more details about the issue..."
                         value={reportDescription}
                         onChange={(e) => setReportDescription(e.target.value)}
                         rows={4}
+                        className="rounded-2xl border border-flora-ink/10 bg-white text-sm text-flora-ink placeholder:text-flora-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-flora-leaf/30 focus-visible:border-flora-leaf"
                       />
                     </div>
                     <div className="flex flex-col gap-3">
@@ -969,12 +1086,139 @@ const ProductDetails = () => {
                 </DialogContent>
               </Dialog>
 
-              <IconButton
-                icon={copied ? Check : Share2}
-                label="Share this product"
-                tone="light"
-                onClick={handleShare}
-              />
+              <Dialog open={shareDialogOpen} onOpenChange={setShareDialogOpen}>
+                <DialogTrigger asChild>
+                  <IconButton
+                    icon={copied ? Check : Share2}
+                    label="Share this product"
+                    tone="light"
+                  />
+                </DialogTrigger>
+                {/* overflow-x-hidden + min-w-0 on the direct content child
+                    below are both load-bearing, not decorative: DialogContent
+                    is a CSS grid (see ui/dialog.tsx), and grid items default
+                    to min-width:auto — a long nowrap URL string (truncate
+                    implies white-space:nowrap, so its min-content width is
+                    its FULL width) was bubbling that width up through the
+                    grid item and forcing the dialog wider than its own
+                    max-w-md, which is what actually needed a sideways
+                    scroll to see the rest of the sheet. */}
+                <DialogContent className="overflow-x-hidden rounded-3xl sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2 text-flora-ink">
+                      <Share2 className="h-5 w-5 text-flora-leaf" aria-hidden="true" />
+                      Share Product
+                    </DialogTitle>
+                    <DialogDescription className="text-flora-muted">
+                      Share this listing with friends or on social media.
+                    </DialogDescription>
+                  </DialogHeader>
+
+                  <div className="min-w-0 space-y-4">
+                    <p className="min-w-0 truncate rounded-2xl bg-flora-chip px-4 py-2.5 text-xs text-flora-muted">
+                      {product ? generateShareableUrl(product.id) : ""}
+                    </p>
+
+                    {/* One even 3x2 grid instead of a special-cased copy-link
+                        row plus a separate 3-across icon strip — Copy Link
+                        is just another tile here, same as every platform,
+                        so five platforms plus Copy sits as two full,
+                        balanced rows instead of leaving an odd tile
+                        stranded alone on its own row. */}
+                    <div className="grid grid-cols-3 gap-3">
+                      <a
+                        href={product ? generateWhatsAppShareUrl(product) : undefined}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={shareTileClass}>
+                        <span className="flex h-11 w-11 items-center justify-center rounded-full bg-green-500 text-white">
+                          <MessageCircle className="h-5 w-5" aria-hidden="true" />
+                        </span>
+                        WhatsApp
+                      </a>
+                      <a
+                        href={product ? generateTwitterShareUrl(product) : undefined}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={shareTileClass}>
+                        <span className="flex h-11 w-11 items-center justify-center rounded-full bg-flora-ink text-white">
+                          <Twitter className="h-5 w-5" aria-hidden="true" />
+                        </span>
+                        Twitter/X
+                      </a>
+                      <a
+                        href={product ? generateFacebookShareUrl(product) : undefined}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={shareTileClass}>
+                        <span className="flex h-11 w-11 items-center justify-center rounded-full bg-blue-600 text-white">
+                          <Facebook className="h-5 w-5" aria-hidden="true" />
+                        </span>
+                        Facebook
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handlePlatformCopyShare(
+                            "Instagram",
+                            "Instagram doesn't support pre-filled links — paste it into your bio, a DM, or a Story."
+                          )
+                        }
+                        className={shareTileClass}>
+                        <span className="flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-amber-400 via-pink-500 to-purple-600 text-white">
+                          <Instagram className="h-5 w-5" aria-hidden="true" />
+                        </span>
+                        Instagram
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handlePlatformCopyShare(
+                            "TikTok",
+                            "TikTok doesn't support pre-filled links — paste it into your bio or a video caption."
+                          )
+                        }
+                        className={shareTileClass}>
+                        <span className="flex h-11 w-11 items-center justify-center rounded-full bg-flora-ink text-white">
+                          <TikTokIcon className="h-5 w-5" />
+                        </span>
+                        TikTok
+                      </button>
+                      <button type="button" onClick={handleCopyLink} className={shareTileClass}>
+                        <span className="flex h-11 w-11 items-center justify-center rounded-full bg-flora-leaf text-white">
+                          {copied ? (
+                            <Check className="h-5 w-5" aria-hidden="true" />
+                          ) : (
+                            <Copy className="h-5 w-5" aria-hidden="true" />
+                          )}
+                        </span>
+                        {copied ? "Copied" : "Copy Link"}
+                      </button>
+                    </div>
+
+                    {typeof navigator !== "undefined" && !!navigator.share && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (!product) return;
+                          try {
+                            await navigator.share({
+                              title: `${product.title} - ₦${product.price.toLocaleString()}`,
+                              text: `Check out this ${product.title} on UniMarket!`,
+                              url: generateShareableUrl(product.id),
+                            });
+                          } catch (error) {
+                            if (error instanceof Error && error.name === "AbortError") return;
+                          }
+                        }}
+                        className="flex w-full items-center justify-center gap-2 rounded-full border border-flora-ink/10 py-3 text-sm font-medium text-flora-ink transition hover:bg-flora-chip">
+                        <Send className="h-4 w-4" aria-hidden="true" />
+                        More sharing options
+                      </button>
+                    )}
+                  </div>
+                </DialogContent>
+              </Dialog>
 
               <IconButton
                 icon={HeartIcon}
@@ -994,8 +1238,8 @@ const ProductDetails = () => {
             </div>
           </div>
 
-          {/* Name + price lead the sheet — the two things a buyer scans for
-              first — sized to stay legible even in the initial mobile peek. */}
+          {/* Name + price lead this section — the two things a buyer scans
+              for first. */}
           <div className="mt-5 flex items-start justify-between gap-3">
             <h1 className="line-clamp-2 text-2xl font-semibold leading-tight text-flora-ink sm:text-3xl">
               {product.title}
@@ -1065,12 +1309,17 @@ const ProductDetails = () => {
             </span>
           </div>
 
-          {isIgbinedionStudent && (
-            <div className="mt-4 flex items-center gap-2 rounded-2xl bg-flora-chip px-3 py-2.5 text-xs text-flora-muted">
+          {isIgbinedionStudent ? (
+            <div className="mt-4 flex items-center gap-2 rounded-2xl bg-flora-chip px-3 py-2.5 text-xs text-flora-ink/70">
               <Package className="h-4 w-4 flex-shrink-0" aria-hidden="true" />₦
               {BUSINESS_RULES.delivery.flatRate.toLocaleString()} delivery fee
               (paid to the driver, not this app) anywhere around Igbinedion
-              University — or choose pickup at checkout
+              University
+            </div>
+          ) : (
+            <div className="mt-4 flex items-center gap-2 rounded-2xl bg-flora-chip px-3 py-2.5 text-xs text-flora-ink/70">
+              <Package className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
+              You'll pay the delivery fee to the driver on delivery
             </div>
           )}
 
@@ -1121,10 +1370,13 @@ const ProductDetails = () => {
           </button>
         </div>
 
-        {/* Seller info — continues the same white surface as the info panel
-            on mobile (just a divider, no card gap); a distinct card again
-            from sm: up, matching the rest of the desktop layout. */}
-        <div className="border-t border-flora-ink/10 bg-flora-bgFrom px-6 py-6 sm:mt-6 sm:rounded-4xl sm:border-t-0 sm:bg-white/70 sm:px-8 sm:py-8 sm:shadow-card sm:backdrop-blur-sm lg:col-span-2">
+        {/* Seller info, reviews, and similar products all read as one
+            continuous list on the page's own background from here on —
+            no per-section card/shadow/background, just a thin divider and
+            tight, consistent spacing between them, at every breakpoint
+            (matching how Jumia/Amazon-style product pages present the
+            "below the fold" details, rather than boxing each one). */}
+        <div className="border-t border-flora-ink/10 px-6 py-5 sm:px-8 lg:col-span-2">
           <h3 className="mb-5 flex items-center gap-2 text-lg font-semibold text-flora-ink">
             <ShieldCheckIcon className="h-5 w-5 text-flora-leaf" />
             Seller Information
@@ -1199,20 +1451,16 @@ const ProductDetails = () => {
           </div>
         </div>
 
-        {/* Reviews — same continuous white surface on mobile as the panels
-            above it; ProductReviews' own card returns from sm: up. */}
-        <div className="border-t border-flora-ink/10 bg-flora-bgFrom sm:mt-8 sm:border-t-0 sm:bg-transparent lg:col-span-2">
-          <ProductReviews
-            productId={product.id}
-            sellerId={product.seller_id}
-            className="sm:rounded-4xl sm:border sm:border-flora-ink/10 sm:bg-white/70 sm:shadow-card sm:backdrop-blur-sm"
-          />
+        {/* Reviews — same list treatment, no card. ProductReviews already
+            has its own internal padding, so no className override needed
+            beyond the divider this wrapper provides. */}
+        <div className="border-t border-flora-ink/10 lg:col-span-2">
+          <ProductReviews productId={product.id} sellerId={product.seller_id} />
         </div>
 
-        {/* Similar products — same continuous white surface on mobile as
-            everything above it; its own white card again from sm: up. */}
+        {/* Similar products — same list treatment as the sections above. */}
         {!similarLoading && similarProducts.length > 0 && (
-          <section className="border-t border-flora-ink/10 bg-flora-bgFrom px-6 py-6 sm:mt-10 sm:rounded-4xl sm:border-t-0 sm:bg-white/70 sm:px-8 sm:py-8 sm:shadow-card sm:backdrop-blur-sm lg:col-span-2">
+          <section className="border-t border-flora-ink/10 px-6 py-5 sm:px-8 lg:col-span-2">
             <h2 className="text-xl font-semibold text-flora-ink">
               Similar Products
             </h2>
