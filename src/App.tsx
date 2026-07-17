@@ -27,7 +27,7 @@ import { NotificationCountProvider } from "@/contexts/NotificationCountContext";
 import { WelcomeModalProvider } from "@/contexts/WelcomeModalContext";
 
 import { MessagePopup } from "@/components/notifications/MessagePopup";
-import { OfflineNotification } from "@/components/common/OfflineNotification";
+import { PushSubscribePrompt } from "@/components/notifications/PushSubscribePrompt";
 import { OnboardingModal } from "@/components/onboarding/OnboardingModal";
 // import { AIChatbot } from "@/components/chatbot/AIChatbot";
 import { SecurityProvider } from "@/components/security/SecurityProvider";
@@ -37,12 +37,7 @@ import { useProfileCompletion } from "@/hooks/useProfileCompletion";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { BannedUserModal } from "@/components/auth/BannedUserModal";
 import { useBanCheck } from "@/hooks/useBanCheck";
-import {
-  initializeOneSignal,
-  requestNotificationPermission,
-  setupNotificationClickHandler,
-} from "@/utils/oneSignal";
-import { initializePushNotifications } from "@/utils/pushNotifications";
+import { setupNotificationClickHandler } from "@/utils/webPush";
 import { PWAInstallPrompt } from "@/components/common/PWAInstallPrompt";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import { useLiteMode } from "@/hooks/useLiteMode";
@@ -318,17 +313,8 @@ const AppContent = () => {
       // Setup notification click handlers
       setupNotificationClickHandler();
 
-      // Initialize push notifications (skip on localhost)
-      if (
-        window.location.hostname !== "localhost" &&
-        window.location.hostname !== "127.0.0.1"
-      ) {
-        await initializePushNotifications();
-        await requestNotificationPermission();
-        await initializeOneSignal();
-      } else {
-        console.log("Push notifications skipped on localhost");
-      }
+      // Actual push subscription is opt-in now (see PushSubscribePrompt /
+      // Settings) rather than requested unprompted on every page load.
     };
     setupNotifications();
   }, []);
@@ -417,10 +403,10 @@ const AppContent = () => {
       </div>
       <BottomNav />
       <MessagePopup />
-      <OfflineNotification />
       {/* <AIChatbot /> */}
 
       <PWAInstallPrompt />
+      <PushSubscribePrompt />
       <OnboardingModal open={showOnboarding} onClose={closeOnboarding} />
 
       <ProfileCompletionModal

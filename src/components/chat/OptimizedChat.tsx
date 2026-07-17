@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useOptimisticMessages } from "@/hooks/useOptimisticMessages";
 import { useRealTime } from "@/contexts/RealTimeContext";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { EmojiPicker } from "@/components/chat/EmojiPicker";
 import { MessageTicks } from "@/components/chat/MessageTicks";
 import {
@@ -47,6 +46,7 @@ const OptimizedChat: React.FC<OptimizedChatProps> = ({
     string | null
   >(null);
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
+  const [keyboardOffset, setKeyboardOffset] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout>();
@@ -208,10 +208,11 @@ const OptimizedChat: React.FC<OptimizedChatProps> = ({
     };
   }, []);
 
-  // Handle mobile keyboard - only move input bar
+  // Handle mobile keyboard - move the input bar (and anything anchored to
+  // it, like the emoji panel) up by the keyboard's height. Tracked as state
+  // rather than only an imperative DOM mutation so the emoji panel below
+  // can share the exact same offset instead of guessing its own position.
   useEffect(() => {
-    const inputBar = document.querySelector("[data-input-bar]") as HTMLElement;
-
     // Set initial viewport height
     const setVH = () => {
       const vh = window.innerHeight * 0.01;
@@ -220,24 +221,20 @@ const OptimizedChat: React.FC<OptimizedChatProps> = ({
 
     setVH();
 
-    // Handle keyboard show/hide - only move input bar up
+    // Debounced so a brief blur/refocus flicker (e.g. tapping a button
+    // next to the input) settles on one final value instead of visibly
+    // snapping the bar down and back up as two separate updates.
+    let debounceTimer: NodeJS.Timeout;
     const handleVisualViewportChange = () => {
-      if (window.visualViewport && inputBar) {
-        const viewport = window.visualViewport;
-        const heightDiff = window.innerHeight - viewport.height;
-
-        if (heightDiff > 150) {
-          // Keyboard is open - only move input bar up
-          inputBar.style.bottom = `${heightDiff}px`;
-          inputBar.style.transition = "bottom 0.3s ease";
-        } else {
-          // Keyboard is closed - reset input bar position
-          inputBar.style.bottom = "0px";
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        if (window.visualViewport) {
+          const heightDiff = window.innerHeight - window.visualViewport.height;
+          setKeyboardOffset(heightDiff > 150 ? heightDiff : 0);
         }
-      }
+      }, 80);
     };
 
-    // Listen for viewport changes
     if (window.visualViewport) {
       window.visualViewport.addEventListener("resize", handleVisualViewportChange);
     }
@@ -245,13 +242,11 @@ const OptimizedChat: React.FC<OptimizedChatProps> = ({
     window.addEventListener("resize", setVH);
 
     return () => {
+      clearTimeout(debounceTimer);
       if (window.visualViewport) {
         window.visualViewport.removeEventListener("resize", handleVisualViewportChange);
       }
       window.removeEventListener("resize", setVH);
-      if (inputBar) {
-        inputBar.style.bottom = "0px";
-      }
     };
   }, []);
 
@@ -457,22 +452,20 @@ const OptimizedChat: React.FC<OptimizedChatProps> = ({
       </div>
 
       {/* Input Bar */}
-      <div data-input-bar className="fixed bottom-0 left-0 right-0 z-10 flex-shrink-0 px-4 py-3">
+      <div
+        data-input-bar
+        className="fixed bottom-0 left-0 right-0 z-10 flex-shrink-0 px-4 py-3 transition-[bottom] duration-300 ease-out"
+        style={{ bottom: keyboardOffset }}
+      >
         <div className="mx-auto flex max-w-4xl items-end gap-2">
-          <Popover open={emojiPickerOpen} onOpenChange={setEmojiPickerOpen}>
-            <PopoverTrigger asChild>
-              <button
-                type="button"
-                aria-label="Add emoji"
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-flora-muted shadow-card transition hover:text-flora-ink"
-              >
-                <Smile className="h-5 w-5" />
-              </button>
-            </PopoverTrigger>
-            <PopoverContent side="top" align="start" className="w-auto border-0 bg-transparent p-0 shadow-none">
-              <EmojiPicker onSelect={handleEmojiSelect} />
-            </PopoverContent>
-          </Popover>
+          <button
+            type="button"
+            aria-label="Add emoji"
+            onClick={() => setEmojiPickerOpen((open) => !open)}
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-flora-muted shadow-card transition hover:text-flora-ink"
+          >
+            <Smile className="h-5 w-5" />
+          </button>
 
           <input
             ref={inputRef}
@@ -485,6 +478,13 @@ const OptimizedChat: React.FC<OptimizedChatProps> = ({
 
           <button
             type="button"
+            // Tapping this button would otherwise blur the input first
+            // (closing the keyboard) and only refocus it after the async
+            // send resolves — the keyboard briefly closing and reopening
+            // is what made the input bar's keyboard-avoidance offset
+            // visibly overshoot/snap on send. Blocking the default
+            // mousedown behavior keeps focus on the input throughout.
+            onMouseDown={(e) => e.preventDefault()}
             onClick={handleSendMessage}
             disabled={!newMessage.trim()}
             aria-label="Send message"
@@ -500,6 +500,25 @@ const OptimizedChat: React.FC<OptimizedChatProps> = ({
           </p>
         )}
       </div>
+
+      {/* Emoji panel — deliberately NOT a Radix Popover here. Popper's
+          viewport-relative positioning was landing at the top of the
+          screen on mobile inside this fixed-position, keyboard-avoiding
+          layout (likely a transformed/containing-block interaction with
+          the fixed chat shell). Positioning it manually off the same
+          keyboardOffset the input bar already tracks is fully
+          deterministic and sidesteps that entirely. */}
+      {emojiPickerOpen && (
+        <>
+          <div className="fixed inset-0 z-20" onClick={() => setEmojiPickerOpen(false)} />
+          <div
+            className="fixed left-4 z-30 transition-[bottom] duration-300 ease-out"
+            style={{ bottom: keyboardOffset + 78 }}
+          >
+            <EmojiPicker onSelect={handleEmojiSelect} />
+          </div>
+        </>
+      )}
 
       {/* Delete Message Modal */}
       {selectedMessageForDelete && (

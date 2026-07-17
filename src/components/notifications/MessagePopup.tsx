@@ -2,7 +2,13 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { MessageCircle, X } from 'lucide-react';
+import { X } from 'lucide-react';
+
+const getInitials = (name: string) => {
+  const words = name.trim().split(' ').filter(Boolean);
+  if (words.length === 0) return 'U';
+  return words.map((word) => word[0]).join('').toUpperCase().slice(0, 2);
+};
 
 interface MessageNotification {
   id: string;
@@ -85,35 +91,35 @@ export const MessagePopup = () => {
   };
 
   return (
-    <div className="fixed top-4 right-4 z-50 space-y-2">
+    <div className="fixed right-4 top-4 z-50 space-y-2.5">
       {notifications.map((notification) => (
         <div
           key={notification.id}
-          className="bg-white border border-gray-200 rounded-lg shadow-lg p-4 max-w-sm cursor-pointer hover:shadow-xl transition-shadow animate-in slide-in-from-right-4"
+          className="flex w-full max-w-sm cursor-pointer items-start gap-3 rounded-2xl bg-white p-4 shadow-floating transition animate-in hover:brightness-[0.99] slide-in-from-right-4"
           onClick={() => handleNotificationClick(notification.conversationId, notification.id)}
         >
-          <div className="flex items-start gap-3">
-            <div className="bg-blue-100 p-2 rounded-full">
-              <MessageCircle className="h-4 w-4 text-blue-600" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-900">
-                New message from {notification.senderName}
-              </p>
-              <p className="text-sm text-gray-600 truncate">
-                {notification.content}
-              </p>
-            </div>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                dismissNotification(notification.id);
-              }}
-              className="text-gray-400 hover:text-gray-600"
-            >
-              <X className="h-4 w-4" />
-            </button>
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-flora-leaf text-sm font-semibold text-white">
+            {getInitials(notification.senderName)}
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-flora-ink">
+              {notification.senderName}
+            </p>
+            <p className="truncate text-sm text-flora-muted">
+              {notification.content}
+            </p>
           </div>
+          <button
+            type="button"
+            aria-label="Dismiss"
+            onClick={(e) => {
+              e.stopPropagation();
+              dismissNotification(notification.id);
+            }}
+            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-flora-muted transition hover:bg-flora-chip"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
         </div>
       ))}
     </div>

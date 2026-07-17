@@ -113,11 +113,15 @@ self.addEventListener('fetch', (event) => {
 
 // Notification click handler
 self.addEventListener('notificationclick', (event) => {
+  if (event.action === 'dismiss') {
+    event.notification.close();
+    return;
+  }
+
   event.notification.close();
-  
-  const action = event.action;
+
   const notificationData = event.notification.data || {};
-  
+
   let targetUrl = '/';
   
   // Determine target URL based on notification data
@@ -209,16 +213,6 @@ self.addEventListener('push', (event) => {
   event.waitUntil(
     self.registration.showNotification(title, options)
   );
-});
-
-// Handle notification action clicks
-self.addEventListener('notificationclick', (event) => {
-  if (event.action === 'dismiss') {
-    event.notification.close();
-    return;
-  }
-  
-  // Handle 'open' action or notification click (handled above)
 });
 
 // Background sync for offline actions

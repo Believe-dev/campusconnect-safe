@@ -4,9 +4,19 @@ import { Navigate, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { getUnreadCounts } from "@/utils/conversationUtils";
 import { MessageTicks } from "@/components/chat/MessageTicks";
-import { MessageCircle, Plus, Shield, Trash2 } from "lucide-react";
+import { MessageCircle, Plus, Trash2 } from "lucide-react";
 import { PullToRefresh } from "@/components/common/PullToRefresh";
 
 interface Conversation {
@@ -40,6 +50,13 @@ export default function Messages() {
   const [loadingConversations, setLoadingConversations] = useState(true);
   const [selectedConversationForAction, setSelectedConversationForAction] =
     useState<string | null>(null);
+  // Same long-press (mobile) / right-click (desktop) trigger opens this on
+  // both breakpoints — WhatsApp's own pattern is choose-an-action-then-
+  // confirm, not delete-on-first-tap, so both Clear and Delete route
+  // through this confirmation step instead of acting immediately.
+  const [pendingAction, setPendingAction] = useState<
+    { type: "clear" | "delete"; conversationId: string } | null
+  >(null);
   const { toast } = useToast();
 
   // Mark messages as read and update last read timestamp
@@ -276,12 +293,7 @@ export default function Messages() {
     return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   };
 
-  const deleteConversation = async (
-    conversationId: string,
-    e: React.MouseEvent
-  ) => {
-    e.stopPropagation();
-
+  const deleteConversation = async (conversationId: string) => {
     try {
       const { error } = await supabase
         .from("conversations")
@@ -306,6 +318,39 @@ export default function Messages() {
     }
   };
 
+  const clearChat = async (conversationId: string) => {
+    try {
+      const { error } = await supabase
+        .from("messages")
+        .delete()
+        .eq("conversation_id", conversationId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Chat Cleared",
+        description: "All messages have been cleared",
+      });
+      fetchConversations();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to clear chat",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const confirmPendingAction = async () => {
+    if (!pendingAction) return;
+    if (pendingAction.type === "clear") {
+      await clearChat(pendingAction.conversationId);
+    } else {
+      await deleteConversation(pendingAction.conversationId);
+    }
+    setPendingAction(null);
+  };
+
   const getInitials = (name: string) => {
     return name
       .split(" ")
@@ -322,10 +367,10 @@ export default function Messages() {
           <div className="mb-6">
             <h1 className="text-2xl font-bold text-flora-ink sm:text-3xl">Messages</h1>
           </div>
-          <div className="divide-y divide-flora-ink/8 overflow-hidden rounded-3xl bg-white shadow-card">
+          <div className="divide-y divide-flora-ink/8 bg-white">
             {[0, 1, 2].map((i) => (
               <div key={i} className="flex animate-pulse items-center gap-3 p-4">
-                <div className="h-12 w-12 shrink-0 rounded-full bg-flora-chip" />
+                <div className="h-14 w-14 shrink-0 rounded-full bg-flora-chip" />
                 <div className="flex-1 space-y-2">
                   <div className="h-3.5 w-1/2 rounded-full bg-flora-chip" />
                   <div className="h-3 w-3/4 rounded-full bg-flora-chip" />
@@ -375,18 +420,35 @@ export default function Messages() {
               </a>
             </div>
           ) : (
-            <div className="divide-y divide-flora-ink/8 overflow-hidden rounded-3xl bg-white shadow-card">
+            <div className="divide-y divide-flora-ink/8 bg-white">
               {conversations.map((conversation) => (
                 <div
                   key={conversation.id}
                   className="group relative flex cursor-pointer items-center gap-3 p-4 transition hover:bg-flora-chip/40"
                   onClick={() => handleChatNavigation(conversation.id)}
                   onTouchStart={(e) => {
+                    const touch = e.touches[0];
+                    e.currentTarget.dataset.touchStartX = touch.clientX.toString();
+                    e.currentTarget.dataset.touchStartY = touch.clientY.toString();
+                    // Longer than a typical scroll's initial hold, and
+                    // cancelled below on any real movement — was firing
+                    // while scrolling past a row since it previously had
+                    // no move threshold at all, just a timer.
                     const timer = setTimeout(() => {
                       setSelectedConversationForAction(conversation.id);
                       navigator.vibrate?.(50);
-                    }, 500);
+                    }, 700);
                     e.currentTarget.dataset.timer = timer.toString();
+                  }}
+                  onTouchMove={(e) => {
+                    const startX = Number(e.currentTarget.dataset.touchStartX || 0);
+                    const startY = Number(e.currentTarget.dataset.touchStartY || 0);
+                    const touch = e.touches[0];
+                    const movedDistance = Math.hypot(touch.clientX - startX, touch.clientY - startY);
+                    if (movedDistance > 10) {
+                      const timer = e.currentTarget.dataset.timer;
+                      if (timer) clearTimeout(parseInt(timer));
+                    }
                   }}
                   onTouchEnd={(e) => {
                     const timer = e.currentTarget.dataset.timer;
@@ -398,7 +460,7 @@ export default function Messages() {
                   }}
                 >
                   <Avatar
-                    className="h-12 w-12 shrink-0 ring-2 ring-flora-chip transition hover:ring-flora-leaf/30"
+                    className="h-14 w-14 shrink-0 ring-2 ring-flora-chip transition hover:ring-flora-leaf/30"
                     onClick={(e) => {
                       e.stopPropagation();
                       const otherUserId =
@@ -468,23 +530,11 @@ export default function Messages() {
                     </p>
                   </div>
 
-                  <div className="flex shrink-0 items-center gap-2">
-                    {conversation.unread_count > 0 ? (
-                      <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-xs font-bold text-white">
-                        {conversation.unread_count > 99 ? "99+" : conversation.unread_count}
-                      </span>
-                    ) : (
-                      <Shield className="h-4 w-4 text-flora-leaf" />
-                    )}
-                    <button
-                      type="button"
-                      aria-label="Delete conversation"
-                      onClick={(e) => deleteConversation(conversation.id, e)}
-                      className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-full text-flora-muted opacity-0 transition hover:bg-red-50 hover:text-red-600 group-hover:opacity-100 sm:flex"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  </div>
+                  {conversation.unread_count > 0 && (
+                    <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-red-500 px-1.5 text-xs font-bold text-white">
+                      {conversation.unread_count > 99 ? "99+" : conversation.unread_count}
+                    </span>
+                  )}
                 </div>
               ))}
             </div>
@@ -506,27 +556,8 @@ export default function Messages() {
             <div className="space-y-2.5">
               <button
                 type="button"
-                onClick={async () => {
-                  try {
-                    const { error } = await supabase
-                      .from("messages")
-                      .delete()
-                      .eq("conversation_id", selectedConversationForAction);
-
-                    if (error) throw error;
-
-                    toast({
-                      title: "Chat Cleared",
-                      description: "All messages have been cleared",
-                    });
-                    fetchConversations();
-                  } catch (error) {
-                    toast({
-                      title: "Error",
-                      description: "Failed to clear chat",
-                      variant: "destructive",
-                    });
-                  }
+                onClick={() => {
+                  setPendingAction({ type: "clear", conversationId: selectedConversationForAction });
                   setSelectedConversationForAction(null);
                 }}
                 className="flex w-full items-center gap-3 rounded-2xl border border-flora-ink/10 px-4 py-3 text-left text-sm font-medium text-flora-ink transition hover:bg-flora-chip"
@@ -536,8 +567,8 @@ export default function Messages() {
               </button>
               <button
                 type="button"
-                onClick={(e) => {
-                  deleteConversation(selectedConversationForAction, e);
+                onClick={() => {
+                  setPendingAction({ type: "delete", conversationId: selectedConversationForAction });
                   setSelectedConversationForAction(null);
                 }}
                 className="flex w-full items-center gap-3 rounded-2xl border border-red-200 px-4 py-3 text-left text-sm font-medium text-red-600 transition hover:bg-red-50"
@@ -556,6 +587,34 @@ export default function Messages() {
           </div>
         </div>
       )}
+
+      {/* Confirm step, same for both mobile (long-press) and desktop
+          (right-click) since they both route through the modal above —
+          matches WhatsApp's choose-then-confirm delete flow instead of
+          acting on the first tap. */}
+      <AlertDialog open={!!pendingAction} onOpenChange={(open) => !open && setPendingAction(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {pendingAction?.type === "clear" ? "Clear this chat?" : "Delete this conversation?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingAction?.type === "clear"
+                ? "All messages will be removed. This can't be undone."
+                : "Messages will be removed for you. This can't be undone."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmPendingAction}
+              className="bg-red-600 text-white hover:bg-red-700"
+            >
+              {pendingAction?.type === "clear" ? "Clear" : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

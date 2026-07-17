@@ -7,7 +7,7 @@ import { Bell, Mail, Smartphone, Settings } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { requestNotificationPermission } from '@/utils/oneSignal';
+import { subscribeToPush } from '@/utils/webPush';
 
 
 interface NotificationPreferences {
@@ -104,8 +104,8 @@ export default function NotificationSettings() {
   };
 
   const requestPushPermission = async () => {
-    const granted = await requestNotificationPermission();
-    if (granted) {
+    const subscribed = await subscribeToPush();
+    if (subscribed) {
       setBrowserPermission('granted');
       toast.success('Push notifications enabled');
     } else {
