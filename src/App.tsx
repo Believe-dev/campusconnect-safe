@@ -54,6 +54,13 @@ import { AccessibilityProvider } from "@/components/common/AccessibilityProvider
 import { usePerformanceOptimization } from "@/hooks/usePerformanceOptimization";
 import { NavigationPreloader } from "@/components/common/NavigationPreloader";
 import { PageLoadError } from "@/components/common/PageLoadError";
+import MaintenancePage from "@/pages/MaintenancePage";
+import {
+  isMaintenanceMode,
+  hasMaintenanceBypass,
+  grantMaintenanceBypass,
+  MAINTENANCE_BYPASS_PATH,
+} from "@/lib/maintenance";
 
 import "@/styles/mobile-fixes.css";
 import "@/styles/pwa-ios.css";
@@ -420,34 +427,51 @@ const AppContent = () => {
   );
 };
 
-const App = () => (
-  <ErrorBoundary>
-    <HelmetProvider>
-      <BrowserRouter>
-        <AccessibilityProvider>
-          <ThemeProvider defaultTheme="light">
-            <SecurityProvider>
-              <QueryClientProvider client={queryClient}>
-                <TooltipProvider>
-                  <Toaster />
-                  <Sonner />
-                  <WelcomeModalProvider>
-                    <ProfileProvider>
-                      <RealTimeProvider>
-                        <MessageCountProvider>
-                          <AppContent />
-                        </MessageCountProvider>
-                      </RealTimeProvider>
-                    </ProfileProvider>
-                  </WelcomeModalProvider>
-                </TooltipProvider>
-              </QueryClientProvider>
-            </SecurityProvider>
-          </ThemeProvider>
-        </AccessibilityProvider>
-      </BrowserRouter>
-    </HelmetProvider>
-  </ErrorBoundary>
-);
+const App = () => {
+  // Sitewide maintenance mode — single flag, checked once, before anything
+  // else mounts (no service worker registration, no queries, no auth checks).
+  // Does not affect api/*.js (Vercel functions) or supabase/functions/*
+  // (Edge Functions) — neither goes through this component or BrowserRouter.
+  if (isMaintenanceMode()) {
+    if (window.location.pathname === MAINTENANCE_BYPASS_PATH) {
+      grantMaintenanceBypass();
+      window.location.replace("/");
+      return null;
+    }
+    if (!hasMaintenanceBypass()) {
+      return <MaintenancePage />;
+    }
+  }
+
+  return (
+    <ErrorBoundary>
+      <HelmetProvider>
+        <BrowserRouter>
+          <AccessibilityProvider>
+            <ThemeProvider defaultTheme="light">
+              <SecurityProvider>
+                <QueryClientProvider client={queryClient}>
+                  <TooltipProvider>
+                    <Toaster />
+                    <Sonner />
+                    <WelcomeModalProvider>
+                      <ProfileProvider>
+                        <RealTimeProvider>
+                          <MessageCountProvider>
+                            <AppContent />
+                          </MessageCountProvider>
+                        </RealTimeProvider>
+                      </ProfileProvider>
+                    </WelcomeModalProvider>
+                  </TooltipProvider>
+                </QueryClientProvider>
+              </SecurityProvider>
+            </ThemeProvider>
+          </AccessibilityProvider>
+        </BrowserRouter>
+      </HelmetProvider>
+    </ErrorBoundary>
+  );
+};
 
 export default App;
