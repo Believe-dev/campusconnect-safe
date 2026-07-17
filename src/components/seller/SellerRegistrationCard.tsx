@@ -146,7 +146,7 @@ export const SellerRegistrationCard = () => {
               • <strong>Priority Support</strong> - Get help when you need it
             </li>
             <li>
-              • <strong>Campus Network</strong> - Access thousands of students
+              • <strong>Campus Network</strong> - Reach students across your campus
             </li>
           </ul>
         </div>

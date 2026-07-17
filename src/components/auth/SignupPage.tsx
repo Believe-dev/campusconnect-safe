@@ -442,7 +442,7 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
                 UniMarket
               </h1>
               <p className="text-sm text-muted-foreground">
-                Nigeria's #1 Student Marketplace
+                Nigeria's Student Marketplace
               </p>
             </div>
           </div>
@@ -494,7 +494,7 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
                 {mode === "signin"
                   ? "Enter your credentials to continue"
                   : accountType === "buyer"
-                  ? "Join thousands of students shopping safely"
+                  ? "Shop safely with fellow students"
                   : "Start your selling journey with zero commission"}
               </p>
             </div>

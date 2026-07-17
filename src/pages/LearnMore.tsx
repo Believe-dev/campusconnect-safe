@@ -282,9 +282,9 @@ export default function LearnMore() {
                 <div className="flex items-start gap-3">
                   <CheckCircle className="h-6 w-6 text-green-500 mt-1" />
                   <div>
-                    <h4 className="font-semibold">24/7 Support</h4>
+                    <h4 className="font-semibold">Responsive Support</h4>
                     <p className="text-sm text-muted-foreground">
-                      Our team is always available to help resolve any issues
+                      We respond when we can to help resolve any issues
                     </p>
                   </div>
                 </div>
@@ -296,7 +296,7 @@ export default function LearnMore() {
           <div className="text-center">
             <h2 className="text-3xl font-bold mb-4">Ready to Get Started?</h2>
             <p className="text-lg text-muted-foreground mb-6">
-              Join thousands of students already using UniMarket to buy and sell
+              Join students already using UniMarket to buy and sell
               safely on campus
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">

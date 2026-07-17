@@ -45,7 +45,7 @@ const onboardingSteps = [
     features: [
       {
         icon: <Shield className="h-4 w-4" />,
-        text: "100% verified student sellers",
+        text: "Verified student sellers",
       },
       { icon: <Users className="h-4 w-4" />, text: "Campus-only community" },
       {

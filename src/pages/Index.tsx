@@ -17,7 +17,6 @@ import {
   Users,
   Zap,
   TrendingUp,
-  Star,
   CheckCircle,
   Store,
 } from "lucide-react";
@@ -123,7 +122,7 @@ const Index = () => {
           <div className="container mx-auto px-4 relative z-10">
             <div className="max-w-4xl mx-auto text-center">
               <Badge className="mb-6 bg-university-green/10 text-university-green border-university-green/20 animate-fade-in">
-                🎓 Nigeria's #1 Student Marketplace
+                🎓 Nigeria's Student Marketplace
               </Badge>
               <h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6 leading-tight animate-slide-up">
                 Buy & Sell with
@@ -132,8 +131,8 @@ const Index = () => {
                 </span>
               </h1>
               <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto leading-relaxed animate-fade-in-delay">
-                Join thousands of students across Nigeria trading textbooks,
-                electronics, and more in a safe, verified environment.
+                Trade textbooks, electronics, and more with fellow students
+                across Nigeria in a safe, verified environment.
               </p>
 
               {!user ? (
@@ -182,27 +181,27 @@ const Index = () => {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center animate-fade-in-up">
                 <div className="hover:scale-105 transition-transform duration-300">
                   <div className="text-2xl font-bold text-university-green">
-                    <AnimatedCounter end={10} suffix="K+" />
+                    <AnimatedCounter end={300} suffix="+" />
                   </div>
-                  <div className="text-sm text-gray-600">Active Students</div>
+                  <div className="text-sm text-gray-600">Registered Students</div>
                 </div>
                 <div className="hover:scale-105 transition-transform duration-300">
                   <div className="text-2xl font-bold text-university-green">
-                    <AnimatedCounter end={200} suffix="+" />
+                    <AnimatedCounter end={40} suffix="+" />
                   </div>
-                  <div className="text-sm text-gray-600">Universities</div>
+                  <div className="text-sm text-gray-600">Universities Represented</div>
                 </div>
                 <div className="hover:scale-105 transition-transform duration-300">
                   <div className="text-2xl font-bold text-university-green">
-                    ₦<AnimatedCounter end={2} suffix="M+" />
+                    Escrow
                   </div>
-                  <div className="text-sm text-gray-600">Transactions</div>
+                  <div className="text-sm text-gray-600">Protected Payments</div>
                 </div>
                 <div className="hover:scale-105 transition-transform duration-300">
                   <div className="text-2xl font-bold text-university-green">
-                    <AnimatedCounter end={4.8} suffix="★" />
+                    Verified
                   </div>
-                  <div className="text-sm text-gray-600">User Rating</div>
+                  <div className="text-sm text-gray-600">Student Sellers</div>
                 </div>
               </div>
             </div>
@@ -227,7 +226,7 @@ const Index = () => {
                   <div className="w-16 h-16 bg-university-green/10 rounded-full flex items-center justify-center mx-auto mb-6 animate-bounce-slow">
                     <Shield className="h-8 w-8 text-university-green" />
                   </div>
-                  <h3 className="text-xl font-semibold mb-4">100% Secure</h3>
+                  <h3 className="text-xl font-semibold mb-4">Secure by Design</h3>
                   <p className="text-gray-600">
                     Student ID verification, escrow payments, and monitored
                     transactions ensure your safety.
@@ -274,7 +273,7 @@ const Index = () => {
                 Latest Products
               </h2>
               <p className="text-xl text-gray-600">
-                Fresh listings from students across Nigeria
+                Fresh listings from students on campus
               </p>
             </div>
 
@@ -301,82 +300,12 @@ const Index = () => {
           </div>
         </section>
 
-        {/* Social Proof Section */}
-        <section className="py-20 bg-white">
-          <div className="container mx-auto px-4">
-            <div className="text-center mb-16">
-              <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-                Trusted by Students Nationwide
-              </h2>
-            </div>
-
-            <div className="grid md:grid-cols-3 gap-8">
-              <Card className="border-0 shadow-sm">
-                <CardContent className="p-6">
-                  <div className="flex items-center mb-4">
-                    <div className="flex text-yellow-400">
-                      {[...Array(5)].map((_, i) => (
-                        <Star key={i} className="h-4 w-4 fill-current" />
-                      ))}
-                    </div>
-                  </div>
-                  <p className="text-gray-600 mb-4">
-                    "UniMarket made it so easy to sell my old textbooks and buy
-                    new ones. The verification process gives me confidence."
-                  </p>
-                  <div className="text-sm text-gray-500">
-                    - Adebayo, University of Lagos
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="border-0 shadow-sm">
-                <CardContent className="p-6">
-                  <div className="flex items-center mb-4">
-                    <div className="flex text-yellow-400">
-                      {[...Array(5)].map((_, i) => (
-                        <Star key={i} className="h-4 w-4 fill-current" />
-                      ))}
-                    </div>
-                  </div>
-                  <p className="text-gray-600 mb-4">
-                    "Found my laptop at an amazing price from a fellow student.
-                    The escrow system made the transaction super safe."
-                  </p>
-                  <div className="text-sm text-gray-500">
-                    - Fatima, Ahmadu Bello University
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="border-0 shadow-sm">
-                <CardContent className="p-6">
-                  <div className="flex items-center mb-4">
-                    <div className="flex text-yellow-400">
-                      {[...Array(5)].map((_, i) => (
-                        <Star key={i} className="h-4 w-4 fill-current" />
-                      ))}
-                    </div>
-                  </div>
-                  <p className="text-gray-600 mb-4">
-                    "As a seller, I love how quickly I can list items and
-                    connect with buyers on campus. Great platform!"
-                  </p>
-                  <div className="text-sm text-gray-500">
-                    - Chidi, University of Nigeria
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-        </section>
-
         {/* Final CTA Section */}
         {!user && (
           <section className="py-20 bg-gradient-to-r from-university-green to-blue-600">
             <div className="container mx-auto px-4 text-center">
               <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">
-                Join Nigeria's Largest Student Marketplace
+                Join Nigeria's Student Marketplace
               </h2>
               <p className="text-xl text-white/90 mb-8 max-w-2xl mx-auto">
                 Start buying and selling with verified students today. It's free
