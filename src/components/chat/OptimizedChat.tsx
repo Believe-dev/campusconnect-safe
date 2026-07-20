@@ -388,16 +388,35 @@ const OptimizedChat: React.FC<OptimizedChatProps> = ({
                   }`}
                   onTouchStart={(e) => {
                     if (message.sender_id === currentUserId && !message._isOptimistic && !message._isFailed) {
+                      const touch = e.touches[0];
+                      e.currentTarget.dataset.touchStartX = touch.clientX.toString();
+                      e.currentTarget.dataset.touchStartY = touch.clientY.toString();
                       const timer = setTimeout(() => {
                         setSelectedMessageForDelete(message.id);
                         navigator.vibrate?.(50);
-                      }, 500);
+                      }, 700);
                       e.currentTarget.dataset.timer = timer.toString();
+                    }
+                  }}
+                  onTouchMove={(e) => {
+                    const startX = Number(e.currentTarget.dataset.touchStartX || 0);
+                    const startY = Number(e.currentTarget.dataset.touchStartY || 0);
+                    const touch = e.touches[0];
+                    const movedDistance = Math.hypot(touch.clientX - startX, touch.clientY - startY);
+                    if (movedDistance > 10) {
+                      const timer = e.currentTarget.dataset.timer;
+                      if (timer) clearTimeout(parseInt(timer));
                     }
                   }}
                   onTouchEnd={(e) => {
                     const timer = e.currentTarget.dataset.timer;
                     if (timer) clearTimeout(parseInt(timer));
+                  }}
+                  onContextMenu={(e) => {
+                    if (message.sender_id === currentUserId && !message._isOptimistic && !message._isFailed) {
+                      e.preventDefault();
+                      setSelectedMessageForDelete(message.id);
+                    }
                   }}
                 >
                   {message._isFailed && (
@@ -422,15 +441,6 @@ const OptimizedChat: React.FC<OptimizedChatProps> = ({
                     </span>
                     {message.sender_id === currentUserId && !message._isFailed && (
                       <MessageTicks message={message} otherUserLastReadAt={otherUserLastReadAt} tone="on-dark" />
-                    )}
-                    {message.sender_id === currentUserId && !message._isOptimistic && !message._isFailed && (
-                      <button
-                        type="button"
-                        onClick={() => deleteMessage(message.id)}
-                        className="ml-0.5 hidden h-4 w-4 items-center justify-center text-white/70 opacity-0 transition group-hover:opacity-100 hover:text-white sm:flex"
-                      >
-                        ×
-                      </button>
                     )}
                   </div>
                 </div>
