@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OG Tags Test - UniMarket</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px; }
+        .test-section { margin: 20px 0; padding: 20px; border: 1px solid #ddd; border-radius: 8px; }
+        input { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 4px; }
+        button { background: #22c55e; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; margin: 5px; }
+        button:hover { background: #16a34a; }
+        .result { background: #f9f9f9; padding: 10px; margin: 10px 0; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <h1>UniMarket OG Tags Test</h1>
+    
+    <div class="test-section">
+        <h3>Test Product OG Tags</h3>
+        <input type="text" id="productId" placeholder="Enter Product ID" />
+        <button onclick="testOGTags()">Test with OpenGraph.xyz</button>
+        <button onclick="testFacebook()">Test with Facebook Debugger</button>
+        <button onclick="copyUrl()">Copy Product URL</button>
+        
+        <div class="result" id="result"></div>
+    </div>
+
+    <div class="test-section">
+        <h3>How to Test</h3>
+        <ol>
+            <li>Get a product ID from your database</li>
+            <li>Enter it in the field above</li>
+            <li>Click "Test with OpenGraph.xyz" to see how it appears</li>
+            <li>Share the URL on WhatsApp/Telegram to test real sharing</li>
+        </ol>
+    </div>
+
+    <script>
+        function getProductUrl(id) {
+            return `https://unimarket.com.ng/product/${id}`;
+        }
+
+        function testOGTags() {
+            const id = document.getElementById('productId').value.trim();
+            if (!id) {
+                alert('Please enter a product ID');
+                return;
+            }
+            const url = getProductUrl(id);
+            const testUrl = `https://www.opengraph.xyz/url/${encodeURIComponent(url)}`;
+            window.open(testUrl, '_blank');
+        }
+
+        function testFacebook() {
+            const id = document.getElementById('productId').value.trim();
+            if (!id) {
+                alert('Please enter a product ID');
+                return;
+            }
+            const url = getProductUrl(id);
+            const testUrl = `https://developers.facebook.com/tools/debug/?q=${encodeURIComponent(url)}`;
+            window.open(testUrl, '_blank');
+        }
+
+        function copyUrl() {
+            const id = document.getElementById('productId').value.trim();
+            if (!id) {
+                alert('Please enter a product ID');
+                return;
+            }
+            const url = getProductUrl(id);
+            navigator.clipboard.writeText(url).then(() => {
+                document.getElementById('result').innerHTML = `<strong>Copied:</strong> ${url}`;
+            });
+        }
+    </script>
+</body>
+</html>

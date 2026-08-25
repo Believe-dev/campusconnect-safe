@@ -1,0 +1,35 @@
+User-agent: *
+Allow: /
+
+# Disallow private and admin areas
+Disallow: /admin
+Disallow: /api/
+Disallow: /auth
+Disallow: /settings
+Disallow: /wallet
+Disallow: /chat/
+Disallow: /messages
+Disallow: /orders
+Disallow: /dashboard
+Disallow: /sell
+Disallow: /checkout
+Disallow: /verification-request
+Disallow: /favorites
+Disallow: /notifications
+
+# Allow important SEO pages
+Allow: /marketplace
+Allow: /search
+Allow: /sellers
+Allow: /product/
+Allow: /seller/
+Allow: /learn-more
+Allow: /terms-of-service
+Allow: /privacy-policy
+
+# Crawl delay for server performance
+Crawl-delay: 1
+
+# Sitemap
+Sitemap: https://unimarket.com.ng/sitemap.xml
+Sitemap: https://unimarket.com.ng/api/sitemap

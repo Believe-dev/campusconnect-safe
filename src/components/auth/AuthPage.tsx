@@ -1,0 +1,1159 @@
+import { useState, useEffect } from "react";
+import { Link, Navigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/enhanced-button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Check, ChevronsUpDown } from "lucide-react";
+import { cn } from "@/lib/utils";
+import {
+  Shield,
+  UserCheck,
+  Mail,
+  Upload,
+  Camera,
+  IdCard,
+  Eye,
+  EyeOff,
+} from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { User, Session } from "@supabase/supabase-js";
+import { OnboardingModal } from "@/components/onboarding/OnboardingModal";
+import { SellerSetupModal } from "@/components/seller/SellerSetupModal";
+import { SellerPaymentStep } from "@/components/auth/SellerPaymentStep";
+import { BannedUserModal } from "@/components/auth/BannedUserModal";
+import { ForgotPasswordDialog } from "@/components/auth/ForgotPasswordDialog";
+import { TwoFactorVerification } from "@/components/auth/TwoFactorVerification";
+import { logSecurityEvent } from "@/utils/securityLogger";
+import { WhatsAppSupport } from "@/components/ui/WhatsAppSupport";
+import { BUSINESS_RULES } from "@/lib/constants";
+
+const AuthPage = () => {
+  const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [university, setUniversity] = useState("");
+  const [universityOpen, setUniversityOpen] = useState(false);
+  const [studentId, setStudentId] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
+
+  const [accountType, setAccountType] = useState<"buyer" | "seller">("buyer");
+
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showSellerSetup, setShowSellerSetup] = useState(false);
+  const [showSellerPayment, setShowSellerPayment] = useState(false);
+  const [paymentReference, setPaymentReference] = useState<string | null>(null);
+  const [isBanned, setIsBanned] = useState(false);
+  const [banReason, setBanReason] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [show2FA, setShow2FA] = useState(false);
+  const [pendingUserId, setPendingUserId] = useState<string | null>(null);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+    });
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element;
+      if (
+        !target.closest("#signup-university") &&
+        !target.closest(".university-dropdown")
+      ) {
+        setUniversityOpen(false);
+      }
+    };
+
+    if (universityOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [universityOpen]);
+
+  // Redirect if already authenticated
+  if (user) {
+    return <Navigate to="/" replace />;
+  }
+
+  const signUp = async (
+    email: string,
+    password: string,
+    paymentRef?: string
+  ) => {
+    const redirectUrl = `${window.location.origin}/`;
+
+    // For sellers, require payment reference
+    if (accountType === "seller" && !paymentRef) {
+      throw new Error("Payment required for seller registration");
+    }
+
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: redirectUrl,
+          data: {
+            full_name: fullName.trim(),
+            university_name: university,
+            student_id: studentId.trim(),
+            phone_number: phoneNumber.trim(),
+            account_type: accountType,
+            payment_reference: paymentRef,
+          },
+        },
+      });
+
+      if (error) {
+        // Handle specific Supabase errors
+        if (error.message.includes("User already registered")) {
+          throw new Error(
+            "An account with this email already exists. Please sign in instead."
+          );
+        } else if (error.message.includes("Invalid email")) {
+          throw new Error("Please enter a valid email address.");
+        } else if (error.message.includes("Password")) {
+          throw new Error("Password must be at least 6 characters long.");
+        } else if (error.message.includes("database")) {
+          throw new Error(
+            "Database error during signup. Please try again or contact support."
+          );
+        }
+        throw error;
+      }
+
+      // Record payment and mark as paid for sellers
+      if (data.user && accountType === "seller" && paymentRef) {
+        try {
+          // Wait a moment for the profile to be created by the trigger
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+
+          // Record the payment
+          await (supabase.from("seller_registration_payments" as any) as any).insert({
+            user_id: data.user.id,
+            amount: BUSINESS_RULES.sellerRegistration.fee,
+            payment_reference: paymentRef,
+            payment_method: "anchor_baas",
+            status: "completed",
+          });
+
+          // Update registration status
+          await (supabase.from("profiles") as any)
+            .update({
+              seller_registration_paid: true,
+              seller_registration_paid_at: new Date().toISOString()
+            })
+            .eq("user_id", data.user.id);
+
+          // Activate 30-day subscription directly
+          const expiryDate = new Date();
+          expiryDate.setDate(expiryDate.getDate() + 30);
+          
+          await (supabase.from("profiles") as any).update({
+            seller_subscription_expires_at: expiryDate.toISOString(),
+            seller_features_active: true,
+            seller_subscription_type: 'monthly',
+            seller_last_payment_date: new Date().toISOString()
+          }).eq("user_id", data.user.id);
+          
+          await (supabase.from("seller_subscriptions" as any) as any).insert({
+            user_id: data.user.id,
+            subscription_type: 'monthly',
+            amount: BUSINESS_RULES.sellerRegistration.fee,
+            payment_reference: paymentRef,
+            starts_at: new Date().toISOString(),
+            expires_at: expiryDate.toISOString(),
+            status: 'active'
+          });
+          
+          console.log('Subscription activated for 30 days');
+
+          // Create notification for sellers to upload documents
+          try {
+            const { sendNotification } = await import(
+              "@/utils/notificationService"
+            );
+            await sendNotification({
+              userId: data.user.id,
+              title: "Complete Your Seller Profile",
+              message:
+                "Upload your profile picture and student ID card to get approved as a seller.",
+              type: "info",
+              url: "/profile",
+            });
+          } catch (notificationError) {
+            console.warn("Failed to send notification:", notificationError);
+            // Don't fail signup for notification errors
+          }
+        } catch (paymentError) {
+          console.error("Error recording payment:", paymentError);
+          // Continue with signup even if payment recording fails
+        }
+      }
+
+      return { error: null };
+    } catch (error: any) {
+      console.error("Signup error:", error);
+      return { error };
+    }
+  };
+
+  const signIn = async (email: string, password: string) => {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (!error && data.user) {
+      // Check if user is banned after successful login
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("is_banned, admin_notes")
+        .eq("user_id", data.user.id)
+        .single();
+
+      if (profile?.is_banned) {
+        setIsBanned(true);
+        setBanReason(profile.admin_notes || "No reason provided");
+        await supabase.auth.signOut();
+        return { error: new Error("Account is banned") };
+      }
+
+      // Check if 2FA is enabled
+      const { data: twoFAData } = await (supabase.from("user_2fa" as any) as any)
+        .select("enabled")
+        .eq("user_id", data.user.id)
+        .eq("enabled", true)
+        .single();
+
+      if (twoFAData?.enabled) {
+        // Sign out temporarily and show 2FA verification
+        await supabase.auth.signOut();
+        setPendingUserId(data.user.id);
+        setShow2FA(true);
+        return { error: null, requires2FA: true };
+      }
+
+      // Log successful login
+      await logSecurityEvent(
+        data.user.id,
+        "login",
+        "User signed in successfully"
+      );
+    }
+
+    return { error };
+  };
+
+  const validateForm = () => {
+    const sanitizedEmail = email.trim().toLowerCase();
+    const sanitizedFullName = fullName.trim();
+    const sanitizedStudentId = studentId.trim();
+    const sanitizedPhoneNumber = phoneNumber.trim();
+
+    if (!sanitizedEmail || !password) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill in all required fields.",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(sanitizedEmail)) {
+      toast({
+        title: "Invalid Email",
+        description: "Please enter a valid email address.",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    // Password strength validation
+    if (password.length < 8) {
+      toast({
+        title: "Weak Password",
+        description: "Password must be at least 8 characters long.",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    if (accountType === "buyer") {
+      if (!sanitizedFullName || !university) {
+        toast({
+          title: "Missing Information",
+          description: "Please fill in your name and university.",
+          variant: "destructive",
+        });
+        return false;
+      }
+    } else if (accountType === "seller") {
+      if (
+        !sanitizedFullName ||
+        !university ||
+        !sanitizedStudentId ||
+        !sanitizedPhoneNumber
+      ) {
+        toast({
+          title: "Missing Information",
+          description:
+            "Please fill in all required fields for seller registration.",
+          variant: "destructive",
+        });
+        return false;
+      }
+
+      // Validate school email for sellers
+      if (
+        !sanitizedEmail.includes(".edu") &&
+        !sanitizedEmail.includes("student") &&
+        !sanitizedEmail.includes("school") &&
+        !sanitizedEmail.includes("university")
+      ) {
+        toast({
+          title: "School Email Required",
+          description: "Sellers must use a school/university email address.",
+          variant: "destructive",
+        });
+        return false;
+      }
+    }
+
+    return true;
+  };
+
+  const handleAuth = async (isSignUp: boolean) => {
+    if (isSignUp && !validateForm()) {
+      return;
+    }
+
+    // For seller signup, show payment step first
+    if (isSignUp && accountType === "seller" && !paymentReference) {
+      setShowSellerPayment(true);
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const sanitizedEmail = email.trim().toLowerCase();
+
+      const result = isSignUp
+        ? await signUp(sanitizedEmail, password, paymentReference || undefined)
+        : await signIn(sanitizedEmail, password);
+
+      const { error } = result;
+
+      // Handle 2FA requirement
+      if (!isSignUp && (result as any).requires2FA) {
+        setLoading(false);
+        return;
+      }
+
+      if (error) {
+        // Provide user-friendly error messages
+        let errorMessage = error.message;
+
+        if (error.message.includes("User already registered")) {
+          errorMessage =
+            "An account with this email already exists. Please sign in instead.";
+        } else if (error.message.includes("Invalid email")) {
+          errorMessage = "Please enter a valid email address.";
+        } else if (error.message.includes("Password")) {
+          errorMessage = "Password must be at least 6 characters long.";
+        } else if (
+          error.message.includes("database") ||
+          error.message.includes("Database")
+        ) {
+          errorMessage =
+            "There was a database error during signup. Please try again in a moment or contact support if the issue persists.";
+        } else if (
+          error.message.includes("network") ||
+          error.message.includes("fetch")
+        ) {
+          errorMessage =
+            "Network error. Please check your internet connection and try again.";
+        }
+
+        toast({
+          title: "Authentication Error",
+          description: errorMessage,
+          variant: "destructive",
+        });
+      } else if (isSignUp) {
+        const message =
+          accountType === "seller"
+            ? "Account created! Please check your email to verify. Your seller account will be reviewed by admin for approval."
+            : "Account created! Please check your email to verify your account.";
+
+        toast({
+          title: "Account Created!",
+          description: message,
+        });
+
+        // Reset payment reference after successful signup
+        setPaymentReference(null);
+        setShowSellerPayment(false);
+
+        // Show appropriate modal
+        setTimeout(() => {
+          if (accountType === "seller") {
+            setShowSellerSetup(true);
+          } else {
+            setShowOnboarding(true);
+          }
+        }, 1000);
+      } else {
+        toast({
+          title: "Welcome Back!",
+          description: "Successfully signed in to UniMarket.",
+        });
+
+        // Handle redirect after auth
+        const redirectPath = localStorage.getItem("redirect_after_auth");
+        if (redirectPath) {
+          localStorage.removeItem("redirect_after_auth");
+          setTimeout(() => {
+            window.location.href = redirectPath;
+          }, 1000);
+        }
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "An error occurred",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (show2FA && pendingUserId) {
+    return (
+      <div className="min-h-screen gradient-hero flex items-center justify-center p-4">
+        <TwoFactorVerification
+          userId={pendingUserId}
+          onSuccess={() => {
+            // Re-authenticate the user after successful 2FA
+            supabase.auth
+              .signInWithPassword({ email, password })
+              .then(async ({ data }) => {
+                if (data.user) {
+                  await logSecurityEvent(
+                    data.user.id,
+                    "login",
+                    "User signed in with 2FA"
+                  );
+                }
+                setShow2FA(false);
+                setPendingUserId(null);
+                toast({
+                  title: "Welcome Back!",
+                  description: "Successfully signed in to UniMarket.",
+                });
+              });
+          }}
+          onCancel={() => {
+            setShow2FA(false);
+            setPendingUserId(null);
+          }}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen gradient-hero flex items-center justify-center p-4">
+      <Card className="w-full max-w-md shadow-brand auth-card">
+        <CardHeader className="text-center space-y-2">
+          <div className="flex items-center justify-center gap-2 mb-2">
+            <img
+              src="/logo.png"
+              alt="UniMarket Logo"
+              className="h-8 w-8 object-contain"
+            />
+            <h1 className="text-2xl font-bold text-university-green">
+              UniMarket
+            </h1>
+          </div>
+          <CardDescription className="text-base">
+            Nigeria's trusted university marketplace
+          </CardDescription>
+        </CardHeader>
+
+        <CardContent>
+          <Tabs defaultValue="signin" className="space-y-4">
+            <TabsList className="grid w-full grid-cols-2 h-fit">
+              <TabsTrigger value="signin" className="auth-tab">
+                Sign In
+              </TabsTrigger>
+              <TabsTrigger value="signup" className="auth-tab">
+                Sign Up
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="signin" className="space-y-4">
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleAuth(false);
+                }}
+                className="space-y-4"
+              >
+                <div className="space-y-2 auth-form-field">
+                  <Label htmlFor="signin-email">Email</Label>
+                  <Input
+                    id="signin-email"
+                    type="email"
+                    placeholder="Enter your university email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    maxLength={100}
+                    autoComplete="email"
+                    className="auth-input"
+                  />
+                </div>
+                <div className="space-y-2 auth-form-field">
+                  <Label htmlFor="signin-password">Password</Label>
+                  <div className="relative">
+                    <Input
+                      id="signin-password"
+                      type={showPassword ? "text" : "password"}
+                      placeholder="Enter your password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="pr-10 auth-input"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 transition-colors duration-150"
+                    >
+                      {showPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+                <Button
+                  type="submit"
+                  variant="brand"
+                  className={`w-full auth-button ${
+                    loading ? "auth-loading" : ""
+                  }`}
+                  disabled={loading}
+                >
+                  <Mail className="h-4 w-4" />
+                  {loading ? "Signing In..." : "Sign In"}
+                </Button>
+                <div className="text-center space-y-2">
+                  <ForgotPasswordDialog>
+                    <Button variant="link" className="text-sm">
+                      Forgot your password?
+                    </Button>
+                  </ForgotPasswordDialog>
+                  <Button 
+                    variant="outline" 
+                    className="w-full text-sm"
+                    onClick={() => {
+                      const message = "Hi! I forgot my password and need help changing it. Can you assist me?";
+                      const whatsappUrl = `https://wa.me/2349133054018?text=${encodeURIComponent(message)}`;
+                      window.open(whatsappUrl, '_blank');
+                    }}
+                  >
+                    Contact Customer Care for Password Reset
+                  </Button>
+                  <WhatsAppSupport
+                    message="Hi! I'm having trouble signing into my UniMarket account. Can you help me?"
+                    className="w-full"
+                  />
+                </div>
+              </form>
+            </TabsContent>
+
+            <TabsContent value="signup" className="space-y-4">
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleAuth(true);
+                }}
+                className="space-y-4"
+              >
+                <div className="space-y-2 auth-form-field">
+                  <Label>Account Type</Label>
+                  <div className="relative">
+                    <select
+                      value={accountType}
+                      onChange={(e) =>
+                        setAccountType(e.target.value as "buyer" | "seller")
+                      }
+                      className="w-full h-10 px-3 text-sm border border-input bg-background rounded-md auth-input"
+                    >
+                      <option value="buyer">Buyer</option>
+                      <option value="seller">Seller</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="space-y-2 auth-form-field">
+                  <Label htmlFor="signup-email">
+                    {accountType === "seller" ? "University Email" : "Email"}
+                  </Label>
+                  <Input
+                    id="signup-email"
+                    type="email"
+                    placeholder={
+                      accountType === "seller"
+                        ? "student@university.edu.ng"
+                        : "your@email.com"
+                    }
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="auth-input"
+                  />
+                </div>
+
+                <div className="space-y-2 auth-form-field">
+                  <Label htmlFor="signup-password">Password</Label>
+                  <div className="relative">
+                    <Input
+                      id="signup-password"
+                      type={showPassword ? "text" : "password"}
+                      placeholder="Create a strong password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      className="pr-10 auth-input"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700 transition-colors duration-150"
+                    >
+                      {showPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-2 auth-form-field">
+                  <Label htmlFor="signup-name">Full Name *</Label>
+                  <Input
+                    id="signup-name"
+                    placeholder="Enter your full name"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    className="auth-input"
+                  />
+                </div>
+
+                <div className="space-y-2 auth-form-field">
+                  <Label htmlFor="signup-university">University *</Label>
+                  <div className="relative">
+                    <Input
+                      id="signup-university"
+                      placeholder="Search and select your university..."
+                      value={university}
+                      onChange={(e) => {
+                        setUniversity(e.target.value);
+                        setUniversityOpen(true);
+                      }}
+                      onFocus={() => setUniversityOpen(true)}
+                      className="auth-input"
+                    />
+                    {universityOpen && (
+                      <div className="university-dropdown absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-auto auth-dropdown">
+                        {[
+                          "Abia State University",
+                          "Abubakar Tafawa Balewa University",
+                          "Achievers University",
+                          "Adamawa State University",
+                          "Adeleke University",
+                          "Afe Babalola University",
+                          "African University of Science and Technology",
+                          "Ahmadu Bello University",
+                          "Ajayi Crowther University",
+                          "Akwa Ibom State University",
+                          "Alex Ekwueme Federal University",
+                          "American University of Nigeria",
+                          "Anchor University",
+                          "Augustine University",
+                          "Babcock University",
+                          "Baze University",
+                          "Bayero University Kano",
+                          "Bells University of Technology",
+                          "Benson Idahosa University",
+                          "Bingham University",
+                          "Bowen University",
+                          "Caleb University",
+                          "Caritas University",
+                          "Chrisland University",
+                          "Christopher University",
+                          "Clifford University",
+                          "Coal City University",
+                          "Covenant University",
+                          "Crawford University",
+                          "Cross River University of Technology",
+                          "Delta State University",
+                          "Eastern Palm University",
+                          "Ebonyi State University",
+                          "Edo University",
+                          "Ekiti State University",
+                          "Elizade University",
+                          "Enugu State University of Science and Technology",
+                          "Federal University Birnin Kebbi",
+                          "Federal University Dutse",
+                          "Federal University Dutsin-Ma",
+                          "Federal University Gashua",
+                          "Federal University Gusau",
+                          "Federal University Kashere",
+                          "Federal University Lafia",
+                          "Federal University Lokoja",
+                          "Federal University Ndufu-Alike",
+                          "Federal University of Agriculture, Abeokuta",
+                          "Federal University of Agriculture, Makurdi",
+                          "Federal University of Petroleum Resources",
+                          "Federal University of Technology, Akure",
+                          "Federal University of Technology, Minna",
+                          "Federal University of Technology, Owerri",
+                          "Federal University Otuoke",
+                          "Federal University Oye-Ekiti",
+                          "Federal University Wukari",
+                          "Fountain University",
+                          "Godfrey Okoye University",
+                          "Gombe State University",
+                          "Gregory University",
+                          "Hallmark University",
+                          "Hezekiah University",
+                          "Igbinedion University",
+                          "Imo State University",
+                          "Joseph Ayo Babalola University",
+                          "Kaduna State University",
+                          "Kano University of Science and Technology",
+                          "Kebbi State University of Science and Technology",
+                          "Kogi State University",
+                          "Kwara State University",
+                          "Ladoke Akintola University of Technology",
+                          "Lagos State University",
+                          "Landmark University",
+                          "Lead City University",
+                          "Madonna University",
+                          "Michael Okpara University of Agriculture",
+                          "Modibbo Adama University of Technology",
+                          "Mountain Top University",
+                          "Nasarawa State University",
+                          "Niger Delta University",
+                          "Nile University of Nigeria",
+                          "Nnamdi Azikiwe University",
+                          "Northwest University",
+                          "Novena University",
+                          "Obafemi Awolowo University",
+                          "Obong University",
+                          "Oduduwa University",
+                          "Olabisi Onabanjo University",
+                          "Osun State University",
+                          "Pan-Atlantic University",
+                          "Paul University",
+                          "Plateau State University",
+                          "Redeemer's University",
+                          "Renaissance University",
+                          "Rhema University",
+                          "Rivers State University",
+                          "Salem University",
+                          "Samuel Adegboyega University",
+                          "Sokoto State University",
+                          "Summit University",
+                          "Taraba State University",
+                          "Tansian University",
+                          "University of Abuja",
+                          "University of Agriculture and Environmental Sciences",
+                          "University of Benin",
+                          "University of Calabar",
+                          "University of Ibadan",
+                          "University of Ilorin",
+                          "University of Jos",
+                          "University of Lagos",
+                          "University of Maiduguri",
+                          "University of Nigeria, Nsukka",
+                          "University of Port Harcourt",
+                          "University of Uyo",
+                          "Veritas University",
+                          "Wesley University",
+                          "Western Delta University",
+                          "Yobe State University",
+                          "Yusuf Maitama Sule University",
+                        ]
+                          .filter((uni) =>
+                            uni.toLowerCase().includes(university.toLowerCase())
+                          )
+                          .sort()
+                          .map((uni) => (
+                            <div
+                              key={uni}
+                              className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm"
+                              onClick={() => {
+                                setUniversity(uni);
+                                setUniversityOpen(false);
+                              }}
+                            >
+                              {uni}
+                            </div>
+                          ))}
+                        {[
+                          "Abia State University",
+                          "Abubakar Tafawa Balewa University",
+                          "Achievers University",
+                          "Adamawa State University",
+                          "Adeleke University",
+                          "Afe Babalola University",
+                          "African University of Science and Technology",
+                          "Ahmadu Bello University",
+                          "Ajayi Crowther University",
+                          "Akwa Ibom State University",
+                          "Alex Ekwueme Federal University",
+                          "American University of Nigeria",
+                          "Anchor University",
+                          "Augustine University",
+                          "Babcock University",
+                          "Baze University",
+                          "Bayero University Kano",
+                          "Bells University of Technology",
+                          "Benson Idahosa University",
+                          "Bingham University",
+                          "Bowen University",
+                          "Caleb University",
+                          "Caritas University",
+                          "Chrisland University",
+                          "Christopher University",
+                          "Clifford University",
+                          "Coal City University",
+                          "Covenant University",
+                          "Crawford University",
+                          "Cross River University of Technology",
+                          "Delta State University",
+                          "Eastern Palm University",
+                          "Ebonyi State University",
+                          "Edo University",
+                          "Ekiti State University",
+                          "Elizade University",
+                          "Enugu State University of Science and Technology",
+                          "Federal University Birnin Kebbi",
+                          "Federal University Dutse",
+                          "Federal University Dutsin-Ma",
+                          "Federal University Gashua",
+                          "Federal University Gusau",
+                          "Federal University Kashere",
+                          "Federal University Lafia",
+                          "Federal University Lokoja",
+                          "Federal University Ndufu-Alike",
+                          "Federal University of Agriculture, Abeokuta",
+                          "Federal University of Agriculture, Makurdi",
+                          "Federal University of Petroleum Resources",
+                          "Federal University of Technology, Akure",
+                          "Federal University of Technology, Minna",
+                          "Federal University of Technology, Owerri",
+                          "Federal University Otuoke",
+                          "Federal University Oye-Ekiti",
+                          "Federal University Wukari",
+                          "Fountain University",
+                          "Godfrey Okoye University",
+                          "Gombe State University",
+                          "Gregory University",
+                          "Hallmark University",
+                          "Hezekiah University",
+                          "Igbinedion University",
+                          "Imo State University",
+                          "Joseph Ayo Babalola University",
+                          "Kaduna State University",
+                          "Kano University of Science and Technology",
+                          "Kebbi State University of Science and Technology",
+                          "Kogi State University",
+                          "Kwara State University",
+                          "Ladoke Akintola University of Technology",
+                          "Lagos State University",
+                          "Landmark University",
+                          "Lead City University",
+                          "Madonna University",
+                          "Michael Okpara University of Agriculture",
+                          "Modibbo Adama University of Technology",
+                          "Mountain Top University",
+                          "Nasarawa State University",
+                          "Niger Delta University",
+                          "Nile University of Nigeria",
+                          "Nnamdi Azikiwe University",
+                          "Northwest University",
+                          "Novena University",
+                          "Obafemi Awolowo University",
+                          "Obong University",
+                          "Oduduwa University",
+                          "Olabisi Onabanjo University",
+                          "Osun State University",
+                          "Pan-Atlantic University",
+                          "Paul University",
+                          "Plateau State University",
+                          "Redeemer's University",
+                          "Renaissance University",
+                          "Rhema University",
+                          "Rivers State University",
+                          "Salem University",
+                          "Samuel Adegboyega University",
+                          "Sokoto State University",
+                          "Summit University",
+                          "Taraba State University",
+                          "Tansian University",
+                          "University of Abuja",
+                          "University of Agriculture and Environmental Sciences",
+                          "University of Benin",
+                          "University of Calabar",
+                          "University of Ibadan",
+                          "University of Ilorin",
+                          "University of Jos",
+                          "University of Lagos",
+                          "University of Maiduguri",
+                          "University of Nigeria, Nsukka",
+                          "University of Port Harcourt",
+                          "University of Uyo",
+                          "Veritas University",
+                          "Wesley University",
+                          "Western Delta University",
+                          "Yobe State University",
+                          "Yusuf Maitama Sule University",
+                        ].filter((uni) =>
+                          uni.toLowerCase().includes(university.toLowerCase())
+                        ).length === 0 &&
+                          university && (
+                            <div className="px-3 py-2 text-sm text-gray-500">
+                              No universities found
+                            </div>
+                          )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {accountType === "seller" && (
+                  <>
+                    <div className="space-y-2 auth-form-field">
+                      <Label htmlFor="signup-student-id">Matric Number*</Label>
+                      <Input
+                        id="signup-student-id"
+                        placeholder="e.g., 19/55EC/00123"
+                        value={studentId}
+                        onChange={(e) => setStudentId(e.target.value)}
+                        className="auth-input"
+                      />
+                    </div>
+
+                    <div className="space-y-2 auth-form-field">
+                      <Label htmlFor="signup-phone">
+                        WhatsApp Phone Number *
+                      </Label>
+                      <Input
+                        id="signup-phone"
+                        placeholder="e.g., +234 801 234 5678"
+                        value={phoneNumber}
+                        onChange={(e) => setPhoneNumber(e.target.value)}
+                        className="auth-input"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Use your WhatsApp number for easy communication with
+                        buyers
+                      </p>
+                    </div>
+
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                      <p className="text-sm text-amber-800 font-medium mb-2">
+                        <Shield className="h-4 w-4 inline mr-1" />
+                        Seller Registration Requirements:
+                      </p>
+                      <ul className="text-xs text-amber-700 space-y-1">
+                        <li>
+                          • ₦1000 per month subscription (required before
+                          signup)
+                        </li>
+                        <li>• Profile picture & student ID upload</li>
+                        <li>• Quick admin approval (24-48 hours)</li>
+                        <li>• Keep 100% of sales - No commission ever</li>
+                        <li>• Live feed bidding system for buyer requests</li>
+                        <li>• Access to gamification & rewards system</li>
+                        <li>• Advanced analytics & sales dashboard</li>
+                        <li>• WhatsApp integration for easy communication</li>
+                      </ul>
+                    </div>
+                  </>
+                )}
+                <Button
+                  type="submit"
+                  variant="brand"
+                  className={`w-full auth-button ${
+                    loading ? "auth-loading" : ""
+                  }`}
+                  disabled={loading}
+                >
+                  <UserCheck className="h-4 w-4" />
+                  {loading
+                    ? "Creating Account..."
+                    : accountType === "seller"
+                    ? "Continue to Payment"
+                    : "Create Account"}
+                </Button>
+                <div className="text-center space-y-2">
+                  <div className="text-xs text-muted-foreground">
+                    <Shield className="h-3 w-3 inline mr-1" />
+                    By signing up, you agree to keep all transactions on
+                    UniMarket
+                  </div>
+                  <WhatsAppSupport
+                    message="Hi! I need help creating my UniMarket account. Can you assist me with the signup process?"
+                    className="w-full"
+                  />
+                </div>
+              </form>
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+
+        <CardFooter className="text-center space-y-2">
+          <p className="text-sm text-muted-foreground">
+            Secure marketplace for Nigerian students
+          </p>
+          <div className="pt-2">
+            <Link
+              to="/test-signup"
+              className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 w-full"
+            >
+              Try New Multi-Step Signup Experience →
+            </Link>
+          </div>
+        </CardFooter>
+      </Card>
+
+      <OnboardingModal
+        open={showOnboarding}
+        onClose={() => setShowOnboarding(false)}
+      />
+
+      <SellerSetupModal
+        open={showSellerSetup}
+        onClose={() => {
+          setShowSellerSetup(false);
+          window.location.href = "/profile";
+        }}
+      />
+
+      {/* Seller Payment Step Modal */}
+      {showSellerPayment && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <SellerPaymentStep
+            email={email}
+            onPaymentSuccess={(paymentRef) => {
+              setPaymentReference(paymentRef);
+              setShowSellerPayment(false);
+              // Directly call signup with payment reference
+              setLoading(true);
+              const sanitizedEmail = email.trim().toLowerCase();
+              signUp(sanitizedEmail, password, paymentRef)
+                .then(({ error }) => {
+                  if (error) {
+                    toast({
+                      title: "Authentication Error",
+                      description: error.message,
+                      variant: "destructive",
+                    });
+                  } else {
+                    toast({
+                      title: "Account Created!",
+                      description:
+                        "Account created! Please check your email to verify. Your seller account will be reviewed by admin for approval.",
+                    });
+                    // Reset states
+                    setPaymentReference(null);
+                    // Show seller setup modal
+                    setTimeout(() => {
+                      setShowSellerSetup(true);
+                    }, 1000);
+                  }
+                  setLoading(false);
+                })
+                .catch((error) => {
+                  toast({
+                    title: "Error",
+                    description: error.message || "An error occurred",
+                    variant: "destructive",
+                  });
+                  setLoading(false);
+                });
+            }}
+            onBack={() => {
+              setShowSellerPayment(false);
+            }}
+          />
+        </div>
+      )}
+
+      <BannedUserModal
+        open={isBanned}
+        userEmail={email}
+        banReason={banReason}
+      />
+    </div>
+  );
+};
+
+export default AuthPage;

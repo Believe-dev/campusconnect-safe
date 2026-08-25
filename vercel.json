@@ -1,0 +1,23 @@
+{
+  "rewrites": [
+    {
+      "source": "/product/:id",
+      "destination": "/api/og?id=:id",
+      "has": [
+        {
+          "type": "header",
+          "key": "user-agent",
+          "value": "(?i).*(bot|crawler|spider|scraper|whatsapp|telegram|twitter|facebook|linkedin|pinterest|slack|discord|googlebot|google).*"
+        }
+      ]
+    },
+    {
+      "source": "/sitemap.xml",
+      "destination": "/api/sitemap"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}

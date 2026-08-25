@@ -1,0 +1,932 @@
+@import "./styles/scrollbar.css";
+@import "./styles/lite-mode.css";
+@import "./styles/browser-fixes.css";
+@import "./styles/mobile-upload.css";
+@import "./styles/ios-fixes.css";
+@import "./styles/marketplace-mobile.css";
+@import "./styles/accessibility.css";
+@import "./styles/bottom-nav.css";
+@import "./styles/force-fixed.css";
+@import "./styles/pull-to-refresh.css";
+
+/* Disable hover effects on mobile sheet buttons and links */
+@media (max-width: 1024px) {
+  .mobile-sheet button:hover,
+  .mobile-sheet a:hover {
+    background-color: inherit !important;
+    color: inherit !important;
+    transform: none !important;
+    text-decoration: none !important;
+  }
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* UniMarket Design System - Nigerian University Marketplace */
+
+@layer base {
+  :root {
+    /* Mobile viewport height handling */
+    --vh: 1vh;
+
+    /* Core Brand Colors - Nigerian Green & Academic Gold */
+    --background: linear-gradient(
+      135deg,
+      hsl(140 45% 97%) 0%,
+      hsl(45 60% 96%) 50%,
+      hsl(140 35% 98%) 100%
+    );
+    --foreground: 120 15% 15%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 120 15% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 120 15% 15%;
+
+    /* Nigerian Green Primary */
+    --primary: 140 85% 25%;
+    --primary-foreground: 0 0% 98%;
+    --primary-muted: 140 45% 85%;
+
+    /* Academic Gold Secondary */
+    --secondary: 45 95% 85%;
+    --secondary-foreground: 140 85% 25%;
+
+    --muted: 140 15% 96%;
+    --muted-foreground: 120 10% 45%;
+
+    /* Trust Orange Accent */
+    --accent: 25 85% 65%;
+    --accent-foreground: 0 0% 98%;
+
+    --destructive: 0 85% 55%;
+    --destructive-foreground: 0 0% 98%;
+
+    /* Success Green */
+    --success: 140 85% 45%;
+    --success-foreground: 0 0% 98%;
+
+    /* Warning Yellow */
+    --warning: 45 95% 55%;
+    --warning-foreground: 120 15% 15%;
+
+    --border: 140 15% 90%;
+    --input: 140 15% 94%;
+    --ring: 140 85% 25%;
+
+    --radius: 0.75rem;
+
+    /* Custom UniMarket Colors */
+    --university-green: 140 85% 25%;
+    --university-gold: 45 95% 65%;
+    --trust-orange: 25 85% 65%;
+    --verified-blue: 210 85% 55%;
+
+    /* Gradients */
+    --gradient-primary: linear-gradient(
+      135deg,
+      hsl(140 85% 25%),
+      hsl(140 75% 35%)
+    );
+    --gradient-accent: linear-gradient(
+      135deg,
+      hsl(45 95% 65%),
+      hsl(25 85% 65%)
+    );
+    --gradient-hero: linear-gradient(
+      135deg,
+      hsl(140 85% 25%) 0%,
+      hsl(45 95% 65%) 100%
+    );
+    --gradient-background: linear-gradient(
+      135deg,
+      hsl(140 45% 97%) 0%,
+      hsl(45 60% 96%) 30%,
+      hsl(140 35% 98%) 70%,
+      hsl(45 50% 97%) 100%
+    );
+
+    /* Shadows */
+    --shadow-brand: 0 10px 30px -10px hsl(140 85% 25% / 0.3);
+    --shadow-card: 0 4px 20px hsl(140 15% 15% / 0.08);
+    --shadow-success: 0 4px 15px hsl(140 85% 45% / 0.3);
+
+    /* Animations - Optimized for low-end devices */
+    --transition-smooth: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-bounce: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    --transition-micro: all 0.15s ease-out;
+    --transition-gentle: transform 0.2s ease-out, opacity 0.15s ease-out;
+
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+    -webkit-tap-highlight-color: transparent !important;
+    -webkit-touch-callout: none !important;
+    -webkit-user-select: none !important;
+    -moz-user-select: none !important;
+    -ms-user-select: none !important;
+    user-select: none !important;
+  }
+
+  button,
+  a,
+  [role="button"] {
+    outline: none !important;
+    box-shadow: none !important;
+  }
+
+  button:focus,
+  a:focus,
+  [role="button"]:focus,
+  button:focus-visible,
+  a:focus-visible,
+  [role="button"]:focus-visible {
+    outline: none !important;
+    box-shadow: none !important;
+    ring: none !important;
+  }
+
+  input,
+  textarea,
+  [contenteditable] {
+    -webkit-user-select: text !important;
+    -moz-user-select: text !important;
+    -ms-user-select: text !important;
+    user-select: text !important;
+  }
+
+  html,
+  body {
+    position: static !important;
+    transform: none !important;
+    contain: none !important;
+  }
+
+  body {
+    background: var(--gradient-background);
+    background-attachment: fixed;
+    color: hsl(var(--foreground));
+    font-feature-settings:
+      "rlig" 1,
+      "calt" 1;
+    opacity: 1;
+    transition: opacity 0.1s ease-in-out;
+    min-height: 100vh;
+    padding-top: 60px;
+    padding-bottom: 68px;
+  }
+
+  @media (min-width: 1024px) {
+    body {
+      padding-bottom: 0;
+    }
+  }
+
+  /* Prevent layout shifts */
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+@layer components {
+  /* UniMarket Brand Components */
+  .gradient-brand {
+    background: var(--gradient-primary);
+  }
+
+  .gradient-accent {
+    background: var(--gradient-accent);
+  }
+
+  .gradient-hero {
+    background: var(--gradient-hero);
+  }
+
+  .gradient-background {
+    background: var(--gradient-background);
+  }
+
+  .beautiful-bg {
+    background: linear-gradient(
+      135deg,
+      hsl(140 45% 97%) 0%,
+      hsl(45 60% 96%) 30%,
+      hsl(140 35% 98%) 70%,
+      hsl(45 50% 97%) 100%
+    );
+    background-attachment: fixed;
+    min-height: 100vh;
+  }
+
+  .shadow-brand {
+    box-shadow: var(--shadow-brand);
+  }
+
+  .shadow-card {
+    box-shadow: var(--shadow-card);
+  }
+
+  .shadow-success {
+    box-shadow: var(--shadow-success);
+  }
+
+  .transition-smooth {
+    transition: var(--transition-smooth);
+  }
+
+  .transition-bounce {
+    transition: var(--transition-bounce);
+  }
+
+  /* 3D Verification Badges */
+  .verified-badge {
+    @apply inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-verified-blue/10 text-verified-blue border border-verified-blue/20;
+    box-shadow:
+      0 2px 4px rgba(59, 130, 246, 0.15),
+      inset 0 1px 0 rgba(255, 255, 255, 0.2),
+      inset 0 -1px 0 rgba(59, 130, 246, 0.1);
+    background: linear-gradient(
+      135deg,
+      rgba(59, 130, 246, 0.1),
+      rgba(59, 130, 246, 0.05)
+    );
+    transform: translateZ(0);
+    transition: all 0.2s ease;
+  }
+
+  .verified-badge:hover {
+    transform: translateY(-1px) translateZ(0);
+    box-shadow:
+      0 4px 8px rgba(59, 130, 246, 0.2),
+      inset 0 1px 0 rgba(255, 255, 255, 0.3),
+      inset 0 -1px 0 rgba(59, 130, 246, 0.15);
+  }
+
+  .trust-badge {
+    @apply inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-verified-blue/10 text-verified-blue border border-verified-blue/20;
+    box-shadow:
+      0 2px 4px rgba(59, 130, 246, 0.15),
+      inset 0 1px 0 rgba(255, 255, 255, 0.2),
+      inset 0 -1px 0 rgba(59, 130, 246, 0.1);
+    background: linear-gradient(
+      135deg,
+      rgba(59, 130, 246, 0.1),
+      rgba(59, 130, 246, 0.05)
+    );
+    transform: translateZ(0);
+    transition: all 0.2s ease;
+  }
+
+  .trust-badge:hover {
+    transform: translateY(-1px) translateZ(0);
+    box-shadow:
+      0 4px 8px rgba(59, 130, 246, 0.2),
+      inset 0 1px 0 rgba(255, 255, 255, 0.3),
+      inset 0 -1px 0 rgba(59, 130, 246, 0.15);
+  }
+
+  /* Small 3D Verification Tick for Profile Pictures - Blue Theme */
+  .verification-tick {
+    position: absolute;
+    bottom: 7px;
+    right: -22px;
+    width: 16px;
+    height: 16px;
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow:
+      0 2px 6px rgba(59, 130, 246, 0.4),
+      inset 0 1px 0 rgba(255, 255, 255, 0.3),
+      inset 0 -1px 0 rgba(37, 99, 235, 0.2);
+    transform: translateZ(0);
+    transition: all 0.2s ease;
+  }
+
+  .verification-tick:hover {
+    transform: translateY(-1px) scale(1.05) translateZ(0);
+    box-shadow:
+      0 4px 10px rgba(59, 130, 246, 0.5),
+      inset 0 1px 0 rgba(255, 255, 255, 0.4),
+      inset 0 -1px 0 rgba(37, 99, 235, 0.3);
+  }
+
+  .verification-tick svg {
+    width: 8px;
+    height: 8px;
+    color: white;
+    filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.2));
+  }
+
+  /* Inline verification badge for consistent blue theme */
+  .verification-badge-inline {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    background: linear-gradient(135deg, #3b82f6, #2563eb);
+    border-radius: 50%;
+    box-shadow:
+      0 1px 3px rgba(59, 130, 246, 0.3),
+      inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    transform: translateZ(0);
+    transition: all 0.2s ease;
+  }
+
+  .verification-badge-inline:hover {
+    transform: translateY(-1px) scale(1.05) translateZ(0);
+    box-shadow:
+      0 2px 6px rgba(59, 130, 246, 0.4),
+      inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  }
+
+  .verification-badge-inline svg {
+    width: 8px;
+    height: 8px;
+    color: white;
+    filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.2));
+  }
+
+  /* Mobile-first responsive utilities */
+  .safe-area-pb {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .safe-area-pt {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  /* Text truncation utilities */
+  .line-clamp-1 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
+  }
+
+  .line-clamp-2 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+  }
+
+  .line-clamp-3 {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+  }
+
+  /* Touch-friendly interactive elements */
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Smooth scrolling for mobile */
+  .scroll-smooth {
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Mobile-optimized focus states */
+  .focus-mobile {
+    @apply focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2;
+  }
+
+  /* Page transitions - Optimized for low-end devices */
+  .page-transition {
+    animation: fadeIn 0.15s ease-out;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Micro interactions */
+  .micro-bounce {
+    transition: var(--transition-micro);
+  }
+
+  .micro-bounce:active {
+    transform: scale(0.98);
+  }
+
+  /* Smooth fade transitions */
+  .fade-in {
+    animation: fadeInGentle 0.2s ease-out;
+  }
+
+  @keyframes fadeInGentle {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  /* Student-friendly colors */
+  .student-card {
+    @apply bg-gradient-to-br from-white to-primary/5 border border-primary/10 shadow-sm hover:shadow-md transition-all duration-200;
+  }
+
+  .friendly-button {
+    @apply bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary shadow-sm hover:shadow-md transition-all duration-200;
+  }
+
+  /* Prevent layout shift during navigation */
+  .layout-stable {
+    min-height: 100vh;
+  }
+
+  /* Avatar transition */
+  .avatar-stable {
+    transition: none !important;
+  }
+
+  .avatar-stable img {
+    transition: opacity 0.15s ease-in-out;
+  }
+
+  /* Performance optimizations for low-end devices */
+  @media (prefers-reduced-motion: reduce) {
+    .micro-bounce:active {
+      transform: none;
+    }
+
+    .page-transition {
+      animation: none;
+    }
+
+    * {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  /* GPU acceleration for smooth animations */
+  .micro-bounce,
+  .student-card {
+    will-change: transform;
+    transform: translateZ(0);
+  }
+
+  /* Auth Page Optimized Animations - Low-end device friendly */
+  .auth-card {
+    animation: authSlideIn 0.3s ease-out;
+    transform: translateZ(0);
+    backface-visibility: hidden;
+  }
+
+  @keyframes authSlideIn {
+    from {
+      opacity: 0;
+      transform: translateY(20px) translateZ(0);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) translateZ(0);
+    }
+  }
+
+  .auth-input {
+    transition:
+      border-color 0.15s ease,
+      box-shadow 0.15s ease;
+    transform: translateZ(0);
+  }
+
+  .auth-input:focus {
+    border-color: hsl(var(--primary));
+    box-shadow: 0 0 0 2px hsl(var(--primary) / 0.1);
+  }
+
+  .auth-button {
+    transition:
+      transform 0.1s ease,
+      box-shadow 0.15s ease;
+    transform: translateZ(0);
+  }
+
+  .auth-button:hover:not(:disabled) {
+    transform: translateY(-1px) translateZ(0);
+    box-shadow: 0 4px 12px hsl(var(--primary) / 0.2);
+  }
+
+  .auth-button:active {
+    transform: translateY(0) translateZ(0);
+  }
+
+  .auth-tab {
+    transition:
+      color 0.15s ease,
+      background-color 0.15s ease;
+    transform: translateZ(0);
+  }
+
+  .auth-dropdown {
+    animation: authDropdownSlide 0.2s ease-out;
+    transform: translateZ(0);
+  }
+
+  @keyframes authDropdownSlide {
+    from {
+      opacity: 0;
+      transform: translateY(-8px) translateZ(0);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) translateZ(0);
+    }
+  }
+
+  .auth-form-field {
+    animation: authFieldFadeIn 0.2s ease-out;
+    animation-fill-mode: both;
+  }
+
+  @keyframes authFieldFadeIn {
+    from {
+      opacity: 0;
+      transform: translateX(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  /* Stagger animation delays for form fields */
+  .auth-form-field:nth-child(1) {
+    animation-delay: 0.05s;
+  }
+  .auth-form-field:nth-child(2) {
+    animation-delay: 0.1s;
+  }
+  .auth-form-field:nth-child(3) {
+    animation-delay: 0.15s;
+  }
+  .auth-form-field:nth-child(4) {
+    animation-delay: 0.2s;
+  }
+  .auth-form-field:nth-child(5) {
+    animation-delay: 0.25s;
+  }
+  .auth-form-field:nth-child(6) {
+    animation-delay: 0.3s;
+  }
+
+  .auth-loading {
+    animation: authPulse 1.5s ease-in-out infinite;
+  }
+
+  @keyframes authPulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.6;
+    }
+  }
+
+  /* Low-end device optimizations for auth */
+  @media (max-width: 480px), (max-height: 600px) {
+    .auth-card {
+      animation: authFadeIn 0.2s ease-out;
+    }
+
+    @keyframes authFadeIn {
+      from {
+        opacity: 0;
+      }
+      to {
+        opacity: 1;
+      }
+    }
+
+    .auth-button:hover:not(:disabled) {
+      transform: none;
+      box-shadow: 0 2px 8px hsl(var(--primary) / 0.15);
+    }
+
+    .auth-form-field {
+      animation: none;
+    }
+
+    .auth-dropdown {
+      animation: authFadeIn 0.15s ease-out;
+    }
+  }
+
+  /* Reduced motion support for auth */
+  @media (prefers-reduced-motion: reduce) {
+    .auth-card,
+    .auth-form-field,
+    .auth-dropdown {
+      animation: none !important;
+    }
+
+    .auth-button:hover:not(:disabled) {
+      transform: none;
+    }
+
+    .auth-loading {
+      animation: none;
+      opacity: 0.8;
+    }
+  }
+
+  /* Student-friendly focus states */
+  .student-focus {
+    @apply focus:outline-none focus:ring-2 focus:ring-primary/50 focus:ring-offset-2 focus:ring-offset-background;
+  }
+
+  /* Smooth loading states */
+  .loading-shimmer {
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.4),
+      transparent
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+  }
+
+  @keyframes shimmer {
+    0% {
+      background-position: -200% 0;
+    }
+    100% {
+      background-position: 200% 0;
+    }
+  }
+
+  /* Mobile Performance Optimizations */
+  img {
+    max-width: 100%;
+    height: auto;
+  }
+
+  /* Stable Image Rendering */
+  .stable-image {
+    backface-visibility: hidden;
+    will-change: transform;
+    transform: translateZ(0);
+  }
+
+  .stable-image img {
+    backface-visibility: hidden;
+    will-change: transform;
+    transform: translateZ(0);
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
+  }
+
+  /* Low-end device optimizations */
+  @media (max-width: 480px) {
+    .student-card {
+      background: white !important;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1) !important;
+    }
+
+    .loading-shimmer {
+      animation: none !important;
+      background: rgba(0, 0, 0, 0.05) !important;
+    }
+  }
+
+  /* Memory-efficient utilities */
+  .low-memory {
+    contain: layout style;
+    will-change: auto;
+  }
+
+  .low-memory * {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+  }
+
+  .low-memory img {
+    image-rendering: pixelated;
+    filter: none !important;
+  }
+
+  /* Low-end device optimizations */
+  .low-end-device {
+    contain: layout style;
+  }
+
+  .low-end-device * {
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    filter: none !important;
+  }
+
+  .low-end-device .gradient-brand,
+  .low-end-device .gradient-accent,
+  .low-end-device .gradient-hero {
+    background: hsl(var(--primary)) !important;
+  }
+
+  .low-end-device .loading-shimmer {
+    animation: none !important;
+    background: rgba(0, 0, 0, 0.05) !important;
+  }
+
+  /* Reduced motion support */
+  .reduce-motion *,
+  .reduce-motion *::before,
+  .reduce-motion *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* Critical CSS for above-the-fold content */
+  .critical-css {
+    font-display: swap;
+    contain: layout;
+  }
+
+  /* Optimize images for performance */
+  .perf-image {
+    content-visibility: auto;
+    contain-intrinsic-size: 300px 200px;
+  }
+
+  /* Efficient scrolling */
+  .efficient-scroll {
+    overflow-anchor: auto;
+    /* Allow natural overscroll behavior */
+    overscroll-behavior: auto;
+  }
+
+  /* GPU-optimized transforms */
+  .gpu-optimized {
+    transform: translateZ(0);
+    backface-visibility: hidden;
+    perspective: 1000px;
+  }
+
+  /* Content visibility for performance */
+  .lazy-content {
+    content-visibility: auto;
+    contain-intrinsic-size: 0 200px;
+  }
+
+  /* UniMarket Preloader Animations - Optimized for low-end devices */
+  .unimarket-preloader {
+    contain: layout style;
+    will-change: transform;
+    position: relative;
+    z-index: 1;
+  }
+
+  .unimarket-preloader > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Smooth spin animation with reduced motion support */
+  @keyframes unimarket-spin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .unimarket-spinner {
+    animation: unimarket-spin 1s linear infinite;
+  }
+
+  /* Optimized bounce animation */
+  @keyframes unimarket-bounce {
+    0%,
+    80%,
+    100% {
+      transform: scale(0);
+    }
+    40% {
+      transform: scale(1);
+    }
+  }
+
+  .unimarket-bounce {
+    animation: unimarket-bounce 1.4s infinite ease-in-out;
+  }
+
+  /* Pulse animation for low-end devices */
+  @keyframes unimarket-pulse {
+    0% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
+    100% {
+      opacity: 1;
+    }
+  }
+
+  .unimarket-pulse {
+    animation: unimarket-pulse 2s infinite;
+  }
+
+  /* Disable animations on very low-end devices */
+  @media (max-width: 480px) and (max-height: 800px) {
+    .unimarket-spinner {
+      animation: none !important;
+    }
+
+    .unimarket-bounce {
+      animation: unimarket-pulse 2s infinite !important;
+    }
+
+    .unimarket-preloader {
+      min-height: 120px !important;
+    }
+  }
+
+  /* Responsive preloader sizing */
+  @media (max-width: 640px) {
+    .unimarket-preloader {
+      padding: 1rem;
+      min-height: 160px;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .unimarket-preloader {
+      padding: 0.75rem;
+      min-height: 140px;
+    }
+  }
+
+  /* Prefers reduced motion */
+  @media (prefers-reduced-motion: reduce) {
+    .unimarket-spinner,
+    .unimarket-bounce {
+      animation: none !important;
+    }
+
+    .unimarket-pulse {
+      animation: none !important;
+      opacity: 0.8;
+    }
+
+    .unimarket-preloader {
+      min-height: 120px;
+    }
+  }
+
+  /* Fix for overlapping elements */
+  .unimarket-preloader * {
+    flex-shrink: 0;
+  }
+
+  .unimarket-preloader .text-lg {
+    line-height: 1.2;
+    margin: 0;
+  }
+
+  .unimarket-preloader .text-sm {
+    line-height: 1.4;
+    margin: 0;
+  }
+}
