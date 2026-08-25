@@ -140,7 +140,7 @@ export const SellerPaymentStep = ({
 
         <div className="text-center space-y-2">
           <p className="text-xs text-muted-foreground">
-            Secure payment powered by Paystack. Payment required before account creation.
+            Secure payment powered by Anchor BaaS. Payment required before account creation.
           </p>
           <WhatsAppSupport 
             message="Hi! I need help with seller registration payment on UniMarket. Can you assist me?"

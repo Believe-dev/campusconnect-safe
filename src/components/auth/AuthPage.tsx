@@ -177,17 +177,16 @@ const AuthPage = () => {
           await new Promise((resolve) => setTimeout(resolve, 2000));
 
           // Record the payment
-          await supabase.from("seller_registration_payments").insert({
+          await (supabase.from("seller_registration_payments" as any) as any).insert({
             user_id: data.user.id,
             amount: BUSINESS_RULES.sellerRegistration.fee,
             payment_reference: paymentRef,
-            payment_method: "paystack",
+            payment_method: "anchor_baas",
             status: "completed",
           });
 
           // Update registration status
-          await supabase
-            .from("profiles")
+          await (supabase.from("profiles") as any)
             .update({
               seller_registration_paid: true,
               seller_registration_paid_at: new Date().toISOString()
@@ -198,14 +197,14 @@ const AuthPage = () => {
           const expiryDate = new Date();
           expiryDate.setDate(expiryDate.getDate() + 30);
           
-          await supabase.from("profiles").update({
+          await (supabase.from("profiles") as any).update({
             seller_subscription_expires_at: expiryDate.toISOString(),
             seller_features_active: true,
             seller_subscription_type: 'monthly',
             seller_last_payment_date: new Date().toISOString()
           }).eq("user_id", data.user.id);
           
-          await supabase.from("seller_subscriptions").insert({
+          await (supabase.from("seller_subscriptions" as any) as any).insert({
             user_id: data.user.id,
             subscription_type: 'monthly',
             amount: BUSINESS_RULES.sellerRegistration.fee,
@@ -269,8 +268,7 @@ const AuthPage = () => {
       }
 
       // Check if 2FA is enabled
-      const { data: twoFAData } = await supabase
-        .from("user_2fa")
+      const { data: twoFAData } = await (supabase.from("user_2fa" as any) as any)
         .select("enabled")
         .eq("user_id", data.user.id)
         .eq("enabled", true)

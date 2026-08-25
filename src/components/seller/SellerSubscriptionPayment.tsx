@@ -1,8 +1,5 @@
-import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useAuth } from '@/hooks/useAuth';
-import { useSellerSubscription } from '@/hooks/useSellerSubscription';
 import { toast } from 'sonner';
 import { CreditCard, X } from 'lucide-react';
 
@@ -11,51 +8,15 @@ interface SellerSubscriptionPaymentProps {
   onCancel?: () => void;
 }
 
-export const SellerSubscriptionPayment = ({ onSuccess, onCancel }: SellerSubscriptionPaymentProps) => {
-  const { user } = useAuth();
-  const { createSubscription } = useSellerSubscription();
-  const [loading, setLoading] = useState(false);
-
-  const handlePayment = async () => {
-    if (!user) return;
-
-    setLoading(true);
-    
-    try {
-      // Initialize Paystack payment
-      const handler = (window as any).PaystackPop.setup({
-        key: 'pk_test_4c0f8c8b8b8b8b8b8b8b8b8b8b8b8b8b', // Replace with actual public key
-        email: user.email,
-        amount: 100000, // ₦1,000 in kobo
-        currency: 'NGN',
-        ref: `seller_sub_${user.id}_${Date.now()}`,
-        metadata: {
-          user_id: user.id,
-          subscription_type: 'monthly'
-        },
-        callback: async (response: any) => {
-          try {
-            const success = await createSubscription(response.reference);
-            if (success) {
-              toast.success('Subscription activated! You now have access to all seller features.');
-              onSuccess?.();
-            } else {
-              toast.error('Failed to activate subscription. Please contact support.');
-            }
-          } catch (error) {
-            toast.error('Payment verification failed. Please contact support.');
-          }
-        },
-        onClose: () => {
-          setLoading(false);
-        }
-      });
-
-      handler.openIframe();
-    } catch (error) {
-      toast.error('Payment initialization failed. Please try again.');
-      setLoading(false);
-    }
+// NOTE: this previously called createSubscription() with a client-generated reference
+// and no real payment collection or verification behind it (first the Paystack widget
+// callback with a hardcoded test key, then briefly an unconditional fake success after
+// the Anchor rename) - either way it granted an active paid subscription for free.
+// Disabled fail-safe, matching usePaystack.ts, pending a real Anchor-backed collection
+// flow. Paystack is off the table entirely (account disabled).
+export const SellerSubscriptionPayment = ({ onCancel }: SellerSubscriptionPaymentProps) => {
+  const handlePayment = () => {
+    toast.error('Subscription payment is temporarily unavailable. Please contact support.');
   };
 
   return (
@@ -91,17 +52,16 @@ export const SellerSubscriptionPayment = ({ onSuccess, onCancel }: SellerSubscri
           </ul>
         </div>
 
-        <Button 
+        <Button
           onClick={handlePayment}
-          disabled={loading}
           className="w-full"
           size="lg"
         >
-          {loading ? 'Processing...' : 'Pay ₦1,000 - Activate Subscription'}
+          Pay ₦1,000 - Activate Subscription
         </Button>
 
-        <p className="text-xs text-center text-muted-foreground">
-          Secure payment powered by Paystack
+        <p className="text-xs text-center text-emerald-600 font-medium">
+          Secure payment powered by Anchor BaaS (CoreStep Microfinance)
         </p>
       </CardContent>
     </Card>

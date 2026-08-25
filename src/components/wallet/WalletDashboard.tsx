@@ -35,6 +35,7 @@ import {
   ShoppingCart,
   Package,
 } from "lucide-react";
+import { AnchorVirtualAccountCard } from "./AnchorVirtualAccountCard";
 
 interface WalletData {
   id: string;
@@ -124,6 +125,7 @@ const WalletDashboard = () => {
   const [emailVerification, setEmailVerification] = useState("");
   const [passwordVerification, setPasswordVerification] = useState("");
   const [payoutLoading, setPayoutLoading] = useState(false);
+  const [userId, setUserId] = useState<string>("");
   const { toast } = useToast();
 
   const [payoutForm, setPayoutForm] = useState({
@@ -248,6 +250,7 @@ const WalletDashboard = () => {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user) return;
+      setUserId(user.id);
 
       // Fetch wallet
       const { data: walletData, error: walletError } = await supabase
@@ -920,6 +923,15 @@ const WalletDashboard = () => {
           )}
         </div>
       </div>
+
+      {/* Anchor BaaS Virtual Account & Escrow */}
+      {userId && (
+        <AnchorVirtualAccountCard
+          userId={userId}
+          userFullName={bankDetails?.bank_account_name}
+          onBalanceUpdated={fetchWalletData}
+        />
+      )}
 
       {/* Balance Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-6">

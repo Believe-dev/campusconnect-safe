@@ -21,8 +21,8 @@ echo Deploying admin-reset-password function...
 supabase functions deploy admin-reset-password
 
 REM Deploy other admin functions
-echo Deploying process-payout function...
-supabase functions deploy process-payout
+REM NOTE: process-payout was removed - it was dead code that never made a real
+REM transfer call while claiming success. Use anchor-withdraw for payouts instead.
 
 echo Deploying delete-account function...
 supabase functions deploy delete-account
@@ -34,8 +34,11 @@ echo Deploying send-email function...
 supabase functions deploy send-email
 
 REM Set environment variables (these should already be set, but just in case)
+REM Paystack is no longer in use - Anchor BaaS secrets (ANCHOR_API_KEY,
+REM ANCHOR_WEBHOOK_TOKEN, ANCHOR_DEPOSIT_ACCOUNT_ID) should be set separately via
+REM `supabase secrets set` with real values, not committed to this script.
 echo Setting environment variables...
-supabase secrets set PAYSTACK_SECRET_KEY=sk_live_67ccaee369fb6200cfbc3715907daeeeb425c8ef
+REM supabase secrets set PAYSTACK_SECRET_KEY=%PAYSTACK_SECRET_KEY%
 
 echo All admin Edge Functions deployed successfully!
 echo You can now test the admin functions in the dashboard.

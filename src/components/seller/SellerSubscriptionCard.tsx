@@ -202,8 +202,8 @@ export const SellerSubscriptionCard = () => {
           Subscribe Now (₦1,000/month)
         </Button>
 
-        <p className="text-xs text-muted-foreground text-center">
-          Secure payment powered by Paystack
+        <p className="text-xs text-emerald-600 text-center font-medium">
+          Secure payment powered by Anchor BaaS (CoreStep Microfinance)
         </p>
       </CardContent>
     </Card>

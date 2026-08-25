@@ -147,7 +147,7 @@ export const AdminWallet = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
-      // Process withdrawal via Paystack
+      // Process withdrawal via Anchor BaaS
       const { data, error } = await supabase.functions.invoke('process-admin-payout', {
         body: {
           amount: amount,

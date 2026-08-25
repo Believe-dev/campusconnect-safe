@@ -171,8 +171,8 @@ export const SellerFeatureGuard = ({
 
           <div className="flex items-center justify-center gap-2 pt-3">
             <Lock className="h-4 w-4 text-gray-400" />
-            <p className="text-sm text-gray-500 text-center">
-              Secure payment powered by Paystack
+            <p className="text-sm text-emerald-600 font-medium text-center">
+              Secure payment powered by Anchor BaaS (CoreStep Microfinance)
             </p>
           </div>
         </CardContent>

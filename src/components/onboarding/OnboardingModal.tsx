@@ -8,6 +8,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { useAuth } from "@/hooks/useAuth";
+import { SellerKycModal } from "@/components/seller/SellerKycModal";
 import {
   ShoppingBag,
   MessageCircle,
@@ -22,6 +24,9 @@ import {
   CheckCircle,
   Users,
   Sparkles,
+  Building2,
+  ShieldCheck,
+  ArrowRight,
 } from "lucide-react";
 
 interface OnboardingModalProps {
@@ -51,6 +56,34 @@ const onboardingSteps = [
       {
         icon: <CheckCircle className="h-4 w-4" />,
         text: "Secure transactions",
+      },
+    ],
+  },
+  {
+    title: "Verify Identity & Anchor Bank Account",
+    subtitle: "CBN Compliant Anchor BaaS Integration",
+    content:
+      "Verify your BVN, NIN, or Photo ID to activate your free Anchor NUBAN Bank Account and unlock higher deposit & transfer limits.",
+    icon: (
+      <div className="relative">
+        <div className="absolute inset-0 bg-emerald-500/20 rounded-full animate-pulse"></div>
+        <Building2 className="h-16 w-16 text-emerald-600 relative z-10" />
+      </div>
+    ),
+    gradient: "from-emerald-50 to-teal-50",
+    isKycStep: true,
+    features: [
+      {
+        icon: <ShieldCheck className="h-4 w-4 text-emerald-600" />,
+        text: "Real-time BVN & NIN verification via Anchor",
+      },
+      {
+        icon: <Building2 className="h-4 w-4 text-emerald-600" />,
+        text: "Free Anchor Virtual NUBAN Account",
+      },
+      {
+        icon: <Wallet className="h-4 w-4 text-emerald-600" />,
+        text: "High daily transfer caps & instant bank payouts",
       },
     ],
   },
@@ -103,10 +136,10 @@ const onboardingSteps = [
     ],
   },
   {
-    title: "Secure Payments",
+    title: "Secure Payments & Escrow",
     subtitle: "Protected Transactions",
     content:
-      "Pay safely with buyer protection and automatic payment release system.",
+      "Pay safely via Anchor Virtual NUBAN or Card. Money stays locked in Anchor Escrow until seller delivers.",
     icon: (
       <div className="relative">
         <div className="absolute inset-0 bg-green-500/20 rounded-full animate-pulse"></div>
@@ -117,41 +150,15 @@ const onboardingSteps = [
     features: [
       {
         icon: <Shield className="h-4 w-4" />,
-        text: "Buyer protection guarantee",
+        text: "Anchor Escrow Buyer Protection",
       },
       {
         icon: <Wallet className="h-4 w-4" />,
-        text: "Secure payment processing",
+        text: "Card deposits & Bank Transfers",
       },
       {
         icon: <Package className="h-4 w-4" />,
-        text: "Order tracking included",
-      },
-    ],
-  },
-  {
-    title: "How Orders Work",
-    subtitle: "Simple Process",
-    content: "Easy 3-step process for both buyers and sellers.",
-    icon: (
-      <div className="relative">
-        <div className="absolute inset-0 bg-orange-500/20 rounded-full animate-pulse"></div>
-        <Package className="h-16 w-16 text-orange-600 relative z-10" />
-      </div>
-    ),
-    gradient: "from-orange-50 to-yellow-50",
-    features: [
-      {
-        icon: <ShoppingBag className="h-4 w-4" />,
-        text: "Add to cart → Checkout → Pay",
-      },
-      {
-        icon: <Package className="h-4 w-4" />,
-        text: "Seller ships → Buyer confirms",
-      },
-      {
-        icon: <Wallet className="h-4 w-4" />,
-        text: "Automatic payment release",
+        text: "Order tracking & approval releases",
       },
     ],
   },
@@ -180,9 +187,14 @@ const onboardingSteps = [
 
 export const OnboardingModal = ({ open, onClose }: OnboardingModalProps) => {
   const [currentStep, setCurrentStep] = useState(0);
+  const [showKycModal, setShowKycModal] = useState(false);
+  const { user } = useAuth();
+
+  // Filter steps: Hide KYC step for general buyers so sign-up & onboarding remain 100% friction-free
+  const activeSteps = onboardingSteps.filter((s) => !s.isKycStep || user?.user_metadata?.account_type === "seller");
 
   const nextStep = () => {
-    if (currentStep < onboardingSteps.length - 1) {
+    if (currentStep < activeSteps.length - 1) {
       setCurrentStep(currentStep + 1);
     }
   };
@@ -197,112 +209,134 @@ export const OnboardingModal = ({ open, onClose }: OnboardingModalProps) => {
     onClose();
   };
 
-  const step = onboardingSteps[currentStep];
+  const step = activeSteps[currentStep] || activeSteps[0];
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-lg max-h-[100vh] overflow-y-auto">
-        <DialogHeader className="pb-2">
-          <div className="flex items-center justify-between">
-            <DialogTitle className="text-xl font-bold text-university-green">
-              How UniMarket Works
-            </DialogTitle>
-          </div>
-        </DialogHeader>
+    <>
+      <Dialog open={open} onOpenChange={onClose}>
+        <DialogContent className="max-w-lg max-h-[100vh] overflow-y-auto">
+          <DialogHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <DialogTitle className="text-xl font-bold text-university-green">
+                Welcome to UniMarket Onboarding
+              </DialogTitle>
+            </div>
+          </DialogHeader>
 
-        <div className="space-y-6">
-          {/* Main Content Card */}
-          <Card
-            className={`relative overflow-hidden border-0 shadow-lg bg-gradient-to-br ${step.gradient}`}
-          >
-            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-16 translate-x-16"></div>
-            <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/5 rounded-full translate-y-12 -translate-x-12"></div>
-
-            <CardContent className="p-6 relative z-10">
-              <div className="text-center space-y-4">
-                <div className="flex justify-center">{step.icon}</div>
-
-                <div className="space-y-2">
-                  <h3 className="text-2xl font-bold text-gray-900">
-                    {step.title}
-                  </h3>
-                  <p className="text-sm font-medium text-gray-600">
-                    {step.subtitle}
-                  </p>
-                  <p className="text-gray-700 leading-relaxed">
-                    {step.content}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Features List */}
-          <div className="space-y-3">
-            {step.features.map((feature, index) => (
-              <div
-                key={index}
-                className="flex items-center gap-3 p-3 bg-white rounded-lg border border-gray-100 shadow-sm hover:shadow-md transition-shadow"
-              >
-                <div className="flex-shrink-0 w-8 h-8 bg-university-green/10 rounded-full flex items-center justify-center text-university-green">
-                  {feature.icon}
-                </div>
-                <span className="text-sm font-medium text-gray-700">
-                  {feature.text}
-                </span>
-              </div>
-            ))}
-          </div>
-
-          {/* Progress Indicators */}
-          <div className="flex justify-center gap-2">
-            {onboardingSteps.map((_, index) => (
-              <button
-                key={index}
-                onClick={() => setCurrentStep(index)}
-                className={`h-3 w-3 rounded-full transition-all duration-300 ${
-                  index === currentStep
-                    ? "bg-university-green scale-125"
-                    : index < currentStep
-                    ? "bg-university-green/60"
-                    : "bg-gray-200 hover:bg-gray-300"
-                }`}
-              />
-            ))}
-          </div>
-
-          {/* Navigation */}
-          <div className="flex justify-between items-center pt-2">
-            <Button
-              variant="outline"
-              onClick={prevStep}
-              disabled={currentStep === 0}
-              className="flex items-center gap-2 px-6"
+          <div className="space-y-6">
+            {/* Main Content Card */}
+            <Card
+              className={`relative overflow-hidden border-0 shadow-lg bg-gradient-to-br ${step.gradient}`}
             >
-              <ChevronLeft className="h-4 w-4" />
-              Previous
-            </Button>
+              <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-16 translate-x-16"></div>
+              <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/5 rounded-full translate-y-12 -translate-x-12"></div>
 
-            {currentStep === onboardingSteps.length - 1 ? (
+              <CardContent className="p-6 relative z-10">
+                <div className="text-center space-y-4">
+                  <div className="flex justify-center">{step.icon}</div>
+
+                  <div className="space-y-2">
+                    <h3 className="text-2xl font-bold text-gray-900">
+                      {step.title}
+                    </h3>
+                    <p className="text-sm font-medium text-gray-600">
+                      {step.subtitle}
+                    </p>
+                    <p className="text-gray-700 leading-relaxed text-sm">
+                      {step.content}
+                    </p>
+                  </div>
+
+                  {step.isKycStep && user && (
+                    <div className="pt-2">
+                      <Button
+                        onClick={() => setShowKycModal(true)}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-4 py-2"
+                      >
+                        <ShieldCheck className="w-4 h-4 mr-1.5" />
+                        Verify Identity Now (BVN / NIN / Photo ID)
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Features List */}
+            <div className="space-y-2.5">
+              {step.features.map((feature, index) => (
+                <div
+                  key={index}
+                  className="flex items-center gap-3 p-2.5 bg-white rounded-lg border border-gray-100 shadow-sm hover:shadow-md transition-shadow text-xs"
+                >
+                  <div className="flex-shrink-0 w-7 h-7 bg-university-green/10 rounded-full flex items-center justify-center text-university-green">
+                    {feature.icon}
+                  </div>
+                  <span className="font-medium text-gray-700">
+                    {feature.text}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {/* Progress Indicators */}
+            <div className="flex justify-center gap-2">
+              {activeSteps.map((_, index) => (
+                <button
+                  key={index}
+                  onClick={() => setCurrentStep(index)}
+                  className={`h-2.5 w-2.5 rounded-full transition-all duration-300 ${
+                    index === currentStep
+                      ? "bg-university-green scale-125"
+                      : index < currentStep
+                      ? "bg-university-green/60"
+                      : "bg-gray-200 hover:bg-gray-300"
+                  }`}
+                />
+              ))}
+            </div>
+
+            {/* Navigation */}
+            <div className="flex justify-between items-center pt-2">
               <Button
-                onClick={handleFinish}
-                className="flex items-center gap-2 px-6 bg-university-green hover:bg-university-green/90"
+                variant="outline"
+                onClick={prevStep}
+                disabled={currentStep === 0}
+                className="flex items-center gap-2 px-5 text-xs"
               >
-                Get Started
-                <Sparkles className="h-4 w-4" />
+                <ChevronLeft className="h-4 w-4" />
+                Previous
               </Button>
-            ) : (
-              <Button
-                onClick={nextStep}
-                className="flex items-center gap-2 px-6 bg-university-green hover:bg-university-green/90"
-              >
-                Next
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            )}
+
+              {currentStep === activeSteps.length - 1 ? (
+                <Button
+                  onClick={handleFinish}
+                  className="flex items-center gap-2 px-5 bg-university-green hover:bg-university-green/90 text-xs"
+                >
+                  Get Started
+                  <Sparkles className="h-4 w-4" />
+                </Button>
+              ) : (
+                <Button
+                  onClick={nextStep}
+                  className="flex items-center gap-2 px-5 bg-university-green hover:bg-university-green/90 text-xs"
+                >
+                  Next
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
           </div>
-        </div>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+
+      {user && (
+        <SellerKycModal
+          userId={user.id}
+          open={showKycModal}
+          onClose={() => setShowKycModal(false)}
+        />
+      )}
+    </>
   );
 };

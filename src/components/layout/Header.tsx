@@ -39,6 +39,7 @@ import {
   Store,
   Lightbulb,
   Zap,
+  Wallet,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
@@ -482,6 +483,18 @@ const Header = () => {
                 <Link to="/profile">
                   <User className="mr-3 h-5 w-5" />
                   Profile
+                </Link>
+              </Button>
+
+              <Button
+                variant="ghost"
+                size="lg"
+                asChild
+                className="justify-start text-emerald-600 font-semibold"
+              >
+                <Link to="/wallet">
+                  <Wallet className="mr-3 h-5 w-5 text-emerald-500" />
+                  Anchor Wallet (NUBAN)
                 </Link>
               </Button>
 
