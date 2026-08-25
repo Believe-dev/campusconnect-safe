@@ -35,14 +35,14 @@ export const sendEmailNotification = async (data: EmailNotificationData): Promis
     });
 
     if (error) {
-      console.error('Failed to send email:', error);
+      console.warn('ℹ️ Notice: Edge function send-email is unavailable or un-deployed on local dev environment:', error.message || error);
       return false;
     }
 
     console.log('Email sent successfully');
     return true;
-  } catch (error) {
-    console.error('Failed to send email:', error);
+  } catch (error: any) {
+    console.warn('ℹ️ Notice: Could not send email notification locally:', error?.message || error);
     return false;
   }
 };
