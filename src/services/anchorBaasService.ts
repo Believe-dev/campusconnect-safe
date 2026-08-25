@@ -79,8 +79,8 @@ export async function anchorApiFetch<T = any>(
       json = null;
     }
 
-    // If Sandbox returns 401, attempt Live API URL in case key is for Live Production
-    if (status === 401 && primaryBaseUrl.includes("sandbox")) {
+    // If Sandbox returns 401 and custom VITE_ANCHOR_API_KEY is configured, attempt Live API URL in case key is for Live Production
+    if (status === 401 && primaryBaseUrl.includes("sandbox") && import.meta.env.VITE_ANCHOR_API_KEY) {
       const liveUrl = `https://api.getanchor.co/v1${endpointPath}`;
       console.log(`🔄 Sandbox returned HTTP 401. Retrying with Live Anchor API URL: ${liveUrl}`);
       try {
