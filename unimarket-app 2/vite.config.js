@@ -7,7 +7,7 @@ export default defineConfig({
     // Bind to 0.0.0.0 instead of just localhost so devices on the same
     // Wi-Fi (like your phone) can reach the dev server.
     host: true,
-    port: 5173,
+    port: 5175,
     strictPort: true,
   },
 });

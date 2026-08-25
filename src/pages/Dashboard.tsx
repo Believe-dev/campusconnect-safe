@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { PullToRefresh } from "@/components/common/PullToRefresh";
+import { uploadProductImageToR2 } from "@/utils/r2Upload";
 
 
 import {
@@ -285,25 +286,12 @@ const Dashboard = () => {
 
   const uploadNewImages = async () => {
     const uploadedUrls = [];
-    
+
     for (let i = 0; i < newImages.length; i++) {
-      const file = newImages[i];
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Date.now()}-${i}.${fileExt}`;
-      
-      const { data, error } = await supabase.storage
-        .from('product-images')
-        .upload(fileName, file);
-      
-      if (error) throw error;
-      
-      const { data: { publicUrl } } = supabase.storage
-        .from('product-images')
-        .getPublicUrl(fileName);
-      
+      const publicUrl = await uploadProductImageToR2(newImages[i]);
       uploadedUrls.push(publicUrl);
     }
-    
+
     return uploadedUrls;
   };
 

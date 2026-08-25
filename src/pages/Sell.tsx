@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { Upload, X } from 'lucide-react';
 import { PullToRefresh } from '@/components/common/PullToRefresh';
-import { CompressedImageUpload } from '@/components/ui/CompressedImageUpload';
+import { ProductImageUpload } from '@/components/ui/ProductImageUpload';
 
 
 
@@ -483,10 +483,8 @@ const Sell = () => {
                             <div className="text-sm font-medium text-gray-600">
                               Image {index + 1}
                             </div>
-                            <CompressedImageUpload
+                            <ProductImageUpload
                               onUpload={(url) => handleImageUpload(url, index)}
-                              bucket="product-images"
-                              path={`${Date.now()}-${index}.jpg`}
                               uploading={uploadingImages[index]}
                               setUploading={(uploading) => {
                                 setUploadingImages(prev => {
