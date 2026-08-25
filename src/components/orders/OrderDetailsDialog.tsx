@@ -86,7 +86,7 @@ export const OrderDetailsDialog: React.FC<OrderDetailsDialogProps> = ({
     if (!order || approving) return;
     try {
       setApproving(true);
-      const res = await approveSellerEscrow(order.id, order.seller_id);
+      const res = await approveSellerEscrow(order.id);
       if (res.success) {
         toast({
           title: "Anchor Funds Unlocked! 🎉",
@@ -347,14 +347,18 @@ export const OrderDetailsDialog: React.FC<OrderDetailsDialogProps> = ({
             </Card>
           )}
 
-          {isSeller && order.status !== "completed" && (
+          {/* Releasing escrow is the BUYER confirming receipt, not the seller approving
+              their own payout - the seller has no way to trigger this (also enforced
+              server-side in anchor-escrow-resolve, which only accepts the release
+              action from the order's buyer or an admin). */}
+          {!isSeller && (order.status === "paid" || order.status === "shipped" || order.status === "delivered") && (
             <Button
               onClick={handleApproveEscrow}
               disabled={approving}
               className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3"
             >
               <CheckCircle className="w-4 h-4 mr-2" />
-              {approving ? "Unlocking Funds..." : "Approve Order & Release Anchor Funds"}
+              {approving ? "Releasing Funds..." : "Confirm Receipt & Release Payment to Seller"}
             </Button>
           )}
         </div>

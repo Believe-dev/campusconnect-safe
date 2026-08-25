@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { Navigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -95,6 +96,7 @@ import { AdminWallet } from "@/components/admin/AdminWallet";
 import { SellerSubscriptionManager } from "@/components/admin/SellerSubscriptionManager";
 import { PullToRefresh } from "@/components/common/PullToRefresh";
 import { OrdersTab } from "@/components/admin/OrdersTab";
+import { approveSellerEscrow, refundAnchorPayment } from "@/services/anchorBaasService";
 
 interface User {
   id: string;
@@ -220,9 +222,11 @@ interface Dispute {
   status: string;
   created_at: string;
   orders: {
+    seller_id: string;
+    buyer_id: string;
     products: { title: string };
-    seller_profile: { full_name: string };
-    buyer_profile: { full_name: string };
+    seller_profile: { full_name: string; student_id?: string };
+    buyer_profile: { full_name: string; student_id?: string };
   };
   reporter: { full_name: string };
 }
@@ -242,6 +246,7 @@ interface ProductReport {
 
 export default function Admin() {
   const { user, loading, isAdmin } = useAuth();
+  const queryClient = useQueryClient();
   const [users, setUsers] = useState<User[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -1225,6 +1230,8 @@ export default function Admin() {
           created_at: dispute.created_at,
           reported_by: dispute.reported_by,
           orders: {
+            seller_id: order?.seller_id || "",
+            buyer_id: order?.buyer_id || "",
             products: {
               title: product?.title || "Product Not Found",
             },
@@ -1269,6 +1276,83 @@ export default function Admin() {
       fetchEscrowData();
     } catch (error) {
       toast.error("Failed to release escrow funds");
+    }
+  };
+
+  const resolveDisputeForSeller = async (dispute: Dispute) => {
+    if (!dispute.orders?.seller_id) {
+      toast.error("Missing seller information for this order");
+      return;
+    }
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      const result = await approveSellerEscrow(dispute.order_id);
+      if (!result.success) {
+        toast.error(result.message);
+        return;
+      }
+
+      const { error } = await supabase
+        .from("disputes")
+        .update({
+          status: "resolved",
+          resolution: "Resolved in favor of seller - funds released",
+          resolved_by: user?.id,
+          resolved_at: new Date().toISOString(),
+        })
+        .eq("id", dispute.id);
+
+      if (error) throw error;
+
+      toast.success("Dispute resolved for seller - funds released");
+      fetchEscrowData();
+    } catch (error) {
+      console.error("Error resolving dispute for seller:", error);
+      toast.error("Failed to resolve dispute");
+    }
+  };
+
+  const resolveDisputeForBuyer = async (dispute: Dispute) => {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      const result = await refundAnchorPayment(dispute.order_id);
+      if (!result.success) {
+        toast.error(result.message);
+        return;
+      }
+
+      const { error: disputeError } = await supabase
+        .from("disputes")
+        .update({
+          status: "resolved",
+          resolution: "Resolved in favor of buyer - payment reversed",
+          resolved_by: user?.id,
+          resolved_at: new Date().toISOString(),
+        })
+        .eq("id", dispute.id);
+
+      if (disputeError) throw disputeError;
+
+      const { error: orderError } = await supabase
+        .from("orders")
+        .update({ status: "refunded", updated_at: new Date().toISOString() })
+        .eq("id", dispute.order_id);
+
+      if (orderError) {
+        console.error("Error updating order status after reversal:", orderError);
+      }
+
+      toast.success("Dispute resolved for buyer - payment reversed");
+      fetchEscrowData();
+    } catch (error) {
+      console.error("Error resolving dispute for buyer:", error);
+      toast.error("Failed to resolve dispute");
     }
   };
 
@@ -1744,6 +1828,7 @@ export default function Admin() {
 
       if (error) throw error;
 
+      queryClient.invalidateQueries({ queryKey: ["products"] });
       toast.success("Product deleted successfully");
       fetchProducts();
     } catch (error) {
@@ -1776,6 +1861,7 @@ export default function Admin() {
 
       if (error) throw error;
 
+      queryClient.invalidateQueries({ queryKey: ["products"] });
       toast.success(
         `Product ${!isActive ? "activated" : "deactivated"} successfully`
       );
@@ -1843,6 +1929,7 @@ export default function Admin() {
         );
       }
 
+      queryClient.invalidateQueries({ queryKey: ["products"] });
       setSelectedProducts([]);
       fetchProducts();
     } catch (error) {
@@ -6723,25 +6810,80 @@ export default function Admin() {
                                         >
                                           📱 Contact Seller via WhatsApp
                                         </Button>
-                                        <Button
-                                          onClick={async () => {
-                                            try {
-                                              await supabase
-                                                .from("orders")
-                                                .update({ status: "delivered" })
-                                                .eq("id", dispute.order_id);
-
-                                              toast.success("Dispute resolved");
-                                              fetchEscrowData();
-                                            } catch (error) {
-                                              toast.error(
-                                                "Failed to resolve dispute"
-                                              );
-                                            }
-                                          }}
-                                        >
-                                          Mark Resolved
-                                        </Button>
+                                        <AlertDialog>
+                                          <AlertDialogTrigger asChild>
+                                            <Button
+                                              variant="outline"
+                                              className="text-red-600 border-red-600 hover:bg-red-50"
+                                            >
+                                              Resolve for Buyer (Reverse Funds)
+                                            </Button>
+                                          </AlertDialogTrigger>
+                                          <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                              <AlertDialogTitle>
+                                                Resolve Dispute for Buyer
+                                              </AlertDialogTitle>
+                                              <AlertDialogDescription>
+                                                This reverses the held escrow
+                                                payment back to{" "}
+                                                {dispute.orders?.buyer_profile
+                                                  ?.full_name || "the buyer"}
+                                                . The seller will not be paid
+                                                for this order.
+                                              </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                              <AlertDialogCancel>
+                                                Cancel
+                                              </AlertDialogCancel>
+                                              <AlertDialogAction
+                                                onClick={() =>
+                                                  resolveDisputeForBuyer(dispute)
+                                                }
+                                                className="bg-red-600 hover:bg-red-700"
+                                              >
+                                                Reverse Funds to Buyer
+                                              </AlertDialogAction>
+                                            </AlertDialogFooter>
+                                          </AlertDialogContent>
+                                        </AlertDialog>
+                                        <AlertDialog>
+                                          <AlertDialogTrigger asChild>
+                                            <Button className="bg-green-600 hover:bg-green-700">
+                                              Resolve for Seller (Release
+                                              Funds)
+                                            </Button>
+                                          </AlertDialogTrigger>
+                                          <AlertDialogContent>
+                                            <AlertDialogHeader>
+                                              <AlertDialogTitle>
+                                                Resolve Dispute for Seller
+                                              </AlertDialogTitle>
+                                              <AlertDialogDescription>
+                                                This releases the held escrow
+                                                payment to{" "}
+                                                {dispute.orders?.seller_profile
+                                                  ?.full_name || "the seller"}
+                                                . The buyer will not be
+                                                refunded for this order.
+                                              </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                              <AlertDialogCancel>
+                                                Cancel
+                                              </AlertDialogCancel>
+                                              <AlertDialogAction
+                                                onClick={() =>
+                                                  resolveDisputeForSeller(dispute)
+                                                }
+                                                className="bg-green-600 hover:bg-green-700"
+                                              >
+                                                Release Funds to Seller
+                                              </AlertDialogAction>
+                                            </AlertDialogFooter>
+                                          </AlertDialogContent>
+                                        </AlertDialog>
                                       </div>
                                     </div>
                                     <DialogHeader>

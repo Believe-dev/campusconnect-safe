@@ -7,7 +7,7 @@ import {
   getVirtualAccount,
   simulateTestDeposit,
   fundWalletWithCard,
-  getCbnKycStatus,
+  fetchCbnKycStatusFromDb,
   AnchorVirtualAccount,
   CbnKycTierDetails,
 } from "@/services/anchorBaasService";
@@ -52,7 +52,7 @@ export const AnchorVirtualAccountCard = ({
     try {
       setLoading(true);
       const acc = await getVirtualAccount(userId, userFullName);
-      const kyc = getCbnKycStatus(userId);
+      const kyc = await fetchCbnKycStatusFromDb(userId);
       setAccount(acc);
       setKycStatus(kyc);
     } catch (err) {

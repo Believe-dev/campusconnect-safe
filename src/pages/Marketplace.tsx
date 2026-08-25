@@ -25,6 +25,7 @@ import { OfflineNotice } from "@/components/ui/offline-notice";
 import { User } from "@supabase/supabase-js";
 import { searchProducts } from "@/utils/searchUtils";
 import { useProfile } from "@/contexts/ProfileContext";
+import { useOptimizedQuery } from "@/hooks/useOptimizedQuery";
 import "@/styles/animations.css";
 
 interface Product {
@@ -61,8 +62,41 @@ const categories = [
 
 const conditions = ["All Conditions", "new", "excellent", "good", "fair"];
 
+const fetchProductsQuery = async (): Promise<Product[]> => {
+  // Optimize for slow connections - fetch only essential fields
+  const { data, error } = await supabase
+    .from("products")
+    .select(
+      `
+      id,
+      title,
+      description,
+      category,
+      price,
+      stock_quantity,
+      condition,
+      campus,
+      images,
+      seller_id,
+      created_at,
+      profiles!products_seller_id_fkey (
+        full_name,
+        business_name,
+        rating,
+        is_verified,
+        campus
+      )
+    `
+    )
+    .eq("is_active", true)
+    .order("created_at", { ascending: false })
+    .limit(200);
+
+  if (error) throw error;
+  return data || [];
+};
+
 const Marketplace = () => {
-  const [products, setProducts] = useState<Product[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [user, setUser] = useState<User | null>(null);
   const { profile } = useProfile();
@@ -70,7 +104,6 @@ const Marketplace = () => {
   const [showOtherSchools, setShowOtherSchools] = useState(false);
   const [universityProducts, setUniversityProducts] = useState<Product[]>([]);
   const [otherSchoolProducts, setOtherSchoolProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All Categories");
   const [selectedCondition, setSelectedCondition] = useState("All Conditions");
@@ -80,14 +113,37 @@ const Marketplace = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  // Listings change relatively infrequently - short TTL cache instead of refetching
+  // on every mount. Invalidated on write (new listing, price/stock edit, delisting)
+  // via queryClient.invalidateQueries(["products"]) in Sell.tsx.
+  const {
+    data: products = [],
+    isLoading: loading,
+    refetch: refetchProducts,
+  } = useOptimizedQuery({
+    queryKey: ["products", "marketplace"],
+    queryFn: async () => {
+      try {
+        return await fetchProductsQuery();
+      } catch (error) {
+        toast({
+          title: "Error",
+          description: "Failed to load products",
+          variant: "destructive",
+        });
+        return [];
+      }
+    },
+    staleTime: 60 * 1000,
+    gcTime: 5 * 60 * 1000,
+  });
+
   const handleRefresh = useCallback(async () => {
-    setLoading(true);
-    await fetchProducts();
+    await refetchProducts();
     if (user) {
       await fetchUserData(user.id);
     }
-    setLoading(false);
-  }, [user]);
+  }, [user, refetchProducts]);
 
   useEffect(() => {
     // Check authentication
@@ -98,8 +154,6 @@ const Marketplace = () => {
         // Removed university fetching
       }
     });
-
-    fetchProducts();
   }, []);
 
   useEffect(() => {
@@ -112,50 +166,6 @@ const Marketplace = () => {
     sortBy,
     showOtherSchools,
   ]);
-
-  const fetchProducts = async () => {
-    try {
-      // Optimize for slow connections - fetch only essential fields
-      const { data, error } = await supabase
-        .from("products")
-        .select(
-          `
-          id,
-          title,
-          description,
-          category,
-          price,
-          stock_quantity,
-          condition,
-          campus,
-          images,
-          seller_id,
-          created_at,
-          profiles!products_seller_id_fkey (
-            full_name,
-            business_name,
-            rating,
-            is_verified,
-            campus
-          )
-        `
-        )
-        .eq("is_active", true)
-        .order("created_at", { ascending: false })
-        .limit(200);
-
-      if (error) throw error;
-      setProducts(data || []);
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to load products",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const fetchUserData = async (userId: string) => {
     try {

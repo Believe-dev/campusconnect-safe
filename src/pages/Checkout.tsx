@@ -4,7 +4,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/enhanced-button";
 import { SAFE_PROFILE_SELECT } from "@/lib/profileSecurity";
-import { API_CONFIG } from "@/lib/constants";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,20 +19,16 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import {
-  CreditCard,
   MapPin,
   Package,
   Lock,
   ArrowLeft,
-  CheckCircle,
   Shield,
   Info,
   Building2,
-  Copy,
-  Check,
 } from "lucide-react";
 import { User } from "@supabase/supabase-js";
-import { processAnchorPayment, getVirtualAccount } from "@/services/anchorBaasService";
+import { initiateAnchorCheckout } from "@/services/anchorBaasService";
 import { AnchorPaymentModal } from "@/components/checkout/AnchorPaymentModal";
 
 interface CartItem {
@@ -63,6 +58,11 @@ interface CheckoutForm {
   paymentMethod: string;
 }
 
+interface SellerOrderSpec {
+  sellerId: string;
+  items: CartItem[];
+}
+
 const Checkout = () => {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [user, setUser] = useState<User | null>(null);
@@ -79,15 +79,18 @@ const Checkout = () => {
     state: "",
     paymentMethod: "anchor_escrow",
   });
-  const [payChannel, setPayChannel] = useState<"transfer" | "card">("transfer");
-  const [nubanAccount, setNubanAccount] = useState<string>("");
-  const [copied, setCopied] = useState(false);
-  const [cardDetails, setCardDetails] = useState({
-    cardNumber: "",
-    expiry: "",
-    cvv: "",
-  });
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+
+  // Each seller in the cart gets its own order and its own Anchor Sub-Ledger account,
+  // so a multi-seller cart is paid one order at a time through this queue.
+  const [orderQueue, setOrderQueue] = useState<SellerOrderSpec[]>([]);
+  const [queueIndex, setQueueIndex] = useState(0);
+  const [currentOrder, setCurrentOrder] = useState<{
+    orderId: string;
+    nubanAccount: string;
+    bankName: string;
+    amount: number;
+  } | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -121,35 +124,15 @@ const Checkout = () => {
           phone: profile.phone_number || "",
           universityName: profile.university_name || "",
         }));
-        if (profile.anchor_account_number) {
-          setNubanAccount(profile.anchor_account_number);
-        } else {
-          const userAnchor = await getVirtualAccount(user.id, profile.full_name);
-          if (userAnchor?.account_number) {
-            setNubanAccount(userAnchor.account_number);
-          }
-        }
-      } else {
-        const userAnchor = await getVirtualAccount(user.id);
-        if (userAnchor?.account_number) {
-          setNubanAccount(userAnchor.account_number);
-        }
       }
+      // Note: no NUBAN is fetched here anymore - each order gets its own Anchor
+      // Sub-Ledger account (and its own NUBAN) created at payment time via
+      // initiateAnchorCheckout, not a general-purpose account shared across orders.
 
       fetchCartItems(user.id);
     } catch (error) {
       navigate("/auth");
     }
-  };
-
-  const handleCopyNuban = () => {
-    navigator.clipboard.writeText(nubanAccount);
-    setCopied(true);
-    toast({
-      title: "Account Number Copied!",
-      description: `${nubanAccount} copied to clipboard.`,
-    });
-    setTimeout(() => setCopied(false), 2500);
   };
 
   const fetchCartItems = async (userId: string) => {
@@ -240,217 +223,195 @@ const Checkout = () => {
     return true;
   };
 
+  const buildOrderQueue = (): SellerOrderSpec[] => {
+    const validCartItems = cartItems.filter((item) => item.products?.seller_id);
+    const sellerGroups = validCartItems.reduce((groups, item) => {
+      const sellerId = item.products.seller_id;
+      if (!groups[sellerId]) groups[sellerId] = [];
+      groups[sellerId].push(item);
+      return groups;
+    }, {} as Record<string, CartItem[]>);
+
+    return Object.entries(sellerGroups).map(([sellerId, items]) => ({ sellerId, items }));
+  };
+
   const handlePayment = () => {
     if (!validateForm() || !user) {
       return;
     }
-    // Open explicit Payment Channel modal popup so user chooses Bank Transfer or Card
+    const queue = buildOrderQueue();
+    if (queue.length === 0) return;
+    setOrderQueue(queue);
+    startOrder(queue, 0);
+  };
+
+  // Each seller in the cart is its own order with its own Anchor Sub-Ledger account -
+  // a multi-seller cart is paid one order at a time, sequenced through this queue,
+  // rather than one shared account covering unrelated sellers' funds.
+  const startOrder = async (queue: SellerOrderSpec[], index: number) => {
+    if (index >= queue.length) {
+      finalizeCheckout();
+      return;
+    }
+
+    setProcessing(true);
+    setQueueIndex(index);
+    const { sellerId, items } = queue[index];
+    const totalAmount = items.reduce((sum, item) => sum + (item.products?.price || 0) * item.quantity, 0);
+
+    const res = await initiateAnchorCheckout({
+      sellerId,
+      productId: items[0].products.id,
+      quantity: items.reduce((sum, item) => sum + item.quantity, 0),
+      selectedSize: items[0].selected_size || null,
+      totalAmount,
+      shippingAddress: `${formData.address}, ${formData.city}, ${formData.state}`,
+      universityName: formData.universityName,
+      paymentMethod: "anchor_escrow",
+    });
+
+    setProcessing(false);
+
+    if (!res.success || !res.orderId || !res.nubanAccount) {
+      toast({
+        title: index > 0 ? "Remaining order failed to start" : "Order failed",
+        description:
+          (res.message || "Could not start this order's payment.") +
+          (index > 0 ? " Your earlier order(s) in this checkout were already placed." : ""),
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setCurrentOrder({ orderId: res.orderId, nubanAccount: res.nubanAccount, bankName: res.bankName || "", amount: totalAmount });
     setIsPaymentModalOpen(true);
   };
 
-  const handleConfirmModalPayment = (channel: "transfer" | "card") => {
+  const handleConfirmModalPayment = async () => {
     setIsPaymentModalOpen(false);
-    const paymentRef = `ANCHOR_${channel.toUpperCase()}_${Date.now()}_${Math.random()
-      .toString(36)
-      .substring(2, 8)
-      .toUpperCase()}`;
-    processOrder(paymentRef, "anchor_escrow");
-  };
-
-  const processOrder = async (paymentRef: string, methodOverride?: string) => {
+    if (!currentOrder || !user) return;
     setProcessing(true);
 
+    const { sellerId, items } = orderQueue[queueIndex];
+    await sendOrderPlacedNotifications(currentOrder.orderId, sellerId, items, currentOrder.amount);
+
+    await startOrder(orderQueue, queueIndex + 1);
+  };
+
+  const sendOrderPlacedNotifications = async (
+    orderId: string,
+    sellerId: string,
+    items: CartItem[],
+    orderTotal: number
+  ) => {
     try {
-      const selectedMethod = methodOverride || formData.paymentMethod || "anchor_escrow";
+      const { data: sellerProfile } = await supabase
+        .from("profiles")
+        .select("full_name, email")
+        .eq("user_id", sellerId)
+        .single();
 
-      // Group items by seller (filter out items with null products)
-      const validCartItems = cartItems.filter(
-        (item) => item.products?.seller_id
-      );
-      const sellerGroups = validCartItems.reduce((groups, item) => {
-        const sellerId = item.products.seller_id;
-        if (!groups[sellerId]) {
-          groups[sellerId] = [];
-        }
-        groups[sellerId].push(item);
-        return groups;
-      }, {} as Record<string, CartItem[]>);
+      const { data: buyerProfile } = await supabase
+        .from("profiles")
+        .select("full_name, email")
+        .eq("user_id", user!.id)
+        .single();
 
-      // Create orders for each seller
-      const orderPromises = Object.entries(sellerGroups).map(
-        async ([sellerId, items]) => {
-          const orderTotal = items.reduce(
-            (sum, item) => sum + (item.products?.price || 0) * item.quantity,
-            0
+      const productTitles = items
+        .filter((i) => i.products?.title)
+        .map((i) => i.products.title)
+        .join(", ");
+
+      if (sellerProfile) {
+        try {
+          const { sendOrderNotification } = await import("@/utils/notificationService");
+          await sendOrderNotification(
+            sellerId,
+            "New Order Received! 🎉",
+            `You have a new order for ${productTitles}. Total: ₦${orderTotal.toLocaleString()}`,
+            orderId
           );
-
-          const totalAmount = orderTotal;
-          const commissionAmount = 0; // No commission - sellers pay registration fee instead
-
-          const { data: order, error: orderError } = await supabase
-            .from("orders")
-            .insert({
-              buyer_id: user!.id,
-              seller_id: sellerId,
-              product_id: items[0].products.id,
-              quantity: items.reduce((sum, item) => sum + item.quantity, 0),
-              selected_size: items[0].selected_size || null,
-              total_amount: totalAmount,
-              commission_amount: commissionAmount,
-              shipping_address: `${formData.address}, ${formData.city}, ${formData.state}`,
-              university_name: formData.universityName,
-              payment_method: selectedMethod,
-              payment_reference: paymentRef,
-              status: "paid",
-              auto_confirm_at: new Date(
-                Date.now() + 2 * 24 * 60 * 60 * 1000
-              ).toISOString(),
-            })
-            .select()
-            .single();
-
-          if (orderError) throw orderError;
-
-          if (selectedMethod === "anchor_escrow") {
-            const anchorRes = await processAnchorPayment({
-              orderId: order.id,
-              buyerId: user!.id,
-              sellerId,
-              amount: totalAmount,
-            });
-
-            if (!anchorRes.success) {
-              await supabase.from("orders").delete().eq("id", order.id);
-              throw new Error(anchorRes.message);
-            }
-          }
-
-          // Send notifications to seller and buyer
-          const { data: sellerProfile } = await supabase
-            .from("profiles")
-            .select("full_name, email")
-            .eq("user_id", sellerId)
-            .single();
-
-          const { data: buyerProfile } = await supabase
-            .from("profiles")
-            .select("full_name, email")
-            .eq("user_id", user!.id)
-            .single();
-
-          const productTitles = items
-            .filter((i) => i.products?.title)
-            .map((i) => i.products.title)
-            .join(", ");
-
-          if (sellerProfile) {
-            // Create in-app notification for seller
-            try {
-              const { sendOrderNotification } = await import('@/utils/notificationService');
-              await sendOrderNotification(
-                sellerId,
-                "New Order Received! 🎉",
-                `You have a new order for ${productTitles}. Total: ₦${orderTotal.toLocaleString()}`,
-                order.id
-              );
-            } catch (notifErr) {
-              console.warn("Seller notification error:", notifErr);
-            }
-
-            // Send email notification to seller
-            try {
-              await supabase.functions.invoke("send-email", {
-                body: {
-                  to: sellerProfile.email,
-                  subject: "New Order Received - CampusConnect",
-                  html: `
-                    <h2>New Order Received!</h2>
-                    <p>Hello ${sellerProfile.full_name},</p>
-                    <p>You have received a new order:</p>
-                    <ul>
-                      <li><strong>Products:</strong> ${productTitles}</li>
-                      <li><strong>Buyer:</strong> ${
-                        buyerProfile?.full_name || "Unknown"
-                      }</li>
-                      <li><strong>Total Amount:</strong> ₦${orderTotal.toLocaleString()}</li>
-                      <li><strong>Order Date:</strong> ${new Date().toLocaleDateString()}</li>
-                    </ul>
-                    <p><strong>⚠️ Important:</strong> Payment will be automatically released in 2 days if the buyer doesn't confirm receipt.</p>
-                    <p>Please log in to your dashboard to manage this order.</p>
-                    <p>Best regards,<br>CampusConnect Team</p>
-                  `,
-                },
-              });
-            } catch (emailError) {
-              // Error handled silently
-            }
-          }
-
-          // Create in-app notification for buyer
-          try {
-            const { sendOrderNotification } = await import('@/utils/notificationService');
-            await sendOrderNotification(
-              user!.id,
-              "Order Placed Successfully! ✅",
-              `Your order for ${productTitles} has been placed. Total: ₦${orderTotal.toLocaleString()}`,
-              order.id
-            );
-          } catch (notifErr) {
-            console.warn("Buyer notification error:", notifErr);
-          }
-
-          // Send email confirmation to buyer
-          if (buyerProfile) {
-            try {
-              await supabase.functions.invoke("send-email", {
-                body: {
-                  to: buyerProfile.email,
-                  subject: "Order Confirmation - CampusConnect",
-                  html: `
-                    <h2>Order Confirmation</h2>
-                    <p>Hello ${buyerProfile.full_name},</p>
-                    <p>Your order has been successfully placed:</p>
-                    <ul>
-                      <li><strong>Products:</strong> ${productTitles}</li>
-                      <li><strong>Seller:</strong> ${
-                        sellerProfile?.full_name || "Unknown"
-                      }</li>
-                      <li><strong>Total Amount:</strong> ₦${orderTotal.toLocaleString()}</li>
-                      <li><strong>Order Date:</strong> ${new Date().toLocaleDateString()}</li>
-                    </ul>
-                    <p>You can track your order in your account dashboard.</p>
-                    <p>Best regards,<br>CampusConnect Team</p>
-                  `,
-                },
-              });
-            } catch (emailError) {
-              // Error handled silently
-            }
-          }
-
-          return order;
+        } catch (notifErr) {
+          console.warn("Seller notification error:", notifErr);
         }
-      );
 
-      await Promise.all(orderPromises);
+        try {
+          await supabase.functions.invoke("send-email", {
+            body: {
+              to: sellerProfile.email,
+              subject: "New Order Received - CampusConnect",
+              html: `
+                <h2>New Order Received!</h2>
+                <p>Hello ${sellerProfile.full_name},</p>
+                <p>You have received a new order:</p>
+                <ul>
+                  <li><strong>Products:</strong> ${productTitles}</li>
+                  <li><strong>Buyer:</strong> ${buyerProfile?.full_name || "Unknown"}</li>
+                  <li><strong>Total Amount:</strong> ₦${orderTotal.toLocaleString()}</li>
+                  <li><strong>Order Date:</strong> ${new Date().toLocaleDateString()}</li>
+                </ul>
+                <p><strong>⚠️ Important:</strong> Payment will be automatically released in 2 days if the buyer doesn't confirm receipt.</p>
+                <p>Please log in to your dashboard to manage this order.</p>
+                <p>Best regards,<br>CampusConnect Team</p>
+              `,
+            },
+          });
+        } catch (emailError) {
+          // Error handled silently
+        }
+      }
 
-      // Clear cart
+      try {
+        const { sendOrderNotification } = await import("@/utils/notificationService");
+        await sendOrderNotification(
+          user!.id,
+          "Order Placed Successfully! ✅",
+          `Your order for ${productTitles} has been placed. Total: ₦${orderTotal.toLocaleString()}`,
+          orderId
+        );
+      } catch (notifErr) {
+        console.warn("Buyer notification error:", notifErr);
+      }
+
+      if (buyerProfile) {
+        try {
+          await supabase.functions.invoke("send-email", {
+            body: {
+              to: buyerProfile.email,
+              subject: "Order Confirmation - CampusConnect",
+              html: `
+                <h2>Order Confirmation</h2>
+                <p>Hello ${buyerProfile.full_name},</p>
+                <p>Your order has been successfully placed:</p>
+                <ul>
+                  <li><strong>Products:</strong> ${productTitles}</li>
+                  <li><strong>Seller:</strong> ${sellerProfile?.full_name || "Unknown"}</li>
+                  <li><strong>Total Amount:</strong> ₦${orderTotal.toLocaleString()}</li>
+                  <li><strong>Order Date:</strong> ${new Date().toLocaleDateString()}</li>
+                </ul>
+                <p>You can track your order in your account dashboard.</p>
+                <p>Best regards,<br>CampusConnect Team</p>
+              `,
+            },
+          });
+        } catch (emailError) {
+          // Error handled silently
+        }
+      }
+    } catch (err) {
+      console.warn("Order notification error:", err);
+    }
+  };
+
+  const finalizeCheckout = async () => {
+    try {
       await supabase.from("cart").delete().eq("user_id", user!.id);
-
-      // Invalidate cart queries to refresh UI
       await queryClient.invalidateQueries({ queryKey: ["cart", user!.id] });
-
-      // Trigger cart update event to refresh cart count and UI
       window.dispatchEvent(new CustomEvent("cartUpdated"));
 
-      // Update analytics
       for (const item of cartItems.filter((item) => item.products?.id)) {
         await updateAnalytics(item.products.id, "orders_count", item.quantity);
-        await updateAnalytics(
-          item.products.id,
-          "revenue",
-          (item.products?.price || 0) * item.quantity
-        );
+        await updateAnalytics(item.products.id, "revenue", (item.products?.price || 0) * item.quantity);
       }
 
       toast({
@@ -459,15 +420,11 @@ const Checkout = () => {
       });
 
       navigate("/orders");
-    } catch (error) {
-      toast({
-        title: "Order failed",
-        description:
-          "Payment successful but order processing failed. Contact support.",
-        variant: "destructive",
-      });
     } finally {
       setProcessing(false);
+      setCurrentOrder(null);
+      setOrderQueue([]);
+      setQueueIndex(0);
     }
   };
 
@@ -713,123 +670,19 @@ const Checkout = () => {
                     <CardTitle className="flex items-center justify-between text-lg">
                       <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400 font-bold">
                         <Shield className="h-5 w-5 text-emerald-600" />
-                        Choose Payment Channel
+                        Payment
                       </div>
                       <Badge className="bg-emerald-600 text-white font-semibold">100% Escrow Protected</Badge>
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="pt-4 space-y-4">
-                    {/* Channel Selector Tabs */}
-                    <div className="grid grid-cols-2 gap-2 p-1 bg-muted rounded-xl">
-                      <button
-                        type="button"
-                        onClick={() => setPayChannel("transfer")}
-                        className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg font-medium text-sm transition-all ${
-                          payChannel === "transfer"
-                            ? "bg-background text-emerald-700 dark:text-emerald-400 shadow-sm font-bold border border-emerald-500/30"
-                            : "text-muted-foreground hover:text-foreground"
-                        }`}
-                      >
-                        <Building2 className="h-4 w-4 text-emerald-600" />
-                        Bank Transfer
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setPayChannel("card")}
-                        className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg font-medium text-sm transition-all ${
-                          payChannel === "card"
-                            ? "bg-background text-emerald-700 dark:text-emerald-400 shadow-sm font-bold border border-emerald-500/30"
-                            : "text-muted-foreground hover:text-foreground"
-                        }`}
-                      >
-                        <CreditCard className="h-4 w-4 text-emerald-600" />
-                        ATM Debit Card
-                      </button>
+                  <CardContent className="pt-4">
+                    <div className="p-4 bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/40 rounded-xl flex items-start gap-3">
+                      <Building2 className="h-5 w-5 text-emerald-600 mt-0.5 shrink-0" />
+                      <p className="text-sm text-emerald-800 dark:text-emerald-300">
+                        Pay by bank transfer. Each seller in your order gets a dedicated Anchor account for that
+                        payment - you'll see the account details to transfer to after you click "Pay" below.
+                      </p>
                     </div>
-
-                    {payChannel === "transfer" ? (
-                      <div className="p-4 bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/40 rounded-xl space-y-3">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-semibold text-emerald-800 dark:text-emerald-300 uppercase tracking-wider">
-                            Your Assigned Bank Account
-                          </span>
-                          <span className="text-xs text-emerald-600 font-medium">Instant Anchor BaaS Transfer</span>
-                        </div>
-                        
-                        <div className="bg-white dark:bg-slate-900 p-3 rounded-lg border border-emerald-100 dark:border-emerald-900 space-y-2">
-                          <div className="flex justify-between items-center text-sm">
-                            <span className="text-muted-foreground">Bank Name:</span>
-                            <span className="font-bold text-foreground">CoreStep Microfinance (Anchor)</span>
-                          </div>
-                          <div className="flex justify-between items-center text-sm">
-                            <span className="text-muted-foreground">Account Number:</span>
-                            <div className="flex items-center gap-2">
-                              <span className="font-mono text-base font-bold text-emerald-600 tracking-wider">
-                                {nubanAccount || "Fetching Anchor NUBAN..."}
-                              </span>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="sm"
-                                className="h-7 px-2 text-xs"
-                                onClick={handleCopyNuban}
-                              >
-                                {copied ? <Check className="h-3.5 w-3.5 text-green-600" /> : <Copy className="h-3.5 w-3.5" />}
-                              </Button>
-                            </div>
-                          </div>
-                          <div className="flex justify-between items-center text-sm">
-                            <span className="text-muted-foreground">Account Name:</span>
-                            <span className="font-medium text-foreground">CampusConnect / {formData.fullName || "Buyer"}</span>
-                          </div>
-                        </div>
-
-                        <p className="text-xs text-muted-foreground">
-                          💡 <strong>How to Pay:</strong> Open your GTBank, Zenith, Access, Kuda, or PalmPay app, transfer <strong>₦{getFinalTotal().toLocaleString()}</strong> to the account details above, then click submit below!
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="p-4 bg-slate-50 dark:bg-slate-900 border rounded-xl space-y-3">
-                        <div className="space-y-2">
-                          <Label htmlFor="cardNumber" className="text-xs font-semibold">Card Number</Label>
-                          <Input
-                            id="cardNumber"
-                            placeholder="5399 **** **** 1234 (Mastercard / Visa / Verve)"
-                            value={cardDetails.cardNumber}
-                            onChange={(e) => setCardDetails(prev => ({ ...prev, cardNumber: e.target.value }))}
-                            className="font-mono text-sm"
-                          />
-                        </div>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <Label htmlFor="cardExpiry" className="text-xs font-semibold">Expiry Date</Label>
-                            <Input
-                              id="cardExpiry"
-                              placeholder="12/28"
-                              value={cardDetails.expiry}
-                              onChange={(e) => setCardDetails(prev => ({ ...prev, expiry: e.target.value }))}
-                              className="text-sm font-mono"
-                            />
-                          </div>
-                          <div>
-                            <Label htmlFor="cardCvv" className="text-xs font-semibold">CVV Code</Label>
-                            <Input
-                              id="cardCvv"
-                              type="password"
-                              maxLength={3}
-                              placeholder="123"
-                              value={cardDetails.cvv}
-                              onChange={(e) => setCardDetails(prev => ({ ...prev, cvv: e.target.value }))}
-                              className="text-sm font-mono"
-                            />
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2 text-xs text-emerald-600 font-medium">
-                          <Shield className="h-3.5 w-3.5" />
-                          <span>Secured 256-bit encrypted card processing via Anchor BaaS</span>
-                        </div>
-                      </div>
-                    )}
                   </CardContent>
                 </Card>
               </div>
@@ -919,15 +772,10 @@ const Checkout = () => {
                     >
                       {processing ? (
                         <>Processing...</>
-                      ) : payChannel === "transfer" ? (
-                        <>
-                          <Building2 className="h-4 w-4 mr-2" />
-                          I Have Transferred ₦{getFinalTotal().toLocaleString()} — Complete Order ⚡
-                        </>
                       ) : (
                         <>
-                          <CreditCard className="h-4 w-4 mr-2" />
-                          Pay ₦{getFinalTotal().toLocaleString()} with ATM Debit Card 💳
+                          <Building2 className="h-4 w-4 mr-2" />
+                          Pay ₦{getFinalTotal().toLocaleString()} by Bank Transfer
                         </>
                       )}
                     </Button>
@@ -952,8 +800,10 @@ const Checkout = () => {
           <AnchorPaymentModal
             isOpen={isPaymentModalOpen}
             onClose={() => setIsPaymentModalOpen(false)}
-            totalAmount={getFinalTotal()}
-            nubanAccount={nubanAccount}
+            totalAmount={currentOrder?.amount || 0}
+            orderId={currentOrder?.orderId || ""}
+            nubanAccount={currentOrder?.nubanAccount || ""}
+            bankName={currentOrder?.bankName}
             userName={formData.fullName}
             onConfirmPayment={handleConfirmModalPayment}
             processing={processing}
