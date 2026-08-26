@@ -156,8 +156,9 @@ const Orders = () => {
     enabled: !!user,
     placeholderData: offlineOrders,
     refetchInterval: 30000, // Refetch every 30 seconds for real-time updates
-    refetchIntervalInBackground: true, // Continue refetching when tab is not active
-    refetchOnWindowFocus: true, // Refetch when window gains focus
+    // Order status embeds escrow_transactions (payment/release state) - this must
+    // never be served stale, so it's excluded from the normal 15min cache policy.
+    alwaysFresh: true,
   });
 
   const handleRefresh = useCallback(async () => {

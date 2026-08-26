@@ -1,61 +1,35 @@
 import { useCallback } from 'react';
 import { toast } from 'sonner';
-import { API_CONFIG } from '@/lib/constants';
-import { PaymentError } from '@/lib/errors';
-import { PaystackResponse } from '@/lib/types';
+import { AnchorPaymentResponse } from '@/lib/types';
 
-interface PaystackConfig {
+interface AnchorPaymentConfig {
   email: string;
-  amount: number; // in kobo
+  amount: number; // in kobo or NGN
   currency?: string;
   ref?: string;
-  onSuccess: (response: PaystackResponse) => void;
+  onSuccess: (response: AnchorPaymentResponse) => void;
   onClose?: () => void;
 }
 
+// NOTE: this previously dispatched a "transfer" straight to Anchor with no payment
+// instrument collected anywhere in the seller registration/subscription UI (no card
+// form, no bank transfer confirmation) and unconditionally reported success -
+// meaning the ₦1,000 seller subscription fee was never actually collected from
+// anyone. verifyPayment() also unconditionally returned true for any non-empty
+// reference. Both were fail-open in the same way the escrow payment verification was.
+//
+// This is disabled fail-safe (no free subscriptions) rather than left fake-succeeding,
+// pending a decision on the real collection flow: reuse the anchor-checkout
+// (buyer-transfers-to-a-dedicated-NUBAN) pattern, or a card gateway. Flagged
+// separately from the escrow remediation - it wasn't part of that scope.
 export function usePaystack() {
-  const initializePayment = useCallback((config: PaystackConfig) => {
-    if (!(window as any).PaystackPop) {
-      throw new PaymentError('Paystack not loaded. Check your internet connection and refresh.');
-    }
-
-    const paymentRef = config.ref || `CC_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-    try {
-      const handler = (window as any).PaystackPop.setup({
-        key: API_CONFIG.paystack.publicKey,
-        email: config.email,
-        amount: config.amount,
-        currency: config.currency || 'NGN',
-        ref: paymentRef,
-        callback: (response: PaystackResponse) => {
-          if (response.status === 'success') {
-            config.onSuccess(response);
-          } else {
-            toast.error('Payment was not successful. Please try again.');
-          }
-        },
-        onClose: () => {
-          config.onClose?.();
-        },
-      });
-
-      handler.openIframe();
-    } catch (error) {
-      console.error('Payment initialization error:', error);
-      throw new PaymentError('Failed to initialize payment. Please try again.');
-    }
+  const initializePayment = useCallback(async (config: AnchorPaymentConfig) => {
+    toast.error('Seller subscription payment is temporarily unavailable. Please contact support.');
+    config.onClose?.();
   }, []);
 
-  const verifyPayment = useCallback(async (reference: string): Promise<boolean> => {
-    try {
-      // In a real app, you'd verify with your backend
-      // For now, we'll assume the payment is valid if we have a reference
-      return !!reference;
-    } catch (error) {
-      console.error('Payment verification error:', error);
-      return false;
-    }
+  const verifyPayment = useCallback(async (_reference: string): Promise<boolean> => {
+    return false;
   }, []);
 
   return {

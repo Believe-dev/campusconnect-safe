@@ -90,7 +90,7 @@ export const SellerRegistrationPayment = ({
                   user_id: userId,
                   amount: BUSINESS_RULES.sellerRegistration.fee,
                   payment_reference: response.reference,
-                  payment_method: "paystack",
+                  payment_method: "anchor_baas",
                   status: "completed",
                 });
 
@@ -278,7 +278,7 @@ export const SellerRegistrationPayment = ({
         <div className="flex items-center justify-center gap-2 pt-2">
           <Shield className="h-3 w-3 text-muted-foreground" />
           <p className="text-xs text-muted-foreground text-center">
-            Secure payment powered by Paystack
+            Secure payment powered by Anchor BaaS
           </p>
         </div>
         </CardContent>

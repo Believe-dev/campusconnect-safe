@@ -17,8 +17,8 @@ interface SEOHeadProps {
 }
 
 export const SEOHead = ({
-  title = 'UniMarket - Nigeria\'s #1 Trusted University Marketplace',
-  description = 'Join 10,000+ Nigerian university students buying and selling safely on UniMarket. Verified sellers, secure payments, escrow protection.',
+  title = 'UniMarket - Nigeria\'s Trusted University Marketplace',
+  description = 'Buy and sell safely with fellow Nigerian university students on UniMarket. Verified sellers, secure payments, escrow protection.',
   keywords = 'unimarket, university marketplace Nigeria, student marketplace, buy sell textbooks Nigeria',
   image = 'https://unimarket.com.ng/logo.png',
   url = 'https://unimarket.com.ng',

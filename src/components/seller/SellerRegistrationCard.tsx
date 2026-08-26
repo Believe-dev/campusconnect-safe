@@ -146,7 +146,7 @@ export const SellerRegistrationCard = () => {
               • <strong>Priority Support</strong> - Get help when you need it
             </li>
             <li>
-              • <strong>Campus Network</strong> - Access thousands of students
+              • <strong>Campus Network</strong> - Reach students across your campus
             </li>
           </ul>
         </div>
@@ -160,8 +160,8 @@ export const SellerRegistrationCard = () => {
           Pay First Month (₦1000)
         </Button>
 
-        <p className="text-xs text-orange-600 text-center">
-          Secure payment powered by Paystack
+        <p className="text-xs text-emerald-600 text-center font-medium">
+          Secure payment powered by Anchor BaaS (CoreStep Microfinance)
         </p>
       </CardContent>
     </Card>

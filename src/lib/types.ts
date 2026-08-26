@@ -259,13 +259,10 @@ export type NotificationType = Notification['type'];
 export type ProductCondition = Product['condition'];
 
 // Event types
-export interface PaystackResponse {
+export interface AnchorPaymentResponse {
   status: 'success' | 'failed';
   reference: string;
-  trans: string;
-  transaction: string;
   message: string;
-  redirecturl: string;
 }
 
 export interface NetworkStatus {

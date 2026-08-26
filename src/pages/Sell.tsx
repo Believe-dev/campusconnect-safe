@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/enhanced-button';
 import { Input } from '@/components/ui/input';
@@ -57,6 +58,7 @@ const Sell = () => {
   const [submitting, setSubmitting] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     loadUserProfile();
@@ -232,6 +234,7 @@ const Sell = () => {
         throw error;
       }
 
+      queryClient.invalidateQueries({ queryKey: ["products"] });
       toast({
         title: "Product Listed",
         description: "Your product has been successfully listed!",

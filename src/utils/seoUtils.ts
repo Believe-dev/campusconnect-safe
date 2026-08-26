@@ -60,7 +60,7 @@ export const generateSEODescription = (
   }
 
   // Fallback description if no product description
-  const fallback = `${title}${price ? ` for ₦${price.toLocaleString()}` : ''}${condition ? ` - ${condition} condition` : ''}. Buy safely from verified student sellers on UniMarket, Nigeria's #1 university marketplace.`;
+  const fallback = `${title}${price ? ` for ₦${price.toLocaleString()}` : ''}${condition ? ` - ${condition} condition` : ''}. Buy safely from verified student sellers on UniMarket, Nigeria's trusted university marketplace.`;
   
   return fallback.length > 160 ? `${fallback.slice(0, 157)}...` : fallback;
 };

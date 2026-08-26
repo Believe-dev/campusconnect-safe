@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/enhanced-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -94,6 +95,7 @@ const Dashboard = () => {
   const [copied, setCopied] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const handleRefresh = useCallback(async () => {
     await fetchProducts();
     await fetchAnalytics();
@@ -369,6 +371,7 @@ const Dashboard = () => {
         throw error;
       }
 
+      queryClient.invalidateQueries({ queryKey: ["products"] });
       toast({
         title: "Product Updated",
         description: "Your product has been successfully updated.",
@@ -465,6 +468,7 @@ const Dashboard = () => {
         throw error;
       }
 
+      queryClient.invalidateQueries({ queryKey: ["products"] });
       toast({
         title: "Status Updated",
         description: `Product ${

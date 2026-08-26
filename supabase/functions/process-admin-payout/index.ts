@@ -68,8 +68,8 @@ serve(async (req) => {
       .update({ status: 'processing' })
       .eq('id', withdrawalId)
 
-    // Generate manual transfer reference (no Paystack API calls)
-    const transferCode = `ADMIN_MANUAL_${Date.now()}_${withdrawalId.toString().slice(0, 8)}`
+    // Generate Anchor BaaS transfer reference
+    const transferCode = `ADMIN_ANCHOR_${Date.now()}_${withdrawalId.toString().slice(0, 8)}`
     const reference = `ADM_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
 
     // Complete withdrawal with manual transfer details

@@ -6,17 +6,10 @@ export const APP_CONFIG = {
   supportEmail: "support@campusconnect.ng",
 } as const;
 
-// Debug: Log the Paystack key being used
-console.log(
-  "Paystack Key:",
-  import.meta.env.VITE_PAYSTACK_PUBLIC_KEY
-    ? "LIVE KEY LOADED"
-    : "USING TEST FALLBACK"
-);
-
 export const API_CONFIG = {
-  paystack: {
-    publicKey: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY,
+  anchor: {
+    apiKey: import.meta.env.VITE_ANCHOR_API_KEY,
+    baseUrl: import.meta.env.VITE_ANCHOR_BASE_URL || "https://api.sandbox.getanchor.co/v1",
   },
   supabase: {
     storageUrl:

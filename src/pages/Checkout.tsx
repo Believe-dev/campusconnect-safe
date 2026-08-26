@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
-import { API_CONFIG, BUSINESS_RULES, IGBINEDION_UNIVERSITY } from "@/lib/constants";
+import { BUSINESS_RULES, IGBINEDION_UNIVERSITY } from "@/lib/constants";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -11,7 +11,7 @@ import { Tag } from "@/components/ui/tag";
 import { IconButton } from "@/components/ui/icon-button";
 import { useToast } from "@/hooks/use-toast";
 import {
-  CreditCard,
+  Building2,
   MapPin,
   Lock,
   ChevronLeft,
@@ -20,6 +20,8 @@ import {
   User as UserIcon,
 } from "lucide-react";
 import { User } from "@supabase/supabase-js";
+import { initiateAnchorCheckout } from "@/services/anchorBaasService";
+import { AnchorPaymentModal } from "@/components/checkout/AnchorPaymentModal";
 
 const formatPrice = (price: number) =>
   new Intl.NumberFormat("en-NG", {
@@ -67,6 +69,11 @@ interface CheckoutForm {
   paymentMethod: string;
 }
 
+interface SellerOrderSpec {
+  sellerId: string;
+  items: CartItem[];
+}
+
 const Checkout = () => {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [user, setUser] = useState<User | null>(null);
@@ -81,8 +88,20 @@ const Checkout = () => {
     address: "",
     city: "",
     state: "",
-    paymentMethod: "paystack",
+    paymentMethod: "anchor_escrow",
   });
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+
+  // Each seller in the cart gets its own order and its own Anchor Sub-Ledger account,
+  // so a multi-seller cart is paid one order at a time through this queue.
+  const [orderQueue, setOrderQueue] = useState<SellerOrderSpec[]>([]);
+  const [queueIndex, setQueueIndex] = useState(0);
+  const [currentOrder, setCurrentOrder] = useState<{
+    orderId: string;
+    nubanAccount: string;
+    bankName: string;
+    amount: number;
+  } | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -117,6 +136,9 @@ const Checkout = () => {
           universityName: profile.university_name || "",
         }));
       }
+      // Note: no NUBAN is fetched here anymore - each order gets its own Anchor
+      // Sub-Ledger account (and its own NUBAN) created at payment time via
+      // initiateAnchorCheckout, not a general-purpose account shared across orders.
 
       fetchCartItems(user.id);
     } catch (error) {
@@ -218,230 +240,195 @@ const Checkout = () => {
     return true;
   };
 
+  const buildOrderQueue = (): SellerOrderSpec[] => {
+    const validCartItems = cartItems.filter((item) => item.products?.seller_id);
+    const sellerGroups = validCartItems.reduce((groups, item) => {
+      const sellerId = item.products.seller_id;
+      if (!groups[sellerId]) groups[sellerId] = [];
+      groups[sellerId].push(item);
+      return groups;
+    }, {} as Record<string, CartItem[]>);
+
+    return Object.entries(sellerGroups).map(([sellerId, items]) => ({ sellerId, items }));
+  };
+
   const handlePayment = () => {
     if (!validateForm() || !user) {
       return;
     }
+    const queue = buildOrderQueue();
+    if (queue.length === 0) return;
+    setOrderQueue(queue);
+    startOrder(queue, 0);
+  };
 
-    if (!(window as any).PaystackPop) {
+  // Each seller in the cart is its own order with its own Anchor Sub-Ledger account -
+  // a multi-seller cart is paid one order at a time, sequenced through this queue,
+  // rather than one shared account covering unrelated sellers' funds.
+  const startOrder = async (queue: SellerOrderSpec[], index: number) => {
+    if (index >= queue.length) {
+      finalizeCheckout();
+      return;
+    }
+
+    setProcessing(true);
+    setQueueIndex(index);
+    const { sellerId, items } = queue[index];
+    const totalAmount = items.reduce((sum, item) => sum + (item.products?.price || 0) * item.quantity, 0);
+
+    const res = await initiateAnchorCheckout({
+      sellerId,
+      productId: items[0].products.id,
+      quantity: items.reduce((sum, item) => sum + item.quantity, 0),
+      selectedSize: items[0].selected_size || null,
+      totalAmount,
+      shippingAddress: `${formData.address}, ${formData.city}, ${formData.state}`,
+      universityName: formData.universityName,
+      paymentMethod: "anchor_escrow",
+    });
+
+    setProcessing(false);
+
+    if (!res.success || !res.orderId || !res.nubanAccount) {
       toast({
-        title: "Payment Error",
+        title: index > 0 ? "Remaining order failed to start" : "Order failed",
         description:
-          "Paystack not loaded. Check your internet connection and refresh.",
+          (res.message || "Could not start this order's payment.") +
+          (index > 0 ? " Your earlier order(s) in this checkout were already placed." : ""),
         variant: "destructive",
       });
       return;
     }
 
-    const totalAmount = getFinalTotal() * 100;
-    const paymentRef = `CC_${Date.now()}_${Math.random()
-      .toString(36)
-      .substr(2, 9)}`;
+    setCurrentOrder({ orderId: res.orderId, nubanAccount: res.nubanAccount, bankName: res.bankName || "", amount: totalAmount });
+    setIsPaymentModalOpen(true);
+  };
 
+  const handleConfirmModalPayment = async () => {
+    setIsPaymentModalOpen(false);
+    if (!currentOrder || !user) return;
+    setProcessing(true);
+
+    const { sellerId, items } = orderQueue[queueIndex];
+    await sendOrderPlacedNotifications(currentOrder.orderId, sellerId, items, currentOrder.amount);
+
+    await startOrder(orderQueue, queueIndex + 1);
+  };
+
+  const sendOrderPlacedNotifications = async (
+    orderId: string,
+    sellerId: string,
+    items: CartItem[],
+    orderTotal: number
+  ) => {
     try {
-      const handler = (window as any).PaystackPop.setup({
-        key: API_CONFIG.paystack.publicKey,
-        email: formData.email,
-        amount: totalAmount,
-        currency: "NGN",
-        ref: paymentRef,
-        callback: (response: any) => {
-          if (response.status === "success") {
-            processOrder(response.reference);
-          } else {
-            toast({
-              title: "Payment Failed",
-              description: "Payment was not successful. Please try again.",
-              variant: "destructive",
-            });
-          }
-        },
-        onClose: () => {
-          // Payment popup closed
-        },
-      });
+      const { data: sellerProfile } = await supabase
+        .from("profiles")
+        .select("full_name, email")
+        .eq("user_id", sellerId)
+        .single();
 
-      handler.openIframe();
-    } catch (error) {
-      toast({
-        title: "Payment Error",
-        description: "Failed to initialize payment. Please try again.",
-        variant: "destructive",
-      });
+      const { data: buyerProfile } = await supabase
+        .from("profiles")
+        .select("full_name, email")
+        .eq("user_id", user!.id)
+        .single();
+
+      const productTitles = items
+        .filter((i) => i.products?.title)
+        .map((i) => i.products.title)
+        .join(", ");
+
+      if (sellerProfile) {
+        try {
+          const { sendOrderNotification } = await import("@/utils/notificationService");
+          await sendOrderNotification(
+            sellerId,
+            "New Order Received! 🎉",
+            `You have a new order for ${productTitles}. Total: ₦${orderTotal.toLocaleString()}`,
+            orderId
+          );
+        } catch (notifErr) {
+          console.warn("Seller notification error:", notifErr);
+        }
+
+        try {
+          await supabase.functions.invoke("send-email", {
+            body: {
+              to: sellerProfile.email,
+              subject: "New Order Received - CampusConnect",
+              html: `
+                <h2>New Order Received!</h2>
+                <p>Hello ${sellerProfile.full_name},</p>
+                <p>You have received a new order:</p>
+                <ul>
+                  <li><strong>Products:</strong> ${productTitles}</li>
+                  <li><strong>Buyer:</strong> ${buyerProfile?.full_name || "Unknown"}</li>
+                  <li><strong>Total Amount:</strong> ₦${orderTotal.toLocaleString()}</li>
+                  <li><strong>Order Date:</strong> ${new Date().toLocaleDateString()}</li>
+                </ul>
+                <p><strong>⚠️ Important:</strong> Payment will be automatically released in 2 days if the buyer doesn't confirm receipt.</p>
+                <p>Please log in to your dashboard to manage this order.</p>
+                <p>Best regards,<br>CampusConnect Team</p>
+              `,
+            },
+          });
+        } catch (emailError) {
+          // Error handled silently
+        }
+      }
+
+      try {
+        const { sendOrderNotification } = await import("@/utils/notificationService");
+        await sendOrderNotification(
+          user!.id,
+          "Order Placed Successfully! ✅",
+          `Your order for ${productTitles} has been placed. Total: ₦${orderTotal.toLocaleString()}`,
+          orderId
+        );
+      } catch (notifErr) {
+        console.warn("Buyer notification error:", notifErr);
+      }
+
+      if (buyerProfile) {
+        try {
+          await supabase.functions.invoke("send-email", {
+            body: {
+              to: buyerProfile.email,
+              subject: "Order Confirmation - CampusConnect",
+              html: `
+                <h2>Order Confirmation</h2>
+                <p>Hello ${buyerProfile.full_name},</p>
+                <p>Your order has been successfully placed:</p>
+                <ul>
+                  <li><strong>Products:</strong> ${productTitles}</li>
+                  <li><strong>Seller:</strong> ${sellerProfile?.full_name || "Unknown"}</li>
+                  <li><strong>Total Amount:</strong> ₦${orderTotal.toLocaleString()}</li>
+                  <li><strong>Order Date:</strong> ${new Date().toLocaleDateString()}</li>
+                </ul>
+                <p>You can track your order in your account dashboard.</p>
+                <p>Best regards,<br>CampusConnect Team</p>
+              `,
+            },
+          });
+        } catch (emailError) {
+          // Error handled silently
+        }
+      }
+    } catch (err) {
+      console.warn("Order notification error:", err);
     }
   };
 
-  const processOrder = async (paymentRef: string) => {
-    setProcessing(true);
-
+  const finalizeCheckout = async () => {
     try {
-      // Group items by seller (filter out items with null products)
-      const validCartItems = cartItems.filter(
-        (item) => item.products?.seller_id
-      );
-      const sellerGroups = validCartItems.reduce((groups, item) => {
-        const sellerId = item.products.seller_id;
-        if (!groups[sellerId]) {
-          groups[sellerId] = [];
-        }
-        groups[sellerId].push(item);
-        return groups;
-      }, {} as Record<string, CartItem[]>);
-
-      // Create orders for each seller
-      const orderPromises = Object.entries(sellerGroups).map(
-        async ([sellerId, items]) => {
-          const orderTotal = items.reduce(
-            (sum, item) => sum + (item.products?.price || 0) * item.quantity,
-            0
-          );
-
-          const totalAmount = orderTotal;
-          const commissionAmount = 0; // No commission - sellers pay registration fee instead
-
-          const { data: order, error: orderError } = await supabase
-            .from("orders")
-            .insert({
-              buyer_id: user!.id,
-              seller_id: sellerId,
-              product_id: items[0].products.id,
-              quantity: items.reduce((sum, item) => sum + item.quantity, 0),
-              selected_size: items[0].selected_size || null,
-              total_amount: totalAmount,
-              commission_amount: commissionAmount,
-              delivery_method: "delivery",
-              shipping_address: `${formData.address}, ${formData.city}, ${formData.state}`,
-              university_name: formData.universityName,
-              payment_method: "paystack",
-              payment_reference: paymentRef,
-              status: "paid",
-              auto_confirm_at: new Date(
-                Date.now() + 2 * 24 * 60 * 60 * 1000
-              ).toISOString(),
-            })
-            .select()
-            .single();
-
-          if (orderError) throw orderError;
-
-          // Send notifications to seller and buyer
-          const { data: sellerProfile } = await supabase
-            .from("profiles")
-            .select("full_name, email")
-            .eq("user_id", sellerId)
-            .single();
-
-          const { data: buyerProfile } = await supabase
-            .from("profiles")
-            .select("full_name, email")
-            .eq("user_id", user!.id)
-            .single();
-
-          const productTitles = items
-            .filter((i) => i.products?.title)
-            .map((i) => i.products.title)
-            .join(", ");
-
-          if (sellerProfile) {
-            // Create in-app notification for seller
-            const { sendOrderNotification } = await import('@/utils/notificationService');
-            await sendOrderNotification(
-              sellerId,
-              "New Order Received! 🎉",
-              `You have a new order for ${productTitles}. Total: ₦${orderTotal.toLocaleString()}`,
-              order.id
-            );
-
-            // Send email notification to seller
-            try {
-              await supabase.functions.invoke("send-email", {
-                body: {
-                  to: sellerProfile.email,
-                  subject: "New Order Received - CampusConnect",
-                  html: `
-                    <h2>New Order Received!</h2>
-                    <p>Hello ${sellerProfile.full_name},</p>
-                    <p>You have received a new order:</p>
-                    <ul>
-                      <li><strong>Products:</strong> ${productTitles}</li>
-                      <li><strong>Buyer:</strong> ${
-                        buyerProfile?.full_name || "Unknown"
-                      }</li>
-                      <li><strong>Total Amount:</strong> ₦${orderTotal.toLocaleString()}</li>
-                      <li><strong>Order Date:</strong> ${new Date().toLocaleDateString()}</li>
-                    </ul>
-                    <p><strong>⚠️ Important:</strong> Payment will be automatically released in 2 days if the buyer doesn't confirm receipt.</p>
-                    <p>Please log in to your dashboard to manage this order.</p>
-                    <p>Best regards,<br>CampusConnect Team</p>
-                  `,
-                },
-              });
-            } catch (emailError) {
-              // Error handled silently
-            }
-          }
-
-          // Create in-app notification for buyer
-          const { sendOrderNotification } = await import('@/utils/notificationService');
-          await sendOrderNotification(
-            user!.id,
-            "Order Placed Successfully! ✅",
-            `Your order for ${productTitles} has been placed. Total: ₦${orderTotal.toLocaleString()}`,
-            order.id
-          );
-
-          // Send email confirmation to buyer
-          if (buyerProfile) {
-            try {
-              await supabase.functions.invoke("send-email", {
-                body: {
-                  to: buyerProfile.email,
-                  subject: "Order Confirmation - CampusConnect",
-                  html: `
-                    <h2>Order Confirmation</h2>
-                    <p>Hello ${buyerProfile.full_name},</p>
-                    <p>Your order has been successfully placed:</p>
-                    <ul>
-                      <li><strong>Products:</strong> ${productTitles}</li>
-                      <li><strong>Seller:</strong> ${
-                        sellerProfile?.full_name || "Unknown"
-                      }</li>
-                      <li><strong>Total Amount:</strong> ₦${orderTotal.toLocaleString()}</li>
-                      <li><strong>Order Date:</strong> ${new Date().toLocaleDateString()}</li>
-                    </ul>
-                    <p>You can track your order in your account dashboard.</p>
-                    <p>Best regards,<br>CampusConnect Team</p>
-                  `,
-                },
-              });
-            } catch (emailError) {
-              // Error handled silently
-            }
-          }
-
-          return order;
-        }
-      );
-
-      await Promise.all(orderPromises);
-
-      // Clear cart
       await supabase.from("cart").delete().eq("user_id", user!.id);
-
-      // Invalidate cart queries to refresh UI
       await queryClient.invalidateQueries({ queryKey: ["cart", user!.id] });
-
-      // Trigger cart update event to refresh cart count and UI
       window.dispatchEvent(new CustomEvent("cartUpdated"));
 
-      // Update analytics
       for (const item of cartItems.filter((item) => item.products?.id)) {
         await updateAnalytics(item.products.id, "orders_count", item.quantity);
-        await updateAnalytics(
-          item.products.id,
-          "revenue",
-          (item.products?.price || 0) * item.quantity
-        );
+        await updateAnalytics(item.products.id, "revenue", (item.products?.price || 0) * item.quantity);
       }
 
       toast({
@@ -450,15 +437,11 @@ const Checkout = () => {
       });
 
       navigate("/orders");
-    } catch (error) {
-      toast({
-        title: "Order failed",
-        description:
-          "Payment successful but order processing failed. Contact support.",
-        variant: "destructive",
-      });
     } finally {
       setProcessing(false);
+      setCurrentOrder(null);
+      setOrderQueue([]);
+      setQueueIndex(0);
     }
   };
 
@@ -716,14 +699,14 @@ const Checkout = () => {
                 </div>
               </div>
 
-            {/* Payment Method — Paystack is the only option and the order
-                logic always hardcodes it regardless, so this is shown as a
-                plain fact instead of a dropdown with nothing to choose.
-                Last step: no connecting line drawn below its badge. */}
+            {/* Payment Method — bank transfer via a dedicated Anchor Sub-Ledger
+                account per order, created and shown after "Pay" is clicked
+                below, so there's nothing to choose here either. Last step:
+                no connecting line drawn below its badge. */}
             <div className="flex gap-4">
               <div className="flex flex-col items-center">
                 <span className={stepIconClass}>
-                  <CreditCard className="h-5 w-5" aria-hidden="true" />
+                  <Building2 className="h-5 w-5" aria-hidden="true" />
                 </span>
               </div>
               <div className="flex-1">
@@ -732,14 +715,16 @@ const Checkout = () => {
               </h2>
               <div className="flex items-center gap-3 rounded-2xl border border-flora-ink/10 bg-flora-chip p-4">
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white shadow-card">
-                  <CreditCard className="h-5 w-5 text-flora-leaf" aria-hidden="true" />
+                  <Building2 className="h-5 w-5 text-flora-leaf" aria-hidden="true" />
                 </span>
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-flora-ink">
-                    Paystack (Card / Bank / Transfer)
+                    Anchor BaaS Bank Transfer (Escrow Locked)
                   </p>
                   <p className="text-xs text-flora-muted">
-                    Secure payment via Paystack — supports cards, bank transfers, and USSD
+                    Each seller in your order gets a dedicated Anchor account for that
+                    payment — you'll see the account details to transfer to after you
+                    click "Pay" below.
                   </p>
                 </div>
               </div>
@@ -829,7 +814,7 @@ const Checkout = () => {
                 ) : (
                   <>
                     <Lock className="h-4 w-4" aria-hidden="true" />
-                    Pay with Paystack
+                    Pay by Bank Transfer
                   </>
                 )}
               </button>
@@ -846,6 +831,23 @@ const Checkout = () => {
             </div>
           </div>
         </form>
+
+        {/* Interactive Anchor Payment Selection Modal - shows the per-order
+            Sub-Ledger NUBAN to transfer to, one seller at a time via the queue
+            above. Not yet re-skinned to the flora design system (it's a
+            separate component untouched by this branch's redesign work) - a
+            follow-up if visual consistency here matters. */}
+        <AnchorPaymentModal
+          isOpen={isPaymentModalOpen}
+          onClose={() => setIsPaymentModalOpen(false)}
+          totalAmount={currentOrder?.amount || 0}
+          orderId={currentOrder?.orderId || ""}
+          nubanAccount={currentOrder?.nubanAccount || ""}
+          bankName={currentOrder?.bankName}
+          userName={formData.fullName}
+          onConfirmPayment={handleConfirmModalPayment}
+          processing={processing}
+        />
       </main>
     </div>
   );

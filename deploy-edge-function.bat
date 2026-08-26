@@ -17,13 +17,17 @@ echo Linking to Supabase project...
 supabase link --project-ref ssqplkrxtrvfptrsnpow
 
 REM Deploy the Edge Function
-echo Deploying process-payout function...
-supabase functions deploy process-payout
+REM NOTE: process-payout was removed - it was dead code that never made a real
+REM transfer call while claiming success. Use anchor-withdraw for payouts instead.
+supabase functions deploy anchor-withdraw
 
 REM Set environment variables
+REM Paystack is no longer in use - Anchor BaaS secrets (ANCHOR_API_KEY,
+REM ANCHOR_WEBHOOK_TOKEN, ANCHOR_DEPOSIT_ACCOUNT_ID) should be set separately via
+REM `supabase secrets set` with real values, not committed to this script.
 echo Setting environment variables...
-supabase secrets set PAYSTACK_SECRET_KEY=sk_live_67ccaee369fb6200cfbc3715907daeeeb425c8ef
+REM supabase secrets set PAYSTACK_SECRET_KEY=%PAYSTACK_SECRET_KEY%
 
 echo Edge Function deployed successfully!
-echo You can now test the payout approval in the admin dashboard.
+echo You can now test the payout flow in the wallet withdrawal modal.
 pause

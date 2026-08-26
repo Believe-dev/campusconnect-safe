@@ -20,6 +20,11 @@ import {
   Ruler,
 } from "lucide-react";
 
+import { Button } from "@/components/ui/enhanced-button";
+import { useToast } from "@/hooks/use-toast";
+import { approveSellerEscrow } from "@/services/anchorBaasService";
+import { useState } from "react";
+
 interface Order {
   id: string;
   buyer_id: string;
@@ -72,7 +77,36 @@ export const OrderDetailsDialog: React.FC<OrderDetailsDialogProps> = ({
   onClose,
   isSeller = false,
 }) => {
+  const [approving, setApproving] = useState(false);
+  const { toast } = useToast();
+
   if (!order) return null;
+
+  const handleApproveEscrow = async () => {
+    if (!order || approving) return;
+    try {
+      setApproving(true);
+      const res = await approveSellerEscrow(order.id);
+      if (res.success) {
+        toast({
+          title: "Anchor Funds Unlocked! 🎉",
+          description: res.message,
+        });
+        onClose();
+        window.location.reload();
+      } else {
+        toast({
+          title: "Error",
+          description: res.message,
+          variant: "destructive",
+        });
+      }
+    } catch (err) {
+      console.error("Failed to approve escrow:", err);
+    } finally {
+      setApproving(false);
+    }
+  };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -323,6 +357,21 @@ export const OrderDetailsDialog: React.FC<OrderDetailsDialogProps> = ({
                 </div>
               </CardContent>
             </Card>
+          )}
+
+          {/* Releasing escrow is the BUYER confirming receipt, not the seller approving
+              their own payout - the seller has no way to trigger this (also enforced
+              server-side in anchor-escrow-resolve, which only accepts the release
+              action from the order's buyer or an admin). */}
+          {!isSeller && (order.status === "paid" || order.status === "shipped" || order.status === "delivered") && (
+            <Button
+              onClick={handleApproveEscrow}
+              disabled={approving}
+              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3"
+            >
+              <CheckCircle className="w-4 h-4 mr-2" />
+              {approving ? "Releasing Funds..." : "Confirm Receipt & Release Payment to Seller"}
+            </Button>
           )}
         </div>
       </DialogContent>

@@ -59,6 +59,7 @@ interface Profile {
   university_name?: string;
   student_id?: string;
   phone_number?: string;
+  phone_verified?: boolean;
   campus?: string;
   account_type: string;
   verification_status?: string;
@@ -68,6 +69,8 @@ interface Profile {
   rating: number;
   total_reviews: number;
   seller_status?: string;
+  kyc_status?: string;
+  kyc_rejection_reason?: string;
   student_id_photo_url?: string;
   business_name?: string;
   seller_subscription_expires_at?: string;
@@ -165,6 +168,10 @@ const Profile = () => {
   const [newBusinessName, setNewBusinessName] = useState("");
   const [editingPhoneNumber, setEditingPhoneNumber] = useState(false);
   const [newPhoneNumber, setNewPhoneNumber] = useState("");
+  const [phoneOtpStep, setPhoneOtpStep] = useState<"enter_phone" | "enter_code">("enter_phone");
+  const [phoneOtpCode, setPhoneOtpCode] = useState("");
+  const [sendingPhoneOtp, setSendingPhoneOtp] = useState(false);
+  const [verifyingPhoneOtp, setVerifyingPhoneOtp] = useState(false);
   const [storeLinkCopied, setStoreLinkCopied] = useState(false);
 
   const storeUrl = user && (profile?.account_type === "seller" || profile?.account_type === "both") && profile?.seller_status === "approved"
@@ -425,9 +432,9 @@ const Profile = () => {
         if (newBusinessName.trim() !== (profile.business_name || "")) {
           updateData.business_name = newBusinessName.trim() || null;
         }
-        if (newPhoneNumber.trim() !== (profile.phone_number || "")) {
-          updateData.phone_number = newPhoneNumber.trim() || null;
-        }
+        // Phone number is intentionally not settable here - it can only change via the
+        // OTP verification flow (handleSendPhoneOtp / handleVerifyPhoneOtp) so
+        // profiles.phone_verified never goes stale against an unverified number.
       }
 
       const { error } = await supabase
@@ -448,10 +455,6 @@ const Profile = () => {
                 updateData.business_name !== undefined
                   ? updateData.business_name
                   : prev.business_name,
-              phone_number:
-                updateData.phone_number !== undefined
-                  ? updateData.phone_number
-                  : prev.phone_number,
             }
           : null,
       );
@@ -504,35 +507,65 @@ const Profile = () => {
     }
   };
 
-  const handlePhoneNumberSave = async () => {
+  const handleSendPhoneOtp = async () => {
     if (!profile || !user || !newPhoneNumber.trim()) return;
-    setSaving(true);
+    setSendingPhoneOtp(true);
 
     try {
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          phone_number: newPhoneNumber.trim(),
-        })
-        .eq("user_id", user.id);
+      const { data, error } = await supabase.functions.invoke("phone-otp-send", {
+        body: { phoneNumber: newPhoneNumber.trim() },
+      });
 
       if (error) throw error;
+      if (data?.error) throw new Error(data.error);
 
-      setProfile({ ...profile, phone_number: newPhoneNumber.trim() });
       toast({
-        title: "Phone Number Updated",
-        description: "Your phone number has been successfully updated.",
+        title: "Code Sent",
+        description: data?.devOtp
+          ? `SMS provider not configured - dev code: ${data.devOtp}`
+          : "Enter the 6-digit code we sent to your phone.",
       });
-      setEditingPhoneNumber(false);
-      setNewPhoneNumber("");
-    } catch (error) {
+      setPhoneOtpStep("enter_code");
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to update phone number",
+        description: error?.message || "Failed to send verification code",
         variant: "destructive",
       });
     } finally {
-      setSaving(false);
+      setSendingPhoneOtp(false);
+    }
+  };
+
+  const handleVerifyPhoneOtp = async () => {
+    if (!profile || !user || !phoneOtpCode.trim()) return;
+    setVerifyingPhoneOtp(true);
+
+    try {
+      const { data, error } = await supabase.functions.invoke("phone-otp-verify", {
+        body: { code: phoneOtpCode.trim() },
+      });
+
+      if (error) throw error;
+      if (!data?.verified) throw new Error(data?.message || "Incorrect code");
+
+      setProfile({ ...profile, phone_number: newPhoneNumber.trim() });
+      toast({
+        title: "Phone Number Verified",
+        description: "Your phone number has been verified successfully.",
+      });
+      setEditingPhoneNumber(false);
+      setNewPhoneNumber("");
+      setPhoneOtpCode("");
+      setPhoneOtpStep("enter_phone");
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to verify code",
+        variant: "destructive",
+      });
+    } finally {
+      setVerifyingPhoneOtp(false);
     }
   };
 
@@ -2153,46 +2186,103 @@ const Profile = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Phone Number Edit Modal */}
-      <Dialog open={editingPhoneNumber} onOpenChange={setEditingPhoneNumber}>
+      {/* Phone Number Edit Modal - gated on OTP verification */}
+      <Dialog
+        open={editingPhoneNumber}
+        onOpenChange={(open) => {
+          setEditingPhoneNumber(open);
+          if (!open) {
+            setNewPhoneNumber("");
+            setPhoneOtpCode("");
+            setPhoneOtpStep("enter_phone");
+          }
+        }}
+      >
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Edit Phone Number</DialogTitle>
+            <DialogTitle>
+              {phoneOtpStep === "enter_phone" ? "Edit Phone Number" : "Enter Verification Code"}
+            </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="new_phone_number" className="text-sm font-semibold text-flora-ink">
-                Phone Number
-              </Label>
-              <Input
-                id="new_phone_number"
-                value={newPhoneNumber}
-                onChange={(e) => setNewPhoneNumber(e.target.value)}
-                placeholder="Enter your phone number"
-                className="rounded-2xl border-0 bg-flora-chip focus-visible:ring-flora-leaf/40"
-              />
+          {phoneOtpStep === "enter_phone" ? (
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="new_phone_number" className="text-sm font-semibold text-flora-ink">
+                  Phone Number
+                </Label>
+                <Input
+                  id="new_phone_number"
+                  value={newPhoneNumber}
+                  onChange={(e) => setNewPhoneNumber(e.target.value)}
+                  placeholder="e.g. +2348012345678"
+                  className="rounded-2xl border-0 bg-flora-chip focus-visible:ring-flora-leaf/40"
+                />
+                <p className="text-xs text-flora-muted">
+                  We'll text you a code to confirm this number.
+                </p>
+              </div>
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingPhoneNumber(false)}
+                  className="flex-1 rounded-full border border-flora-ink/10 px-4 py-2.5 text-sm font-medium text-flora-ink transition hover:bg-flora-chip"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSendPhoneOtp}
+                  disabled={sendingPhoneOtp || !newPhoneNumber.trim()}
+                  className="flex-1 rounded-full bg-flora-ink px-4 py-2.5 text-sm font-medium text-white transition hover:brightness-110 disabled:opacity-50"
+                >
+                  {sendingPhoneOtp ? "Sending..." : "Send Code"}
+                </button>
+              </div>
             </div>
-            <div className="flex gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setEditingPhoneNumber(false);
-                  setNewPhoneNumber("");
-                }}
-                className="flex-1 rounded-full border border-flora-ink/10 px-4 py-2.5 text-sm font-medium text-flora-ink transition hover:bg-flora-chip"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handlePhoneNumberSave}
-                disabled={saving || !newPhoneNumber.trim()}
-                className="flex-1 rounded-full bg-flora-ink px-4 py-2.5 text-sm font-medium text-white transition hover:brightness-110 disabled:opacity-50"
-              >
-                {saving ? "Saving..." : "Save"}
-              </button>
+          ) : (
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="phone_otp_code" className="text-sm font-semibold text-flora-ink">
+                  6-Digit Code
+                </Label>
+                <Input
+                  id="phone_otp_code"
+                  value={phoneOtpCode}
+                  onChange={(e) => setPhoneOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  placeholder="123456"
+                  maxLength={6}
+                  className="rounded-2xl border-0 bg-flora-chip font-mono tracking-widest focus-visible:ring-flora-leaf/40"
+                />
+                <p className="text-xs text-flora-muted">
+                  Sent to {newPhoneNumber}.{" "}
+                  <button
+                    type="button"
+                    onClick={() => setPhoneOtpStep("enter_phone")}
+                    className="underline"
+                  >
+                    Change number
+                  </button>
+                </p>
+              </div>
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingPhoneNumber(false)}
+                  className="flex-1 rounded-full border border-flora-ink/10 px-4 py-2.5 text-sm font-medium text-flora-ink transition hover:bg-flora-chip"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleVerifyPhoneOtp}
+                  disabled={verifyingPhoneOtp || phoneOtpCode.length !== 6}
+                  className="flex-1 rounded-full bg-flora-ink px-4 py-2.5 text-sm font-medium text-white transition hover:brightness-110 disabled:opacity-50"
+                >
+                  {verifyingPhoneOtp ? "Verifying..." : "Verify"}
+                </button>
+              </div>
             </div>
-          </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

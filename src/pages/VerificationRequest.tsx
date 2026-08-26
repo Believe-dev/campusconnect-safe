@@ -8,8 +8,9 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
-import { Shield, Upload, AlertCircle } from 'lucide-react';
+import { Shield, Upload, AlertCircle, ShieldCheck } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { SellerKycModal } from '@/components/seller/SellerKycModal';
 
 const VerificationRequest = () => {
   const { user } = useAuth();
@@ -21,6 +22,7 @@ const VerificationRequest = () => {
   const [profile, setProfile] = useState<any>(null);
   const [canRequest, setCanRequest] = useState(false);
   const [existingRequest, setExistingRequest] = useState<any>(null);
+  const [showKycModal, setShowKycModal] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -278,6 +280,18 @@ const VerificationRequest = () => {
                   </p>
                 </div>
 
+                <div className="pt-2 border-t border-border">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setShowKycModal(true)}
+                    className="w-full border-emerald-600 text-emerald-600 hover:bg-emerald-50 mb-3"
+                  >
+                    <ShieldCheck className="h-4 w-4 mr-2" />
+                    Complete Anchor CBN KYC (BVN/NIN & Photo ID)
+                  </Button>
+                </div>
+
                 <Button type="submit" disabled={loading || !reason.trim()} className="w-full">
                   <Upload className="h-4 w-4 mr-2" />
                   {loading ? 'Submitting...' : 'Submit Verification Request'}
@@ -287,6 +301,15 @@ const VerificationRequest = () => {
           </CardContent>
         </Card>
       </main>
+
+      {user && (
+        <SellerKycModal
+          userId={user.id}
+          open={showKycModal}
+          onClose={() => setShowKycModal(false)}
+          onKycCompleted={() => checkProfile()}
+        />
+      )}
     </div>
   );
 };

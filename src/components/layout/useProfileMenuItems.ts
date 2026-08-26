@@ -9,6 +9,7 @@ import {
   LogOut,
   Bell,
   LayoutDashboard,
+  Wallet,
 } from "lucide-react";
 import { GamesIcon, LearnMoreIcon } from "@/components/ui/heroicons";
 import { useToast } from "@/hooks/use-toast";
@@ -16,6 +17,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/contexts/ProfileContext";
 import { useOrdersCount } from "@/hooks/useOrdersCount";
 import { useNotifications } from "@/contexts/NotificationCountContext";
+import { useWalletActivity } from "@/hooks/useWalletActivity";
 
 export interface ProfileMenuItem {
   key: string;
@@ -33,14 +35,17 @@ export interface ProfileMenuItem {
  *
  * Deliberately account-scoped only: Shop/Live/Chat/Sell are already reachable
  * from the header and bottom nav, so they don't belong here too — repeating
- * them added noise, not access. Wallet and "My Store" are folded into the
- * single promoted `sellerDashboard` entry instead of being separate rows.
+ * them added noise, not access. "My Store" is folded into the single
+ * promoted `sellerDashboard` entry rather than being its own row. Wallet has
+ * its own dedicated nav entry (shown only when the user has balance/
+ * activity), separate from the promoted sellerDashboard entry.
  */
 export const useProfileMenuItems = () => {
   const { user, isAdmin } = useAuth();
   const { profile } = useProfile();
   const { ordersCount } = useOrdersCount();
   const { unreadCount } = useNotifications();
+  const { hasWalletActivity } = useWalletActivity();
   const { toast } = useToast();
 
   const isSeller = profile?.account_type !== "buyer";
@@ -58,6 +63,14 @@ export const useProfileMenuItems = () => {
     { key: "profile", to: "/profile", label: "Profile", icon: User },
     { key: "notifications", to: "/notifications", label: "Notifications", icon: Bell, badge: unreadCount },
     { key: "orders", to: "/orders", label: "Orders", icon: Package, badge: ordersCount },
+    // Not seller-gated like sellerDashboard above - a buyer whose dispute
+    // resolved in their favor (reverse_escrow_funds) gets money credited to
+    // their wallet directly, with no other nav path to /wallet. Hidden by
+    // default (zero balance, no transaction history) rather than shown to
+    // every buyer, most of whom will never have a reason to visit it.
+    ...(hasWalletActivity
+      ? [{ key: "wallet", to: "/wallet", label: "Wallet", icon: Wallet }]
+      : []),
   ];
 
   const secondary: ProfileMenuItem[] = [

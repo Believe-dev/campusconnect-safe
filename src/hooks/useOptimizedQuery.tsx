@@ -8,22 +8,26 @@ interface OptimizedQueryOptions {
   gcTime?: number;
   enabled?: boolean;
   placeholderData?: any;
-  // These four used to be silently dropped: callers (Cart.tsx, Orders.tsx)
-  // passed them expecting real-time-ish behavior, but the destructured
-  // param list here never picked them up, so every caller actually got the
-  // hardcoded defaults below instead — refetchOnMount forced off the
-  // moment anything was cached (gcTime defaults to 1hr), refetchOnWindowFocus
-  // forced off, and a 30/60-minute refetchInterval regardless of what was
-  // requested. In practice that meant navigating back to a page like Cart
-  // after changing data elsewhere just showed stale cached data until a
-  // full browser reload wiped the in-memory query cache. Now forwarded,
-  // falling back to the previous hardcoded values when a caller doesn't
-  // specify them, so existing callers that don't pass these keep the same
-  // behavior as before.
+  // These four used to be silently dropped: callers passed them expecting
+  // real-time-ish behavior, but the destructured param list here never
+  // picked them up, so every caller actually got the hardcoded defaults
+  // below instead — refetchOnMount forced off the moment anything was
+  // cached (gcTime defaults to 1hr), refetchOnWindowFocus forced off, and a
+  // 30/60-minute refetchInterval regardless of what was requested. Now
+  // forwarded, falling back to the previous hardcoded values (or to the
+  // alwaysFresh-driven values below) when a caller doesn't specify them.
   refetchOnMount?: boolean | 'always';
   refetchOnWindowFocus?: boolean | 'always';
   refetchInterval?: number | false;
   refetchIntervalInBackground?: boolean;
+  // Set for data that must never be served stale from cache - payment/escrow/order
+  // status, KYC verification status, account balance. Forces staleTime/gcTime to 0 and
+  // always refetches on mount, overriding the "skip refetch if we already have any
+  // cached value" behavior below (which is correct for product/listing data but is
+  // exactly wrong here: a 15-minute-old escrow status is a correctness bug, not a
+  // performance win). refetchOnMount/refetchOnWindowFocus above still take priority
+  // if a caller passes them explicitly.
+  alwaysFresh?: boolean;
 }
 
 export const useOptimizedQuery = ({
@@ -34,9 +38,10 @@ export const useOptimizedQuery = ({
   enabled = true,
   placeholderData,
   refetchOnMount,
-  refetchOnWindowFocus = false,
+  refetchOnWindowFocus,
   refetchInterval,
   refetchIntervalInBackground = true,
+  alwaysFresh = false,
 }: OptimizedQueryOptions) => {
   const { isOnline, isSlowConnection } = useNetworkStatus();
   const queryClient = useQueryClient();
@@ -48,11 +53,13 @@ export const useOptimizedQuery = ({
     queryKey,
     queryFn,
     enabled: enabled && isOnline,
-    staleTime: isSlowConnection ? staleTime * 2 : staleTime, // Double stale time for slow connections
-    gcTime: isSlowConnection ? gcTime * 2 : gcTime,
+    staleTime: alwaysFresh ? 0 : isSlowConnection ? staleTime * 2 : staleTime, // Double stale time for slow connections
+    gcTime: alwaysFresh ? 0 : isSlowConnection ? gcTime * 2 : gcTime,
     placeholderData: placeholderData || cachedData,
-    refetchOnMount: refetchOnMount ?? !cachedData, // Only refetch if no cached data, unless the caller opts in explicitly
-    refetchOnWindowFocus,
+    // Only refetch if no cached data, unless the caller opts in explicitly
+    // (alwaysFresh forces "always" when a caller hasn't set this itself).
+    refetchOnMount: refetchOnMount ?? (alwaysFresh ? "always" : !cachedData),
+    refetchOnWindowFocus: refetchOnWindowFocus ?? alwaysFresh,
     refetchOnReconnect: true,
     networkMode: 'offlineFirst',
     // Background updates for slow connections

@@ -109,7 +109,7 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
           ) : (
             <>
               <Lock className="h-4 w-4 mr-2" />
-              Pay with Paystack
+              Pay with Anchor Escrow Wallet ⚡
             </>
           )}
         </Button>

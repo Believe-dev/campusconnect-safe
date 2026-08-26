@@ -156,20 +156,20 @@ export const CheckoutForm: React.FC<CheckoutFormProps> = ({
         </CardHeader>
         <CardContent>
           <Select
-            value={formData.paymentMethod}
+            value="anchor_escrow"
             onValueChange={(value) => onFieldChange('paymentMethod', value)}
           >
             <SelectTrigger>
-              <SelectValue />
+              <SelectValue placeholder="Anchor Virtual Transfer & ATM Card (Escrow Locked)" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="paystack">
-                Paystack (Card/Bank/Transfer)
+              <SelectItem value="anchor_escrow">
+                Anchor BaaS Gateway (Bank Transfer / ATM Card - Escrow Locked)
               </SelectItem>
             </SelectContent>
           </Select>
           <p className="text-xs text-muted-foreground mt-2">
-            Secure payment via Paystack - supports cards, bank transfers, and USSD
+            Funds are processed securely via Anchor BaaS (CoreStep Microfinance) and locked in escrow until item delivery is confirmed.
           </p>
         </CardContent>
       </Card>

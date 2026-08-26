@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/contexts/ProfileContext";
 import { useCartCount } from "@/contexts/CartCountContext";
+import { useOptimizedQuery } from "@/hooks/useOptimizedQuery";
 import { Package, RotateCcw, AlertCircle } from "lucide-react";
 import "@/styles/animations.css";
 
@@ -83,15 +84,46 @@ const ProductGrid = ({ products, cart, onSelect, onToggleCart }: ProductGridProp
   </div>
 );
 
+const fetchProductsQuery = async (): Promise<Product[]> => {
+  // Optimize for slow connections - fetch only essential fields
+  const { data, error } = await supabase
+    .from("products")
+    .select(
+      `
+      id,
+      title,
+      description,
+      category,
+      price,
+      stock_quantity,
+      condition,
+      campus,
+      images,
+      seller_id,
+      created_at,
+      profiles!products_seller_id_fkey (
+        full_name,
+        business_name,
+        rating,
+        is_verified,
+        campus
+      )
+    `
+    )
+    .eq("is_active", true)
+    .order("created_at", { ascending: false })
+    .limit(200);
+
+  if (error) throw error;
+  return data || [];
+};
+
 const Marketplace = () => {
-  const [products, setProducts] = useState<Product[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const { user } = useAuth();
   const { profile } = useProfile();
   const { updateOptimistically: updateCartCountOptimistically } = useCartCount();
   const userUniversity = profile?.university_name || null;
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState(false);
   // All categories are active (shown, removable) by default. Removing one
   // hides that category's products; it moves into the "Filters" panel where
   // it can be added back.
@@ -104,18 +136,39 @@ const Marketplace = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  // Listings change relatively infrequently - short TTL cache instead of refetching
+  // on every mount. Invalidated on write (new listing, price/stock edit, delisting)
+  // via queryClient.invalidateQueries(["products"]) in Sell.tsx. Rethrows on failure
+  // (rather than swallowing into an empty array) so isError drives the retry UI below.
+  const {
+    data: products = [],
+    isLoading: loading,
+    isError: loadError,
+    refetch: refetchProducts,
+  } = useOptimizedQuery({
+    queryKey: ["products", "marketplace"],
+    queryFn: async () => {
+      try {
+        return await fetchProductsQuery();
+      } catch (error) {
+        toast({
+          title: "Error",
+          description: "Failed to load products",
+          variant: "destructive",
+        });
+        throw error;
+      }
+    },
+    staleTime: 60 * 1000,
+    gcTime: 5 * 60 * 1000,
+  });
+
   const handleRefresh = useCallback(async () => {
-    setLoading(true);
-    await fetchProducts();
+    await refetchProducts();
     if (user) {
       await fetchUserData(user.id);
     }
-    setLoading(false);
-  }, [user]);
-
-  useEffect(() => {
-    fetchProducts();
-  }, []);
+  }, [user, refetchProducts]);
 
   // Re-fetch favorites/cart whenever the signed-in user changes, so switching
   // accounts in the same session doesn't leave a previous user's state behind.
@@ -131,52 +184,6 @@ const Marketplace = () => {
   useEffect(() => {
     filterProducts();
   }, [products, excludedCategories, selectedCondition, sortBy, userUniversity]);
-
-  const fetchProducts = async () => {
-    setLoadError(false);
-    try {
-      // Optimize for slow connections - fetch only essential fields
-      const { data, error } = await supabase
-        .from("products")
-        .select(
-          `
-          id,
-          title,
-          description,
-          category,
-          price,
-          stock_quantity,
-          condition,
-          campus,
-          images,
-          seller_id,
-          created_at,
-          profiles!products_seller_id_fkey (
-            full_name,
-            business_name,
-            rating,
-            is_verified,
-            campus
-          )
-        `
-        )
-        .eq("is_active", true)
-        .order("created_at", { ascending: false })
-        .limit(200);
-
-      if (error) throw error;
-      setProducts(data || []);
-    } catch (error) {
-      setLoadError(true);
-      toast({
-        title: "Error",
-        description: "Failed to load products",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const fetchUserData = async (userId: string) => {
     try {
@@ -652,10 +659,7 @@ const Marketplace = () => {
                 </p>
                 <button
                   type="button"
-                  onClick={() => {
-                    setLoading(true);
-                    fetchProducts();
-                  }}
+                  onClick={() => refetchProducts()}
                   className="rounded-full bg-flora-leaf px-6 py-2.5 text-sm font-medium text-white transition hover:brightness-105"
                 >
                   Retry

@@ -59,6 +59,7 @@ import {
 import { ProductReviews } from "@/components/reviews/ProductReviews";
 import { ProductSEO } from "@/components/common/ProductSEO";
 import { SizeSelector } from "@/components/marketplace/SizeSelector";
+import { useOptimizedQuery } from "@/hooks/useOptimizedQuery";
 
 interface Product {
   id: string;
@@ -123,13 +124,11 @@ const ProductDetails = () => {
   const { updateOptimistically: updateCartCountOptimistically } = useCartCount();
   const isIgbinedionStudent =
     profile?.university_name === IGBINEDION_UNIVERSITY;
-  const [product, setProduct] = useState<Product | null>(null);
   const [similarProducts, setSimilarProducts] = useState<Product[]>([]);
   const [similarCart, setSimilarCart] = useState<Set<string>>(new Set());
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isAutoSliding, setIsAutoSliding] = useState(true);
   const [isFullscreenOpen, setIsFullscreenOpen] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [similarLoading, setSimilarLoading] = useState(true);
   const [quantity, setQuantity] = useState(1);
   const [copied, setCopied] = useState(false);
@@ -144,11 +143,56 @@ const ProductDetails = () => {
   const [selectedSize, setSelectedSize] = useState<string>("");
   const { toast } = useToast();
 
+  // Product detail changes relatively infrequently - short TTL cache instead of
+  // refetching on every mount. Invalidated on write (edit/delist) via
+  // queryClient.invalidateQueries(["products"]) in Sell.tsx/Dashboard.tsx/Admin.tsx.
+  const {
+    data: product = null,
+    isLoading: loading,
+  } = useOptimizedQuery({
+    queryKey: ["products", "detail", id],
+    queryFn: async () => {
+      const { data: productData, error } = await supabase
+        .from("products")
+        .select("*")
+        .eq("id", id)
+        .single();
+
+      if (error) throw error;
+
+      const { data: sellerData } = await supabase
+        .from("profiles")
+        .select(
+          "full_name, avatar_url, is_verified, rating, total_reviews, campus, phone_number, email"
+        )
+        .eq("user_id", productData.seller_id)
+        .single();
+
+      return { ...productData, seller: sellerData } as Product;
+    },
+    enabled: !!id,
+    staleTime: 60 * 1000,
+    gcTime: 5 * 60 * 1000,
+  });
+
   useEffect(() => {
-    if (id) {
-      fetchProduct();
+    if (!id) return;
+    // fetchProductQuery threw (product not found) and the query has no cached data.
+    if (!loading && !product) {
+      toast({
+        title: "Error",
+        description: "Product not found",
+        variant: "destructive",
+      });
+      navigate("/");
     }
-  }, [id]);
+  }, [id, loading, product]);
+
+  useEffect(() => {
+    if (product?.id) {
+      supabase.rpc("track_product_view", { p_product_id: product.id });
+    }
+  }, [product?.id]);
 
   useEffect(() => {
     if (product) {
@@ -206,51 +250,6 @@ const ProductDetails = () => {
       setCurrentImageIndex((prev) => prev - 1);
     }
     setTimeout(() => setIsAutoSliding(true), 5000);
-  };
-
-  const fetchProduct = async () => {
-    try {
-      const { data: productData, error } = await supabase
-        .from("products")
-        .select("*")
-        .eq("id", id)
-        .single();
-
-      if (error) {
-        throw error;
-      }
-
-      // Fetch seller info separately
-      const { data: sellerData } = await supabase
-        .from("profiles")
-        .select(
-          "full_name, avatar_url, is_verified, rating, total_reviews, campus, phone_number, email",
-        )
-        .eq("user_id", productData.seller_id)
-        .single();
-
-      const data = {
-        ...productData,
-        seller: sellerData,
-      };
-
-      // Product loaded successfully
-      setProduct(data);
-
-      // Track product view
-      if (data?.id) {
-        await supabase.rpc("track_product_view", { p_product_id: data.id });
-      }
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Product not found",
-        variant: "destructive",
-      });
-      navigate("/");
-    } finally {
-      setLoading(false);
-    }
   };
 
   const fetchSimilarProducts = async () => {

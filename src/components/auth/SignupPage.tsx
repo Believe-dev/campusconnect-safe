@@ -41,6 +41,7 @@ import {
 } from "lucide-react";
 
 import { User as AuthUser } from "@supabase/supabase-js";
+import { SellerKycModal } from "@/components/seller/SellerKycModal";
 
 // Validation schemas — split per step (see SignupPage's step layout below)
 // instead of one giant schema per account type, since each step now submits
@@ -206,6 +207,8 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
   const [referralCode, setReferralCode] = useState("");
   const [validatingReferral, setValidatingReferral] = useState(false);
   const [referralValid, setReferralValid] = useState<boolean | null>(null);
+  const [showAnchorKycModal, setShowAnchorKycModal] = useState(false);
+  const [newUserId, setNewUserId] = useState<string | null>(null);
   const { toast } = useToast();
   const { initializePayment } = usePaystack();
   const { validateReferralCode, createReferral } = useReferrals();
@@ -398,14 +401,13 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
 
       if (error) throw error;
 
-      // Create referral if code provided
       if (authData.user && pendingBuyerData.referralCode) {
         await createReferral(pendingBuyerData.referralCode);
       }
 
       toast({
-        title: "Account Created!",
-        description: "Please check your email to verify your account.",
+        title: "Account Created! 🎉",
+        description: "Welcome to UniMarket. Start browsing and shopping campus items!",
       });
 
       onSuccess?.();
@@ -499,7 +501,7 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
           user_id: authData.user.id,
           amount: BUSINESS_RULES.sellerRegistration.fee,
           payment_reference: reference,
-          payment_method: "paystack",
+          payment_method: "anchor_baas",
           status: "completed",
         });
 
@@ -518,11 +520,14 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
         if (combinedData.referralCode) {
           await createReferral(combinedData.referralCode);
         }
+
+        setNewUserId(authData.user.id);
+        setShowAnchorKycModal(true);
       }
 
       toast({
-        title: "Seller Account Created!",
-        description: "Your account has been created and payment confirmed.",
+        title: "Seller Account Created! 🎉",
+        description: "Payment confirmed. Please complete Anchor Identity Verification (BVN/NIN/Photo ID) to activate your Virtual NUBAN Account.",
       });
 
       onSuccess?.();
@@ -1566,6 +1571,21 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {newUserId && (
+        <SellerKycModal
+          userId={newUserId}
+          open={showAnchorKycModal}
+          onClose={() => {
+            setShowAnchorKycModal(false);
+            onSuccess?.();
+          }}
+          onKycCompleted={() => {
+            setShowAnchorKycModal(false);
+            onSuccess?.();
+          }}
+        />
+      )}
     </div>
   );
 };
