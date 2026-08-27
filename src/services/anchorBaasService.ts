@@ -130,6 +130,39 @@ export const verifyAnchorBankTransfer = async (
 };
 
 /**
+ * Initiates a seller registration or subscription-renewal payment: creates a
+ * Sub-Ledger account server-side (anchor-seller-payment-init), same pattern
+ * as initiateAnchorCheckout but for the ₦1,000 seller fee instead of an order.
+ */
+export const initiateSellerPayment = async (
+  purpose: "registration" | "renewal"
+): Promise<{ success: boolean; intentId?: string; nubanAccount?: string; bankName?: string; amount?: number; message?: string }> => {
+  const res = await invoke<{ intentId: string; nubanAccount: string; bankName: string; amount: number }>(
+    "anchor-seller-payment-init",
+    { purpose }
+  );
+  if (!res.ok || !res.data) {
+    return { success: false, message: res.error || "Failed to start payment." };
+  }
+  return { success: true, ...res.data };
+};
+
+/**
+ * Asks the server to check Anchor for a completed transfer into this seller
+ * payment's Sub-Ledger account. No fail-open: if Anchor can't be reached or no
+ * matching transfer is found, verified comes back false.
+ */
+export const verifySellerPayment = async (
+  intentId: string
+): Promise<{ verified: boolean; message: string }> => {
+  const res = await invoke<{ verified: boolean; message: string }>("anchor-seller-payment-verify", { intentId });
+  if (!res.ok || !res.data) {
+    return { verified: false, message: res.error || "Verification failed." };
+  }
+  return { verified: !!res.data.verified, message: res.data.message };
+};
+
+/**
  * Releases a held escrow to the seller. Only the order's buyer (confirming receipt)
  * or an admin (dispute resolution) is authorized to do this - enforced server-side in
  * anchor-escrow-resolve, not by who can see this button in the UI.

@@ -96,6 +96,7 @@ import { AdminWallet } from "@/components/admin/AdminWallet";
 import { SellerSubscriptionManager } from "@/components/admin/SellerSubscriptionManager";
 import { PullToRefresh } from "@/components/common/PullToRefresh";
 import { OrdersTab } from "@/components/admin/OrdersTab";
+import { AtRiskSellersCard } from "@/components/admin/AtRiskSellersCard";
 import { approveSellerEscrow, refundAnchorPayment } from "@/services/anchorBaasService";
 
 interface User {
@@ -1259,20 +1260,19 @@ export default function Admin() {
     }
   };
 
-  const releaseEscrowFunds = async (escrowId: string) => {
+  const releaseEscrowFunds = async (orderId: string) => {
     try {
-      const { data, error } = await supabase.rpc("release_escrow_funds", {
-        escrow_id: escrowId,
-      });
-
-      if (error) throw error;
-
-      if (data === false) {
-        toast.error("Escrow transaction not found or already released");
+      // Goes through the edge function's admin-release branch - it's the
+      // only thing that can call release_escrow_funds now that it's
+      // service_role-only, and it's also the only path that actually moves
+      // the real Anchor bank transfer, not just the internal ledger.
+      const result = await approveSellerEscrow(orderId);
+      if (!result.success) {
+        toast.error(result.message);
         return;
       }
 
-      toast.success("Escrow funds released successfully");
+      toast.success(result.message);
       fetchEscrowData();
     } catch (error) {
       toast.error("Failed to release escrow funds");
@@ -1521,9 +1521,15 @@ export default function Admin() {
         orders?.reduce((sum, order) => sum + Number(order.total_amount), 0) ||
         0;
 
-      // Calculate monthly growth (simplified)
-      const currentMonth = new Date().getMonth();
-      const currentYear = new Date().getFullYear();
+      // Real month-over-month revenue growth, using confirmed orders already
+      // fetched above - no extra query needed.
+      const now = new Date();
+      const currentMonth = now.getMonth();
+      const currentYear = now.getFullYear();
+      const lastMonthDate = new Date(currentYear, currentMonth - 1, 1);
+      const lastMonth = lastMonthDate.getMonth();
+      const lastMonthYear = lastMonthDate.getFullYear();
+
       const thisMonthOrders = orders?.filter((order) => {
         const orderDate = new Date(order.created_at);
         return (
@@ -1536,6 +1542,27 @@ export default function Admin() {
           (sum, order) => sum + Number(order.total_amount),
           0
         ) || 0;
+
+      const lastMonthRevenue =
+        orders
+          ?.filter((order) => {
+            const orderDate = new Date(order.created_at);
+            return (
+              orderDate.getMonth() === lastMonth &&
+              orderDate.getFullYear() === lastMonthYear
+            );
+          })
+          .reduce((sum, order) => sum + Number(order.total_amount), 0) || 0;
+
+      // No revenue last month makes a percentage change undefined - treat any
+      // revenue this month as a fresh start (100%) rather than dividing by
+      // zero or showing a fabricated figure.
+      const monthlyGrowth =
+        lastMonthRevenue > 0
+          ? Number((((thisMonthRevenue - lastMonthRevenue) / lastMonthRevenue) * 100).toFixed(1))
+          : thisMonthRevenue > 0
+          ? 100
+          : 0;
 
       // Fetch top categories
       const { data: categoryData } = await supabase
@@ -1556,7 +1583,7 @@ export default function Admin() {
 
       setAnalytics({
         totalRevenue,
-        monthlyGrowth: 15.2, // Simplified calculation
+        monthlyGrowth,
         topCategories,
         recentOrders: thisMonthOrders?.length || 0,
       });
@@ -2319,8 +2346,17 @@ export default function Admin() {
               <div className="text-2xl font-bold">
                 ₦{analytics.totalRevenue.toLocaleString()}
               </div>
-              <p className="text-xs text-muted-foreground flex items-center">
-                <TrendingUp className="h-3 w-3 mr-1" />+
+              <p
+                className={`text-xs flex items-center ${
+                  analytics.monthlyGrowth >= 0 ? "text-muted-foreground" : "text-destructive"
+                }`}
+              >
+                {analytics.monthlyGrowth >= 0 ? (
+                  <TrendingUp className="h-3 w-3 mr-1" />
+                ) : (
+                  <TrendingDown className="h-3 w-3 mr-1" />
+                )}
+                {analytics.monthlyGrowth >= 0 ? "+" : ""}
                 {analytics.monthlyGrowth}% from last month
               </p>
             </CardContent>
@@ -6298,8 +6334,17 @@ export default function Admin() {
                     </div>
                     <div className="flex justify-between items-center">
                       <span>Monthly Growth</span>
-                      <span className="font-bold text-green-600 flex items-center">
-                        <TrendingUp className="h-4 w-4 mr-1" />+
+                      <span
+                        className={`font-bold flex items-center ${
+                          analytics.monthlyGrowth >= 0 ? "text-green-600" : "text-destructive"
+                        }`}
+                      >
+                        {analytics.monthlyGrowth >= 0 ? (
+                          <TrendingUp className="h-4 w-4 mr-1" />
+                        ) : (
+                          <TrendingDown className="h-4 w-4 mr-1" />
+                        )}
+                        {analytics.monthlyGrowth >= 0 ? "+" : ""}
                         {analytics.monthlyGrowth}%
                       </span>
                     </div>
@@ -6318,6 +6363,8 @@ export default function Admin() {
           {/* Escrow & Payouts Tab */}
           <TabsContent value="escrow">
             <div className="space-y-6">
+              <AtRiskSellersCard />
+
               {/* Escrow Transactions */}
               <Card>
                 <CardHeader>
@@ -6407,7 +6454,7 @@ export default function Admin() {
                                       </AlertDialogCancel>
                                       <AlertDialogAction
                                         onClick={() =>
-                                          releaseEscrowFunds(escrow.id)
+                                          releaseEscrowFunds(escrow.order_id)
                                         }
                                       >
                                         Release Funds

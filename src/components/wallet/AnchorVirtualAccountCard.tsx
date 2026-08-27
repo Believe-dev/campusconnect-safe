@@ -66,6 +66,19 @@ export const AnchorVirtualAccountCard = ({
     loadAccount();
   }, [loadAccount]);
 
+  const handleWithdrawClick = () => {
+    if (kycStatus?.kyc_status !== "verified") {
+      toast({
+        title: "Identity Verification Required",
+        description: "Complete BVN/NIN verification before requesting a withdrawal.",
+        variant: "destructive",
+      });
+      setShowKycModal(true);
+      return;
+    }
+    setShowWithdrawalModal(true);
+  };
+
   const handleCopyAccount = () => {
     if (!account) return;
     navigator.clipboard.writeText(account.account_number);
@@ -90,6 +103,11 @@ export const AnchorVirtualAccountCard = ({
       if (onBalanceUpdated) onBalanceUpdated();
     } catch (err) {
       console.error("Test deposit failed:", err);
+      toast({
+        title: "Test Deposit Failed",
+        description: "Something went wrong simulating this deposit. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setDepositing(false);
     }
@@ -132,6 +150,11 @@ export const AnchorVirtualAccountCard = ({
       }
     } catch (err) {
       console.error("Card top-up error:", err);
+      toast({
+        title: "Card Top-Up Error",
+        description: "Something went wrong processing your card payment. Please check your balance before retrying.",
+        variant: "destructive",
+      });
     } finally {
       setDepositing(false);
     }
@@ -271,7 +294,7 @@ export const AnchorVirtualAccountCard = ({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setShowWithdrawalModal(true)}
+                onClick={handleWithdrawClick}
                 disabled={account.available_balance < 100}
                 className="bg-emerald-600 text-white hover:bg-emerald-700 font-bold text-xs h-8"
               >

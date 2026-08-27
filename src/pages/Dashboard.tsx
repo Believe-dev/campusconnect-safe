@@ -41,6 +41,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import WalletDashboard from "@/components/wallet/WalletDashboard";
+import { SellerKycReminderBanner } from "@/components/seller/SellerKycReminderBanner";
 
 interface Product {
   id: string;
@@ -569,6 +570,7 @@ const Dashboard = () => {
     <div className="min-h-screen bg-background">
       <PullToRefresh onRefresh={handleRefresh} className="min-h-screen">
         <main className="container mx-auto px-4 py-4 sm:py-8">
+          {sellerId && <SellerKycReminderBanner userId={sellerId} />}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8">
             <div className="flex-1">
               <div className="flex items-center justify-between">

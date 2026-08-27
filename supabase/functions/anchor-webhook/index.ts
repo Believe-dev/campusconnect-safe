@@ -14,6 +14,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { verifyAnchorWebhookSignature } from "../_shared/anchor.ts";
+import { completeSellerRegistration, completeSellerRenewal } from "../_shared/sellerPayment.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -198,7 +199,39 @@ serve(async (req) => {
           if (updateErr) {
             console.error("🔴 Failed to mark order paid from webhook:", updateErr);
           } else if (!updated || updated.length === 0) {
-            console.warn(`ℹ️ nip.inbound.completed for account ${accountId} matched no pending order (already processed, or amount mismatch).`);
+            // Not an order - it may be a seller registration/renewal payment
+            // instead, which uses the same Sub-Ledger pattern on a different
+            // table.
+            const { data: intent } = await supabase
+              .from("seller_payment_intents")
+              .select("id, user_id, purpose, amount")
+              .eq("anchor_sub_account_id", accountId)
+              .eq("status", "pending")
+              .maybeSingle();
+
+            if (intent) {
+              const { data: updatedIntent } = await supabase
+                .from("seller_payment_intents")
+                .update({
+                  status: "paid",
+                  payment_reference: extractReference(payload) || undefined,
+                  updated_at: new Date().toISOString(),
+                })
+                .eq("id", intent.id)
+                .eq("status", "pending") // idempotent: no-op if verify already flipped it
+                .select("id");
+
+              if (updatedIntent?.length) {
+                const reference = extractReference(payload) || intent.id;
+                if (intent.purpose === "registration") {
+                  await completeSellerRegistration(supabase, intent.user_id, reference, Number(intent.amount));
+                } else {
+                  await completeSellerRenewal(supabase, intent.user_id, reference);
+                }
+              }
+            } else {
+              console.warn(`ℹ️ nip.inbound.completed for account ${accountId} matched no pending order or seller payment intent.`);
+            }
           }
         }
         break;

@@ -6,6 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Package, TrendingUp, RefreshCw, ShoppingCart, CheckCircle, Eye } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { approveSellerEscrow } from '@/services/anchorBaasService';
 import { toast } from 'sonner';
 import {
   AlertDialog,
@@ -107,7 +108,7 @@ export const OrdersTab: React.FC = () => {
 
       const totalOrders = orders?.length || 0;
       const pendingOrders = orders?.filter(o => o.status === 'pending').length || 0;
-      const completedOrders = orders?.filter(o => o.status === 'completed').length || 0;
+      const completedOrders = orders?.filter(o => o.status === 'confirmed').length || 0;
       const totalRevenue = orders?.reduce((sum, order) => sum + Number(order.total_amount), 0) || 0;
 
       const { data: cart, error: cartError } = await supabase
@@ -187,31 +188,19 @@ export const OrdersTab: React.FC = () => {
         return;
       }
 
-      // Release escrow funds
-      const { data, error } = await supabase.rpc('release_escrow_funds', {
-        escrow_id: escrowTransaction.id
-      });
-
-      if (error) throw error;
-
-      if (data === false) {
-        toast.error('Failed to release funds - escrow transaction not found or already released');
+      // Release escrow funds - the edge function does the real authorization
+      // check and the actual Anchor bank transfer, and is the only thing
+      // that can call release_escrow_funds now that it's service_role-only.
+      // It also updates orders.status itself, so there's no separate update
+      // to do here.
+      const result = await approveSellerEscrow(orderId);
+      if (!result.success) {
+        toast.error(result.message);
         return;
       }
 
-      // Update order status to confirmed
-      const { error: orderError } = await supabase
-        .from('orders')
-        .update({ status: 'confirmed' })
-        .eq('id', orderId);
+      toast.success(result.message);
 
-      if (orderError) {
-        console.error('Error updating order status:', orderError);
-        // Don't throw here as funds were already released
-      }
-
-      toast.success('Funds released successfully and order status updated to confirmed');
-      
       // Refresh the orders data
       fetchRecentOrders();
       fetchOrderStats();
@@ -226,7 +215,7 @@ export const OrdersTab: React.FC = () => {
       const { data: orders, error } = await supabase
         .from('orders')
         .select('seller_id, total_amount')
-        .eq('status', 'completed');
+        .eq('status', 'confirmed');
 
       if (error) throw error;
       if (!orders || orders.length === 0) { setTopSellers([]); return; }

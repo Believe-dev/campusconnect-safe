@@ -21,7 +21,8 @@ import {
 import { ForgotPasswordDialog } from "@/components/auth/ForgotPasswordDialog";
 
 import { useToast } from "@/hooks/use-toast";
-import { usePaystack } from "@/hooks/usePaystack";
+import { useAnchorPayment } from "@/hooks/useAnchorPayment";
+import { AnchorSellerPaymentModal } from "@/components/seller/AnchorSellerPaymentModal";
 import { useReferrals } from "@/hooks/useReferrals";
 import { BUSINESS_RULES, NIGERIAN_UNIVERSITIES } from "@/lib/constants";
 import {
@@ -209,8 +210,14 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
   const [referralValid, setReferralValid] = useState<boolean | null>(null);
   const [showAnchorKycModal, setShowAnchorKycModal] = useState(false);
   const [newUserId, setNewUserId] = useState<string | null>(null);
+  const [pendingSellerPayment, setPendingSellerPayment] = useState<{
+    intentId: string;
+    nubanAccount: string;
+    bankName?: string;
+    amount: number;
+  } | null>(null);
   const { toast } = useToast();
-  const { initializePayment } = usePaystack();
+  const { initiatePayment } = useAnchorPayment();
   const { validateReferralCode, createReferral } = useReferrals();
 
   // Step-scoped form state, one slice per step so each step's form only
@@ -443,7 +450,14 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
     setCurrentStep(4);
   };
 
-  const handlePaymentSuccess = async (reference: string, aboutData: SellerAboutData) => {
+  // Anchor's payment flow needs an authenticated session (it creates a
+  // customer/sub-account under the caller's identity), so the account is
+  // created first, then paid for as an authenticated user - the same shape
+  // as an existing buyer upgrading to seller. If someone abandons payment
+  // after this point, they're left with a normal account rather than a
+  // broken half-signup, which the old pay-then-create-account ordering
+  // didn't guarantee.
+  const handleAccountCreation = async (aboutData: SellerAboutData) => {
     setLoading(true);
     try {
       const combinedData = {
@@ -463,74 +477,53 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
             business_name: combinedData.businessName,
             student_id: combinedData.studentId,
             account_type: "seller",
-            payment_reference: reference,
             bio: combinedData.bio,
           },
         },
       });
 
       if (error) throw error;
+      if (!authData.user) throw new Error("Signup failed - no user returned.");
 
-      // Update profile with business info and activate subscription
-      if (authData.user) {
-        // Wait for profile creation
-        await new Promise((resolve) => setTimeout(resolve, 2000));
+      // Wait for profile creation
+      await new Promise((resolve) => setTimeout(resolve, 2000));
 
-        const expiryDate = new Date();
-        expiryDate.setDate(expiryDate.getDate() + 30);
+      // business_name/bio aren't payment-gated - a normal self-update is
+      // fine here, unlike the account_type/seller_status/seller_registration_paid
+      // fields below, which only the payment-verify edge function sets.
+      await supabase
+        .from("profiles")
+        .update({
+          business_name: combinedData.businessName,
+          bio: combinedData.bio,
+        })
+        .eq("user_id", authData.user.id);
 
-        // Single comprehensive profile update
-        await supabase
-          .from("profiles")
-          .update({
-            business_name: combinedData.businessName,
-            bio: combinedData.bio,
-            seller_registration_paid: true,
-            seller_registration_paid_at: new Date().toISOString(),
-            seller_subscription_expires_at: expiryDate.toISOString(),
-            seller_features_active: true,
-            seller_subscription_type: "monthly",
-            seller_last_payment_date: new Date().toISOString(),
-            account_type: "seller",
-            seller_status: "pending"
-          })
-          .eq("user_id", authData.user.id);
-
-        // Record payment
-        await supabase.from("seller_registration_payments").insert({
-          user_id: authData.user.id,
-          amount: BUSINESS_RULES.sellerRegistration.fee,
-          payment_reference: reference,
-          payment_method: "anchor_baas",
-          status: "completed",
-        });
-
-        // Create subscription record
-        await supabase.from("seller_subscriptions").insert({
-          user_id: authData.user.id,
-          subscription_type: "monthly",
-          amount: BUSINESS_RULES.sellerRegistration.fee,
-          payment_reference: reference,
-          starts_at: new Date().toISOString(),
-          expires_at: expiryDate.toISOString(),
-          status: "active",
-        });
-
-        // Create referral if code provided
-        if (combinedData.referralCode) {
-          await createReferral(combinedData.referralCode);
-        }
-
-        setNewUserId(authData.user.id);
-        setShowAnchorKycModal(true);
+      if (combinedData.referralCode) {
+        await createReferral(combinedData.referralCode);
       }
 
-      toast({
-        title: "Seller Account Created! 🎉",
-        description: "Payment confirmed. Please complete Anchor Identity Verification (BVN/NIN/Photo ID) to activate your Virtual NUBAN Account.",
-      });
+      setNewUserId(authData.user.id);
 
-      onSuccess?.();
+      const res = await initiatePayment("registration");
+      if (!res.success || !res.intentId || !res.nubanAccount) {
+        toast({
+          title: "Account Created — Payment Setup Failed",
+          description:
+            (res.message || "Failed to start payment.") +
+            " Your account was created; you can complete registration payment from your profile.",
+          variant: "destructive",
+        });
+        onSuccess?.();
+        return;
+      }
+
+      setPendingSellerPayment({
+        intentId: res.intentId,
+        nubanAccount: res.nubanAccount,
+        bankName: res.bankName,
+        amount: res.amount || BUSINESS_RULES.sellerRegistration.fee,
+      });
     } catch (error) {
       toast({
         title: "Signup Failed",
@@ -542,45 +535,23 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
     }
   };
 
-  const handlePayment = async (aboutData: SellerAboutData) => {
-    try {
-      const amount = BUSINESS_RULES.sellerRegistration.fee * 100; // Convert to kobo
-      const paymentRef = `SELLER_REG_${Date.now()}_${Math.random()
-        .toString(36)
-        .substr(2, 9)}`;
-
-      initializePayment({
-        email: sellerAccountData.email!,
-        amount,
-        currency: "NGN",
-        ref: paymentRef,
-        onSuccess: (response) => {
-          handlePaymentSuccess(response.reference, aboutData);
-        },
-        onClose: () => {
-          toast({
-            title: "Payment Cancelled",
-            description: "Please complete payment to finish registration.",
-            variant: "destructive",
-          });
-        },
-      });
-    } catch (error) {
-      toast({
-        title: "Payment Error",
-        description: "Failed to initialize payment. Please try again.",
-        variant: "destructive",
-      });
-    }
+  const handleSellerPaymentVerified = () => {
+    setPendingSellerPayment(null);
+    setShowAnchorKycModal(true);
+    toast({
+      title: "Seller Account Created! 🎉",
+      description: "Payment confirmed — you can start listing right away. Complete identity verification (BVN/NIN/Photo ID) before your first payout.",
+    });
+    onSuccess?.();
   };
 
   // Step 3's bio field and the payment trigger are the same form now (see
-  // seller step 3 below) — validate + stash the bio, then kick off Paystack
+  // seller step 3 below) — validate + stash the bio, then create the account
   // with it passed straight through rather than read back from state, since
   // setSellerAboutData wouldn't have flushed yet on this same tick.
   const handleSellerAboutSubmit = (data: SellerAboutData) => {
     setSellerAboutData(data);
-    handlePayment(data);
+    handleAccountCreation(data);
   };
 
   const stepVariants = {
@@ -1584,6 +1555,20 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
             setShowAnchorKycModal(false);
             onSuccess?.();
           }}
+        />
+      )}
+
+      {pendingSellerPayment && (
+        <AnchorSellerPaymentModal
+          isOpen={!!pendingSellerPayment}
+          onClose={() => setPendingSellerPayment(null)}
+          purpose="registration"
+          amount={pendingSellerPayment.amount}
+          intentId={pendingSellerPayment.intentId}
+          nubanAccount={pendingSellerPayment.nubanAccount}
+          bankName={pendingSellerPayment.bankName}
+          userName={sellerAccountData.fullName || sellerAccountData.email || ""}
+          onVerified={handleSellerPaymentVerified}
         />
       )}
     </div>

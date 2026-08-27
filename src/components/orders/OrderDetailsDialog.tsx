@@ -103,6 +103,11 @@ export const OrderDetailsDialog: React.FC<OrderDetailsDialogProps> = ({
       }
     } catch (err) {
       console.error("Failed to approve escrow:", err);
+      toast({
+        title: "Error",
+        description: "Something went wrong releasing this payment. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setApproving(false);
     }

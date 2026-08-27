@@ -144,17 +144,15 @@ export const AdminWallet = () => {
 
     setWithdrawing(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
-
-      // Process withdrawal via Anchor BaaS
+      // Process withdrawal via Anchor BaaS. The edge function derives the
+      // admin's identity from the request's own auth token - it doesn't
+      // trust a client-supplied id.
       const { data, error } = await supabase.functions.invoke('process-admin-payout', {
         body: {
           amount: amount,
           bank_name: withdrawalForm.bankName,
           account_number: withdrawalForm.accountNumber,
           account_name: withdrawalForm.accountName,
-          admin_id: user.id,
         },
       });
 

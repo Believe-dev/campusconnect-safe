@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/enhanced-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { usePaystack } from "@/hooks/usePaystack";
+import { useAnchorPayment } from "@/hooks/useAnchorPayment";
+import { AnchorSellerPaymentModal } from "./AnchorSellerPaymentModal";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+import { useProfile } from "@/contexts/ProfileContext";
 import { BUSINESS_RULES } from "@/lib/constants";
 import { CreditCard, Shield, CheckCircle } from "lucide-react";
 
@@ -15,6 +16,13 @@ interface SellerRegistrationPaymentProps {
   isSubscriptionRenewal?: boolean;
 }
 
+interface PendingPayment {
+  intentId: string;
+  nubanAccount: string;
+  bankName?: string;
+  amount: number;
+}
+
 export const SellerRegistrationPayment = ({
   userEmail,
   userId,
@@ -22,136 +30,60 @@ export const SellerRegistrationPayment = ({
   onCancel,
   isSubscriptionRenewal = false,
 }: SellerRegistrationPaymentProps) => {
-  const [processing, setProcessing] = useState(false);
-  const { initializePayment } = usePaystack();
+  const [starting, setStarting] = useState(false);
+  const [pendingPayment, setPendingPayment] = useState<PendingPayment | null>(null);
+  const { initiatePayment } = useAnchorPayment();
+  const { profile } = useProfile();
   const { toast } = useToast();
 
-  const handlePayment = async () => {
-    setProcessing(true);
-
+  const handleStartPayment = async () => {
+    setStarting(true);
     try {
-      // Get email from auth if not provided
-      let email = userEmail;
-      if (!email) {
-        const { data: { user } } = await supabase.auth.getUser();
-        email = user?.email || '';
+      const res = await initiatePayment(isSubscriptionRenewal ? "renewal" : "registration");
+      if (!res.success || !res.intentId || !res.nubanAccount) {
+        toast({
+          title: "Payment Error",
+          description: res.message || "Failed to start payment. Please try again.",
+          variant: "destructive",
+        });
+        return;
       }
-
-      if (!email) {
-        throw new Error('Email is required for payment');
-      }
-
-      const amount = isSubscriptionRenewal 
-        ? BUSINESS_RULES.sellerSubscription.monthlyFee * 100 
-        : BUSINESS_RULES.sellerRegistration.fee * 100; // Convert to kobo
-      const paymentRef = isSubscriptionRenewal 
-        ? `SELLER_SUB_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
-        : `SELLER_REG_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-      // Close the modal after initializing payment to avoid z-index conflicts
-      setTimeout(() => onCancel(), 100);
-
-      initializePayment({
-        email: email,
-        amount,
-        currency: "NGN",
-        ref: paymentRef,
-        onSuccess: async (response) => {
-          try {
-            if (isSubscriptionRenewal) {
-              // Get current user ID from auth
-              const { data: { user: currentUser } } = await supabase.auth.getUser();
-              if (!currentUser) throw new Error('User not authenticated');
-              
-              // Use database function to activate subscription
-              const { error: subscriptionError } = await supabase.rpc('create_seller_subscription', {
-                p_user_id: currentUser.id,
-                p_subscription_type: 'monthly',
-                p_payment_reference: response.reference,
-                p_amount: 1000.00
-              });
-
-              if (subscriptionError) {
-                console.error('Subscription activation error:', subscriptionError);
-                throw subscriptionError;
-              }
-              
-              // Handle subscription renewal
-              toast({
-                title: "Payment Successful!",
-                description: "Your monthly seller subscription has been renewed for ₦1,000.",
-              });
-              onPaymentSuccess(response.reference);
-            } else {
-              // Handle registration payment
-              const { error: paymentError } = await supabase
-                .from("seller_registration_payments")
-                .insert({
-                  user_id: userId,
-                  amount: BUSINESS_RULES.sellerRegistration.fee,
-                  payment_reference: response.reference,
-                  payment_method: "anchor_baas",
-                  status: "completed",
-                });
-
-              if (paymentError) {
-                console.error("Error recording payment:", paymentError);
-                throw paymentError;
-              }
-
-              const { error: profileError } = await supabase
-                .from("profiles")
-                .update({
-                  seller_registration_paid: true,
-                  seller_registration_paid_at: new Date().toISOString(),
-                  account_type: "seller",
-                  seller_status: "pending"
-                })
-                .eq("user_id", userId);
-
-              if (profileError) {
-                console.error("Error updating profile:", profileError);
-                throw profileError;
-              }
-
-              toast({
-                title: "Payment Successful!",
-                description: "Your seller registration fee has been paid. You can now start selling on the platform.",
-              });
-
-              onPaymentSuccess(response.reference);
-            }
-          } catch (error) {
-            console.error("Error processing payment success:", error);
-            toast({
-              title: "Payment Processing Error",
-              description: "Payment was successful but there was an error updating your account. Please contact support.",
-              variant: "destructive",
-            });
-          }
-        },
-        onClose: () => {
-          setProcessing(false);
-        },
+      setPendingPayment({
+        intentId: res.intentId,
+        nubanAccount: res.nubanAccount,
+        bankName: res.bankName,
+        amount: res.amount || (isSubscriptionRenewal ? BUSINESS_RULES.sellerSubscription.monthlyFee : BUSINESS_RULES.sellerRegistration.fee),
       });
     } catch (error) {
-      console.error("Payment initialization error:", error);
+      console.error("Payment initiation error:", error);
       toast({
         title: "Payment Error",
-        description: "Failed to initialize payment. Please try again.",
+        description: "Failed to start payment. Please try again.",
         variant: "destructive",
       });
-      setProcessing(false);
+    } finally {
+      setStarting(false);
     }
+  };
+
+  const handleVerified = () => {
+    setPendingPayment(null);
+    toast({
+      title: "Payment Successful!",
+      description: isSubscriptionRenewal
+        ? "Your monthly seller subscription has been renewed for ₦1,000."
+        : "Your seller registration fee has been paid. You can now start selling on the platform.",
+    });
+    onPaymentSuccess(pendingPayment?.intentId || "");
   };
 
   return (
     <div className="w-full relative">
-      {processing && (
+      {starting && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999]">
           <div className="bg-white rounded-lg p-6 flex flex-col items-center gap-3">
             <div className="animate-spin rounded-full h-8 w-8 border-4 border-blue-600 border-t-transparent"></div>
-            <p className="text-sm font-medium text-gray-700">Loading payment...</p>
+            <p className="text-sm font-medium text-gray-700">Setting up payment...</p>
           </div>
         </div>
       )}
@@ -165,12 +97,12 @@ export const SellerRegistrationPayment = ({
         <CardContent className="space-y-5 px-6 pb-6">
         <div className="text-center bg-gradient-to-br from-green-50 via-blue-50 to-purple-50 rounded-xl p-5 border border-blue-200">
           <div className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-2">
-            ₦{isSubscriptionRenewal 
+            ₦{isSubscriptionRenewal
               ? BUSINESS_RULES.sellerSubscription.monthlyFee.toLocaleString()
               : BUSINESS_RULES.sellerRegistration.fee.toLocaleString()}
           </div>
           <p className="text-sm text-gray-600 font-medium">
-            {isSubscriptionRenewal 
+            {isSubscriptionRenewal
               ? "Monthly subscription • 30 days full access"
               : "One-time registration fee to start selling"}
           </p>
@@ -245,20 +177,20 @@ export const SellerRegistrationPayment = ({
 
         <div className="space-y-3">
           <Button
-            onClick={handlePayment}
-            disabled={processing}
+            onClick={handleStartPayment}
+            disabled={starting}
             className="w-full h-12 text-base font-semibold bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 shadow-lg"
             size="lg"
           >
-            {processing ? (
+            {starting ? (
               <div className="flex items-center gap-2">
                 <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                Processing Payment...
+                Setting Up Payment...
               </div>
             ) : (
               <>
                 <CreditCard className="h-5 w-5 mr-2" />
-                Pay ₦{isSubscriptionRenewal 
+                Pay ₦{isSubscriptionRenewal
                   ? BUSINESS_RULES.sellerSubscription.monthlyFee.toLocaleString()
                   : BUSINESS_RULES.sellerRegistration.fee.toLocaleString()}
               </>
@@ -269,7 +201,7 @@ export const SellerRegistrationPayment = ({
             onClick={onCancel}
             variant="ghost"
             className="w-full h-10 text-gray-600 hover:text-gray-800 hover:bg-gray-100"
-            disabled={processing}
+            disabled={starting}
           >
             Cancel
           </Button>
@@ -283,6 +215,20 @@ export const SellerRegistrationPayment = ({
         </div>
         </CardContent>
       </Card>
+
+      {pendingPayment && (
+        <AnchorSellerPaymentModal
+          isOpen={!!pendingPayment}
+          onClose={() => setPendingPayment(null)}
+          purpose={isSubscriptionRenewal ? "renewal" : "registration"}
+          amount={pendingPayment.amount}
+          intentId={pendingPayment.intentId}
+          nubanAccount={pendingPayment.nubanAccount}
+          bankName={pendingPayment.bankName}
+          userName={profile?.full_name || userEmail}
+          onVerified={handleVerified}
+        />
+      )}
     </div>
   );
 };

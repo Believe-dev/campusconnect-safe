@@ -119,9 +119,20 @@ serve(async (req) => {
       );
     }
 
+    // "confirmed" (not "completed") on release - that's the status value the
+    // rest of the app actually reads: the canonical Order type, the
+    // buyer's own confirm-delivery action, ProductReviews' review-eligibility
+    // check, and Admin.tsx's own revenue query all use "confirmed".
+    // escrow_released also flips true here - it previously defaulted to
+    // false and nothing ever set it, so the "Payment Released" badge in
+    // Orders.tsx/OrderDetailsDialog.tsx could never show.
     await admin
       .from("orders")
-      .update({ status: action === "release" ? "completed" : "refunded", updated_at: new Date().toISOString() })
+      .update({
+        status: action === "release" ? "confirmed" : "refunded",
+        ...(action === "release" ? { escrow_released: true } : {}),
+        updated_at: new Date().toISOString(),
+      })
       .eq("id", orderId);
 
     // 2. Anchor book-transfer: the order's Sub-Ledger account settles back to the
