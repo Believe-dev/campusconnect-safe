@@ -1,10 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { Button } from "@/components/ui/enhanced-button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { findOrCreateConversation } from "@/utils/conversationUtils";
 import {
   Dialog,
   DialogContent,
@@ -15,34 +12,50 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
+import { useProfile } from "@/contexts/ProfileContext";
+import { useCartCount } from "@/contexts/CartCountContext";
+import { BUSINESS_RULES, IGBINEDION_UNIVERSITY } from "@/lib/constants";
 import {
-  Heart,
   Share2,
   MessageCircle,
-  ShoppingCart,
-  Star,
-  MapPin,
   Package,
-  Shield,
   ChevronLeft,
   ChevronRight,
-  Copy,
   Check,
   Flag,
   ChevronDown,
   ChevronUp,
-  ArrowLeft,
+  X,
+  Copy,
+  Twitter,
+  Facebook,
+  Instagram,
+  Send,
 } from "lucide-react";
+import {
+  HeartIcon,
+  StarIcon,
+  ShieldCheckIcon,
+  CheckBadgeIcon,
+  UserIcon,
+  TikTokIcon,
+} from "@/components/ui/heroicons";
+import { IconButton } from "@/components/ui/icon-button";
+import { StatBadge } from "@/components/ui/stat-badge";
+import { Stepper } from "@/components/ui/stepper";
+import { Tag } from "@/components/ui/tag";
+import ProductCard, {
+  type ProductCardProduct,
+} from "@/components/marketplace/ProductCard";
+import {
+  generateShareableUrl,
+  generateWhatsAppShareUrl,
+  generateTwitterShareUrl,
+  generateFacebookShareUrl,
+} from "@/utils/shareUtils";
 
-import ProductCard from "@/components/marketplace/ProductCard";
 import { ProductReviews } from "@/components/reviews/ProductReviews";
 import { ProductSEO } from "@/components/common/ProductSEO";
 import { SizeSelector } from "@/components/marketplace/SizeSelector";
@@ -59,6 +72,7 @@ interface Product {
   images?: string[];
   seller_id: string;
   stock_quantity: number;
+  available_sizes?: string[];
   created_at: string;
   seller?: {
     full_name: string;
@@ -72,15 +86,53 @@ interface Product {
   };
 }
 
+const toCardProduct = (product: Product): ProductCardProduct => ({
+  id: product.id,
+  title: product.title,
+  price: product.price,
+  stock_quantity: product.stock_quantity,
+  images: product.images || [],
+  sellerName: product.seller?.full_name || "Unknown seller",
+});
+
+const getInitials = (name: string) =>
+  name
+    .split(" ")
+    .map((word) => word[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+
+// A fixed, short set of mutually-exclusive reasons — a tappable list reads
+// faster than a dropdown here (every option visible at once, no extra tap
+// to open it) and matches the radio-list treatment SizeSelector already
+// uses for a similarly small option set elsewhere in this file.
+const REPORT_REASONS = [
+  { value: "misleading_description", label: "Misleading Description" },
+  { value: "wrong_price", label: "Wrong Price" },
+  { value: "fake_product", label: "Fake/Counterfeit Product" },
+  { value: "inappropriate_content", label: "Inappropriate Content" },
+  { value: "spam", label: "Spam" },
+  { value: "other", label: "Other" },
+] as const;
+
 const ProductDetails = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { profile } = useProfile();
+  const { updateOptimistically: updateCartCountOptimistically } = useCartCount();
+  const isIgbinedionStudent =
+    profile?.university_name === IGBINEDION_UNIVERSITY;
   const [similarProducts, setSimilarProducts] = useState<Product[]>([]);
+  const [similarCart, setSimilarCart] = useState<Set<string>>(new Set());
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isAutoSliding, setIsAutoSliding] = useState(true);
+  const [isFullscreenOpen, setIsFullscreenOpen] = useState(false);
   const [similarLoading, setSimilarLoading] = useState(true);
   const [quantity, setQuantity] = useState(1);
   const [copied, setCopied] = useState(false);
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [reportReason, setReportReason] = useState("");
   const [reportDescription, setReportDescription] = useState("");
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
@@ -148,7 +200,7 @@ const ProductDetails = () => {
       checkFavoriteStatus();
       checkCartStatus();
     }
-  }, [product]);
+  }, [product, user]);
 
   // Auto-slide functionality
   useEffect(() => {
@@ -186,7 +238,12 @@ const ProductDetails = () => {
     const isLeftSwipe = distance > 50;
     const isRightSwipe = distance < -50;
 
-    if (isLeftSwipe && product && product.images && currentImageIndex < product.images.length - 1) {
+    if (
+      isLeftSwipe &&
+      product &&
+      product.images &&
+      currentImageIndex < product.images.length - 1
+    ) {
       setCurrentImageIndex((prev) => prev + 1);
     }
     if (isRightSwipe && currentImageIndex > 0) {
@@ -212,7 +269,7 @@ const ProductDetails = () => {
             total_reviews,
             campus
           )
-        `
+        `,
         )
         .eq("category", product.category)
         .neq("id", product.id)
@@ -227,6 +284,18 @@ const ProductDetails = () => {
       }));
 
       setSimilarProducts(transformedData);
+
+      if (user && transformedData.length > 0) {
+        const { data: cartData } = await supabase
+          .from("cart")
+          .select("product_id")
+          .eq("user_id", user.id)
+          .in(
+            "product_id",
+            transformedData.map((item) => item.id),
+          );
+        setSimilarCart(new Set((cartData || []).map((c) => c.product_id)));
+      }
     } catch (error) {
       // Error handled silently
     } finally {
@@ -237,9 +306,6 @@ const ProductDetails = () => {
   const handleAddToCart = async () => {
     if (isInCart) return; // Prevent action if already in cart
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
     if (!user) {
       // Store current product URL for redirect after login
       localStorage.setItem("redirect_after_auth", window.location.pathname);
@@ -272,9 +338,7 @@ const ProductDetails = () => {
         }
 
         // Optimistic update
-        if (window.updateCartCountOptimistically) {
-          window.updateCartCountOptimistically(quantity);
-        }
+        updateCartCountOptimistically(quantity);
         setIsInCart(true);
         toast({
           title: "Added to Cart",
@@ -293,9 +357,7 @@ const ProductDetails = () => {
 
         if (error) {
           // Revert optimistic update
-          if (window.updateCartCountOptimistically) {
-            window.updateCartCountOptimistically(-quantity);
-          }
+          updateCartCountOptimistically(-quantity);
           setIsInCart(false);
           throw error;
         }
@@ -311,9 +373,7 @@ const ProductDetails = () => {
         }
 
         // Optimistic update
-        if (window.updateCartCountOptimistically) {
-          window.updateCartCountOptimistically(quantity);
-        }
+        updateCartCountOptimistically(quantity);
         setIsInCart(true);
         toast({
           title: "Added to Cart",
@@ -330,9 +390,7 @@ const ProductDetails = () => {
 
         if (error) {
           // Revert optimistic update
-          if (window.updateCartCountOptimistically) {
-            window.updateCartCountOptimistically(-quantity);
-          }
+          updateCartCountOptimistically(-quantity);
           setIsInCart(false);
           throw error;
         }
@@ -346,10 +404,59 @@ const ProductDetails = () => {
     }
   };
 
+  const handleToggleSimilarCart = async (productId: string) => {
+    if (!user) {
+      localStorage.setItem("redirect_after_auth", window.location.pathname);
+      navigate("/auth");
+      return;
+    }
+
+    const alreadyInCart = similarCart.has(productId);
+
+    try {
+      if (alreadyInCart) {
+        setSimilarCart((prev) => {
+          const next = new Set(prev);
+          next.delete(productId);
+          return next;
+        });
+        updateCartCountOptimistically(-1);
+        const { error } = await supabase
+          .from("cart")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("product_id", productId);
+        if (error) throw error;
+        toast({ title: "Removed from cart" });
+      } else {
+        setSimilarCart((prev) => new Set(prev).add(productId));
+        updateCartCountOptimistically(1);
+        const { error } = await supabase
+          .from("cart")
+          .insert({ user_id: user.id, product_id: productId, quantity: 1 });
+        if (error) throw error;
+        toast({ title: "Added to cart" });
+      }
+    } catch (error) {
+      // Revert optimistic update on error
+      setSimilarCart((prev) => {
+        const next = new Set(prev);
+        if (alreadyInCart) {
+          next.add(productId);
+        } else {
+          next.delete(productId);
+        }
+        return next;
+      });
+      toast({
+        title: "Error",
+        description: "Failed to update cart",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleStartChat = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
     if (!user) {
       navigate("/auth");
       return;
@@ -358,25 +465,21 @@ const ProductDetails = () => {
     if (!product) return;
 
     try {
-      // Use the same function as ProductCard to find or create consolidated conversation
-      const { data: conversationId, error } = await supabase.rpc(
-        "find_or_create_conversation",
-        {
-          p_buyer_id: user.id,
-          p_seller_id: product.seller_id,
-          p_product_id: product.id,
-        }
+      // Consolidated (bidirectional, product_id nulled out) so this never
+      // creates a duplicate of an existing conversation with this seller.
+      const conversationId = await findOrCreateConversation(
+        user.id,
+        product.seller_id,
+        product.id,
       );
 
-      if (error) throw error;
+      if (!conversationId) throw new Error("Failed to start chat");
 
       const draftMessage = `Hi! I'm interested in your ${
         product.title
       } listed for ₦${product.price.toLocaleString()}. Is it still available?`;
       navigate(
-        `/messages?conversation=${conversationId}&draft=${encodeURIComponent(
-          draftMessage
-        )}`
+        `/chat/${conversationId}?draft=${encodeURIComponent(draftMessage)}`,
       );
     } catch (error) {
       toast({
@@ -387,24 +490,15 @@ const ProductDetails = () => {
     }
   };
 
-  const handleShare = async () => {
+  // Explicit per-platform buttons in a dialog instead of going straight to
+  // navigator.share: Web Share API isn't available on most desktop
+  // browsers at all, which left desktop users with only the silent
+  // clipboard fallback and no visible confirmation of what had actually
+  // happened. This works the same everywhere and always shows the link.
+  const handleCopyLink = async () => {
     if (!product) return;
+    const url = generateShareableUrl(product.id);
 
-    const url = window.location.href;
-    const title = `${product.title} - ₦${product.price.toLocaleString()}`;
-    const text = `Check out this ${product.title} on UniMarket! Only ₦${product.price.toLocaleString()}`;
-
-    // Try Web Share API first
-    if (navigator.share) {
-      try {
-        await navigator.share({ title, text, url });
-        return;
-      } catch (error) {
-        if (error.name === 'AbortError') return;
-      }
-    }
-
-    // Fallback to clipboard
     try {
       await navigator.clipboard.writeText(url);
       setCopied(true);
@@ -421,24 +515,30 @@ const ProductDetails = () => {
     }
   };
 
-  const getInitials = (name: string) => {
-    return name
-      .split(" ")
-      .map((word) => word[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2);
+  // Instagram and TikTok have no public web "share this link" intent the
+  // way WhatsApp/Twitter/Facebook do (no https://instagram.com/sharer?...
+  // equivalent exists) — both are fundamentally app-based, so the honest
+  // move is copying the link and telling people where to paste it, not
+  // linking to a URL that won't actually do anything useful.
+  const handlePlatformCopyShare = async (platform: string, hint: string) => {
+    if (!product) return;
+    const url = generateShareableUrl(product.id);
+
+    try {
+      await navigator.clipboard.writeText(url);
+      toast({
+        title: `Link copied for ${platform}`,
+        description: hint,
+      });
+    } catch (error) {
+      toast({ title: "Share Link", description: url });
+    }
   };
 
   const checkFavoriteStatus = async () => {
-    if (!product) return;
+    if (!product || !user) return;
 
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
-
       const { data } = await supabase
         .from("favorites")
         .select("id")
@@ -454,14 +554,9 @@ const ProductDetails = () => {
   };
 
   const checkCartStatus = async () => {
-    if (!product) return;
+    if (!product || !user) return;
 
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
-
       const { data } = await supabase
         .from("cart")
         .select("id")
@@ -477,9 +572,6 @@ const ProductDetails = () => {
   };
 
   const handleToggleFavorite = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
     if (!user) {
       navigate("/auth");
       return;
@@ -531,9 +623,6 @@ const ProductDetails = () => {
   };
 
   const handleReportIssue = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
     if (!user) {
       navigate("/auth");
       return;
@@ -563,18 +652,12 @@ const ProductDetails = () => {
       if (reportError) throw reportError;
 
       // Send notification to seller
-      const { error: notificationError } = await supabase
-        .from("notifications")
-        .insert({
-          user_id: product.seller_id,
-          title: "Product Issue Reported",
-          message: `A user has reported an issue with your product "${product.title}". Reason: ${reportReason}`,
-          type: "warning",
-        });
-
-      if (notificationError) {
-        // Error handled silently
-      }
+      await supabase.from("notifications").insert({
+        user_id: product.seller_id,
+        title: "Product Issue Reported",
+        message: `A user has reported an issue with your product "${product.title}". Reason: ${reportReason}`,
+        type: "warning",
+      });
 
       // Notify admins
       const { data: admins } = await supabase
@@ -613,17 +696,13 @@ const ProductDetails = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background">
-        <main className="container mx-auto px-4 py-8">
-          <div className="max-w-6xl mx-auto animate-pulse">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              <div className="aspect-square bg-muted rounded-lg"></div>
-              <div className="space-y-4">
-                <div className="h-8 bg-muted rounded"></div>
-                <div className="h-4 bg-muted rounded w-2/3"></div>
-                <div className="h-6 bg-muted rounded w-1/3"></div>
-              </div>
-            </div>
+      <div className="min-h-screen bg-gradient-to-b from-flora-bgFrom to-flora-bgTo">
+        <main className="mx-auto max-w-6xl px-3 pt-6 sm:px-6 lg:grid lg:grid-cols-2 lg:gap-12">
+          <div className="aspect-square animate-pulse rounded-4xl bg-white/40" />
+          <div className="mt-6 animate-pulse space-y-4 rounded-4xl bg-white/70 p-6 shadow-card lg:mt-0">
+            <div className="h-8 w-2/3 rounded bg-flora-chip" />
+            <div className="h-4 rounded bg-flora-chip" />
+            <div className="h-6 w-1/3 rounded bg-flora-chip" />
           </div>
         </main>
       </div>
@@ -637,628 +716,769 @@ const ProductDetails = () => {
       ? product.images
       : ["/placeholder.svg"];
 
+  const goPrevImage = () => {
+    setCurrentImageIndex(
+      currentImageIndex === 0 ? images.length - 1 : currentImageIndex - 1,
+    );
+    setIsAutoSliding(false);
+    setTimeout(() => setIsAutoSliding(true), 5000);
+  };
+
+  const goNextImage = () => {
+    setCurrentImageIndex(
+      currentImageIndex === images.length - 1 ? 0 : currentImageIndex + 1,
+    );
+    setIsAutoSliding(false);
+    setTimeout(() => setIsAutoSliding(true), 5000);
+  };
+
+  const maxQuantity = Math.min(10, product.stock_quantity);
+
+  // Shared between mobile (full-width, plain block) and desktop (rounded
+  // card) — same overlay, two differently-sized containers. Prev/next and
+  // the dot indicator used to live here, overlaid on the photo itself;
+  // they're their own control row now (see galleryControls) instead of
+  // floating circular buttons on top of the image, which also frees the
+  // whole image up to be a single tap target for the fullscreen viewer.
+  const galleryOverlay = (
+    <>
+      <img
+        src={images[currentImageIndex]}
+        alt={product.title}
+        role="button"
+        tabIndex={0}
+        aria-label="View image full screen"
+        onClick={() => setIsFullscreenOpen(true)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            setIsFullscreenOpen(true);
+          }
+        }}
+        className="h-full w-full cursor-zoom-in object-cover transition-all duration-300"
+        onError={(e) => {
+          e.currentTarget.src = "/placeholder.svg";
+        }}
+      />
+
+      {/* Accounts for the notch/status-bar safe area on mobile, where this
+          sits at the very top of the screen; desktop still has the site
+          header above it, so it reverts to a plain top-4 there. */}
+      <IconButton
+        icon={ChevronLeft}
+        label="Go back"
+        tone="ghost"
+        className="absolute left-4 top-[max(1rem,calc(env(safe-area-inset-top)+0.5rem))] z-20 sm:top-4"
+        onClick={() => navigate(-1)}
+      />
+
+      <StatBadge
+        icon={StarIcon}
+        label="Seller Rating"
+        progress={((product.seller?.rating || 0) / 5) * 100}
+        className="right-4 top-4"
+      />
+      <StatBadge
+        icon={ShieldCheckIcon}
+        label="Escrow Protected"
+        progress={100}
+        className="left-4 top-[38%]"
+      />
+    </>
+  );
+
+  const galleryTouchHandlers = {
+    onTouchStart: handleTouchStart,
+    onTouchMove: handleTouchMove,
+    onTouchEnd: handleTouchEnd,
+    onMouseEnter: () => setIsAutoSliding(false),
+    onMouseLeave: () => setIsAutoSliding(true),
+  };
+
+  // One shared tile style for every option in the share sheet grid — same
+  // footprint whether it's a real link (<a>, opens the platform) or a
+  // button (Instagram/TikTok/Copy, which have no such link to open).
+  const shareTileClass =
+    "flex flex-col items-center gap-2 rounded-2xl border border-flora-ink/10 py-4 text-xs font-medium text-flora-ink transition hover:bg-flora-chip";
+
+  // Below the image, not floating on top of it — plain chevrons (no
+  // circular button background) either side of the dot indicator, shared
+  // by mobile and desktop.
+  const galleryControls = images.length > 1 && (
+    <div className="mt-3 flex items-center justify-center gap-4">
+      <button
+        type="button"
+        aria-label="Previous image"
+        onClick={goPrevImage}
+        className="flex h-8 w-8 items-center justify-center text-flora-ink transition hover:text-flora-leaf">
+        <ChevronLeft className="h-5 w-5" aria-hidden="true" />
+      </button>
+      <div className="flex items-center gap-1.5">
+        {images.map((_, index) => (
+          <button
+            key={index}
+            type="button"
+            aria-label={`View image ${index + 1} of ${images.length}`}
+            aria-current={index === currentImageIndex}
+            onClick={() => {
+              setCurrentImageIndex(index);
+              setIsAutoSliding(false);
+              setTimeout(() => setIsAutoSliding(true), 5000);
+            }}
+            className={`h-1.5 rounded-full transition-all ${
+              index === currentImageIndex
+                ? "w-4 bg-flora-ink"
+                : "w-1.5 bg-flora-ink/20"
+            }`}
+          />
+        ))}
+      </div>
+      <button
+        type="button"
+        aria-label="Next image"
+        onClick={goNextImage}
+        className="flex h-8 w-8 items-center justify-center text-flora-ink transition hover:text-flora-leaf">
+        <ChevronRight className="h-5 w-5" aria-hidden="true" />
+      </button>
+    </div>
+  );
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50">
-      {/* Dynamic SEO Meta Tags */}
-      {product && <ProductSEO product={product} />}
+    <div className="min-h-screen bg-gradient-to-b from-flora-bgFrom to-flora-bgTo">
+      <ProductSEO product={product} />
 
-      <main className="container mx-auto px-4 py-6 sm:py-8 pb-24 md:pb-8">
-        <div className="max-w-6xl mx-auto">
-          {/* Back Button */}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate(-1)}
-            className="mb-4 text-university-green hover:text-university-green/80 hover:bg-university-green/10 p-2"
-          >
-            <ArrowLeft className="h-4 w-4 mr-1" />
-            Back
-          </Button>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
-            {/* Image Gallery */}
-            <div className="space-y-3 sm:space-y-4">
-              <div
-                className="relative aspect-square overflow-hidden rounded-xl bg-muted shadow-lg"
-                onTouchStart={handleTouchStart}
-                onTouchMove={handleTouchMove}
-                onTouchEnd={handleTouchEnd}
-                onMouseEnter={() => setIsAutoSliding(false)}
-                onMouseLeave={() => setIsAutoSliding(true)}
-              >
-                <img
-                  src={images[currentImageIndex]}
-                  alt={product.title}
-                  className="h-full w-full object-cover transition-all duration-300"
-                  onError={(e) => {
-                    e.currentTarget.src = "/placeholder.svg";
+      {/* Mobile: the photo just takes the full width of the screen, no
+          colored frame or inset tile around it — normal document flow (not
+          position:fixed, which is what caused the scroll jank before), so
+          it's just its own section at the top, and everything else follows
+          as its own section after it. */}
+      <div
+        className="relative aspect-square w-full overflow-hidden sm:hidden"
+        {...galleryTouchHandlers}>
+        {galleryOverlay}
+      </div>
+      <div className="sm:hidden">{galleryControls}</div>
+
+      {/* Full-screen viewer — opened by tapping the gallery image. Same
+          prev/next + swipe handlers as the inline gallery, just over a
+          dark backdrop with the photo shown uncropped (object-contain). */}
+      {isFullscreenOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-flora-ink"
+          onClick={() => setIsFullscreenOpen(false)}
+          {...galleryTouchHandlers}>
+          <IconButton
+            icon={X}
+            label="Close full screen view"
+            tone="ghost"
+            className="absolute right-4 top-[max(1rem,calc(env(safe-area-inset-top)+0.5rem))] z-10"
+            onClick={() => setIsFullscreenOpen(false)}
+          />
+          {images.length > 1 && (
+            <div className="absolute top-[max(1rem,calc(env(safe-area-inset-top)+0.5rem))] left-1/2 -translate-x-1/2 rounded-full bg-white/10 px-3 py-1 text-xs font-medium text-white">
+              {currentImageIndex + 1} / {images.length}
+            </div>
+          )}
+          <img
+            src={images[currentImageIndex]}
+            alt={product.title}
+            className="max-h-full max-w-full object-contain"
+            onClick={(e) => e.stopPropagation()}
+            onError={(e) => {
+              e.currentTarget.src = "/placeholder.svg";
+            }}
+          />
+          {images.length > 1 && (
+            <>
+              <button
+                type="button"
+                aria-label="Previous image"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  goPrevImage();
+                }}
+                className="absolute left-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center text-white transition hover:text-flora-leaf">
+                <ChevronLeft className="h-7 w-7" aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                aria-label="Next image"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  goNextImage();
+                }}
+                className="absolute right-2 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center text-white transition hover:text-flora-leaf">
+                <ChevronRight className="h-7 w-7" aria-hidden="true" />
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
+      <main className="relative z-10 mx-auto max-w-6xl pb-10 sm:px-6 sm:pt-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-12 lg:px-6 lg:pt-6">
+        {/* Tablet/desktop: image is a normal card in the grid flow — the
+            mobile treatment above is hidden here. Deliberately NOT sticky:
+            position:sticky only diverges from the grid's own natural
+            items-start alignment once its `top` offset happens to exactly
+            match the column's real resting position (header height + this
+            main's own top padding) — get that even slightly wrong and the
+            image snaps to the wrong spot the instant the page loads,
+            visibly misaligned against the text column beside it from first
+            paint. A plain, non-sticky column has no such threshold to get
+            wrong: items-start on the grid guarantees both columns start at
+            the same line, full stop. Losing "image stays in view while you
+            scroll a long description" is the trade-off. */}
+        <div className="relative hidden sm:block">
+          <div
+            className="relative aspect-[4/3] w-full overflow-hidden rounded-4xl bg-white/40 lg:aspect-square"
+            {...galleryTouchHandlers}>
+            {galleryOverlay}
+          </div>
+          {galleryControls}
+
+          {images.length > 1 && (
+            <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+              {images.map((image, index) => (
+                <button
+                  key={index}
+                  type="button"
+                  aria-label={`Show image ${index + 1} of ${images.length}`}
+                  aria-current={index === currentImageIndex}
+                  onClick={() => {
+                    setCurrentImageIndex(index);
+                    setIsAutoSliding(false);
+                    setTimeout(() => setIsAutoSliding(true), 5000);
                   }}
-                />
-                {images.length > 1 && (
-                  <>
-                    <button
-                      onClick={() => {
-                        setCurrentImageIndex(
-                          currentImageIndex === 0
-                            ? images.length - 1
-                            : currentImageIndex - 1
-                        );
-                        setIsAutoSliding(false);
-                        setTimeout(() => setIsAutoSliding(true), 5000);
-                      }}
-                      className="absolute left-3 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white text-gray-800 p-2 rounded-full shadow-lg transition-all duration-200"
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={() => {
-                        setCurrentImageIndex(
-                          currentImageIndex === images.length - 1
-                            ? 0
-                            : currentImageIndex + 1
-                        );
-                        setIsAutoSliding(false);
-                        setTimeout(() => setIsAutoSliding(true), 5000);
-                      }}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white text-gray-800 p-2 rounded-full shadow-lg transition-all duration-200"
-                    >
-                      <ChevronRight className="h-4 w-4" />
-                    </button>
-
-                    {/* Image counter */}
-                    <div className="absolute bottom-3 right-3 bg-black/70 text-white px-2 py-1 rounded-lg text-xs font-medium">
-                      {currentImageIndex + 1} / {images.length}
-                    </div>
-
-                    {/* Slide indicators */}
-                    <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
-                      {images.map((_, index) => (
-                        <button
-                          key={index}
-                          onClick={() => {
-                            setCurrentImageIndex(index);
-                            setIsAutoSliding(false);
-                            setTimeout(() => setIsAutoSliding(true), 5000);
-                          }}
-                          className={`w-2 h-2 rounded-full transition-all duration-200 ${
-                            index === currentImageIndex
-                              ? "bg-white"
-                              : "bg-white/50"
-                          }`}
-                        />
-                      ))}
-                    </div>
-                  </>
-                )}
-              </div>
-
-              {images.length > 1 && (
-                <div className="flex gap-2 overflow-x-auto pb-2">
-                  {images.map((image, index) => (
-                    <button
-                      key={index}
-                      onClick={() => {
-                        setCurrentImageIndex(index);
-                        setIsAutoSliding(false);
-                        setTimeout(() => setIsAutoSliding(true), 5000);
-                      }}
-                      className={`flex-shrink-0 w-16 h-16 sm:w-20 sm:h-20 overflow-hidden rounded-lg border-2 transition-all duration-200 ${
-                        index === currentImageIndex
-                          ? "border-university-green shadow-md"
-                          : "border-gray-200 hover:border-university-green/50"
-                      }`}
-                    >
-                      <img
-                        src={image}
-                        alt={`${product.title} ${index + 1}`}
-                        className="h-full w-full object-cover"
-                      />
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Product Info */}
-            <div className="space-y-4 sm:space-y-6">
-              <Card className="border-0 shadow-lg">
-                <CardContent className="p-4 sm:p-6">
-                  <div className="flex items-start justify-between mb-3">
-                    <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 leading-tight">
-                      {product.title}
-                    </h1>
-                    <div className="flex gap-1 sm:gap-2 flex-shrink-0">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={handleToggleFavorite}
-                        disabled={favoriteLoading}
-                        className="h-8 w-8 sm:h-10 sm:w-10"
-                      >
-                        <Heart
-                          className={`h-4 w-4 ${
-                            isFavorited ? "fill-red-500 text-red-500" : ""
-                          }`}
-                        />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={handleShare}
-                        className="h-8 w-8 sm:h-10 sm:w-10"
-                      >
-                        {copied ? (
-                          <Check className="h-4 w-4" />
-                        ) : (
-                          <Share2 className="h-4 w-4" />
-                        )}
-                      </Button>
-                      <Dialog
-                        open={reportDialogOpen}
-                        onOpenChange={setReportDialogOpen}
-                      >
-                        <DialogTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            title="Report Issue"
-                            className="h-8 w-8 sm:h-10 sm:w-10"
-                          >
-                            <Flag className="h-4 w-4" />
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                          <DialogHeader>
-                            <DialogTitle>Report Issue with Product</DialogTitle>
-                            <DialogDescription>
-                              Report any issues with this product. The seller
-                              will be notified.
-                            </DialogDescription>
-                          </DialogHeader>
-                          <div className="space-y-4">
-                            <div>
-                              <Label htmlFor="reason">Reason for Report</Label>
-                              <Select
-                                value={reportReason}
-                                onValueChange={setReportReason}
-                              >
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select a reason" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="misleading_description">
-                                    Misleading Description
-                                  </SelectItem>
-                                  <SelectItem value="wrong_price">
-                                    Wrong Price
-                                  </SelectItem>
-                                  <SelectItem value="fake_product">
-                                    Fake/Counterfeit Product
-                                  </SelectItem>
-                                  <SelectItem value="inappropriate_content">
-                                    Inappropriate Content
-                                  </SelectItem>
-                                  <SelectItem value="spam">Spam</SelectItem>
-                                  <SelectItem value="other">Other</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            <div>
-                              <Label htmlFor="description">Description</Label>
-                              <Textarea
-                                id="description"
-                                placeholder="Please provide more details about the issue..."
-                                value={reportDescription}
-                                onChange={(e) =>
-                                  setReportDescription(e.target.value)
-                                }
-                                rows={4}
-                              />
-                            </div>
-                            <div className="flex flex-col gap-3">
-                              <div className="flex justify-end gap-2">
-                                <Button
-                                  variant="outline"
-                                  onClick={() => setReportDialogOpen(false)}
-                                >
-                                  Cancel
-                                </Button>
-                                <Button onClick={handleReportIssue}>
-                                  Submit Report
-                                </Button>
-                              </div>
-                              <div className="text-center">
-                                <p className="text-xs text-muted-foreground mb-2">
-                                  Need immediate help?
-                                </p>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() =>
-                                    window.open(
-                                      "https://wa.me/2349133054018",
-                                      "_blank"
-                                    )
-                                  }
-                                  className="text-green-600 border-green-600 hover:bg-green-50"
-                                >
-                                  Chat on WhatsApp
-                                </Button>
-                              </div>
-                            </div>
-                          </div>
-                        </DialogContent>
-                      </Dialog>
-                    </div>
-                  </div>
-
-                  {product.description && (
-                    <div className="mb-4">
-                      <div className="relative">
-                        <p className={`text-gray-700 leading-relaxed ${
-                          !isDescriptionExpanded && product.description.length > 150 
-                            ? "line-clamp-3" 
-                            : ""
-                        }`}>
-                          {product.description}
-                        </p>
-                        {product.description.length > 150 && (
-                          <button
-                            onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
-                            className="flex items-center gap-1 text-university-green hover:text-university-green/80 text-sm font-medium mt-2 transition-colors"
-                          >
-                            {isDescriptionExpanded ? (
-                              <>
-                                Show less
-                                <ChevronUp className="h-4 w-4" />
-                              </>
-                            ) : (
-                              <>
-                                Show more
-                                <ChevronDown className="h-4 w-4" />
-                              </>
-                            )}
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="flex flex-wrap gap-2 mb-4">
-                    <Badge className="bg-university-green/10 text-university-green border-university-green/20">
-                      {product.category}
-                    </Badge>
-                    <Badge
-                      className={`${
-                        product.condition === "new"
-                          ? "bg-green-500 text-white"
-                          : "bg-blue-500 text-white"
-                      }`}
-                    >
-                      {product.condition}
-                    </Badge>
-                    {(product.seller?.campus || product.campus) && (
-                      <Badge variant="outline" className="bg-gray-50">
-                        <MapPin className="h-3 w-3 mr-1" />
-                        {product.seller?.campus || product.campus}
-                      </Badge>
-                    )}
-                  </div>
-
-                  <div className="text-2xl sm:text-3xl font-bold text-university-green mb-3">
-                    ₦{product.price.toLocaleString()}
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-sm text-gray-600">
-                    <span className="flex items-center gap-1">
-                      <Package className="h-4 w-4" />
-                      {product.stock_quantity} items in stock
-                    </span>
-                    <span>
-                      Listed {new Date(product.created_at).toLocaleDateString()}
-                    </span>
-                  </div>
-                </CardContent>
-              </Card>
-
-
-
-              {/* Purchase Actions */}
-              <Card className="border-0 shadow-lg">
-                <CardContent className="p-4 sm:p-6">
-                  <div className="space-y-4">
-                    {/* Size Selection */}
-                    {product.available_sizes && product.available_sizes.length > 0 && (
-                      <SizeSelector
-                        availableSizes={product.available_sizes}
-                        selectedSize={selectedSize}
-                        onSizeSelect={setSelectedSize}
-                        required={true}
-                      />
-                    )}
-
-                    <div className="flex items-center gap-3">
-                      <label className="text-sm font-medium">Quantity:</label>
-                      <select
-                        value={quantity}
-                        onChange={(e) => setQuantity(parseInt(e.target.value))}
-                        className="border-2 border-gray-200 rounded-lg px-3 py-2 focus:border-university-green focus:outline-none"
-                      >
-                        {Array.from(
-                          { length: Math.min(10, product.stock_quantity) },
-                          (_, i) => (
-                            <option key={i + 1} value={i + 1}>
-                              {i + 1}
-                            </option>
-                          )
-                        )}
-                      </select>
-                      <span className="text-xs text-gray-500">
-                        (Max: {product.stock_quantity})
-                      </span>
-                    </div>
-
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-2 text-xs text-orange-700 bg-orange-50 p-3 rounded-lg border border-orange-200">
-                        <Package className="h-4 w-4 flex-shrink-0" />
-                        <span>
-                          You will pay your delivery fee to the driver on
-                          delivery
-                        </span>
-                      </div>
-                      <Button
-                        onClick={handleAddToCart}
-                        className="w-full"
-                        size="lg"
-                        variant={isInCart ? "outline" : "default"}
-                        disabled={isInCart}
-                      >
-                        <ShoppingCart className="h-4 w-4 mr-2" />
-                        {isInCart ? "✓ In Cart" : "Add to Cart"}
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Seller Info */}
-              <Card className="border-0 shadow-lg">
-                <CardContent className="p-4 sm:p-6">
-                  <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
-                    <Shield className="h-4 w-4" />
-                    Seller Information
-                  </h3>
-
-                  <div className="flex items-start gap-3 mb-4">
-                    <div
-                      className="relative cursor-pointer"
-                      onClick={() => navigate(`/seller/${product.seller_id}`)}
-                    >
-                      <Avatar className="h-12 w-12 sm:h-16 sm:w-16 hover:ring-2 hover:ring-university-green/20 transition-all">
-                        <AvatarImage src={product.seller?.avatar_url} />
-                        <AvatarFallback className="bg-university-green text-white text-sm sm:text-lg">
-                          {product.seller?.full_name
-                            ? getInitials(product.seller.full_name)
-                            : "S"}
-                        </AvatarFallback>
-                      </Avatar>
-                      {product.seller?.is_verified && (
-                        <div className="absolute -bottom-1 -right-1 w-5 h-5 sm:w-6 sm:h-6 bg-blue-500 rounded-full flex items-center justify-center">
-                          <svg
-                            className="h-3 w-3 sm:h-4 sm:w-4 text-white"
-                            fill="currentColor"
-                            viewBox="0 0 20 20"
-                          >
-                            <path
-                              fillRule="evenodd"
-                              d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                              clipRule="evenodd"
-                            />
-                          </svg>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="flex-1 space-y-2 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <h4
-                          className="font-semibold text-base sm:text-lg cursor-pointer hover:text-university-green transition-colors underline truncate"
-                          onClick={() =>
-                            navigate(`/seller/${product.seller_id}`)
-                          }
-                        >
-                          {product.seller?.full_name}
-                        </h4>
-                        {product.seller?.is_verified && (
-                          <Badge className="bg-blue-500 text-white text-xs px-2 py-1">
-                            Verified
-                          </Badge>
-                        )}
-                      </div>
-
-                      <div className="flex items-center gap-1 text-sm">
-                        <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                        <span className="font-medium">
-                          {product.seller?.rating?.toFixed(1) || "0.0"}
-                        </span>
-                        <span className="text-gray-500">
-                          ({product.seller?.total_reviews || 0} reviews)
-                        </span>
-                      </div>
-
-                      {(product.seller?.campus || product.campus) && (
-                        <div className="flex items-center gap-1 text-sm text-gray-600">
-                          <MapPin className="h-4 w-4" />
-                          <span>
-                            Campus: {product.seller?.campus || product.campus}
-                          </span>
-                        </div>
-                      )}
-
-                      <div className="text-sm text-gray-500">
-                        Member since{" "}
-                        {new Date(product.created_at).getFullYear()}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-3">
-                    <Button
-                      onClick={handleStartChat}
-                      className="w-full bg-university-green hover:bg-university-green/90"
-                    >
-                      <MessageCircle className="h-4 w-4 mr-2" />
-                      Chat with Seller
-                    </Button>
-
-                    <div className="text-xs text-center text-gray-500 bg-gray-50 p-2 rounded-lg">
-                      🔒 Safe transactions • 💬 Secure messaging • ✅ Campus
-                      verified
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-
-          {/* Product Reviews Section */}
-          <div className="mt-8">
-            <ProductReviews
-              productId={product.id}
-              sellerId={product.seller_id}
-            />
-          </div>
-
-          {/* Similar Products Section */}
-          {!similarLoading && similarProducts.length > 0 && (
-            <div className="mt-12">
-              <Card className="border-0 shadow-lg">
-                <CardContent className="p-6">
-                  <div className="mb-6">
-                    <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">
-                      Similar Products
-                    </h2>
-                    <p className="text-gray-600">
-                      You might also like these items in {product.category}
-                    </p>
-                  </div>
-
-                  <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-                    {similarProducts.map((similarProduct) => (
-                      <Card
-                        key={similarProduct.id}
-                        className="group hover:shadow-lg transition-shadow duration-200 cursor-pointer overflow-hidden border-0 shadow-sm bg-white"
-                        onClick={() =>
-                          navigate(`/product/${similarProduct.id}`)
-                        }
-                      >
-                        <div className="relative">
-                          {similarProduct.images && similarProduct.images[0] ? (
-                            <img
-                              src={similarProduct.images[0]}
-                              alt={similarProduct.title}
-                              className="w-full h-32 sm:h-36 lg:h-40 object-cover"
-                              onError={(e) => {
-                                e.currentTarget.src = "/placeholder.svg";
-                              }}
-                            />
-                          ) : (
-                            <div className="w-full h-32 sm:h-36 lg:h-40 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
-                              <Package className="h-8 w-8 text-gray-400" />
-                            </div>
-                          )}
-
-                          {/* Condition Badge */}
-                          <div className="absolute top-2 left-2">
-                            <Badge
-                              className={`text-xs px-1.5 py-0.5 font-medium ${
-                                similarProduct.condition === "new"
-                                  ? "bg-green-500 text-white border-0"
-                                  : "bg-blue-500 text-white border-0"
-                              }`}
-                            >
-                              {similarProduct.condition
-                                .charAt(0)
-                                .toUpperCase() +
-                                similarProduct.condition.slice(1)}
-                            </Badge>
-                          </div>
-
-                          {/* Verified Seller Badge */}
-                          {similarProduct.seller?.is_verified && (
-                            <div className="absolute bottom-2 left-2">
-                              <div className="w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center shadow-sm">
-                                <svg
-                                  className="h-3 w-3 text-white"
-                                  fill="currentColor"
-                                  viewBox="0 0 20 20"
-                                >
-                                  <path
-                                    fillRule="evenodd"
-                                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                                    clipRule="evenodd"
-                                  />
-                                </svg>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-
-                        <CardContent className="p-3">
-                          <div className="space-y-2">
-                            {/* Title */}
-                            <h3 className="font-semibold text-sm line-clamp-2 text-gray-900 leading-tight">
-                              {similarProduct.title}
-                            </h3>
-
-                            {/* Category */}
-                            <Badge
-                              variant="outline"
-                              className="text-xs bg-gray-50 border-gray-200 w-fit"
-                            >
-                              {similarProduct.category}
-                            </Badge>
-
-                            {/* Seller Info */}
-                            <div
-                              className="flex items-center gap-1.5 p-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                navigate(`/seller/${similarProduct.seller_id}`);
-                              }}
-                            >
-                              <div className="w-4 h-4 bg-university-green/10 rounded-full flex items-center justify-center flex-shrink-0">
-                                <span className="text-xs font-medium text-university-green">
-                                  {similarProduct.seller?.full_name?.charAt(
-                                    0
-                                  ) || "U"}
-                                </span>
-                              </div>
-                              <span className="text-xs font-medium text-university-green hover:underline truncate flex-1">
-                                {similarProduct.seller?.full_name || "Unknown"}
-                              </span>
-                              <div className="flex items-center gap-1 flex-shrink-0">
-                                <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                                <span className="text-xs text-gray-600">
-                                  {similarProduct.seller?.rating?.toFixed(1) ||
-                                    "0.0"}
-                                </span>
-                              </div>
-                            </div>
-
-                            {/* Price */}
-                            <div className="text-base font-bold text-university-green">
-                              ₦{similarProduct.price.toLocaleString()}
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
+                  className={`h-16 w-16 flex-shrink-0 overflow-hidden rounded-2xl border-2 transition sm:h-20 sm:w-20 ${
+                    index === currentImageIndex
+                      ? "border-flora-leaf"
+                      : "border-transparent opacity-70 hover:opacity-100"
+                  }`}>
+                  <img
+                    src={image}
+                    alt=""
+                    className="h-full w-full object-cover"
+                  />
+                </button>
+              ))}
             </div>
           )}
         </div>
+
+        {/* Info panel — on mobile this is just the next plain section of
+            the page (same background as everything else, no white sheet,
+            no rounded-top overlap trick), flowing straight into the seller
+            and reviews sections below it. Reverts to a normal white card
+            in the two-column desktop layout, matching that column's own
+            treatment. */}
+        <section className="relative px-6 py-5 sm:rounded-4xl sm:bg-white/70 sm:px-8 sm:py-8 sm:shadow-card sm:backdrop-blur-sm">
+          <div className="flex items-center justify-between gap-2">
+            <button
+              type="button"
+              onClick={() => navigate(`/seller/${product.seller_id}`)}
+              className="min-w-0">
+              <Tag
+                variant="outline"
+                icon={product.seller?.is_verified ? CheckBadgeIcon : undefined}
+                className="max-w-full truncate">
+                <span className="truncate">
+                  by {product.seller?.full_name || "Unknown seller"}
+                </span>
+              </Tag>
+            </button>
+            <div className="flex flex-shrink-0 items-center gap-2">
+              <Dialog
+                open={reportDialogOpen}
+                onOpenChange={setReportDialogOpen}>
+                <DialogTrigger asChild>
+                  <IconButton
+                    icon={Flag}
+                    label="Report an issue with this product"
+                    tone="light"
+                  />
+                </DialogTrigger>
+                <DialogContent className="max-h-[85vh] overflow-y-auto rounded-3xl sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2 text-flora-ink">
+                      <Flag className="h-5 w-5 text-flora-leaf" aria-hidden="true" />
+                      Report Issue with Product
+                    </DialogTitle>
+                    <DialogDescription className="text-flora-muted">
+                      Report any issues with this product. The seller will be
+                      notified.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-flora-ink">
+                        Reason for Report
+                      </Label>
+                      <div
+                        role="radiogroup"
+                        aria-label="Reason for report"
+                        className="space-y-2">
+                        {REPORT_REASONS.map((reason) => {
+                          const isSelected = reportReason === reason.value;
+                          return (
+                            <button
+                              key={reason.value}
+                              type="button"
+                              role="radio"
+                              aria-checked={isSelected}
+                              onClick={() => setReportReason(reason.value)}
+                              className={`flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left text-sm font-medium transition ${
+                                isSelected
+                                  ? "border-flora-ink bg-flora-ink text-white"
+                                  : "border-flora-ink/10 bg-white text-flora-ink hover:bg-flora-chip"
+                              }`}>
+                              {reason.label}
+                              {isSelected && (
+                                <Check className="h-4 w-4 shrink-0" aria-hidden="true" />
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="description" className="text-sm font-medium text-flora-ink">
+                        Description
+                      </Label>
+                      <Textarea
+                        id="description"
+                        placeholder="Please provide more details about the issue..."
+                        value={reportDescription}
+                        onChange={(e) => setReportDescription(e.target.value)}
+                        rows={4}
+                        className="rounded-2xl border border-flora-ink/10 bg-white text-sm text-flora-ink placeholder:text-flora-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-flora-leaf/30 focus-visible:border-flora-leaf"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-3">
+                      <div className="flex justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setReportDialogOpen(false)}
+                          className="rounded-full border border-flora-ink/10 px-4 py-2 text-sm font-medium text-flora-ink transition hover:bg-flora-chip">
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleReportIssue}
+                          className="rounded-full bg-flora-ink px-4 py-2 text-sm font-medium text-white transition hover:brightness-110">
+                          Submit Report
+                        </button>
+                      </div>
+                      <div className="text-center">
+                        <p className="mb-2 text-xs text-flora-muted">
+                          Need immediate help?
+                        </p>
+                        <a
+                          href="https://wa.me/2349133054018"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-block rounded-full border border-green-600 px-4 py-2 text-sm font-medium text-green-600 transition hover:bg-green-50">
+                          Chat on WhatsApp
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
+
+              <Dialog open={shareDialogOpen} onOpenChange={setShareDialogOpen}>
+                <DialogTrigger asChild>
+                  <IconButton
+                    icon={copied ? Check : Share2}
+                    label="Share this product"
+                    tone="light"
+                  />
+                </DialogTrigger>
+                {/* overflow-x-hidden + min-w-0 on the direct content child
+                    below are both load-bearing, not decorative: DialogContent
+                    is a CSS grid (see ui/dialog.tsx), and grid items default
+                    to min-width:auto — a long nowrap URL string (truncate
+                    implies white-space:nowrap, so its min-content width is
+                    its FULL width) was bubbling that width up through the
+                    grid item and forcing the dialog wider than its own
+                    max-w-md, which is what actually needed a sideways
+                    scroll to see the rest of the sheet. */}
+                <DialogContent className="overflow-x-hidden rounded-3xl sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2 text-flora-ink">
+                      <Share2 className="h-5 w-5 text-flora-leaf" aria-hidden="true" />
+                      Share Product
+                    </DialogTitle>
+                    <DialogDescription className="text-flora-muted">
+                      Share this listing with friends or on social media.
+                    </DialogDescription>
+                  </DialogHeader>
+
+                  <div className="min-w-0 space-y-4">
+                    <p className="min-w-0 truncate rounded-2xl bg-flora-chip px-4 py-2.5 text-xs text-flora-muted">
+                      {product ? generateShareableUrl(product.id) : ""}
+                    </p>
+
+                    {/* One even 3x2 grid instead of a special-cased copy-link
+                        row plus a separate 3-across icon strip — Copy Link
+                        is just another tile here, same as every platform,
+                        so five platforms plus Copy sits as two full,
+                        balanced rows instead of leaving an odd tile
+                        stranded alone on its own row. */}
+                    <div className="grid grid-cols-3 gap-3">
+                      <a
+                        href={product ? generateWhatsAppShareUrl(product) : undefined}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={shareTileClass}>
+                        <span className="flex h-11 w-11 items-center justify-center rounded-full bg-green-500 text-white">
+                          <MessageCircle className="h-5 w-5" aria-hidden="true" />
+                        </span>
+                        WhatsApp
+                      </a>
+                      <a
+                        href={product ? generateTwitterShareUrl(product) : undefined}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={shareTileClass}>
+                        <span className="flex h-11 w-11 items-center justify-center rounded-full bg-flora-ink text-white">
+                          <Twitter className="h-5 w-5" aria-hidden="true" />
+                        </span>
+                        Twitter/X
+                      </a>
+                      <a
+                        href={product ? generateFacebookShareUrl(product) : undefined}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={shareTileClass}>
+                        <span className="flex h-11 w-11 items-center justify-center rounded-full bg-blue-600 text-white">
+                          <Facebook className="h-5 w-5" aria-hidden="true" />
+                        </span>
+                        Facebook
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handlePlatformCopyShare(
+                            "Instagram",
+                            "Instagram doesn't support pre-filled links — paste it into your bio, a DM, or a Story."
+                          )
+                        }
+                        className={shareTileClass}>
+                        <span className="flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-amber-400 via-pink-500 to-purple-600 text-white">
+                          <Instagram className="h-5 w-5" aria-hidden="true" />
+                        </span>
+                        Instagram
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handlePlatformCopyShare(
+                            "TikTok",
+                            "TikTok doesn't support pre-filled links — paste it into your bio or a video caption."
+                          )
+                        }
+                        className={shareTileClass}>
+                        <span className="flex h-11 w-11 items-center justify-center rounded-full bg-flora-ink text-white">
+                          <TikTokIcon className="h-5 w-5" />
+                        </span>
+                        TikTok
+                      </button>
+                      <button type="button" onClick={handleCopyLink} className={shareTileClass}>
+                        <span className="flex h-11 w-11 items-center justify-center rounded-full bg-flora-leaf text-white">
+                          {copied ? (
+                            <Check className="h-5 w-5" aria-hidden="true" />
+                          ) : (
+                            <Copy className="h-5 w-5" aria-hidden="true" />
+                          )}
+                        </span>
+                        {copied ? "Copied" : "Copy Link"}
+                      </button>
+                    </div>
+
+                    {typeof navigator !== "undefined" && !!navigator.share && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (!product) return;
+                          try {
+                            await navigator.share({
+                              title: `${product.title} - ₦${product.price.toLocaleString()}`,
+                              text: `Check out this ${product.title} on UniMarket!`,
+                              url: generateShareableUrl(product.id),
+                            });
+                          } catch (error) {
+                            if (error instanceof Error && error.name === "AbortError") return;
+                          }
+                        }}
+                        className="flex w-full items-center justify-center gap-2 rounded-full border border-flora-ink/10 py-3 text-sm font-medium text-flora-ink transition hover:bg-flora-chip">
+                        <Send className="h-4 w-4" aria-hidden="true" />
+                        More sharing options
+                      </button>
+                    )}
+                  </div>
+                </DialogContent>
+              </Dialog>
+
+              <IconButton
+                icon={HeartIcon}
+                label={
+                  isFavorited ? "Remove from favorites" : "Save to favorites"
+                }
+                tone="light"
+                pressed={isFavorited}
+                iconClassName={
+                  isFavorited ? "fill-red-500 text-red-500" : undefined
+                }
+                onClick={handleToggleFavorite}
+                className={
+                  favoriteLoading ? "pointer-events-none opacity-60" : undefined
+                }
+              />
+            </div>
+          </div>
+
+          {/* Name + price lead this section — the two things a buyer scans
+              for first. */}
+          <div className="mt-5 flex items-start justify-between gap-3">
+            <h1 className="line-clamp-2 text-2xl font-semibold leading-tight text-flora-ink sm:text-3xl">
+              {product.title}
+            </h1>
+            <p className="flex-shrink-0 text-xl font-semibold text-flora-ink sm:text-2xl">
+              ₦{product.price.toLocaleString()}
+            </p>
+          </div>
+
+          {product.description && (
+            <div className="mt-3">
+              <p
+                className={`text-sm leading-relaxed text-flora-muted ${
+                  !isDescriptionExpanded && product.description.length > 150
+                    ? "line-clamp-3"
+                    : ""
+                }`}>
+                {product.description}
+              </p>
+              {product.description.length > 150 && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setIsDescriptionExpanded(!isDescriptionExpanded)
+                  }
+                  className="mt-2 flex items-center gap-1 text-sm font-medium text-flora-leaf transition hover:brightness-90">
+                  {isDescriptionExpanded ? "Show less" : "Show more"}
+                  {isDescriptionExpanded ? (
+                    <ChevronUp className="h-4 w-4" aria-hidden="true" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4" aria-hidden="true" />
+                  )}
+                </button>
+              )}
+            </div>
+          )}
+
+          <div className="mt-4 flex flex-wrap gap-2.5">
+            <Tag>{product.category}</Tag>
+            <Tag>{product.condition}</Tag>
+            <Tag>{product.stock_quantity} in stock</Tag>
+          </div>
+
+          {product.available_sizes && product.available_sizes.length > 0 && (
+            <div className="mt-5">
+              <SizeSelector
+                availableSizes={product.available_sizes}
+                selectedSize={selectedSize}
+                onSizeSelect={setSelectedSize}
+                required
+              />
+            </div>
+          )}
+
+          <div className="mt-5 flex items-center gap-3">
+            <span className="text-sm font-medium text-flora-ink">Quantity</span>
+            <Stepper
+              quantity={quantity}
+              itemLabel={product.title}
+              onIncrease={() =>
+                setQuantity((q) => Math.min(q + 1, maxQuantity))
+              }
+              onDecrease={() => setQuantity((q) => Math.max(1, q - 1))}
+            />
+            <span className="text-xs text-flora-muted">
+              (max {maxQuantity})
+            </span>
+          </div>
+
+          {isIgbinedionStudent ? (
+            <div className="mt-4 flex items-center gap-2 rounded-2xl bg-flora-chip px-3 py-2.5 text-xs text-flora-ink/70">
+              <Package className="h-4 w-4 flex-shrink-0" aria-hidden="true" />₦
+              {BUSINESS_RULES.delivery.flatRate.toLocaleString()} delivery fee
+              (paid to the driver, not this app) anywhere around Igbinedion
+              University
+            </div>
+          ) : (
+            <div className="mt-4 flex items-center gap-2 rounded-2xl bg-flora-chip px-3 py-2.5 text-xs text-flora-ink/70">
+              <Package className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
+              You'll pay the delivery fee to the driver on delivery
+            </div>
+          )}
+
+          {/* Desktop keeps the button inline at the end of the purchase
+              card. Mobile hides this copy in favor of the sticky bar below,
+              so the primary action stays reachable through the whole
+              scroll — matching how Cart/Product Detail already replace the
+              bottom tab bar with a full-width action instead of competing
+              for thumb space. */}
+          <button
+            type="button"
+            onClick={handleAddToCart}
+            disabled={isInCart}
+            className="mt-6 hidden w-full items-center justify-center gap-2 rounded-full bg-flora-ink py-4 text-base font-medium text-white transition hover:brightness-110 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-70 sm:flex lg:max-w-sm">
+            {isInCart ? (
+              <>
+                <Check className="h-4 w-4" aria-hidden="true" />
+                In Cart
+              </>
+            ) : (
+              "Add to Cart"
+            )}
+          </button>
+
+          <div className="h-24 sm:hidden" aria-hidden="true" />
+        </section>
+
+        {/* No wrapping bar — the button floats alone directly over whatever
+            scrolls beneath it, so it needs its own shadow (rather than a
+            bar background) to stay visually grounded against varying
+            content. */}
+        <div
+          className="fixed inset-x-0 bottom-0 z-30 px-4 sm:hidden"
+          style={{ paddingTop: 12, paddingBottom: "max(16px, env(safe-area-inset-bottom))" }}>
+          <button
+            type="button"
+            onClick={handleAddToCart}
+            disabled={isInCart}
+            className="flex w-full items-center justify-center gap-2 rounded-full bg-flora-ink py-4 text-base font-medium text-white shadow-floating transition active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-70">
+            {isInCart ? (
+              <>
+                <Check className="h-4 w-4" aria-hidden="true" />
+                In Cart
+              </>
+            ) : (
+              `Add to Cart · ₦${(product.price * quantity).toLocaleString()}`
+            )}
+          </button>
+        </div>
+
+        {/* Seller info, reviews, and similar products all read as one
+            continuous list on the page's own background from here on —
+            no per-section card/shadow/background, just a thin divider and
+            tight, consistent spacing between them, at every breakpoint
+            (matching how Jumia/Amazon-style product pages present the
+            "below the fold" details, rather than boxing each one). */}
+        <div className="border-t border-flora-ink/10 px-6 py-5 sm:px-8 lg:col-span-2">
+          <h3 className="mb-5 flex items-center gap-2 text-lg font-semibold text-flora-ink">
+            <ShieldCheckIcon className="h-5 w-5 text-flora-leaf" />
+            Seller Information
+          </h3>
+
+          <div className="flex items-start gap-4">
+            <button
+              type="button"
+              onClick={() => navigate(`/seller/${product.seller_id}`)}
+              className="relative flex-shrink-0"
+              aria-label={`View ${product.seller?.full_name || "seller"}'s profile`}>
+              {product.seller?.avatar_url ? (
+                <img
+                  src={product.seller.avatar_url}
+                  alt=""
+                  className="h-14 w-14 rounded-full object-cover sm:h-16 sm:w-16"
+                />
+              ) : (
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-flora-leaf text-base font-medium text-white sm:h-16 sm:w-16 sm:text-lg">
+                  {product.seller?.full_name
+                    ? getInitials(product.seller.full_name)
+                    : "S"}
+                </div>
+              )}
+              {product.seller?.is_verified && (
+                <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-blue-500 sm:h-6 sm:w-6">
+                  <CheckBadgeIcon className="h-3.5 w-3.5 text-white" />
+                </span>
+              )}
+            </button>
+
+            <div className="min-w-0 flex-1">
+              <button
+                type="button"
+                onClick={() => navigate(`/seller/${product.seller_id}`)}
+                className="truncate text-base font-semibold text-flora-ink underline-offset-2 transition hover:text-flora-leaf hover:underline sm:text-lg">
+                {product.seller?.full_name}
+              </button>
+              <p className="mt-0.5 text-xs text-flora-muted">
+                Selling since {new Date(product.created_at).getFullYear()}
+              </p>
+
+              <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                {product.seller?.is_verified && (
+                  <Tag variant="dark" icon={CheckBadgeIcon}>
+                    Verified
+                  </Tag>
+                )}
+                <Tag icon={StarIcon}>
+                  {product.seller?.rating?.toFixed(1) || "0.0"} ·{" "}
+                  {product.seller?.total_reviews || 0} reviews
+                </Tag>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-5 flex gap-3">
+            <button
+              type="button"
+              onClick={() => navigate(`/seller/${product.seller_id}`)}
+              className="flex flex-1 items-center justify-center gap-2 rounded-full border border-flora-ink/15 py-3 text-sm font-medium text-flora-ink transition hover:bg-flora-chip">
+              <UserIcon className="h-4 w-4" aria-hidden="true" />
+              View Profile
+            </button>
+            <button
+              type="button"
+              onClick={handleStartChat}
+              className="flex flex-1 items-center justify-center gap-2 rounded-full bg-flora-leaf py-3 text-sm font-medium text-white transition hover:brightness-105">
+              <MessageCircle className="h-4 w-4" aria-hidden="true" />
+              Chat with Seller
+            </button>
+          </div>
+        </div>
+
+        {/* Reviews — same list treatment, no card. ProductReviews already
+            has its own internal padding, so no className override needed
+            beyond the divider this wrapper provides. */}
+        <div className="border-t border-flora-ink/10 lg:col-span-2">
+          <ProductReviews productId={product.id} sellerId={product.seller_id} />
+        </div>
+
+        {/* Similar products — same list treatment as the sections above. */}
+        {!similarLoading && similarProducts.length > 0 && (
+          <section className="border-t border-flora-ink/10 px-6 py-5 sm:px-8 lg:col-span-2">
+            <h2 className="text-xl font-semibold text-flora-ink">
+              Similar Products
+            </h2>
+            <p className="mt-1 text-sm text-flora-muted">
+              You might also like these items in {product.category}
+            </p>
+            <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 lg:gap-6">
+              {similarProducts.map((similarProduct) => (
+                <ProductCard
+                  key={similarProduct.id}
+                  product={toCardProduct(similarProduct)}
+                  isInCart={similarCart.has(similarProduct.id)}
+                  onSelect={(productId) => navigate(`/product/${productId}`)}
+                  onToggleCart={handleToggleSimilarCart}
+                />
+              ))}
+            </div>
+          </section>
+        )}
       </main>
     </div>
   );

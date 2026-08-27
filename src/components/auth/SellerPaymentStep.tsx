@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/enhanced-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { usePaystack } from "@/hooks/usePaystack";
 import { useToast } from "@/hooks/use-toast";
 import { BUSINESS_RULES } from "@/lib/constants";
 import { CreditCard, Shield, CheckCircle, ArrowLeft } from "lucide-react";
@@ -13,47 +12,25 @@ interface SellerPaymentStepProps {
   onBack: () => void;
 }
 
+// This step belongs to AuthPage.tsx, which is dead code (unreachable from any
+// live nav - see /old-auth). SignupPage.tsx is the real seller signup flow
+// and uses the real Anchor NUBAN payment (AnchorSellerPaymentModal); this one
+// is intentionally left non-functional rather than rebuilt for a page nobody
+// can reach.
 export const SellerPaymentStep = ({
   email,
   onPaymentSuccess,
   onBack,
 }: SellerPaymentStepProps) => {
   const [processing, setProcessing] = useState(false);
-  const { initializePayment } = usePaystack();
   const { toast } = useToast();
 
-  const handlePayment = async () => {
-    setProcessing(true);
-
-    try {
-      const amount = BUSINESS_RULES.sellerRegistration.fee * 100; // Convert to kobo
-      const paymentRef = `SELLER_REG_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-      initializePayment({
-        email,
-        amount,
-        currency: "NGN",
-        ref: paymentRef,
-        onSuccess: async (response) => {
-          toast({
-            title: "Payment Successful!",
-            description: "Registration fee paid. You can now complete your signup.",
-          });
-          onPaymentSuccess(response.reference);
-        },
-        onClose: () => {
-          setProcessing(false);
-        },
-      });
-    } catch (error) {
-      console.error("Payment initialization error:", error);
-      toast({
-        title: "Payment Error",
-        description: "Failed to initialize payment. Please try again.",
-        variant: "destructive",
-      });
-      setProcessing(false);
-    }
+  const handlePayment = () => {
+    toast({
+      title: "Payment Unavailable",
+      description: "Seller registration payment is temporarily unavailable here. Please contact support.",
+      variant: "destructive",
+    });
   };
 
   return (

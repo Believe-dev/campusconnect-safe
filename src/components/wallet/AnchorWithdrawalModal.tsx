@@ -123,6 +123,11 @@ export const AnchorWithdrawalModal = ({
       }
     } catch (err) {
       console.error("Withdrawal error:", err);
+      toast({
+        title: "Withdrawal Error",
+        description: "Something went wrong processing your withdrawal. Please check your wallet balance before retrying.",
+        variant: "destructive",
+      });
     } finally {
       setSubmitting(false);
     }

@@ -1,422 +1,196 @@
-import { Star, MapPin, Badge, MessageCircle, ShoppingCart, Ruler } from 'lucide-react';
-import { Card, CardContent, CardFooter } from '@/components/ui/card';
-import { Button } from '@/components/ui/enhanced-button';
-import { LowMemoryImage } from '@/components/ui/LowMemoryImage';
-import { useMemoryOptimization } from '@/hooks/useMemoryOptimization';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '@/hooks/useAuth';
-import { useToast } from '@/hooks/use-toast';
-import { sanitizeInput, secureLog } from '@/utils/security';
-import { supabase } from '@/integrations/supabase/client';
-import { useState, useEffect } from 'react';
-import { SizeSelector } from '@/components/marketplace/SizeSelector';
+import { ShoppingCart, Check, Package } from "lucide-react";
 
-interface Product {
+export interface ProductCardProduct {
   id: string;
   title: string;
-  description: string;
   price: number;
-  images: string[];
-  category: string;
-  campus: string;
-  condition: string;
-  seller_id: string;
   stock_quantity: number;
-  available_sizes?: string[];
-  seller: {
-    full_name: string;
-    business_name?: string;
-    rating: number;
-    is_verified: boolean;
-    campus?: string;
-  } | null;
+  images: string[];
+  sellerName: string;
 }
 
 interface ProductCardProps {
-  product: Product;
-  onViewProduct: (productId: string) => void;
-  onAddToCart?: (productId: string) => void;
-  isAuthenticated?: boolean;
-  showHoverActions?: boolean;
+  product: ProductCardProduct;
+  isInCart: boolean;
+  onSelect: (productId: string) => void;
+  onToggleCart: (productId: string) => void;
 }
 
-const ProductCard = ({ 
-  product, 
-  onViewProduct, 
-  onAddToCart,
-  isAuthenticated = false,
-  showHoverActions = false
+const formatPrice = (price: number) =>
+  new Intl.NumberFormat("en-NG", {
+    style: "currency",
+    currency: "NGN",
+    maximumFractionDigits: 0,
+  }).format(price);
+
+const CARD_BG = "#ffffff";
+const CART_GREEN = "#5f9a3f"; // matches the flora-leaf design token
+
+// Button/margin size is driven by CSS custom properties (--btn-w/--btn-h/
+// --gap, set responsively via the wrapper's className below) rather than
+// fixed JS constants, so the button shrinks along with the card on small
+// screens without needing a resize listener. Mobile button bumped up to
+// 42px (from an earlier 36px) — a deliberately bigger jump so the size
+// change actually reads at a glance. NOTCH_CORNER_RADIUS is a plain number
+// since 16px comfortably fits inside the notch at both sizes.
+// The button sits flush with the card's own right/bottom edges (same
+// "line" as the card) — the gap only shows on the top and left, where the
+// card's material recedes into the notch around it.
+const NOTCH_CORNER_RADIUS = 16;
+
+const ProductCard = ({
+  product,
+  isInCart,
+  onSelect,
+  onToggleCart,
 }: ProductCardProps) => {
-  const navigate = useNavigate();
-  const { user } = useAuth();
-  const { toast } = useToast();
-  const { isLowMemory } = useMemoryOptimization();
-  const [isInCart, setIsInCart] = useState(false);
-  const [selectedSize, setSelectedSize] = useState<string>('');
-  const [showSizeSelector, setShowSizeSelector] = useState(false);
+  const outOfStock = product.stock_quantity === 0;
 
-  useEffect(() => {
-    if (user && product) {
-      checkCartStatus();
-    }
-  }, [user, product]);
-
-  const checkCartStatus = async () => {
-    if (!user || !product) return;
-    
-    try {
-      const { data } = await supabase
-        .from('cart')
-        .select('id')
-        .eq('user_id', user.id)
-        .eq('product_id', product.id)
-        .single();
-
-      setIsInCart(!!data);
-    } catch (error) {
-      setIsInCart(false);
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      onSelect(product.id);
     }
   };
-
-  const handleAddToCart = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    
-    if (isInCart) return; // Prevent action if already in cart
-    
-    if (!user) {
-      toast({
-        title: "Authentication Required",
-        description: "Please sign in to add items to cart",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Check if product has sizes and none is selected
-    if (product.available_sizes && product.available_sizes.length > 0 && !selectedSize) {
-      setShowSizeSelector(true);
-      return;
-    }
-
-    try {
-      const { data: existingItem } = await supabase
-        .from('cart')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('product_id', product.id)
-        .maybeSingle();
-
-      if (existingItem) {
-        // Check if adding one more would exceed stock
-        if (existingItem.quantity >= (product as any).stock_quantity) {
-          toast({
-            title: "Stock Limit Reached",
-            description: "Cannot add more items than available stock",
-            variant: "destructive",
-          });
-          return;
-        }
-
-        // Optimistic update
-        if (window.updateCartCountOptimistically) {
-          window.updateCartCountOptimistically(1);
-        }
-        setIsInCart(true);
-        toast({
-          title: "Added to Cart",
-          description: "Item added to your cart",
-        });
-
-        const { error } = await supabase
-          .from('cart')
-          .update({ 
-            quantity: existingItem.quantity + 1,
-            selected_size: selectedSize || existingItem.selected_size,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', existingItem.id);
-
-        if (error) {
-          // Revert optimistic update
-          if (window.updateCartCountOptimistically) {
-            window.updateCartCountOptimistically(-1);
-          }
-          setIsInCart(false);
-          throw error;
-        }
-      } else {
-        // Optimistic update
-        if (window.updateCartCountOptimistically) {
-          window.updateCartCountOptimistically(1);
-        }
-        setIsInCart(true);
-        toast({
-          title: "Added to Cart",
-          description: "Item added to your cart",
-        });
-
-        const { error } = await supabase
-          .from('cart')
-          .insert({
-            user_id: user.id,
-            product_id: product.id,
-            quantity: 1,
-            selected_size: selectedSize
-          });
-
-        if (error) {
-          // Revert optimistic update
-          if (window.updateCartCountOptimistically) {
-            window.updateCartCountOptimistically(-1);
-          }
-          setIsInCart(false);
-          throw error;
-        }
-      }
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to add item to cart",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleMessageSeller = async () => {
-    if (!user) {
-      toast({
-        title: "Authentication Required",
-        description: "Please sign in to message the seller",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (user.id === product.seller_id) {
-      toast({
-        title: "Cannot Message Yourself",
-        description: "You cannot message yourself about your own product",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      // Use the database function to find or create a consolidated conversation
-      const { data: conversationId, error: functionError } = await supabase.rpc(
-        'find_or_create_consolidated_conversation',
-        {
-          p_buyer_id: user.id,
-          p_seller_id: product.seller_id,
-          p_product_id: product.id
-        }
-      );
-
-      if (functionError || !conversationId) {
-        secureLog.error('Error finding/creating conversation', functionError);
-        toast({
-          title: "Error",
-          description: "Failed to start conversation. Please try again.",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Navigate to messages with the conversation ID and product draft
-      const draftMessage = `Hi! I'm interested in your ${product.title} listed for ${formatPrice(product.price)}. Is it still available?`;
-      navigate(`/messages?conversation=${conversationId}&draft=${encodeURIComponent(draftMessage)}`);
-
-    } catch (error) {
-      secureLog.error('Error in handleMessageSeller', error);
-      toast({
-        title: "Error",
-        description: "Something went wrong. Please try again.",
-        variant: "destructive",
-      });
-    }
-  };
-  const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('en-NG', {
-      style: 'currency',
-      currency: 'NGN',
-    }).format(price);
-  };
-
-  const getConditionColor = (condition: string) => {
-    switch (condition) {
-      case 'new':
-        return 'bg-success/10 text-success border-success/20';
-      case 'like_new':
-        return 'bg-verified-blue/10 text-verified-blue border-verified-blue/20';
-      case 'good':
-        return 'bg-warning/10 text-warning border-warning/20';
-      case 'fair':
-        return 'bg-muted text-muted-foreground border-border';
-      default:
-        return 'bg-muted text-muted-foreground border-border';
-    }
-  };
-
-  if (!product) {
-    return null;
-  }
 
   return (
-    <Card className={`group student-card overflow-hidden cursor-pointer relative flex flex-col h-full ${isLowMemory ? 'low-memory' : 'micro-bounce transition-all duration-200 hover:scale-[1.02] hover:shadow-lg'}`} onClick={() => onViewProduct(product.id)}>
-      <div className="relative aspect-square overflow-hidden bg-muted stable-image">
-        {product?.images?.[0] ? (
-          <LowMemoryImage
+    <div className="relative [--btn-w:42px] [--btn-h:42px] [--gap:5px] [--notch-w:calc(var(--btn-w)+var(--gap))] [--notch-h:calc(var(--btn-h)+var(--gap))] sm:[--btn-w:104px] sm:[--btn-h:44px] sm:[--gap:6px]">
+      {/* The card's white background, built from two plain rectangles
+          instead of one — their union covers the whole card except a
+          rectangular notch at the bottom-right (sized for the button).
+          Plain border-radius on ordinary CSS rects, so there's no path/arc
+          math and nothing that can silently fail to render. Each rect's
+          own bottom-right corner happens to land exactly where the notch
+          meets the card's outer edge, so rounding it is a single extra
+          border-radius rather than anything bespoke. */}
+      <div
+        aria-hidden="true"
+        className="absolute inset-x-0 top-0 rounded-t-[28px] shadow-card"
+        style={{
+          height: "calc(100% - var(--notch-h))",
+          borderBottomRightRadius: NOTCH_CORNER_RADIUS,
+          background: CARD_BG,
+        }}
+      />
+      <div
+        aria-hidden="true"
+        className="absolute inset-y-0 left-0 rounded-tl-[28px] rounded-bl-[28px] shadow-card"
+        style={{
+          width: "calc(100% - var(--notch-w))",
+          borderBottomRightRadius: NOTCH_CORNER_RADIUS,
+          background: CARD_BG,
+        }}
+      />
+      {/* The notch's third (inner, concave) corner — where those two rects'
+          edges meet — can't be rounded with a plain border-radius since
+          it's concave, not a real corner of either rect. A small white
+          square sits exactly there, masked with a radial-gradient circle
+          centered on its far corner (away from the meeting point): that
+          eats everything except a thin sliver nearest the meeting point,
+          which is what reads as the card material curving smoothly around
+          it instead of stepping in at a hard right angle. */}
+      <div
+        aria-hidden="true"
+        className="absolute"
+        style={{
+          right: `calc(var(--notch-w) - ${NOTCH_CORNER_RADIUS}px)`,
+          bottom: `calc(var(--notch-h) - ${NOTCH_CORNER_RADIUS}px)`,
+          width: NOTCH_CORNER_RADIUS,
+          height: NOTCH_CORNER_RADIUS,
+          background: CARD_BG,
+          maskImage: `radial-gradient(circle ${NOTCH_CORNER_RADIUS}px at 100% 100%, transparent ${NOTCH_CORNER_RADIUS - 1}px, black ${NOTCH_CORNER_RADIUS}px)`,
+          WebkitMaskImage: `radial-gradient(circle ${NOTCH_CORNER_RADIUS}px at 100% 100%, transparent ${NOTCH_CORNER_RADIUS - 1}px, black ${NOTCH_CORNER_RADIUS}px)`,
+        }}
+      />
+
+      {/* A native <button> can't wrap the add-to-cart <button> below
+          (invalid HTML), so this outer clickable region is a div with
+          button semantics instead. No background of its own — the two
+          rects above show through everywhere except the notch. */}
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => onSelect(product.id)}
+        onKeyDown={handleKeyDown}
+        className="relative block w-full cursor-pointer text-left">
+        {product.images?.[0] ? (
+          <img
             src={product.images[0]}
             alt={product.title}
-            width={300}
-            height={300}
-            className={isLowMemory ? '' : 'group-hover:scale-105 transition-transform duration-300 ease-out'}
+            className="h-32 w-full rounded-t-[28px] object-cover sm:h-44"
+            onError={(e) => {
+              e.currentTarget.src = "/placeholder.svg";
+            }}
           />
         ) : (
-          <div className="flex items-center justify-center h-full bg-gradient-to-br from-muted to-muted/50" style={{ width: 300, height: 300 }}>
-            <span className="text-xs sm:text-sm text-muted-foreground font-medium">No Image</span>
+          <div
+            className="flex h-32 w-full items-center justify-center rounded-t-[28px] bg-muted sm:h-44"
+            aria-hidden="true">
+            <Package className="h-10 w-10 text-muted-foreground/40" />
           </div>
         )}
-        <div className={`absolute top-2 right-2 px-2 py-1 rounded-full text-xs font-semibold border backdrop-blur-sm ${getConditionColor(product?.condition || 'good')} shadow-sm`}>
-          {(product?.condition || 'good').replace('_', ' ').toUpperCase()}
+
+        {/* Bottom padding keeps title/seller/price clear of the notch's
+            vertical band entirely, so long titles can never run into the
+            button regardless of how far right they truncate. */}
+        <div
+          className="px-5 pt-3.5"
+          style={{ paddingBottom: "calc(var(--notch-h) + 2px)" }}>
+          <h3 className="truncate text-base font-bold text-foreground">
+            {product.title}
+          </h3>
+          <p className="mt-1 truncate text-xs text-muted-foreground">
+            by {product.sellerName}
+          </p>
+          <p className="mt-1.5 text-lg font-bold text-foreground">
+            {formatPrice(product.price)}
+          </p>
         </div>
-        
-        {/* Hover Actions - Hidden on mobile for better touch experience */}
-        {showHoverActions && isAuthenticated && (
-          <div className="absolute inset-x-1 bottom-1 sm:inset-x-2 sm:bottom-2 flex gap-1 sm:gap-2 opacity-0 sm:group-hover:opacity-100 transition-opacity z-10">
-            <Button 
-              size="sm" 
-              variant={isInCart ? "outline" : "brand"} 
-              className="flex-1 h-7 sm:h-8 text-xs"
-              onClick={handleAddToCart}
-              disabled={isInCart}
-            >
-              <ShoppingCart className="h-3 w-3 mr-1" />
-              <span className="hidden sm:inline">
-                {isInCart ? "In Cart" : (product.available_sizes && product.available_sizes.length > 0 && !selectedSize ? "Select Size" : "Add to Cart")}
-              </span>
-              <span className="sm:hidden">
-                {isInCart ? "In Cart" : (product.available_sizes && product.available_sizes.length > 0 && !selectedSize ? "Size" : "Add")}
-              </span>
-            </Button>
-            {/* Message Seller Button */}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleMessageSeller();
-              }}
-              className="flex-1 h-7 sm:h-8 text-xs"
-            >
-              <MessageCircle className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-              <span className="hidden sm:inline">Message</span>
-              <span className="sm:hidden">Chat</span>
-            </Button>
-          </div>
-        )}
       </div>
 
-      <CardContent className="p-2 sm:p-3 flex-1 flex flex-col">
-        <div className="space-y-1 sm:space-y-2 flex-1">
-          <h3 className="font-semibold text-sm sm:text-base leading-tight line-clamp-3 min-h-[3rem] sm:min-h-[3.5rem]">
-            {sanitizeInput(product?.title || 'Unknown Product')}
-          </h3>
-          <div className="font-bold text-base sm:text-lg bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">
-            {formatPrice(product?.price || 0)}
-          </div>
-          <div className="flex items-center gap-1 text-xs text-muted-foreground">
-            <MapPin className="h-3 w-3 flex-shrink-0" />
-            <span className="truncate">{sanitizeInput(product?.seller?.campus || product?.campus || 'Unknown Campus')}</span>
-          </div>
-          
-          {/* Size Selection */}
-          {product.available_sizes && product.available_sizes.length > 0 && (
-            <div className="mt-2">
-              {showSizeSelector ? (
-                <div className="space-y-2">
-                  <div className="text-xs font-medium flex items-center gap-1">
-                    <Ruler className="h-3 w-3" />
-                    Select Size:
-                  </div>
-                  <div className="flex flex-wrap gap-1">
-                    {product.available_sizes.map((size) => (
-                      <Button
-                        key={size}
-                        variant={selectedSize === size ? "default" : "outline"}
-                        size="sm"
-                        className="h-6 px-2 text-xs"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedSize(size);
-                          setShowSizeSelector(false);
-                        }}
-                      >
-                        {size}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <Ruler className="h-3 w-3" />
-                  {selectedSize ? (
-                    <span>Size: <span className="font-medium">{selectedSize}</span></span>
-                  ) : (
-                    <span>Available sizes: {product.available_sizes.join(', ')}</span>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </CardContent>
-
-      <CardFooter className="p-2 sm:p-3 pt-0 mt-auto">
-        <div className="flex items-center justify-between w-full gap-2">
-          <div 
-            className="flex items-center gap-1 text-xs cursor-pointer hover:text-primary transition-colors min-w-0 flex-1"
-            onClick={(e) => {
-              e.stopPropagation();
-              navigate(`/seller/${product.seller_id}`);
-            }}
-          >
-            <span className="font-medium truncate max-w-[60px] sm:max-w-[80px] underline hover:no-underline text-primary">
-              {sanitizeInput(product.seller?.business_name || product.seller?.full_name || 'Unknown Seller')}
-            </span>
-            {product.seller?.is_verified && (
-              <>
-                <div className="verification-badge-inline flex-shrink-0" style={{ width: '12px', height: '12px' }}>
-                  <svg fill="currentColor" viewBox="0 0 20 20" style={{ width: '6px', height: '6px' }}>
-                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                  </svg>
-                </div>
-              </>
-            )}
-            {product.seller?.rating && (
-              <div className="flex items-center gap-1 flex-shrink-0">
-                <Star className="h-3 w-3 fill-warning text-warning" />
-                <span>{product.seller.rating.toFixed(1)}</span>
-              </div>
-            )}
-          </div>
-          
-          {isAuthenticated && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleMessageSeller();
-              }}
-              className="h-6 w-6 sm:h-7 sm:w-7 p-0 flex-shrink-0"
-            >
-              <MessageCircle className="h-3 w-3" />
-            </Button>
-          )}
-        </div>
-      </CardFooter>
-    </Card>
+      <button
+        type="button"
+        disabled={outOfStock}
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggleCart(product.id);
+        }}
+        aria-label={
+          outOfStock
+            ? `${product.title} is out of stock`
+            : isInCart
+              ? `Remove ${product.title} from cart`
+              : `Add ${product.title} to cart`
+        }
+        style={{
+          position: "absolute",
+          right: 0,
+          bottom: 0,
+          width: "var(--btn-w)",
+          height: "var(--btn-h)",
+          borderRadius: "calc(var(--btn-h) / 2)",
+          background: CART_GREEN,
+        }}
+        // Opts out of the site-wide 44px touch-target minimum
+        // (accessibility.css) — this button's size is deliberately smaller
+        // to fit the notch; the 44px rule would override that.
+        className="flex min-h-0 min-w-0 items-center justify-center gap-1.5 text-xs font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50">
+        {isInCart ? (
+          <>
+            <span className="hidden sm:inline">Added</span>
+            <Check className="h-5 w-5 sm:h-3.5 sm:w-3.5" aria-hidden="true" />
+          </>
+        ) : (
+          <>
+            <span className="hidden sm:inline">Cart</span>
+            <ShoppingCart
+              className="h-5 w-5 sm:h-3.5 sm:w-3.5"
+              aria-hidden="true"
+            />
+          </>
+        )}
+      </button>
+    </div>
   );
 };
 

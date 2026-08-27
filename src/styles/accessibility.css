@@ -119,6 +119,14 @@ textarea,
   scroll-behavior: auto !important;
 }
 
+/* The bottom nav's active-tab slide is a functional navigation cue, not
+   decorative motion — exempted from the reduced-motion override above by
+   request. Two classes beats one, so this wins regardless of source order
+   even though this file is @imported before the rule that sets this class. */
+.reduced-motion .bottom-nav-force-motion {
+  transition-duration: 300ms !important;
+}
+
 /* Color Contrast Improvements */
 .high-contrast .text-muted-foreground {
   color: hsl(var(--foreground)) !important;

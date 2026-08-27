@@ -2,8 +2,6 @@ import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPortal } from "react-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Search, X, ArrowRight, TrendingUp, Tag } from "lucide-react";
 import { expandSearchTerms } from "@/utils/searchUtils";
 
@@ -211,49 +209,49 @@ const MobileExpandableSearch = ({ onExpand }: MobileExpandableSearchProps) => {
           document.body
         )}
 
-      {/* Search trigger button */}
-      <Button
-        variant="ghost"
-        size="icon"
-        className={`h-8 w-8 sm:h-10 sm:w-10 transition-all duration-300 ${
-          isExpanded ? "opacity-0 scale-75" : "opacity-100 scale-100"
+      {/* Search trigger button — matches the other circular icon buttons in
+          the header (rounded-full, translucent flora ghost tone). */}
+      <button
+        type="button"
+        aria-label="Search"
+        className={`flex h-9 w-9 items-center justify-center rounded-full bg-white/70 text-flora-ink backdrop-blur-sm transition-all duration-300 hover:bg-white/90 ${
+          isExpanded ? "opacity-0 scale-75 pointer-events-none" : "opacity-100 scale-100"
         }`}
         onClick={handleExpand}
       >
-        <Search className="h-4 w-4 sm:h-5 sm:w-5" />
-      </Button>
+        <Search className="h-4 w-4" />
+      </button>
 
-      {/* Expanded search bar */}
+      {/* Expanded search bar — a single leading icon inside the pill
+          (matching SmartSearchInput's desktop treatment) instead of the
+          previous absolutely-positioned trailing icon button, which read
+          as misaligned against the input's own text baseline. */}
       {isExpanded &&
         createPortal(
-          <div className="fixed top-0 left-0 right-0 z-[10000] bg-white border-b border-gray-200 shadow-lg lg:hidden animate-in slide-in-from-top duration-300">
-            <div className="flex items-center gap-3 p-4">
-              <Button
-                variant="ghost"
-                size="icon"
+          <div className="fixed top-0 left-0 right-0 z-[10000] bg-flora-bgFrom/95 backdrop-blur-sm shadow-lg lg:hidden animate-in slide-in-from-top duration-300">
+            <div
+              className="flex items-center gap-2 p-3"
+              style={{ paddingTop: "max(0.75rem, env(safe-area-inset-top))" }}
+            >
+              <button
+                type="button"
+                aria-label="Close search"
                 onClick={handleCollapse}
-                className="h-8 w-8 flex-shrink-0"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/70 text-flora-ink backdrop-blur-sm"
               >
                 <X className="h-5 w-5" />
-              </Button>
+              </button>
 
-              <div className="flex-1 relative">
-                <Input
+              <div className="flex flex-1 items-center gap-2 rounded-full border border-flora-ink/10 bg-white px-4 py-2.5 shadow-card">
+                <Search className="h-4 w-4 shrink-0 text-flora-muted" aria-hidden="true" />
+                <input
                   ref={inputRef}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onKeyDown={handleKeyPress}
                   placeholder="Search products, categories..."
-                  className="w-full pr-10 border-2 border-gray-200 focus:border-university-green rounded-full"
+                  className="w-full bg-transparent text-sm text-flora-ink placeholder:text-flora-muted focus:outline-none"
                 />
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => handleSearch()}
-                  className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8"
-                >
-                  <Search className="h-4 w-4" />
-                </Button>
               </div>
             </div>
 
@@ -262,7 +260,7 @@ const MobileExpandableSearch = ({ onExpand }: MobileExpandableSearchProps) => {
               <div className="border-t border-gray-100 bg-white max-h-60 overflow-y-auto">
                 {loading && (
                   <div className="flex items-center justify-center py-4">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-university-green"></div>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-flora-leaf"></div>
                     <span className="ml-2 text-sm">Searching...</span>
                   </div>
                 )}
@@ -304,13 +302,13 @@ const MobileExpandableSearch = ({ onExpand }: MobileExpandableSearchProps) => {
                   className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 text-left border-t border-gray-100"
                 >
                   <div className="flex items-center gap-3">
-                    <Search className="h-4 w-4 text-university-green" />
+                    <Search className="h-4 w-4 text-flora-leaf" />
                     <span className="text-sm">
                       Search for "
                       <span className="font-medium">{searchQuery}</span>"
                     </span>
                   </div>
-                  <ArrowRight className="h-4 w-4 text-university-green" />
+                  <ArrowRight className="h-4 w-4 text-flora-leaf" />
                 </button>
               </div>
             )}
@@ -332,7 +330,7 @@ const MobileExpandableSearch = ({ onExpand }: MobileExpandableSearchProps) => {
                     <button
                       key={index}
                       onClick={() => handleSearch(item)}
-                      className="px-3 py-1.5 bg-white border border-gray-200 rounded-full text-xs hover:border-university-green hover:text-university-green transition-colors"
+                      className="px-3 py-1.5 bg-white border border-gray-200 rounded-full text-xs hover:border-flora-leaf hover:text-flora-leaf transition-colors"
                     >
                       {item}
                     </button>

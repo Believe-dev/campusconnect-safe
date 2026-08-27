@@ -1,17 +1,19 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { generateId } from '@/lib/utils';
 
 export const useRealTimeCart = () => {
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const instanceId = useRef(generateId()).current;
 
   useEffect(() => {
     if (!user) return;
 
     const channel = supabase
-      .channel('cart-changes')
+      .channel(`cart_realtime_${user.id}_${instanceId}`)
       .on(
         'postgres_changes',
         {

@@ -43,6 +43,20 @@ serve(async (req) => {
       });
     }
 
+    // Hard KYC gate (Part B): the only enforcement point for this anywhere in
+    // the app - listing is deliberately left ungated on KYC (escrow already
+    // protects buyer funds regardless of seller verification status at
+    // listing time), but real money leaving the platform to an external bank
+    // account is exactly where CBN/AML identity verification obligations
+    // actually apply.
+    const { data: kycProfile } = await admin.from("profiles").select("kyc_status").eq("user_id", userId).maybeSingle();
+    if ((kycProfile as { kyc_status?: string } | null)?.kyc_status !== "verified") {
+      return new Response(
+        JSON.stringify({ error: "Complete identity verification (BVN/NIN) before requesting a withdrawal." }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Atomic claim: only debit if the balance actually covers it, in one statement, so
     // two concurrent withdrawal requests can't both pass a balance check and overdraw.
     const { data: wallet } = await admin.from("wallets").select("id, available_balance").eq("user_id", userId).maybeSingle();

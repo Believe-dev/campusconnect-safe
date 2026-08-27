@@ -24,6 +24,7 @@ Allow: /sellers
 Allow: /product/
 Allow: /seller/
 Allow: /learn-more
+Allow: /about
 Allow: /terms-of-service
 Allow: /privacy-policy
 

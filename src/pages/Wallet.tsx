@@ -108,11 +108,9 @@ const Wallet = () => {
   const updateBankDetails = async () => {
     try {
       const { data, error } = await supabase.rpc('update_bank_details', {
-        user_email: bankForm.email,
-        user_password: bankForm.password,
-        account_name: bankForm.accountName,
-        account_number: bankForm.accountNumber,
-        bank_name: bankForm.bankName
+        p_account_name: bankForm.accountName,
+        p_account_number: bankForm.accountNumber,
+        p_bank_name: bankForm.bankName
       });
 
       if (error || !data) {

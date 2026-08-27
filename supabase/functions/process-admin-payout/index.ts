@@ -12,26 +12,46 @@ serve(async (req) => {
   }
 
   try {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
+    const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? ''
+
+    // Verify the caller's own JWT rather than trusting a client-supplied
+    // admin_id - previously this endpoint took whatever admin_id was in the
+    // request body at face value, so any authenticated user could pass a
+    // real admin's id and have a withdrawal created and "completed" in that
+    // admin's name with attacker-controlled bank details.
+    const authClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: req.headers.get('Authorization') ?? '' } },
+    })
+    const { data: userData, error: authError } = await authClient.auth.getUser()
+    if (authError || !userData?.user) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+    const adminId = userData.user.id
+
     const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
+      supabaseUrl,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    const { amount, bank_name, account_number, account_name, admin_id } = await req.json()
+    const { amount, bank_name, account_number, account_name } = await req.json()
 
     // Validate input
-    if (!amount || !bank_name || !account_number || !account_name || !admin_id) {
+    if (!amount || !bank_name || !account_number || !account_name) {
       return new Response(
         JSON.stringify({ error: 'Missing required fields' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    // Verify admin status
+    // Verify admin status of the verified caller, not a client-supplied id
     const { data: adminCheck } = await supabaseClient
       .from('user_roles')
       .select('role')
-      .eq('user_id', admin_id)
+      .eq('user_id', adminId)
       .eq('role', 'admin')
       .single()
 
@@ -45,7 +65,7 @@ serve(async (req) => {
     // Create withdrawal request in database
     const { data: withdrawalData, error: withdrawalError } = await supabaseClient
       .rpc('process_admin_withdrawal', {
-        p_admin_id: admin_id,
+        p_admin_id: adminId,
         p_amount: amount,
         p_bank_name: bank_name,
         p_account_number: account_number,
@@ -76,7 +96,7 @@ serve(async (req) => {
     await supabaseClient.rpc('complete_admin_withdrawal', {
       p_withdrawal_id: withdrawalId,
       p_transfer_code: transferCode,
-      p_paystack_reference: reference
+      p_transfer_reference: reference
     })
 
     // Update withdrawal with manual transfer notes

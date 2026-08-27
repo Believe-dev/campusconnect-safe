@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { PullToRefresh } from "@/components/common/PullToRefresh";
+import { uploadProductImageToR2 } from "@/utils/r2Upload";
 
 
 import {
@@ -40,6 +41,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import WalletDashboard from "@/components/wallet/WalletDashboard";
+import { SellerKycReminderBanner } from "@/components/seller/SellerKycReminderBanner";
 
 interface Product {
   id: string;
@@ -287,25 +289,12 @@ const Dashboard = () => {
 
   const uploadNewImages = async () => {
     const uploadedUrls = [];
-    
+
     for (let i = 0; i < newImages.length; i++) {
-      const file = newImages[i];
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Date.now()}-${i}.${fileExt}`;
-      
-      const { data, error } = await supabase.storage
-        .from('product-images')
-        .upload(fileName, file);
-      
-      if (error) throw error;
-      
-      const { data: { publicUrl } } = supabase.storage
-        .from('product-images')
-        .getPublicUrl(fileName);
-      
+      const publicUrl = await uploadProductImageToR2(newImages[i]);
       uploadedUrls.push(publicUrl);
     }
-    
+
     return uploadedUrls;
   };
 
@@ -581,6 +570,7 @@ const Dashboard = () => {
     <div className="min-h-screen bg-background">
       <PullToRefresh onRefresh={handleRefresh} className="min-h-screen">
         <main className="container mx-auto px-4 py-4 sm:py-8">
+          {sellerId && <SellerKycReminderBanner userId={sellerId} />}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8">
             <div className="flex-1">
               <div className="flex items-center justify-between">

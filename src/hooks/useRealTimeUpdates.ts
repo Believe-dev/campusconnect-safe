@@ -99,10 +99,10 @@ export const useRealTimeUpdates = () => {
       .subscribe();
 
     return () => {
-      cartSubscription.unsubscribe();
-      orderSubscription.unsubscribe();
-      messageSubscription.unsubscribe();
-      notificationSubscription.unsubscribe();
+      supabase.removeChannel(cartSubscription);
+      supabase.removeChannel(orderSubscription);
+      supabase.removeChannel(messageSubscription);
+      supabase.removeChannel(notificationSubscription);
     };
   }, [user]);
 };

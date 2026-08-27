@@ -82,7 +82,7 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
             <span>₦{getTotalPrice().toLocaleString()}</span>
           </div>
           <div className="flex justify-between text-sm">
-            <span>Delivery</span>
+            <span>Delivery (anywhere around Igbinedion University)</span>
             <span>₦{getDeliveryFee().toLocaleString()}</span>
           </div>
           <div className="flex items-center gap-1 text-xs text-muted-foreground mt-2">

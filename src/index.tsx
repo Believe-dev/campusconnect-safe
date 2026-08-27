@@ -4,18 +4,9 @@ import { Analytics } from "@vercel/analytics/react"
 import App from './App.tsx'
 import './index.css'
 
-// Register service worker for offline support
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js')
-      .then((registration) => {
-        console.log('SW registered: ', registration);
-      })
-      .catch((registrationError) => {
-        console.log('SW registration failed: ', registrationError);
-      });
-  });
-}
+// Service worker registration lives in App.tsx's AppContent effect, which is
+// production-gated and cleans up stale registrations in dev — registering it
+// again here unconditionally is what caused it to run in every dev session.
 
 createRoot(document.getElementById("root")!).render(
   <>

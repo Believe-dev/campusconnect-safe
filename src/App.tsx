@@ -22,10 +22,12 @@ import ProtectedSellerRoute from "./components/auth/ProtectedSellerRoute";
 import { ProfileProvider } from "@/contexts/ProfileContext";
 import { RealTimeProvider } from "@/contexts/RealTimeContext";
 import { MessageCountProvider } from "@/contexts/MessageCountContext";
+import { CartCountProvider } from "@/contexts/CartCountContext";
+import { NotificationCountProvider } from "@/contexts/NotificationCountContext";
 import { WelcomeModalProvider } from "@/contexts/WelcomeModalContext";
 
 import { MessagePopup } from "@/components/notifications/MessagePopup";
-import { OfflineNotification } from "@/components/common/OfflineNotification";
+import { PushSubscribePrompt } from "@/components/notifications/PushSubscribePrompt";
 import { OnboardingModal } from "@/components/onboarding/OnboardingModal";
 // import { AIChatbot } from "@/components/chatbot/AIChatbot";
 import { SecurityProvider } from "@/components/security/SecurityProvider";
@@ -35,12 +37,7 @@ import { useProfileCompletion } from "@/hooks/useProfileCompletion";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { BannedUserModal } from "@/components/auth/BannedUserModal";
 import { useBanCheck } from "@/hooks/useBanCheck";
-import {
-  initializeOneSignal,
-  requestNotificationPermission,
-  setupNotificationClickHandler,
-} from "@/utils/oneSignal";
-import { initializePushNotifications } from "@/utils/pushNotifications";
+import { setupNotificationClickHandler } from "@/utils/webPush";
 import { PWAInstallPrompt } from "@/components/common/PWAInstallPrompt";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import { useLiteMode } from "@/hooks/useLiteMode";
@@ -52,7 +49,6 @@ import { useAutoReload } from "@/hooks/useAutoReload";
 import { PerformanceMonitor } from "@/components/common/PerformanceMonitor";
 import { AccessibilityProvider } from "@/components/common/AccessibilityProvider";
 import { usePerformanceOptimization } from "@/hooks/usePerformanceOptimization";
-import { NavigationPreloader } from "@/components/common/NavigationPreloader";
 import { PageLoadError } from "@/components/common/PageLoadError";
 import MaintenancePage from "@/pages/MaintenancePage";
 import {
@@ -170,6 +166,11 @@ const Admin = React.lazy(() =>
 );
 const LearnMore = React.lazy(() =>
   import("./pages/LearnMore").catch(() => ({
+    default: PageLoadError,
+  })),
+);
+const About = React.lazy(() =>
+  import("./pages/About").catch(() => ({
     default: PageLoadError,
   })),
 );
@@ -297,30 +298,30 @@ const AppContent = () => {
 
   useEffect(() => {
     const setupNotifications = async () => {
-      // Register service worker
-      if ("serviceWorker" in navigator) {
+      // Register service worker (production only — its cache-first fetch
+      // handler would otherwise serve stale bundles throughout a dev session,
+      // including over `vite --host` on a LAN IP)
+      if (import.meta.env.PROD && "serviceWorker" in navigator) {
         try {
           await navigator.serviceWorker.register("/sw.js");
           console.log("Service worker registered");
         } catch (error) {
           console.error("Service worker registration failed:", error);
         }
+      } else if ("serviceWorker" in navigator) {
+        // Clean up a service worker left over from an earlier production
+        // build/preview on this origin — otherwise it keeps intercepting
+        // dev-server requests (Vite HMR client, cache-busted module URLs)
+        // and throwing "Failed to convert value to 'Response'" on reload.
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(registrations.map((registration) => registration.unregister()));
       }
 
       // Setup notification click handlers
       setupNotificationClickHandler();
 
-      // Initialize push notifications (skip on localhost)
-      if (
-        window.location.hostname !== "localhost" &&
-        window.location.hostname !== "127.0.0.1"
-      ) {
-        await initializePushNotifications();
-        await requestNotificationPermission();
-        await initializeOneSignal();
-      } else {
-        console.log("Push notifications skipped on localhost");
-      }
+      // Actual push subscription is opt-in now (see PushSubscribePrompt /
+      // Settings) rather than requested unprompted on every page load.
     };
     setupNotifications();
   }, []);
@@ -347,8 +348,7 @@ const AppContent = () => {
         }`}
       >
         <AuthGuard>
-          <NavigationPreloader>
-            <Suspense fallback={<LoadingSkeleton />}>
+          <Suspense fallback={<LoadingSkeleton />}>
               <div className="page-transition student-focus">
                 <Routes>
                   <Route path={ROUTES.home} element={<Index />} />
@@ -356,6 +356,7 @@ const AppContent = () => {
                   <Route path="/old-auth" element={<AuthPage />} />
                   <Route path="/test-signup" element={<TestSignup />} />
                   <Route path="/learn-more" element={<LearnMore />} />
+                  <Route path="/about" element={<About />} />
                   <Route path="/notifications" element={<Notifications />} />
                   <Route path={ROUTES.marketplace} element={<Marketplace />} />
                   <Route path="/product/:id" element={<ProductDetails />} />
@@ -404,16 +405,15 @@ const AppContent = () => {
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </div>
-            </Suspense>
-          </NavigationPreloader>
+          </Suspense>
         </AuthGuard>
       </div>
       <BottomNav />
       <MessagePopup />
-      <OfflineNotification />
       {/* <AIChatbot /> */}
 
       <PWAInstallPrompt />
+      <PushSubscribePrompt />
       <OnboardingModal open={showOnboarding} onClose={closeOnboarding} />
 
       <ProfileCompletionModal
@@ -458,7 +458,11 @@ const App = () => {
                       <ProfileProvider>
                         <RealTimeProvider>
                           <MessageCountProvider>
-                            <AppContent />
+                            <CartCountProvider>
+                              <NotificationCountProvider>
+                                <AppContent />
+                              </NotificationCountProvider>
+                            </CartCountProvider>
                           </MessageCountProvider>
                         </RealTimeProvider>
                       </ProfileProvider>

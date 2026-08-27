@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { Button } from '@/components/ui/enhanced-button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -147,7 +146,7 @@ export const CreateLiveFeedDialog = ({ children, onSuccess }: CreateLiveFeedDial
       <DialogContent className="sm:max-w-md max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Plus className="h-5 w-5" />
+            <Plus className="h-5 w-5 text-flora-leaf" aria-hidden="true" />
             Post to Live Feed
           </DialogTitle>
           <DialogDescription>
@@ -157,8 +156,8 @@ export const CreateLiveFeedDialog = ({ children, onSuccess }: CreateLiveFeedDial
 
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="image">Photo *</Label>
-            <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
+            <Label htmlFor="image" className="text-flora-ink">Photo *</Label>
+            <div className="border-2 border-dashed border-flora-ink/15 rounded-2xl p-4 text-center transition hover:border-flora-leaf/40">
               <input
                 id="image"
                 type="file"
@@ -169,17 +168,17 @@ export const CreateLiveFeedDialog = ({ children, onSuccess }: CreateLiveFeedDial
               <label htmlFor="image" className="cursor-pointer">
                 {imageFile ? (
                   <div className="space-y-2">
-                    <img 
-                      src={URL.createObjectURL(imageFile)} 
-                      alt="Preview" 
-                      className="w-full h-32 object-cover rounded"
+                    <img
+                      src={URL.createObjectURL(imageFile)}
+                      alt="Preview"
+                      className="w-full h-32 object-cover rounded-xl"
                     />
-                    <p className="text-sm text-green-600">{imageFile.name}</p>
+                    <p className="text-sm text-flora-leaf">{imageFile.name}</p>
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    <Upload className="h-8 w-8 mx-auto text-gray-400" />
-                    <p className="text-sm text-gray-600">Click to upload image</p>
+                    <Upload className="h-8 w-8 mx-auto text-flora-muted" />
+                    <p className="text-sm text-flora-muted">Click to upload image</p>
                   </div>
                 )}
               </label>
@@ -187,18 +186,19 @@ export const CreateLiveFeedDialog = ({ children, onSuccess }: CreateLiveFeedDial
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="title">Title *</Label>
+            <Label htmlFor="title" className="text-flora-ink">Title *</Label>
             <Input
               id="title"
               value={formData.title}
               onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
               placeholder="What are you selling?"
               maxLength={100}
+              className="rounded-2xl border-0 bg-flora-chip focus-visible:ring-flora-leaf/40"
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="price">Price (₦) *</Label>
+            <Label htmlFor="price" className="text-flora-ink">Price (₦) *</Label>
             <Input
               id="price"
               type="number"
@@ -207,23 +207,25 @@ export const CreateLiveFeedDialog = ({ children, onSuccess }: CreateLiveFeedDial
               placeholder="0"
               min="0"
               step="0.01"
+              className="rounded-2xl border-0 bg-flora-chip focus-visible:ring-flora-leaf/40"
             />
           </div>
 
 
 
           <div className="space-y-2">
-            <Label htmlFor="location">Location</Label>
+            <Label htmlFor="location" className="text-flora-ink">Location</Label>
             <Input
               id="location"
               value={formData.location}
               onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))}
               placeholder="e.g., Main Campus, Hostel A"
+              className="rounded-2xl border-0 bg-flora-chip focus-visible:ring-flora-leaf/40"
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="description">Description</Label>
+            <Label htmlFor="description" className="text-flora-ink">Description</Label>
             <Textarea
               id="description"
               value={formData.description}
@@ -231,11 +233,12 @@ export const CreateLiveFeedDialog = ({ children, onSuccess }: CreateLiveFeedDial
               placeholder="Brief description..."
               rows={3}
               maxLength={500}
+              className="rounded-2xl border-0 bg-flora-chip focus-visible:ring-flora-leaf/40"
             />
           </div>
 
-          <div className="flex items-center gap-2 p-3 bg-amber-50 rounded-lg">
-            <Clock className="h-4 w-4 text-amber-600" />
+          <div className="flex items-center gap-2 p-3 bg-amber-50 rounded-2xl">
+            <Clock className="h-4 w-4 text-amber-600 shrink-0" aria-hidden="true" />
             <p className="text-xs text-amber-800">
               This item will automatically expire in 24 hours if not sold
             </p>
@@ -243,19 +246,22 @@ export const CreateLiveFeedDialog = ({ children, onSuccess }: CreateLiveFeedDial
         </div>
 
         <DialogFooter>
-          <Button
-            variant="outline"
+          <button
+            type="button"
             onClick={() => setOpen(false)}
             disabled={loading}
+            className="rounded-full border border-flora-ink/10 px-5 py-2.5 text-sm font-medium text-flora-ink transition hover:bg-flora-chip disabled:opacity-50"
           >
             Cancel
-          </Button>
-          <Button
+          </button>
+          <button
+            type="button"
             onClick={handleSubmit}
             disabled={loading}
+            className="rounded-full bg-flora-ink px-5 py-2.5 text-sm font-medium text-white transition hover:brightness-110 disabled:opacity-50"
           >
             {loading ? "Posting..." : "Post Live"}
-          </Button>
+          </button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

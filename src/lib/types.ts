@@ -42,6 +42,11 @@ export interface Product {
   campus: string;
   seller_id: string;
   is_active: boolean;
+  // Actually always present (useProducts fetches `select('*')`, and the
+  // products table has this column) — optional here rather than required
+  // just to avoid retroactively breaking any other code that already
+  // constructs a Product without it, not because it's genuinely absent.
+  stock_quantity?: number;
   available_sizes?: string[];
   created_at: string;
   updated_at: string;

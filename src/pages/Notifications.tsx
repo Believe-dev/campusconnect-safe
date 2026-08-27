@@ -1,14 +1,23 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { Navigate, useNavigate } from "react-router-dom";
+import { Navigate, useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Bell, Check, Trash2, Settings } from "lucide-react";
+import {
+  Bell,
+  Check,
+  CheckCheck,
+  Settings,
+  Package,
+  Wallet,
+  CreditCard,
+  Store,
+  MessageCircle,
+  CheckCircle2,
+  AlertTriangle,
+  AlertCircle,
+} from "lucide-react";
 import { toast } from "sonner";
-import { format } from "date-fns";
-import NotificationTester from "@/components/notifications/NotificationTester";
+import { format, isToday, isYesterday, isThisWeek } from "date-fns";
 import { PullToRefresh } from "@/components/common/PullToRefresh";
 
 interface Notification {
@@ -20,6 +29,102 @@ interface Notification {
   created_at: string;
 }
 
+const TYPE_ICON: Record<string, typeof Bell> = {
+  success: CheckCircle2,
+  subscription_activated: CheckCircle2,
+  seller_approved: Store,
+  seller: Store,
+  warning: AlertTriangle,
+  subscription_expiring: AlertTriangle,
+  error: AlertCircle,
+  subscription_expired: AlertCircle,
+  order: Package,
+  order_shipped: Package,
+  order_delivered: Package,
+  payment: Wallet,
+  payout: Wallet,
+  subscription: CreditCard,
+  message: MessageCircle,
+};
+
+const TYPE_TONE: Record<string, string> = {
+  success: "bg-flora-tagBg text-flora-tagText",
+  subscription_activated: "bg-flora-tagBg text-flora-tagText",
+  seller_approved: "bg-flora-tagBg text-flora-tagText",
+  warning: "bg-amber-50 text-amber-600",
+  subscription_expiring: "bg-amber-50 text-amber-600",
+  error: "bg-red-50 text-red-600",
+  subscription_expired: "bg-red-50 text-red-600",
+};
+
+const TYPE_LABEL: Record<string, string> = {
+  order: "Orders",
+  order_shipped: "Order shipped",
+  order_delivered: "Order delivered",
+  payment: "Payment",
+  payout: "Payout",
+  seller: "Seller",
+  seller_approved: "Seller",
+  subscription: "Subscription",
+  subscription_expiring: "Subscription",
+  subscription_expired: "Subscription",
+  subscription_activated: "Subscription",
+  warning: "Warning",
+  error: "Alert",
+};
+
+const getTypeIcon = (type: string) => TYPE_ICON[type] || Bell;
+const getTypeTone = (type: string) =>
+  TYPE_TONE[type] || "bg-flora-chip text-flora-ink";
+// No fallback string — generic notifications (success/info) just show the
+// date/time with no category tag, instead of a label ("Update") that
+// repeated no information the title and message didn't already say.
+const getTypeLabel = (type: string) => TYPE_LABEL[type];
+
+interface Tab {
+  key: string;
+  label: string;
+  types?: string[];
+}
+
+const TABS: Tab[] = [
+  { key: "all", label: "All" },
+  {
+    key: "orders",
+    label: "Orders",
+    types: ["order", "order_shipped", "order_delivered"],
+  },
+  { key: "payments", label: "Payments", types: ["payment", "payout"] },
+  {
+    key: "seller",
+    label: "Seller",
+    types: [
+      "seller",
+      "seller_approved",
+      "subscription",
+      "subscription_expiring",
+      "subscription_expired",
+      "subscription_activated",
+    ],
+  },
+  {
+    key: "account",
+    label: "Account",
+    types: ["success", "warning", "error", "info"],
+  },
+];
+
+type Group = "Today" | "Yesterday" | "This week" | "Earlier";
+const GROUP_ORDER: Group[] = ["Today", "Yesterday", "This week", "Earlier"];
+
+const groupOf = (createdAt: string): Group => {
+  const date = new Date(createdAt);
+  if (isToday(date)) return "Today";
+  if (isYesterday(date)) return "Yesterday";
+  if (isThisWeek(date, { weekStartsOn: 1 })) return "This week";
+  return "Earlier";
+};
+
 export default function Notifications() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
@@ -28,13 +133,12 @@ export default function Notifications() {
   const [expandedNotifications, setExpandedNotifications] = useState<
     Set<string>
   >(new Set());
-  const [showTester, setShowTester] = useState(false);
+  const [activeTab, setActiveTab] = useState("all");
 
   useEffect(() => {
     if (user) {
       fetchNotifications();
 
-      // Set up real-time subscription
       const channel = supabase
         .channel("notifications-changes")
         .on(
@@ -45,9 +149,9 @@ export default function Notifications() {
             table: "notifications",
             filter: `user_id=eq.${user.id},type=neq.message`,
           },
-          (payload) => {
+          () => {
             fetchNotifications();
-          }
+          },
         )
         .subscribe();
 
@@ -70,23 +174,21 @@ export default function Notifications() {
         .eq("user_id", user.id)
         .neq("type", "message")
         .order("created_at", { ascending: false })
-        .limit(50); // Limit to prevent performance issues
+        .limit(50);
 
       if (error) {
-        // Check if table exists
         if (
           error.code === "42P01" ||
           error.message?.includes("relation") ||
           error.message?.includes("does not exist")
         ) {
           console.warn(
-            "Notifications table not found, creating welcome notification"
+            "Notifications table not found, creating welcome notification",
           );
           await createWelcomeNotification();
           return;
         }
 
-        // Check for RLS issues
         if (
           error.code === "42501" ||
           error.message?.includes("permission denied")
@@ -96,7 +198,6 @@ export default function Notifications() {
           return;
         }
 
-        // Check for constraint violations
         if (
           error.code === "23514" ||
           error.message?.includes("check constraint")
@@ -111,13 +212,11 @@ export default function Notifications() {
 
       setNotifications(data || []);
 
-      // If no notifications exist, create a welcome notification
       if (!data || data.length === 0) {
         await createWelcomeNotification();
       }
     } catch (error) {
       console.error("Error fetching notifications:", error);
-      // Don't show error toast for common issues, just log them
       if (
         !error.message?.includes("relation") &&
         !error.message?.includes("permission")
@@ -134,7 +233,6 @@ export default function Notifications() {
     if (!user?.id) return;
 
     try {
-      // Use direct insert only to avoid net schema issues
       const { error: insertError } = await supabase
         .from("notifications")
         .insert({
@@ -148,7 +246,6 @@ export default function Notifications() {
       if (insertError) {
         console.warn("Could not create welcome notification:", insertError);
       } else {
-        // Refresh notifications after successful insert
         setTimeout(fetchNotifications, 1000);
       }
     } catch (error) {
@@ -162,21 +259,19 @@ export default function Notifications() {
         .from("notifications")
         .update({ is_read: true, updated_at: new Date().toISOString() })
         .eq("id", notificationId)
-        .eq("user_id", user?.id); // Extra security check
+        .eq("user_id", user?.id);
 
       if (error) {
         console.error("Error marking notification as read:", error);
         return;
       }
 
-      // Optimistically update the UI
       setNotifications((prev) =>
         prev.map((notif) =>
-          notif.id === notificationId ? { ...notif, is_read: true } : notif
-        )
+          notif.id === notificationId ? { ...notif, is_read: true } : notif,
+        ),
       );
 
-      // Trigger notification count update
       window.dispatchEvent(new CustomEvent("notificationsUpdated"));
     } catch (error) {
       console.error("Error in markAsRead:", error);
@@ -184,37 +279,8 @@ export default function Notifications() {
     }
   };
 
-  const deleteNotification = async (notificationId: string) => {
-    try {
-      const { error } = await supabase
-        .from("notifications")
-        .delete()
-        .eq("id", notificationId)
-        .eq("user_id", user?.id); // Extra security check
-
-      if (error) {
-        console.error("Error deleting notification:", error);
-        toast.error("Failed to delete notification");
-        return;
-      }
-
-      // Optimistically update the UI
-      setNotifications((prev) =>
-        prev.filter((notif) => notif.id !== notificationId)
-      );
-
-      // Trigger notification count update
-      window.dispatchEvent(new CustomEvent("notificationsUpdated"));
-      toast.success("Notification deleted");
-    } catch (error) {
-      console.error("Error in deleteNotification:", error);
-      toast.error("Failed to delete notification");
-    }
-  };
-
   const handleNotificationClick = (notification: Notification) => {
     if (notification.is_read) {
-      // Toggle expansion for read notifications
       setExpandedNotifications((prev) => {
         const newSet = new Set(prev);
         if (newSet.has(notification.id)) {
@@ -229,7 +295,6 @@ export default function Notifications() {
 
     markAsRead(notification.id);
 
-    // Navigate based on notification type
     if (
       notification.type === "order_shipped" ||
       notification.type === "order_delivered"
@@ -275,12 +340,9 @@ export default function Notifications() {
         return;
       }
 
-      // Optimistically update the UI
       setNotifications((prev) =>
-        prev.map((notif) => ({ ...notif, is_read: true }))
+        prev.map((notif) => ({ ...notif, is_read: true })),
       );
-
-      // Trigger notification count update
       window.dispatchEvent(new CustomEvent("notificationsUpdated"));
       toast.success("All notifications marked as read");
     } catch (error) {
@@ -288,15 +350,37 @@ export default function Notifications() {
       toast.error("Failed to update notifications");
     }
   };
+
   const handleRefresh = useCallback(async () => {
     await fetchNotifications();
   }, [user]);
 
+  const unreadCount = notifications.filter((n) => !n.is_read).length;
+
+  const visibleNotifications = useMemo(() => {
+    const tab = TABS.find((t) => t.key === activeTab);
+    if (!tab?.types) return notifications;
+    return notifications.filter((n) => tab.types.includes(n.type));
+  }, [notifications, activeTab]);
+
+  const groupedNotifications = useMemo(() => {
+    const groups: Record<Group, Notification[]> = {
+      Today: [],
+      Yesterday: [],
+      "This week": [],
+      Earlier: [],
+    };
+    for (const notification of visibleNotifications) {
+      groups[groupOf(notification.created_at)].push(notification);
+    }
+    return groups;
+  }, [visibleNotifications]);
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-background">
-        <div className="container mx-auto px-4 py-8">
-          <div className="text-center">Loading...</div>
+      <div className="min-h-screen bg-gradient-to-b from-flora-bgFrom to-flora-bgTo">
+        <div className="mx-auto max-w-2xl px-4 py-8 text-center text-flora-muted">
+          Loading…
         </div>
       </div>
     );
@@ -306,162 +390,200 @@ export default function Notifications() {
     return <Navigate to="/auth" replace />;
   }
 
-  const unreadCount = notifications.filter((n) => !n.is_read).length;
-
-  const getNotificationTypeColor = (type: string) => {
-    switch (type) {
-      case "success":
-        return "bg-green-500";
-      case "warning":
-        return "bg-yellow-500";
-      case "error":
-        return "bg-red-500";
-      case "subscription_expiring":
-        return "bg-orange-500";
-      case "subscription_expired":
-        return "bg-red-500";
-      case "subscription_activated":
-        return "bg-green-500";
-      default:
-        return "bg-blue-500";
-    }
-  };
-
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gradient-to-b from-flora-bgFrom to-flora-bgTo">
       <PullToRefresh onRefresh={handleRefresh} className="min-h-screen">
-        <main className="container mx-auto px-4 py-8">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
-            <div className="flex items-center gap-3">
-              <Bell className="h-6 w-6" />
-              <h1 className="text-xl sm:text-2xl font-bold">Notifications</h1>
-              {unreadCount > 0 && (
-                <Badge variant="destructive" className="text-xs">
-                  {unreadCount} unread
-                </Badge>
-              )}
+        <main className="mx-auto max-w-2xl px-4 py-6 pb-24 sm:py-8 md:pb-8">
+          <div className="mb-6 flex items-start justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-flora-ink sm:text-3xl">
+                Notifications
+              </h1>
+              <p className="mt-1 text-sm text-flora-muted">
+                Stay updated on orders, payments, and your account.
+              </p>
             </div>
-
-            <div className="flex gap-2">
-              {unreadCount > 0 && (
-                <Button
-                  onClick={markAllAsRead}
-                  variant="outline"
-                  size="sm"
-                  className="w-full sm:w-auto"
-                >
-                  <Check className="h-4 w-4 mr-2" />
-                  Mark all as read
-                </Button>
-              )}
-
-              {/* <Button 
-              onClick={() => setShowTester(!showTester)} 
-              variant="ghost" 
-              size="sm" 
-              className="w-full sm:w-auto"
-            >
-              <Settings className="h-4 w-4 mr-2" />
-              {showTester ? 'Hide' : 'Show'} Tester
-            </Button> */}
-            </div>
+            <Link
+              to="/settings"
+              aria-label="Notification settings"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-flora-ink transition hover:bg-flora-chip">
+              <Settings className="h-5 w-5" />
+            </Link>
           </div>
 
-          {showTester && (
-            <div className="mb-6">
-              <NotificationTester />
+          {/* Same chip-row pattern as the Marketplace filters: a horizontally
+              scrollable row of pills, the active one filled dark, the rest
+              bordered and light. */}
+          <div className="mb-3 flex gap-2.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {TABS.map((tab) => (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setActiveTab(tab.key)}
+                className={`inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-4 py-2.5 text-sm font-medium leading-none transition ${
+                  activeTab === tab.key
+                    ? "bg-flora-ink text-white"
+                    : "border border-flora-ink/10 bg-white/70 text-flora-ink hover:bg-white"
+                }`}>
+                {tab.label}
+                {tab.key === "all" && unreadCount > 0 && (
+                  <span
+                    className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none ${
+                      activeTab === "all"
+                        ? "bg-white/20 text-white"
+                        : "bg-red-500 text-white"
+                    }`}>
+                    {unreadCount}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+
+          {unreadCount > 0 && (
+            <div className="mb-6 flex justify-end">
+              <button
+                type="button"
+                onClick={markAllAsRead}
+                className="flex items-center gap-1.5 whitespace-nowrap text-sm font-medium text-flora-ink transition hover:text-flora-leaf">
+                <CheckCheck className="h-4 w-4" />
+                Mark all as read
+              </button>
             </div>
           )}
 
           {loadingNotifications ? (
-            <Card>
-              <CardContent className="text-center py-12">
-                <div className="animate-pulse space-y-4">
-                  <div className="h-4 bg-muted rounded w-3/4 mx-auto"></div>
-                  <div className="h-4 bg-muted rounded w-1/2 mx-auto"></div>
-                  <div className="h-4 bg-muted rounded w-2/3 mx-auto"></div>
-                </div>
-              </CardContent>
-            </Card>
-          ) : notifications.length === 0 ? (
-            <Card>
-              <CardContent className="text-center py-12">
-                <Bell className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-semibold mb-2">
-                  No notifications yet
-                </h3>
-                <p className="text-muted-foreground">
-                  You'll see important updates and messages here
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-4">
-              {notifications.map((notification) => (
-                <Card
-                  key={notification.id}
-                  className={`cursor-pointer hover:shadow-md transition-shadow ${
-                    !notification.is_read ? "ring-2 ring-primary/20" : ""
-                  }`}
-                  onClick={() => handleNotificationClick(notification)}
-                >
-                  <CardHeader className="pb-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-start gap-3 flex-1 min-w-0">
-                        <div
-                          className={`w-3 h-3 rounded-full mt-2 flex-shrink-0 ${getNotificationTypeColor(
-                            notification.type
-                          )}`}
-                        />
-                        <div className="flex-1 min-w-0">
-                          <CardTitle className="text-sm sm:text-base truncate">
-                            {notification.title}
-                          </CardTitle>
-                          <p
-                            className={`text-xs sm:text-sm text-muted-foreground mt-1 ${
-                              expandedNotifications.has(notification.id)
-                                ? ""
-                                : "line-clamp-2"
-                            }`}
-                          >
-                            {notification.message}
-                          </p>
-                          <p className="text-xs text-muted-foreground mt-2">
-                            {format(new Date(notification.created_at), "PPp")}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-1 flex-shrink-0">
-                        {!notification.is_read && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-8 w-8 p-0"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              markAsRead(notification.id);
-                            }}
-                          >
-                            <Check className="h-4 w-4" />
-                          </Button>
-                        )}
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-8 w-8 p-0"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteNotification(notification.id);
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
+            <div className="space-y-2.5">
+              {[0, 1, 2].map((i) => (
+                <div
+                  key={i}
+                  className="animate-pulse rounded-2xl bg-flora-chip/50 p-3.5">
+                  <div className="flex gap-3">
+                    <div className="h-11 w-11 shrink-0 rounded-full bg-flora-chip" />
+                    <div className="flex-1 space-y-2 py-1">
+                      <div className="h-3.5 w-1/2 rounded-full bg-flora-chip" />
+                      <div className="h-3 w-3/4 rounded-full bg-flora-chip" />
                     </div>
-                  </CardHeader>
-                </Card>
+                  </div>
+                </div>
               ))}
+            </div>
+          ) : visibleNotifications.length === 0 ? (
+            <div className="rounded-3xl bg-white p-10 text-center shadow-card">
+              <span className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-flora-chip text-flora-muted">
+                <Bell className="h-6 w-6" />
+              </span>
+              <h3 className="text-base font-bold text-flora-ink">
+                No notifications yet
+              </h3>
+              <p className="mt-1 text-sm text-flora-muted">
+                Updates about your orders, payments, and account will show up
+                here.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {GROUP_ORDER.map((group) => {
+                const items = groupedNotifications[group];
+                if (items.length === 0) return null;
+                return (
+                  <div key={group}>
+                    <h2 className="mb-2.5 px-1 text-sm font-medium text-flora-muted">
+                      {group}
+                    </h2>
+                    <div className="space-y-2.5">
+                      {items.map((notification, index) => {
+                        const Icon = getTypeIcon(notification.type);
+                        const expanded = expandedNotifications.has(
+                          notification.id,
+                        );
+                        const created = new Date(notification.created_at);
+                        return (
+                          <div
+                            key={notification.id}
+                            style={{
+                              animationDelay: `${Math.min(index, 8) * 40}ms`,
+                              animationFillMode: "backwards",
+                            }}
+                            className={`flex animate-in items-start gap-1 rounded-2xl bg-white shadow-card fade-in slide-in-from-bottom-1 duration-300 ${
+                              notification.is_read
+                                ? ""
+                                : "ring-1 ring-flora-leaf/20"
+                            }`}>
+                            {/* Own clickable element, not a wrapper around the
+                                action buttons below — sibling interactive
+                                controls instead of nested ones, so there's no
+                                click-through/propagation race between "open
+                                this notification" and "act on it". */}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleNotificationClick(notification)
+                              }
+                              className="flex min-w-0 flex-1 items-start gap-3 p-3.5 text-left">
+                              <span
+                                className={`relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${getTypeTone(
+                                  notification.type,
+                                )}`}>
+                                <Icon className="h-5 w-5" />
+                                {!notification.is_read && (
+                                  <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-flora-leafBright ring-2 ring-white" />
+                                )}
+                              </span>
+
+                              <div className="min-w-0 flex-1">
+                                <p
+                                  className={`text-sm text-flora-ink ${
+                                    notification.is_read
+                                      ? "font-medium"
+                                      : "font-bold"
+                                  } ${expanded ? "" : "line-clamp-2"}`}>
+                                  {notification.title}
+                                </p>
+                                <p
+                                  className={`mt-0.5 text-sm text-flora-muted ${
+                                    expanded ? "" : "line-clamp-1"
+                                  }`}>
+                                  {notification.message}
+                                </p>
+                                <p className="mt-1.5 text-xs text-flora-muted">
+                                  {getTypeLabel(notification.type) && (
+                                    <>
+                                      <span className="font-semibold text-flora-ink">
+                                        {getTypeLabel(notification.type)}
+                                      </span>
+                                      {" - "}
+                                    </>
+                                  )}
+                                  {format(created, "MMM d, yyyy")}
+                                  <span className="mx-1.5 inline-block h-1 w-1 rounded-full bg-flora-muted/50 align-middle" />
+                                  {format(created, "h:mm a")}
+                                </p>
+                              </div>
+                            </button>
+
+                            {/* Notifications are a record, not a to-do list —
+                                no delete. Mark-as-read is the only action, so
+                                it sits directly on the row instead of behind
+                                a menu. */}
+                            {!notification.is_read && (
+                              <div className="flex shrink-0 items-center p-3.5 pl-0">
+                                <button
+                                  type="button"
+                                  aria-label="Mark as read"
+                                  onClick={() => markAsRead(notification.id)}
+                                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-flora-muted transition hover:bg-flora-chip hover:text-flora-ink">
+                                  <Check className="h-4 w-4" />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </main>

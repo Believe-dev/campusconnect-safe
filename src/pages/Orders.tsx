@@ -36,6 +36,7 @@ import { useNavigate } from "react-router-dom";
 import { ProfileReviewModal } from "@/components/reviews/ProfileReviewModal";
 import { OrderDetailsDialog } from "@/components/orders/OrderDetailsDialog";
 import { useSellerSubscription } from "@/hooks/useSellerSubscription";
+import { approveSellerEscrow } from "@/services/anchorBaasService";
 
 interface Order {
   id: string;
@@ -48,6 +49,7 @@ interface Order {
   commission_amount: number;
   status: string;
   payment_method?: string;
+  delivery_method?: string;
   shipping_address?: string;
   university_name?: string;
   tracking_info?: string;
@@ -303,47 +305,33 @@ const Orders = () => {
       await refetch();
       setLastUpdated(new Date());
 
-      // Handle escrow release for confirmed orders
+      // Handle escrow release for confirmed orders. Goes through the edge
+      // function's buyer-release branch - it's the only thing that can call
+      // release_escrow_funds now that it's service_role-only, and it
+      // already ensures the seller has a wallet internally, so there's no
+      // separate wallet upsert needed here.
       if (status === "confirmed") {
         try {
-          // Get escrow transaction ID from the order
           const order = orders.find((o) => o.id === orderId);
-          const escrowId = order?.escrow_transactions?.[0]?.id;
-
-          if (escrowId) {
-            // Ensure seller has a wallet first
-            const { error: walletError } = await supabase
-              .from("wallets")
-              .upsert(
-                { user_id: order.seller_id },
-                { onConflict: "user_id", ignoreDuplicates: true }
-              );
-
-            if (walletError) {
-              console.error("Wallet creation error:", walletError);
-            }
-
-            // Now release escrow funds
-            const { error: escrowError } = await supabase.rpc(
-              "release_escrow_funds",
-              {
-                escrow_id: escrowId,
-              }
-            );
-
-            if (escrowError) {
-              console.error("Escrow release error:", escrowError);
+          if (order?.escrow_transactions?.[0]) {
+            const result = await approveSellerEscrow(orderId);
+            if (!result.success) {
+              console.error("Escrow release error:", result.message);
               toast({
-                title: "Payment Processing",
-                description:
-                  "Order confirmed. Payment processing may take a few minutes.",
-                variant: "default",
+                title: "Payment Release Failed",
+                description: `Order confirmed, but releasing payment to the seller failed: ${result.message}. Please contact support.`,
+                variant: "destructive",
               });
             }
           }
         } catch (escrowError) {
           console.error("Escrow handling error:", escrowError);
-          // Continue with order confirmation even if escrow fails
+          toast({
+            title: "Payment Release Failed",
+            description:
+              "Order confirmed, but releasing payment to the seller failed unexpectedly. Please contact support.",
+            variant: "destructive",
+          });
         }
       }
 
@@ -670,9 +658,7 @@ const Orders = () => {
           order.product?.title
         }.`;
         navigate(
-          `/messages?conversation=${conversationId}&draft=${encodeURIComponent(
-            draftMessage
-          )}`
+          `/chat/${conversationId}?draft=${encodeURIComponent(draftMessage)}`
         );
       }
     } catch (error) {
@@ -803,12 +789,16 @@ const Orders = () => {
                     You'll receive: ₦{escrow.seller_amount.toLocaleString()}
                   </p>
                 )}
-                {isSeller && order.shipping_address && (
+                {isSeller && (order.shipping_address || order.delivery_method) && (
                   <div className="mt-2 p-2 bg-muted/50 rounded text-xs">
                     <p className="font-medium text-primary">
-                      📍 Shipping Details:
+                      {order.delivery_method === "pickup"
+                        ? "📦 Pickup — buyer will collect from you"
+                        : "🚚 Delivery"}
                     </p>
-                    <p>{order.shipping_address}</p>
+                    {order.delivery_method !== "pickup" && order.shipping_address && (
+                      <p>{order.shipping_address}</p>
+                    )}
                     {order.university_name && (
                       <p className="text-blue-600">
                         🏫 {order.university_name}

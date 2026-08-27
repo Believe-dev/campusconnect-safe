@@ -33,6 +33,11 @@ export default async function handler(req, res) {
     <loc>https://unimarket.com.ng/marketplace</loc>
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://unimarket.com.ng/about</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
   </url>${products && products.length > 0 ? products.map(product => `
   <url>
     <loc>https://unimarket.com.ng/product/${product.id}</loc>
@@ -60,8 +65,13 @@ export default async function handler(req, res) {
     <changefreq>daily</changefreq>
     <priority>0.9</priority>
   </url>
+  <url>
+    <loc>https://unimarket.com.ng/about</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
 </urlset>`;
-    
+
     return res.status(200).send(fallbackSitemap);
   }
 }

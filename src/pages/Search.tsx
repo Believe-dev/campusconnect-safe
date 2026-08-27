@@ -21,10 +21,13 @@ import {
   Globe,
 } from "lucide-react";
 
+import { toast } from "sonner";
+import { findOrCreateConversation } from "@/utils/conversationUtils";
 import { expandSearchTerms } from "@/utils/searchUtils";
 import { performAISearch, expandAISearchTerms } from "@/utils/aiSearch";
 import { NIGERIAN_UNIVERSITIES } from "@/lib/constants";
 import { useProfile } from "@/contexts/ProfileContext";
+import { useCartCount } from "@/contexts/CartCountContext";
 
 interface SearchProduct {
   id: string;
@@ -81,6 +84,7 @@ const universities = ["All Universities", ...NIGERIAN_UNIVERSITIES];
 
 const Search = () => {
   const navigate = useNavigate();
+  const { refetch: refetchCartCount } = useCartCount();
   const [searchParams, setSearchParams] = useSearchParams();
   const [products, setProducts] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(true);
@@ -709,8 +713,19 @@ const Search = () => {
     navigate(`/product/${productId}`);
   };
 
-  const handleMessageSeller = (sellerId: string) => {
-    navigate(`/messages?seller=${sellerId}`);
+  const handleMessageSeller = async (sellerId: string) => {
+    if (!user) {
+      navigate("/auth");
+      return;
+    }
+
+    try {
+      const conversationId = await findOrCreateConversation(user.id, sellerId);
+      if (!conversationId) throw new Error("Failed to start chat");
+      navigate(`/chat/${conversationId}`);
+    } catch (error) {
+      toast.error("Failed to start chat. Please try again.");
+    }
   };
 
   const addToCart = async (productId: string) => {
@@ -751,9 +766,7 @@ const Search = () => {
       setCartItems((prev) => [...prev, productId]);
 
       // Trigger cart count refresh
-      if (window.refreshCartCount) {
-        window.refreshCartCount();
-      }
+      refetchCartCount();
     } catch (error) {
       // Error handled silently
     }
