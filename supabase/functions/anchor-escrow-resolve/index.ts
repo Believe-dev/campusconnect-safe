@@ -74,14 +74,25 @@ serve(async (req) => {
     const isAdmin = !!isAdminRow;
     const isBuyer = requesterId === order.buyer_id;
 
-    if (action === "release" && !isBuyer && !isAdmin) {
-      return new Response(JSON.stringify({ error: "Only the buyer or an admin can release this order's funds." }), {
+    // is_admin() alone isn't tab-scoped - a scoped admin without the escrow
+    // grant could otherwise call this function directly (bypassing the
+    // Admin.tsx UI entirely) and release/reverse funds. has_admin_permission
+    // is the same check used everywhere else scoped access matters; it
+    // returns true unconditionally for super_admin.
+    const { data: hasEscrowAccess } = await admin.rpc("has_admin_permission", {
+      _user_id: requesterId,
+      _tab_key: "escrow",
+    });
+    const isAdminWithEscrowAccess = isAdmin && !!hasEscrowAccess;
+
+    if (action === "release" && !isBuyer && !isAdminWithEscrowAccess) {
+      return new Response(JSON.stringify({ error: "Only the buyer or an admin with escrow access can release this order's funds." }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    if (action === "reverse" && !isAdmin) {
-      return new Response(JSON.stringify({ error: "Only an admin can reverse this order's payment." }), {
+    if (action === "reverse" && !isAdminWithEscrowAccess) {
+      return new Response(JSON.stringify({ error: "Only an admin with escrow access can reverse this order's payment." }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

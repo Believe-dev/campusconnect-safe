@@ -1365,142 +1365,36 @@ export default function Admin() {
     notes?: string
   ) => {
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) return;
-
       if (approve) {
-        // Get payout request details
-        const { data: payout, error: payoutError } = await supabase
+        // Fetched only for the confirmation message below - the actual
+        // approval (pending/balance checks, wallet deduction, status
+        // update, transaction record) is now atomic inside
+        // admin_approve_payout_request, row-locked server-side.
+        const { data: payout } = await supabase
           .from("payout_requests")
-          .select("*")
+          .select("amount, bank_account_name, bank_account_number, bank_name")
           .eq("id", payoutId)
           .single();
 
-        if (payoutError || !payout) {
-          toast.error("Payout request not found");
-          return;
-        }
-
-        // Verify payout is still pending
-        if (payout.status !== "pending") {
-          toast.error(`Payout request status is '${payout.status}', not 'pending'`);
-          return;
-        }
-
-        // Get wallet details to verify balance
-        const { data: wallet, error: walletError } = await supabase
-          .from("wallets")
-          .select("available_balance")
-          .eq("id", payout.wallet_id)
-          .single();
-
-        if (walletError || !wallet) {
-          toast.error("Wallet not found");
-          return;
-        }
-
-        // Check if wallet has sufficient balance
-        if (wallet.available_balance < payout.amount) {
-          toast.error(
-            `Insufficient balance: ₦${wallet.available_balance.toLocaleString()} < ₦${payout.amount.toLocaleString()}`
-          );
-          return;
-        }
-
-        // Generate manual transfer reference
-        const transferCode = `MANUAL_${Date.now()}_${payoutId.slice(0, 8)}`;
-        const adminNotes = notes || `Manual transfer approved by admin. Transfer ₦${payout.amount.toLocaleString()} to ${payout.bank_account_name} (${payout.bank_name}) - Account: ${payout.bank_account_number}. Reference: ${transferCode}`;
-
-        // 1. Deduct funds from wallet first
-        const { error: walletUpdateError } = await supabase
-          .from("wallets")
-          .update({
-            available_balance: wallet.available_balance - payout.amount,
-            updated_at: new Date().toISOString()
-          })
-          .eq("id", payout.wallet_id);
-
-        if (walletUpdateError) {
-          console.error("Wallet update error:", walletUpdateError);
-          throw new Error("Failed to deduct funds from wallet");
-        }
-
-        // 2. Update payout status to approved (funds deducted, awaiting manual transfer)
-        const { error: payoutUpdateError } = await supabase
-          .from("payout_requests")
-          .update({
-            status: "approved",
-            processed_at: new Date().toISOString(),
-            processed_by: user.id,
-            admin_notes: adminNotes,
-            transfer_code: transferCode,
-            transfer_status: "manual_pending"
-          })
-          .eq("id", payoutId);
-
-        if (payoutUpdateError) {
-          console.error("Payout update error:", payoutUpdateError);
-          // Try to revert wallet balance if payout update fails
-          await supabase
-            .from("wallets")
-            .update({
-              available_balance: wallet.available_balance,
-              updated_at: new Date().toISOString()
-            })
-            .eq("id", payout.wallet_id);
-          throw new Error("Failed to update payout status");
-        }
-
-        // 3. Create wallet transaction record
-        const { error: transactionError } = await supabase
-          .from("wallet_transactions")
-          .insert({
-            wallet_id: payout.wallet_id,
-            user_id: payout.user_id,
-            type: "payout",
-            amount: -payout.amount, // Negative for debit
-            description: `Manual payout approved - ${payout.bank_account_name} (${payout.bank_name}) - Ref: ${transferCode}`,
-            reference_id: payoutId, // Use payout ID as UUID reference
-            reference_type: "manual_transfer",
-            status: "completed"
-          });
-
-        if (transactionError) {
-          console.error("Transaction record error:", transactionError);
-          // Don't throw here as the main operations succeeded
-        }
-
-        // 4. Skip notifications to avoid HTTP dependency issues
-
-        toast.success(
-          `Payout approved! ₦${payout.amount.toLocaleString()} deducted from wallet. Please manually transfer to ${payout.bank_account_name} (${payout.bank_name}) - Account: ${payout.bank_account_number}`
-        );
-      } else {
-        // Reject the payout request
-        const rejectionNotes = notes || "Payout request rejected by admin";
-        
-        const { error } = await supabase
-          .from("payout_requests")
-          .update({
-            status: "rejected",
-            admin_notes: rejectionNotes,
-            processed_by: user.id,
-            processed_at: new Date().toISOString(),
-          })
-          .eq("id", payoutId);
+        const { error } = await supabase.rpc("admin_approve_payout_request", {
+          p_payout_id: payoutId,
+          p_notes: notes || null,
+        });
 
         if (error) throw error;
 
-        // Get payout details for notification
-        const { data: payoutData } = await supabase
-          .from("payout_requests")
-          .select("user_id, amount")
-          .eq("id", payoutId)
-          .single();
+        toast.success(
+          payout
+            ? `Payout approved! ₦${payout.amount.toLocaleString()} deducted from wallet. Please manually transfer to ${payout.bank_account_name} (${payout.bank_name}) - Account: ${payout.bank_account_number}`
+            : "Payout approved!"
+        );
+      } else {
+        const { error } = await supabase.rpc("admin_reject_payout_request", {
+          p_payout_id: payoutId,
+          p_notes: notes || null,
+        });
 
-        // Skip notifications to avoid HTTP dependency issues
+        if (error) throw error;
 
         toast.success("Payout request rejected");
       }
@@ -1597,10 +1491,9 @@ export default function Admin() {
 
   const toggleUserBan = async (userId: string, isBanned: boolean) => {
     try {
-      const { error } = await supabase
-        .from("profiles")
-        .update({ is_banned: !isBanned })
-        .eq("user_id", userId);
+      const { error } = isBanned
+        ? await supabase.rpc("unban_user", { target_user_id: userId })
+        : await supabase.rpc("ban_user", { target_user_id: userId });
 
       if (error) throw error;
 
@@ -1629,54 +1522,24 @@ export default function Admin() {
     newRole: "admin" | "seller" | "buyer"
   ) => {
     try {
-      if (newRole === "admin") {
-        // Admin is an additive staff privilege, not an account type - grant
-        // it without deleting any existing buyer/seller role row. The old
-        // code deleted every existing role first, so nobody could ever hold
-        // two roles despite the schema's UNIQUE(user_id, role) clearly being
-        // designed to allow it (e.g. a seller who's also staff).
-        const { error: roleError } = await supabase
-          .from("user_roles")
-          .upsert({ user_id: userId, role: newRole }, { onConflict: "user_id,role" });
+      // assign_user_role enforces this server-side now: 'users' tab grant
+      // for buyer/seller changes, super_admin specifically for granting
+      // 'admin'. The frontend dropdown already hides the Admin option from
+      // non-super-admins, but that was only a UI restriction - this closes
+      // the same gap at the RLS/function layer, verified against a scoped
+      // admin actually getting rejected, not just that the code looks right.
+      const { error } = await supabase.rpc("assign_user_role", {
+        target_user_id: userId,
+        new_role: newRole,
+      });
 
-        if (roleError) throw roleError;
-
-        // Admins can sell - matches the original behavior.
-        const { error: profileError } = await supabase
-          .from("profiles")
-          .update({ account_type: "seller" })
-          .eq("user_id", userId);
-
-        if (profileError) throw profileError;
-      } else {
-        // buyer/seller is the account type - replace any existing
-        // buyer/seller row only; a separate admin grant (if any) on this
-        // user is left untouched.
-        await supabase
-          .from("user_roles")
-          .delete()
-          .eq("user_id", userId)
-          .in("role", ["buyer", "seller"]);
-
-        const { error: roleError } = await supabase
-          .from("user_roles")
-          .insert({ user_id: userId, role: newRole });
-
-        if (roleError) throw roleError;
-
-        const { error: profileError } = await supabase
-          .from("profiles")
-          .update({ account_type: newRole })
-          .eq("user_id", userId);
-
-        if (profileError) throw profileError;
-      }
+      if (error) throw error;
 
       toast.success("User role updated successfully");
       fetchUsers();
       setSelectedUser(null);
     } catch (error) {
-      toast.error("Failed to update user role");
+      toast.error(error?.message || "Failed to update user role");
     }
   };
 
@@ -1934,12 +1797,15 @@ export default function Admin() {
 
     try {
       if (action === "ban" || action === "unban") {
-        const { error } = await supabase
-          .from("profiles")
-          .update({ is_banned: action === "ban" })
-          .in("user_id", selectedUsers);
+        const rpcName = action === "ban" ? "ban_user" : "unban_user";
+        const results = await Promise.all(
+          selectedUsers.map((userId) =>
+            supabase.rpc(rpcName, { target_user_id: userId })
+          )
+        );
+        const firstError = results.find((r) => r.error)?.error;
+        if (firstError) throw firstError;
 
-        if (error) throw error;
         toast.success(
           `${selectedUsers.length} users ${action}ned successfully`
         );
@@ -2604,15 +2470,16 @@ export default function Admin() {
                                 ) as string;
 
                                 try {
-                                  const { error } = await supabase
-                                    .from("profiles")
-                                    .update({
-                                      is_banned: true,
-                                      admin_notes: reason.trim(),
-                                    })
-                                    .in("user_id", selectedUsers);
-
-                                  if (error) throw error;
+                                  const results = await Promise.all(
+                                    selectedUsers.map((userId) =>
+                                      supabase.rpc("ban_user", {
+                                        target_user_id: userId,
+                                        reason: reason.trim(),
+                                      })
+                                    )
+                                  );
+                                  const firstError = results.find((r) => r.error)?.error;
+                                  if (firstError) throw firstError;
 
                                   toast.success(
                                     `${selectedUsers.length} users banned successfully`
@@ -3248,13 +3115,13 @@ export default function Admin() {
                                               ) as string;
 
                                               try {
-                                                const { error } = await supabase
-                                                  .from("profiles")
-                                                  .update({
-                                                    is_banned: true,
-                                                    admin_notes: reason.trim(),
-                                                  })
-                                                  .eq("user_id", user.user_id);
+                                                const { error } = await supabase.rpc(
+                                                  "ban_user",
+                                                  {
+                                                    target_user_id: user.user_id,
+                                                    reason: reason.trim(),
+                                                  }
+                                                );
 
                                                 if (error) throw error;
 
@@ -4353,13 +4220,10 @@ export default function Admin() {
 
                                             if (user) {
                                               // Unban the user
-                                              await supabase
-                                                .from("profiles")
-                                                .update({
-                                                  is_banned: false,
-                                                  admin_notes: null,
-                                                })
-                                                .eq("user_id", user.user_id);
+                                              await supabase.rpc("unban_user", {
+                                                target_user_id: user.user_id,
+                                                clear_notes: true,
+                                              });
 
                                               // Send notification to unbanned user
                                               const { sendNotification } = await import('@/utils/notificationService');
