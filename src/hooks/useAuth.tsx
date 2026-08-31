@@ -8,6 +8,7 @@ export const useAuth = () => {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const { isOnline } = useNetworkStatus();
 
   useEffect(() => {
@@ -45,6 +46,7 @@ export const useAuth = () => {
           localStorage.removeItem('cc_session');
           localStorage.removeItem('profile-completion-dismissed');
           setIsAdmin(false);
+          setIsSuperAdmin(false);
         }
         setLoading(false);
       }
@@ -75,6 +77,7 @@ export const useAuth = () => {
         setUser(null);
         setSession(null);
         setIsAdmin(false);
+        setIsSuperAdmin(false);
         setLoading(false);
       });
     } else {
@@ -90,14 +93,16 @@ export const useAuth = () => {
         .from('user_roles')
         .select('role')
         .eq('user_id', userId)
-        .eq('role', 'admin')
-        .maybeSingle();
-      
-      setIsAdmin(!!roles);
+        .in('role', ['admin', 'super_admin']);
+
+      const roleNames = (roles || []).map((r) => r.role);
+      setIsAdmin(roleNames.includes('admin'));
+      setIsSuperAdmin(roleNames.includes('super_admin'));
     } catch (error) {
       setIsAdmin(false);
+      setIsSuperAdmin(false);
     }
   };
 
-  return { user, session, loading, isAdmin };
+  return { user, session, loading, isAdmin, isSuperAdmin };
 };

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
+import { useAdminPermissions } from "@/hooks/useAdminPermissions";
 import { Navigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -96,6 +97,7 @@ import { AdminWallet } from "@/components/admin/AdminWallet";
 import { SellerSubscriptionManager } from "@/components/admin/SellerSubscriptionManager";
 import { PullToRefresh } from "@/components/common/PullToRefresh";
 import { OrdersTab } from "@/components/admin/OrdersTab";
+import { AdminStaffAccessTab } from "@/components/admin/tabs/AdminStaffAccessTab";
 import { AtRiskSellersCard } from "@/components/admin/AtRiskSellersCard";
 import { approveSellerEscrow, refundAnchorPayment } from "@/services/anchorBaasService";
 
@@ -246,7 +248,8 @@ interface ProductReport {
 }
 
 export default function Admin() {
-  const { user, loading, isAdmin } = useAuth();
+  const { user, loading, isAdmin, isSuperAdmin } = useAuth();
+  const { canAccessTab, loading: permissionsLoading } = useAdminPermissions();
   const queryClient = useQueryClient();
   const [users, setUsers] = useState<User[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -1626,24 +1629,48 @@ export default function Admin() {
     newRole: "admin" | "seller" | "buyer"
   ) => {
     try {
-      // First, remove existing roles
-      await supabase.from("user_roles").delete().eq("user_id", userId);
+      if (newRole === "admin") {
+        // Admin is an additive staff privilege, not an account type - grant
+        // it without deleting any existing buyer/seller role row. The old
+        // code deleted every existing role first, so nobody could ever hold
+        // two roles despite the schema's UNIQUE(user_id, role) clearly being
+        // designed to allow it (e.g. a seller who's also staff).
+        const { error: roleError } = await supabase
+          .from("user_roles")
+          .upsert({ user_id: userId, role: newRole }, { onConflict: "user_id,role" });
 
-      // Then add new role
-      const { error: roleError } = await supabase
-        .from("user_roles")
-        .insert({ user_id: userId, role: newRole });
+        if (roleError) throw roleError;
 
-      if (roleError) throw roleError;
+        // Admins can sell - matches the original behavior.
+        const { error: profileError } = await supabase
+          .from("profiles")
+          .update({ account_type: "seller" })
+          .eq("user_id", userId);
 
-      // Update account type in profiles
-      const accountType = newRole === "admin" ? "seller" : newRole; // Admins can sell
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .update({ account_type: accountType })
-        .eq("user_id", userId);
+        if (profileError) throw profileError;
+      } else {
+        // buyer/seller is the account type - replace any existing
+        // buyer/seller row only; a separate admin grant (if any) on this
+        // user is left untouched.
+        await supabase
+          .from("user_roles")
+          .delete()
+          .eq("user_id", userId)
+          .in("role", ["buyer", "seller"]);
 
-      if (profileError) throw profileError;
+        const { error: roleError } = await supabase
+          .from("user_roles")
+          .insert({ user_id: userId, role: newRole });
+
+        if (roleError) throw roleError;
+
+        const { error: profileError } = await supabase
+          .from("profiles")
+          .update({ account_type: newRole })
+          .eq("user_id", userId);
+
+        if (profileError) throw profileError;
+      }
 
       toast.success("User role updated successfully");
       fetchUsers();
@@ -2379,9 +2406,12 @@ export default function Admin() {
         <Tabs defaultValue="users" className="space-y-6">
           <div className="overflow-x-auto">
             <TabsList className="flex w-max min-w-full h-fit py-2 px-1">
+              {canAccessTab("users") && (
               <TabsTrigger value="users" className="text-xs md:text-sm whitespace-nowrap px-3 py-2">
                 Users
               </TabsTrigger>
+              )}
+              {canAccessTab("sellers") && (
               <TabsTrigger
                 value="sellers"
                 className="text-xs md:text-sm relative whitespace-nowrap px-3 py-2"
@@ -2396,6 +2426,8 @@ export default function Admin() {
                   </Badge>
                 )}
               </TabsTrigger>
+              )}
+              {canAccessTab("verification") && (
               <TabsTrigger
                 value="verification"
                 className="text-xs md:text-sm relative whitespace-nowrap px-3 py-2"
@@ -2410,6 +2442,8 @@ export default function Admin() {
                   </Badge>
                 )}
               </TabsTrigger>
+              )}
+              {canAccessTab("appeals") && (
               <TabsTrigger
                 value="appeals"
                 className="text-xs md:text-sm relative whitespace-nowrap px-3 py-2"
@@ -2425,6 +2459,8 @@ export default function Admin() {
                   </Badge>
                 )}
               </TabsTrigger>
+              )}
+              {canAccessTab("reports") && (
               <TabsTrigger
                 value="reports"
                 className="text-xs md:text-sm relative whitespace-nowrap px-3 py-2"
@@ -2443,6 +2479,8 @@ export default function Admin() {
                   </Badge>
                 )}
               </TabsTrigger>
+              )}
+              {canAccessTab("escrow") && (
               <TabsTrigger
                 value="escrow"
                 className="text-xs md:text-sm relative whitespace-nowrap px-3 py-2"
@@ -2464,36 +2502,62 @@ export default function Admin() {
                   </Badge>
                 )}
               </TabsTrigger>
+              )}
+              {canAccessTab("products") && (
               <TabsTrigger value="products" className="text-xs md:text-sm whitespace-nowrap px-3 py-2">
                 Products
               </TabsTrigger>
+              )}
+              {canAccessTab("messages") && (
               <TabsTrigger value="messages" className="text-xs md:text-sm whitespace-nowrap px-3 py-2">
                 Messages
               </TabsTrigger>
+              )}
+              {canAccessTab("emails") && (
               <TabsTrigger value="emails" className="text-xs md:text-sm whitespace-nowrap px-3 py-2">
                 Emails
               </TabsTrigger>
+              )}
+              {canAccessTab("templates") && (
               <TabsTrigger value="templates" className="text-xs md:text-sm whitespace-nowrap px-3 py-2">
                 Templates
               </TabsTrigger>
+              )}
+              {canAccessTab("analytics") && (
               <TabsTrigger value="analytics" className="text-xs md:text-sm whitespace-nowrap px-3 py-2">
                 Analytics
               </TabsTrigger>
+              )}
+              {canAccessTab("suggestions") && (
               <TabsTrigger value="suggestions" className="text-xs md:text-sm whitespace-nowrap px-3 py-2">
                 Suggestions
               </TabsTrigger>
+              )}
+              {canAccessTab("subscriptions") && (
               <TabsTrigger value="subscriptions" className="text-xs md:text-sm whitespace-nowrap px-3 py-2">
                 Subscriptions
               </TabsTrigger>
+              )}
+              {canAccessTab("wallet") && (
               <TabsTrigger value="wallet" className="text-xs md:text-sm whitespace-nowrap px-3 py-2">
                 Admin Wallet
               </TabsTrigger>
+              )}
+              {canAccessTab("orders") && (
               <TabsTrigger value="orders" className="text-xs md:text-sm whitespace-nowrap px-3 py-2">
                 Orders
               </TabsTrigger>
+              )}
+              {canAccessTab("settings") && (
               <TabsTrigger value="settings" className="text-xs md:text-sm whitespace-nowrap px-3 py-2">
                 Settings
               </TabsTrigger>
+              )}
+              {isSuperAdmin && (
+              <TabsTrigger value="staff" className="text-xs md:text-sm whitespace-nowrap px-3 py-2">
+                Staff Access
+              </TabsTrigger>
+              )}
             </TabsList>
           </div>
 
@@ -2909,7 +2973,10 @@ export default function Admin() {
                                       <option value="">Change role</option>
                                       <option value="buyer">Buyer</option>
                                       <option value="seller">Seller</option>
-                                      <option value="admin">Admin</option>
+                                      {/* Only super_admin can grant admin - closes the
+                                          previous gap where any admin could promote
+                                          anyone, including themselves. */}
+                                      {isSuperAdmin && <option value="admin">Admin</option>}
                                     </select>
 
                                     {/* Password Reset */}
@@ -4014,7 +4081,7 @@ export default function Admin() {
                                             " "
                                           )}\nDescription: ${
                                             report.description
-                                          }\n\nPlease review your product listing and make any necessary corrections.\n\nBest regards,\nCampusConnect Admin Team`}
+                                          }\n\nPlease review your product listing and make any necessary corrections.\n\nBest regards,\nUniMarket Admin Team`}
                                           rows={8}
                                           id={`message-${report.id}`}
                                         />
@@ -6819,7 +6886,7 @@ export default function Admin() {
                                       <div className="flex gap-2">
                                         <Button
                                           onClick={() => {
-                                            const message = `🚨 DISPUTE ALERT - CampusConnect Admin\n\n📋 Order Details:\n• Order ID: #${dispute.order_id.slice(
+                                            const message = `🚨 DISPUTE ALERT - UniMarket Admin\n\n📋 Order Details:\n• Order ID: #${dispute.order_id.slice(
                                               0,
                                               8
                                             )}...\n• Product: ${
@@ -7227,6 +7294,14 @@ export default function Admin() {
           <TabsContent value="orders">
             <OrdersTab />
           </TabsContent>
+          {/* Staff Access - super_admin only; RLS on admin_permissions also
+              only allows super_admin writes regardless, this is defense in
+              depth on top of that. */}
+          {isSuperAdmin && (
+            <TabsContent value="staff">
+              <AdminStaffAccessTab />
+            </TabsContent>
+          )}
         </Tabs>
 
         {/* Edit Product Dialog */}

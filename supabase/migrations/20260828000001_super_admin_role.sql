@@ -1,0 +1,21 @@
+-- Adds the super_admin role tier, sitting above the existing 'admin' role.
+-- Split into its own migration ahead of the table/functions that reference
+-- it (20260828000002) - ALTER TYPE ... ADD VALUE has real restrictions on
+-- being used within the same transaction it was added in on some Postgres
+-- versions, so this stays a separate, minimal file rather than risk that.
+--
+-- Bootstrapping note: this migration does NOT grant super_admin to anyone.
+-- After this ships, run the following once yourself (Supabase SQL editor),
+-- with your own account's email. Grants BOTH roles deliberately - is_admin()
+-- (used throughout the app and by dozens of existing RLS policies) checks
+-- specifically for the 'admin' role row, not 'super_admin'. Per the approved
+-- design, is_admin() itself is staying unchanged, so a super_admin needs to
+-- also hold 'admin' or they'd fail every existing is_admin() check despite
+-- being the highest tier:
+--
+--   INSERT INTO public.user_roles (user_id, role)
+--   SELECT id, r.role FROM auth.users, (VALUES ('admin'), ('super_admin')) AS r(role)
+--   WHERE email = 'you@example.com'
+--   ON CONFLICT (user_id, role) DO NOTHING;
+
+ALTER TYPE public.app_role ADD VALUE IF NOT EXISTS 'super_admin';
