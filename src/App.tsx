@@ -28,10 +28,10 @@ import { WelcomeModalProvider } from "@/contexts/WelcomeModalContext";
 
 import { MessagePopup } from "@/components/notifications/MessagePopup";
 import { PushSubscribePrompt } from "@/components/notifications/PushSubscribePrompt";
-import { OnboardingModal } from "@/components/onboarding/OnboardingModal";
 // import { AIChatbot } from "@/components/chatbot/AIChatbot";
 import { SecurityProvider } from "@/components/security/SecurityProvider";
 import { ProfileCompletionModal } from "@/components/profile/ProfileCompletionModal";
+import { ReconsentGate } from "@/components/legal/ReconsentGate";
 import { useProfileCompletion } from "@/hooks/useProfileCompletion";
 
 import { AuthGuard } from "@/components/auth/AuthGuard";
@@ -41,8 +41,6 @@ import { setupNotificationClickHandler } from "@/utils/webPush";
 import { PWAInstallPrompt } from "@/components/common/PWAInstallPrompt";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import { useLiteMode } from "@/hooks/useLiteMode";
-import { useOnboarding } from "@/hooks/useOnboarding";
-import { DevToolsProtection } from "@/components/security/DevToolsProtection";
 import { useEffect, useCallback } from "react";
 import { NetworkNotification } from "@/components/notifications/NetworkNotification";
 import { useAutoReload } from "@/hooks/useAutoReload";
@@ -58,7 +56,6 @@ import {
   MAINTENANCE_BYPASS_PATH,
 } from "@/lib/maintenance";
 
-import "@/styles/mobile-fixes.css";
 import "@/styles/pwa-ios.css";
 import "@/styles/scroll-optimization.css";
 import "@/styles/bottom-nav.css";
@@ -294,7 +291,6 @@ const AppContent = () => {
   const { showModal, missingFields, dismissModal, completeProfile } =
     useProfileCompletion();
   const { isBanned, banReason, userEmail } = useBanCheck();
-  const { showOnboarding, closeOnboarding } = useOnboarding();
 
   useEffect(() => {
     const setupNotifications = async () => {
@@ -414,7 +410,6 @@ const AppContent = () => {
 
       <PWAInstallPrompt />
       <PushSubscribePrompt />
-      <OnboardingModal open={showOnboarding} onClose={closeOnboarding} />
 
       <ProfileCompletionModal
         open={showModal && !isBanned}
@@ -422,7 +417,7 @@ const AppContent = () => {
         missingFields={missingFields}
         onComplete={completeProfile}
       />
-      <DevToolsProtection />
+      <ReconsentGate />
     </>
   );
 };

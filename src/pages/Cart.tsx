@@ -236,8 +236,8 @@ const Cart = () => {
   useEffect(() => {
     if (error) {
       toast({
-        title: "Error",
-        description: "Failed to load cart items",
+        title: "Couldn't load your cart",
+        description: "Please refresh the page or try again shortly.",
         variant: "destructive",
       });
     }
@@ -262,8 +262,8 @@ const Cart = () => {
     } catch {
       updateCartCountOptimistically(-delta);
       toast({
-        title: "Error",
-        description: "Failed to update quantity",
+        title: "Couldn't update quantity",
+        description: "Please try again.",
         variant: "destructive",
       });
     }
@@ -290,8 +290,8 @@ const Cart = () => {
     } catch {
       if (item) updateCartCountOptimistically(item.quantity);
       toast({
-        title: "Error",
-        description: "Failed to remove item",
+        title: "Couldn't remove item",
+        description: "Please try again.",
         variant: "destructive",
       });
     }
@@ -339,8 +339,8 @@ const Cart = () => {
     } catch {
       updateCartCountOptimistically(-1);
       toast({
-        title: "Error",
-        description: "Failed to add item to cart",
+        title: "Couldn't add to cart",
+        description: "Please try again.",
         variant: "destructive",
       });
     }

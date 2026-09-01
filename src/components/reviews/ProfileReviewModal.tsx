@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/enhanced-button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Star } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -66,18 +66,18 @@ export const ProfileReviewModal = ({ open, onClose, sellerId, sellerName, orderI
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="w-[95vw] max-w-md">
+      <DialogContent className="w-[95vw] max-w-md border-flora-ink/10 bg-flora-card text-flora-ink">
         <DialogHeader>
-          <DialogTitle>Rate Your Experience</DialogTitle>
+          <DialogTitle className="text-flora-ink">Rate Your Experience</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-flora-muted">
             How was your experience with {sellerName}?
           </p>
-          
+
           <div>
-            <Label>Rating</Label>
-            <div className="flex gap-1 mt-2">
+            <Label className="text-flora-ink">Rating</Label>
+            <div className="mt-2 flex gap-1">
               {[1, 2, 3, 4, 5].map((star) => (
                 <button
                   key={star}
@@ -85,11 +85,12 @@ export const ProfileReviewModal = ({ open, onClose, sellerId, sellerName, orderI
                   className="p-1"
                 >
                   <Star
-                    className={`h-6 w-6 ${
+                    className={cn(
+                      "h-6 w-6",
                       star <= rating
-                        ? 'fill-yellow-400 text-yellow-400'
-                        : 'text-gray-300'
-                    }`}
+                        ? "fill-amber-400 text-amber-400"
+                        : "text-flora-chip"
+                    )}
                   />
                 </button>
               ))}
@@ -97,23 +98,33 @@ export const ProfileReviewModal = ({ open, onClose, sellerId, sellerName, orderI
           </div>
 
           <div>
-            <Label htmlFor="comment">Comment (Optional)</Label>
+            <Label htmlFor="comment" className="text-flora-ink">Comment (Optional)</Label>
             <Textarea
               id="comment"
               placeholder="Share your experience..."
               value={comment}
               onChange={(e) => setComment(e.target.value)}
               rows={3}
+              className="mt-1 border-flora-ink/15 bg-white text-flora-ink"
             />
           </div>
 
           <div className="flex gap-2">
-            <Button variant="outline" onClick={onClose} className="flex-1">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 rounded-full border border-flora-ink/15 bg-white px-4 py-2.5 text-sm font-medium text-flora-ink transition hover:bg-flora-chip"
+            >
               Skip
-            </Button>
-            <Button onClick={handleSubmit} disabled={loading} className="flex-1">
+            </button>
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={loading}
+              className="flex-1 rounded-full bg-flora-ink px-4 py-2.5 text-sm font-medium text-white transition hover:brightness-110 disabled:opacity-50"
+            >
               {loading ? "Submitting..." : "Submit Review"}
-            </Button>
+            </button>
           </div>
         </div>
       </DialogContent>

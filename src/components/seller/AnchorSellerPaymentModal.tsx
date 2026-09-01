@@ -136,7 +136,7 @@ export const AnchorSellerPaymentModal: React.FC<AnchorSellerPaymentModalProps> =
               </div>
               <div className="flex justify-between items-center text-sm">
                 <span className="text-muted-foreground font-medium">Account Name:</span>
-                <span className="font-semibold text-foreground">CampusConnect / {userName || "Seller"}</span>
+                <span className="font-semibold text-foreground">UniMarket / {userName || "Seller"}</span>
               </div>
             </div>
 

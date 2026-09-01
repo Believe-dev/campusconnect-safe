@@ -151,7 +151,7 @@ export const SellerRegistrationPayment = ({
               <Shield className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
               <div className="text-sm">
                 <p className="font-medium text-blue-900 mb-2">
-                  What you get with CampusConnect:
+                  What you get with UniMarket:
                 </p>
                 <div className="grid grid-cols-1 gap-1 text-blue-800">
                   <div>• <strong>Keep 100% of sales</strong> - No commission fees</div>

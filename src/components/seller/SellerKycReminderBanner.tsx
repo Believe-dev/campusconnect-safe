@@ -40,8 +40,8 @@ export const SellerKycReminderBanner = ({ userId }: SellerKycReminderBannerProps
   const content = {
     unverified: {
       icon: ShieldAlert,
-      wrap: "border-amber-500/40 bg-amber-950/30",
-      iconWrap: "bg-amber-500/20 text-amber-400",
+      wrap: "border-amber-300/70 bg-amber-50",
+      iconWrap: "bg-amber-100 text-amber-600",
       title: "Verify your identity to get paid",
       body: "You can list and sell right away. Complete BVN/NIN verification before you request your first payout — funds can't be withdrawn to an unverified account.",
       cta: "Verify Identity",
@@ -49,8 +49,8 @@ export const SellerKycReminderBanner = ({ userId }: SellerKycReminderBannerProps
     },
     pending: {
       icon: Clock,
-      wrap: "border-blue-500/40 bg-blue-950/30",
-      iconWrap: "bg-blue-500/20 text-blue-400",
+      wrap: "border-blue-300/70 bg-blue-50",
+      iconWrap: "bg-blue-100 text-blue-600",
       title: "Identity verification in progress",
       body: "Your BVN/NIN was submitted to Anchor BaaS and is being reviewed. This is usually quick — check back shortly.",
       cta: "View Status",
@@ -58,8 +58,8 @@ export const SellerKycReminderBanner = ({ userId }: SellerKycReminderBannerProps
     },
     rejected: {
       icon: XCircle,
-      wrap: "border-red-500/40 bg-red-950/30",
-      iconWrap: "bg-red-500/20 text-red-400",
+      wrap: "border-red-300/70 bg-red-50",
+      iconWrap: "bg-red-100 text-red-600",
       title: "Identity verification failed",
       body: kycStatus.kyc_rejection_reason || "Anchor couldn't confirm your details. Please check them and resubmit.",
       cta: "Resubmit",
@@ -72,20 +72,20 @@ export const SellerKycReminderBanner = ({ userId }: SellerKycReminderBannerProps
 
   return (
     <>
-      <div className={`mb-6 flex items-start gap-3 rounded-2xl border p-4 ${content.wrap}`}>
+      <div className={`flex items-start gap-3 rounded-2xl border p-4 ${content.wrap}`}>
         <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${content.iconWrap}`}>
           <Icon className="h-5 w-5" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-slate-100">{content.title}</p>
-          <p className="mt-0.5 text-xs text-slate-400">{content.body}</p>
+          <p className="text-sm font-semibold text-flora-ink">{content.title}</p>
+          <p className="mt-0.5 text-xs text-flora-muted">{content.body}</p>
         </div>
         {content.showCta && (
           <Button
             size="sm"
             variant="outline"
             onClick={() => setShowKycModal(true)}
-            className="shrink-0 text-xs border-slate-600 text-slate-200 hover:bg-slate-800"
+            className="shrink-0 text-xs border-flora-ink/15 text-flora-ink hover:bg-flora-chip"
           >
             {content.cta}
           </Button>

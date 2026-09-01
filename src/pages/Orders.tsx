@@ -4,9 +4,7 @@ import { useOptimizedQuery } from "@/hooks/useOptimizedQuery";
 import { useOfflineStorage } from "@/hooks/useOfflineStorage";
 import { useAuth } from "@/hooks/useAuth";
 import { useRealTimeOrders } from "@/hooks/useRealTimeOrders";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/enhanced-button";
-import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import { PullToRefresh } from "@/components/common/PullToRefresh";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -76,6 +74,77 @@ interface Order {
     auto_release_at?: string;
   }[];
 }
+
+const BTN_PRIMARY =
+  "inline-flex items-center justify-center gap-1.5 rounded-full bg-flora-ink px-4 py-2 text-xs font-medium text-white transition hover:brightness-110 disabled:opacity-50 disabled:pointer-events-none sm:text-sm";
+const BTN_OUTLINE =
+  "inline-flex items-center justify-center gap-1.5 rounded-full border border-flora-ink/15 bg-white px-4 py-2 text-xs font-medium text-flora-ink transition hover:bg-flora-chip disabled:opacity-50 disabled:pointer-events-none sm:text-sm";
+
+const STATUS_TONE: Record<string, string> = {
+  pending: "bg-flora-chip text-flora-muted",
+  paid: "bg-flora-tagBg text-flora-tagText",
+  shipped: "bg-flora-chip text-flora-ink",
+  delivered: "bg-flora-tagBg text-flora-tagText",
+  confirmed: "bg-flora-leaf text-white",
+  disputed: "bg-red-50 text-red-600",
+};
+
+// The order lifecycle is a fixed, linear pipeline (unlike arbitrary content),
+// so a segmented step bar communicates progress at a glance in the list —
+// a status pill alone makes buyers/sellers re-read text to know where an
+// order stands.
+const ORDER_STAGES = ["pending", "paid", "shipped", "delivered", "confirmed"];
+const STAGE_LABELS: Record<string, string> = {
+  pending: "Awaiting payment",
+  paid: "Payment received",
+  shipped: "Shipped",
+  delivered: "Delivered — awaiting your confirmation",
+  confirmed: "Confirmed",
+};
+
+const OrderProgress = ({ status }: { status: string }) => {
+  if (status === "disputed") {
+    return (
+      <div className="mt-3">
+        <div className="flex items-center gap-1">
+          {ORDER_STAGES.map((stage) => (
+            <div key={stage} className="h-1.5 flex-1 rounded-full bg-red-200" />
+          ))}
+        </div>
+        <p className="mt-1.5 text-[11px] font-medium text-red-600">Disputed</p>
+      </div>
+    );
+  }
+
+  const currentIndex = ORDER_STAGES.indexOf(status);
+
+  return (
+    <div className="mt-3">
+      <div className="flex items-center gap-1">
+        {ORDER_STAGES.map((stage, i) => (
+          <div
+            key={stage}
+            className={cn(
+              "h-1.5 flex-1 rounded-full",
+              i <= currentIndex ? "bg-flora-leaf" : "bg-flora-chip"
+            )}
+          />
+        ))}
+      </div>
+      <p className="mt-1.5 text-[11px] text-flora-muted">
+        {STAGE_LABELS[status] ?? status}
+      </p>
+    </div>
+  );
+};
+
+const OrderEmptyState = ({ title, copy }: { title: string; copy: string }) => (
+  <div className="rounded-3xl bg-flora-card p-8 text-center shadow-card sm:p-10">
+    <Package className="mx-auto mb-3 h-10 w-10 text-flora-muted sm:mb-4 sm:h-12 sm:w-12" />
+    <p className="text-base font-medium text-flora-ink sm:text-lg">{title}</p>
+    <p className="text-sm text-flora-muted sm:text-base">{copy}</p>
+  </div>
+);
 
 const Orders = () => {
   const { user } = useAuth();
@@ -261,8 +330,8 @@ const Orders = () => {
   useEffect(() => {
     if (error) {
       toast({
-        title: "Error",
-        description: "Failed to load orders",
+        title: "Couldn't load your orders",
+        description: "Please refresh the page or try again shortly.",
         variant: "destructive",
       });
     }
@@ -353,8 +422,8 @@ const Orders = () => {
 
             const emailSubject =
               status === "shipped"
-                ? "Order Shipped - CampusConnect"
-                : "Order Delivered - CampusConnect";
+                ? "Order Shipped - UniMarket"
+                : "Order Delivered - UniMarket";
 
             // Create notification
             const { sendOrderNotification } = await import(
@@ -391,7 +460,7 @@ const Orders = () => {
                       }
                     </ul>
                     <p>You can track your order in your account dashboard.</p>
-                    <p>Best regards,<br>CampusConnect Team</p>
+                    <p>Best regards,<br>UniMarket Team</p>
                   `,
                 },
               });
@@ -411,8 +480,8 @@ const Orders = () => {
       // Revert optimistic update on error
       await refetch();
       toast({
-        title: "Error",
-        description: error?.message || "Failed to update order",
+        title: "Couldn't update this order",
+        description: error?.message || "Please try again.",
         variant: "destructive",
       });
     }
@@ -426,8 +495,8 @@ const Orders = () => {
     try {
       if (!user) {
         toast({
-          title: "Error",
-          description: "User not authenticated",
+          title: "You're not signed in",
+          description: "Please sign in and try again.",
           variant: "destructive",
         });
         return;
@@ -436,8 +505,8 @@ const Orders = () => {
       const order = orders.find((o) => o.id === orderId);
       if (!order) {
         toast({
-          title: "Error",
-          description: "Order not found",
+          title: "Order not found",
+          description: "This order may have been removed. Please refresh and try again.",
           variant: "destructive",
         });
         return;
@@ -452,8 +521,8 @@ const Orders = () => {
 
       if (profileError || !profileData) {
         toast({
-          title: "Error",
-          description: "User profile not found. Please refresh and try again.",
+          title: "Couldn't verify your profile",
+          description: "Please refresh and try again.",
           variant: "destructive",
         });
         return;
@@ -463,8 +532,8 @@ const Orders = () => {
       const escrowTransaction = order.escrow_transactions?.[0];
       if (!escrowTransaction) {
         toast({
-          title: "Error",
-          description: "No escrow transaction found for this order",
+          title: "Couldn't report this issue",
+          description: "This order doesn't have an associated payment record. Please contact support.",
           variant: "destructive",
         });
         return;
@@ -496,9 +565,8 @@ const Orders = () => {
     } catch (error) {
       console.error("Report issue error:", error);
       toast({
-        title: "Error",
-        description:
-          error?.message || "Failed to report issue. Please try again.",
+        title: "Couldn't report issue",
+        description: error?.message || "Please try again.",
         variant: "destructive",
       });
     }
@@ -516,8 +584,8 @@ const Orders = () => {
 
       if (!dispute) {
         toast({
-          title: "Error",
-          description: "No open dispute found for this order",
+          title: "No dispute to withdraw",
+          description: "This order doesn't have an open dispute.",
           variant: "destructive",
         });
         return;
@@ -535,9 +603,8 @@ const Orders = () => {
 
       if (!data) {
         toast({
-          title: "Error",
-          description:
-            "Failed to withdraw dispute - you may not have permission",
+          title: "Couldn't withdraw dispute",
+          description: "You may not have permission to withdraw this dispute.",
           variant: "destructive",
         });
         return;
@@ -553,8 +620,8 @@ const Orders = () => {
       });
     } catch (error) {
       toast({
-        title: "Error",
-        description: "Failed to withdraw dispute",
+        title: "Couldn't withdraw dispute",
+        description: "Please try again.",
         variant: "destructive",
       });
     }
@@ -576,23 +643,6 @@ const Orders = () => {
         return <AlertCircle className="h-4 w-4" />;
       default:
         return <Clock className="h-4 w-4" />;
-    }
-  };
-
-  const getStatusVariant = (status: string) => {
-    switch (status) {
-      case "pending":
-        return "secondary";
-      case "shipped":
-        return "outline";
-      case "delivered":
-        return "default";
-      case "confirmed":
-        return "default";
-      case "disputed":
-        return "destructive";
-      default:
-        return "secondary";
     }
   };
 
@@ -663,8 +713,8 @@ const Orders = () => {
       }
     } catch (error) {
       toast({
-        title: "Error",
-        description: "Failed to start conversation",
+        title: "Couldn't start conversation",
+        description: "Please try again.",
         variant: "destructive",
       });
     }
@@ -711,373 +761,371 @@ const Orders = () => {
       : null;
 
     return (
-      <Card
+      <div
         key={order.id}
-        className={`mb-3 sm:mb-4 transition-all duration-500 ${
-          updatingOrderId === order.id
-            ? "ring-2 ring-blue-500 ring-opacity-50 bg-blue-50/50"
-            : ""
-        }`}
+        className={cn(
+          "mb-3 rounded-3xl bg-flora-card p-4 shadow-card transition-all duration-500 sm:mb-4 sm:p-5",
+          updatingOrderId === order.id && "bg-flora-tagBg/30 ring-2 ring-flora-leaf/50"
+        )}
       >
-        <CardContent className="p-4 sm:pt-6">
-          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-            <div className="flex-1 min-w-0">
-              <div className="flex flex-col sm:flex-row sm:items-center gap-2 mb-2">
-                <h3 className="font-semibold text-sm sm:text-base line-clamp-2">
-                  {order.product?.title}
-                </h3>
-                <div className="flex flex-wrap gap-2">
-                  <Badge
-                    variant={getStatusVariant(order.status) as any}
-                    className="text-xs"
-                  >
-                    <span className="flex items-center gap-1">
-                      {getStatusIcon(order.status)}
-                      {order.status}
-                    </span>
-                  </Badge>
-                  {escrow && escrow.status === "held" && (
-                    <Badge variant="outline" className="text-xs">
-                      <Shield className="h-3 w-3 mr-1" />
-                      <span className="hidden sm:inline">Escrow Protected</span>
-                      <span className="sm:hidden">Protected</span>
-                    </Badge>
+        <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+          <div className="min-w-0 flex-1">
+            <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center">
+              <h3 className="line-clamp-2 text-sm font-semibold text-flora-ink sm:text-base">
+                {order.product?.title}
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                <span
+                  className={cn(
+                    "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium capitalize",
+                    STATUS_TONE[order.status] || "bg-flora-chip text-flora-muted"
                   )}
-                </div>
-              </div>
-
-              <div className="text-xs sm:text-sm text-muted-foreground space-y-1">
-                <p className="truncate">
-                  {isSeller ? (
-                    `Buyer: ${order.buyer?.full_name}`
-                  ) : (
-                    <span>
-                      Seller:
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigate(`/seller/${order.seller_id}`);
-                        }}
-                        className="text-blue-600 hover:text-blue-800 underline ml-1"
-                      >
-                        {order.seller?.full_name}
-                      </button>
-                    </span>
-                  )}
-                </p>
-                {((isSeller && order.buyer?.phone_number) ||
-                  (!isSeller && order.seller?.phone_number)) && (
-                  <p className="flex items-center gap-1">
-                    <Phone className="h-3 w-3" />
-                    {isSeller
-                      ? order.buyer?.phone_number
-                      : order.seller?.phone_number}
-                  </p>
+                >
+                  {getStatusIcon(order.status)}
+                  {order.status}
+                </span>
+                {escrow && escrow.status === "held" && (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-flora-ink/15 px-2.5 py-1 text-xs font-medium text-flora-ink">
+                    <Shield className="h-3 w-3" />
+                    <span className="hidden sm:inline">Escrow Protected</span>
+                    <span className="sm:hidden">Protected</span>
+                  </span>
                 )}
               </div>
-              <div className="text-xs sm:text-sm text-muted-foreground space-y-1">
-                <p>
-                  Qty: {order.quantity}
-                  {order.selected_size && (
-                    <span> • Size: {order.selected_size}</span>
-                  )}
-                  {" • Total: ₦"}
-                  {order.total_amount.toLocaleString()}
-                </p>
-                {isSeller && escrow && (
-                  <p className="text-green-600 text-xs">
-                    You'll receive: ₦{escrow.seller_amount.toLocaleString()}
-                  </p>
-                )}
-                {isSeller && (order.shipping_address || order.delivery_method) && (
-                  <div className="mt-2 p-2 bg-muted/50 rounded text-xs">
-                    <p className="font-medium text-primary">
-                      {order.delivery_method === "pickup"
-                        ? "📦 Pickup — buyer will collect from you"
-                        : "🚚 Delivery"}
-                    </p>
-                    {order.delivery_method !== "pickup" && order.shipping_address && (
-                      <p>{order.shipping_address}</p>
-                    )}
-                    {order.university_name && (
-                      <p className="text-blue-600">
-                        🏫 {order.university_name}
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Ordered on {new Date(order.created_at).toLocaleDateString()}
-              </p>
-
-              {order.tracking_info && (
-                <p className="text-xs sm:text-sm text-muted-foreground mt-2">
-                  📦 Tracking: {order.tracking_info}
-                </p>
-              )}
-
-              {daysUntilAutoRelease &&
-                daysUntilAutoRelease > 0 &&
-                order.status === "delivered" && (
-                  <div className="flex items-center gap-1 mt-2 text-xs text-orange-600">
-                    <Timer className="h-3 w-3" />
-                    Auto-confirms in {daysUntilAutoRelease} day
-                    {daysUntilAutoRelease !== 1 ? "s" : ""}
-                  </div>
-                )}
             </div>
 
-            <div className="flex flex-col gap-2 w-full sm:w-auto">
-              {/* View Details Button */}
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  setSelectedOrder(order);
-                  setShowOrderDetails(true);
-                }}
-                className="w-full sm:w-auto text-xs sm:text-sm"
-              >
-                <Package className="h-3 w-3 mr-1" />
-                View Details
-              </Button>
+            <OrderProgress status={order.status} />
 
-              {/* Chat Button - Always visible */}
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => handleChat(order, isSeller)}
-                className="w-full sm:w-auto text-xs sm:text-sm"
-              >
-                <MessageCircle className="h-3 w-3 mr-1" />
-                {isSeller ? "Chat Buyer" : "Chat Seller"}
-              </Button>
-
-              {/* WhatsApp Button */}
+            <div className="mt-3 space-y-1 text-xs text-flora-muted sm:text-sm">
+              <p className="truncate">
+                {isSeller ? (
+                  `Buyer: ${order.buyer?.full_name}`
+                ) : (
+                  <span>
+                    Seller:{" "}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/seller/${order.seller_id}`);
+                      }}
+                      className="text-flora-leaf underline hover:brightness-90"
+                    >
+                      {order.seller?.full_name}
+                    </button>
+                  </span>
+                )}
+              </p>
               {((isSeller && order.buyer?.phone_number) ||
                 (!isSeller && order.seller?.phone_number)) && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => handleWhatsApp(order, isSeller)}
-                  className="w-full sm:w-auto text-xs sm:text-sm bg-green-50 hover:bg-green-100 hover:text-green-600 text-green-700 border-green-200"
-                >
-                  <MessageCircle className="h-3 w-3 mr-1" />
-                  WhatsApp
-                </Button>
-              )}
-
-              {isSeller ? (
-                // Seller actions
-                <>
-                  {order.status === "paid" && (
-                    <Button
-                      size="sm"
-                      onClick={() =>
-                        updateOrderStatus(
-                          order.id,
-                          "shipped",
-                          "Package dispatched"
-                        )
-                      }
-                      className="w-full sm:w-auto text-xs sm:text-sm"
-                    >
-                      Mark as Shipped
-                    </Button>
-                  )}
-                  {order.status === "shipped" && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => updateOrderStatus(order.id, "delivered")}
-                      className="w-full sm:w-auto text-xs sm:text-sm"
-                    >
-                      Mark as Delivered
-                    </Button>
-                  )}
-                  {order.status === "confirmed" && order.escrow_released && (
-                    <Badge variant="default" className="text-center text-xs">
-                      Payment Released
-                    </Badge>
-                  )}
-                </>
-              ) : (
-                // Buyer actions
-                <>
-                  {order.status === "delivered" && (
-                    <div className="flex flex-col gap-2">
-                      <Button
-                        size="sm"
-                        onClick={() => {
-                          updateOrderStatus(order.id, "confirmed");
-                          // Show review modal after confirmation
-                          setTimeout(() => {
-                            setReviewOrderData({
-                              orderId: order.id,
-                              sellerId: order.seller_id,
-                              sellerName: order.seller?.full_name || "Seller",
-                            });
-                            setShowReviewModal(true);
-                          }, 1500);
-                        }}
-                        className="w-full sm:w-auto text-xs sm:text-sm"
-                      >
-                        ✅ Confirm Receipt
-                      </Button>
-                      <Dialog
-                        open={showReportDialog}
-                        onOpenChange={setShowReportDialog}
-                      >
-                        <DialogTrigger asChild>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="w-full sm:w-auto text-xs sm:text-sm"
-                          >
-                            ❌ Report Issue
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent className="w-[95vw] max-w-md">
-                          <DialogHeader>
-                            <DialogTitle className="text-lg sm:text-xl">
-                              Report Issue
-                            </DialogTitle>
-                          </DialogHeader>
-                          <div className="space-y-3 sm:space-y-4">
-                            <div>
-                              <Label
-                                htmlFor="reason"
-                                className="text-sm sm:text-base"
-                              >
-                                Reason
-                              </Label>
-                              <select
-                                className="w-full p-2 border rounded text-sm sm:text-base"
-                                value={reportReason}
-                                onChange={(e) =>
-                                  setReportReason(e.target.value)
-                                }
-                              >
-                                <option value="">Select a reason</option>
-                                <option value="item_not_received">
-                                  Item not received
-                                </option>
-                                <option value="item_damaged">
-                                  Item damaged
-                                </option>
-                                <option value="wrong_item">
-                                  Wrong item received
-                                </option>
-                                <option value="not_as_described">
-                                  Not as described
-                                </option>
-                                <option value="other">Other</option>
-                              </select>
-                            </div>
-                            <div>
-                              <Label
-                                htmlFor="description"
-                                className="text-sm sm:text-base"
-                              >
-                                Description
-                              </Label>
-                              <Textarea
-                                id="description"
-                                placeholder="Please describe the issue in detail"
-                                value={reportDescription}
-                                onChange={(e) =>
-                                  setReportDescription(e.target.value)
-                                }
-                                className="text-sm sm:text-base"
-                              />
-                            </div>
-                            <div className="flex flex-col gap-3">
-                              <Button
-                                onClick={() => {
-                                  reportIssue(
-                                    order.id,
-                                    reportReason,
-                                    reportDescription
-                                  );
-                                  setShowReportDialog(false);
-                                  setReportReason("");
-                                  setReportDescription("");
-                                }}
-                                className="w-full"
-                                disabled={!reportReason || !reportDescription}
-                              >
-                                Submit Report
-                              </Button>
-                              <div className="text-center">
-                                <p className="text-xs text-muted-foreground mb-2">
-                                  Need immediate help?
-                                </p>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => {
-                                    const message = `Hi! I need help with my order:\n\nOrder ID: #${order.id.slice(
-                                      -8
-                                    )}\nProduct: ${
-                                      order.product?.title
-                                    }\nSeller: ${
-                                      order.seller?.full_name
-                                    }\nQuantity: ${
-                                      order.quantity
-                                    }\nTotal Amount: ₦${order.total_amount.toLocaleString()}\nOrder Status: ${
-                                      order.status
-                                    }\nOrder Date: ${new Date(
-                                      order.created_at
-                                    ).toLocaleDateString()}\nShipping Address: ${
-                                      order.shipping_address
-                                    }\n\nIssue: ${reportReason} - ${reportDescription}\n\nPlease help me resolve this issue.`;
-                                    window.open(
-                                      `https://wa.me/2349133054018?text=${encodeURIComponent(
-                                        message
-                                      )}`,
-                                      "_blank"
-                                    );
-                                  }}
-                                  className="text-green-600 hover:text-green-600 border-green-600 hover:bg-green-50"
-                                >
-                                  Chat on WhatsApp
-                                </Button>
-                              </div>
-                            </div>
-                          </div>
-                        </DialogContent>
-                      </Dialog>
-                    </div>
-                  )}
-                  {order.status === "disputed" && (
-                    <div className="flex flex-col gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => withdrawDispute(order.id)}
-                        className="w-full sm:w-auto text-xs sm:text-sm"
-                      >
-                        Withdraw Dispute
-                      </Button>
-                    </div>
-                  )}
-                </>
+                <p className="flex items-center gap-1">
+                  <Phone className="h-3 w-3" />
+                  {isSeller
+                    ? order.buyer?.phone_number
+                    : order.seller?.phone_number}
+                </p>
               )}
             </div>
+            <div className="space-y-1 text-xs text-flora-muted sm:text-sm">
+              <p>
+                Qty: {order.quantity}
+                {order.selected_size && (
+                  <span> • Size: {order.selected_size}</span>
+                )}
+                {" • Total: ₦"}
+                {order.total_amount.toLocaleString()}
+              </p>
+              {isSeller && escrow && (
+                <p className="text-xs text-flora-leaf">
+                  You'll receive: ₦{escrow.seller_amount.toLocaleString()}
+                </p>
+              )}
+              {isSeller && (order.shipping_address || order.delivery_method) && (
+                <div className="mt-2 rounded-xl bg-flora-chip p-2 text-xs text-flora-ink">
+                  <p className="flex items-center gap-1 font-medium">
+                    {order.delivery_method === "pickup" ? (
+                      <Package className="h-3 w-3" />
+                    ) : (
+                      <Truck className="h-3 w-3" />
+                    )}
+                    {order.delivery_method === "pickup"
+                      ? "Pickup — buyer will collect from you"
+                      : "Delivery"}
+                  </p>
+                  {order.delivery_method !== "pickup" && order.shipping_address && (
+                    <p className="mt-1">{order.shipping_address}</p>
+                  )}
+                  {order.university_name && (
+                    <p className="mt-1 text-flora-leaf">{order.university_name}</p>
+                  )}
+                </div>
+              )}
+            </div>
+            <p className="text-xs text-flora-muted">
+              Ordered on {new Date(order.created_at).toLocaleDateString()}
+            </p>
+
+            {order.tracking_info && (
+              <p className="mt-2 text-xs text-flora-muted sm:text-sm">
+                Tracking: {order.tracking_info}
+              </p>
+            )}
+
+            {daysUntilAutoRelease &&
+              daysUntilAutoRelease > 0 &&
+              order.status === "delivered" && (
+                <div className="mt-2 flex items-center gap-1 text-xs text-amber-600">
+                  <Timer className="h-3 w-3" />
+                  Auto-confirms in {daysUntilAutoRelease} day
+                  {daysUntilAutoRelease !== 1 ? "s" : ""}
+                </div>
+              )}
           </div>
-        </CardContent>
-      </Card>
+
+          <div className="flex w-full flex-col gap-2 sm:w-auto">
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedOrder(order);
+                setShowOrderDetails(true);
+              }}
+              className={cn(BTN_OUTLINE, "w-full sm:w-auto")}
+            >
+              <Package className="h-3.5 w-3.5" />
+              View Details
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleChat(order, isSeller)}
+              className={cn(BTN_OUTLINE, "w-full sm:w-auto")}
+            >
+              <MessageCircle className="h-3.5 w-3.5" />
+              {isSeller ? "Chat Buyer" : "Chat Seller"}
+            </button>
+
+            {((isSeller && order.buyer?.phone_number) ||
+              (!isSeller && order.seller?.phone_number)) && (
+              <button
+                type="button"
+                onClick={() => handleWhatsApp(order, isSeller)}
+                className={cn(BTN_OUTLINE, "w-full border-flora-leaf/30 text-flora-leaf sm:w-auto")}
+              >
+                <MessageCircle className="h-3.5 w-3.5" />
+                WhatsApp
+              </button>
+            )}
+
+            {isSeller ? (
+              // Seller actions
+              <>
+                {order.status === "paid" && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      updateOrderStatus(
+                        order.id,
+                        "shipped",
+                        "Package dispatched"
+                      )
+                    }
+                    className={cn(BTN_PRIMARY, "w-full sm:w-auto")}
+                  >
+                    Mark as Shipped
+                  </button>
+                )}
+                {order.status === "shipped" && (
+                  <button
+                    type="button"
+                    onClick={() => updateOrderStatus(order.id, "delivered")}
+                    className={cn(BTN_OUTLINE, "w-full sm:w-auto")}
+                  >
+                    Mark as Delivered
+                  </button>
+                )}
+                {order.status === "confirmed" && order.escrow_released && (
+                  <span className="rounded-full bg-flora-tagBg px-3 py-1.5 text-center text-xs font-medium text-flora-tagText">
+                    Payment Released
+                  </span>
+                )}
+              </>
+            ) : (
+              // Buyer actions
+              <>
+                {order.status === "delivered" && (
+                  <div className="flex flex-col gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        updateOrderStatus(order.id, "confirmed");
+                        // Show review modal after confirmation
+                        setTimeout(() => {
+                          setReviewOrderData({
+                            orderId: order.id,
+                            sellerId: order.seller_id,
+                            sellerName: order.seller?.full_name || "Seller",
+                          });
+                          setShowReviewModal(true);
+                        }, 1500);
+                      }}
+                      className={cn(BTN_PRIMARY, "w-full sm:w-auto")}
+                    >
+                      <CheckCircle className="h-3.5 w-3.5" />
+                      Confirm Receipt
+                    </button>
+                    <Dialog
+                      open={showReportDialog}
+                      onOpenChange={setShowReportDialog}
+                    >
+                      <DialogTrigger asChild>
+                        <button
+                          type="button"
+                          className={cn(BTN_OUTLINE, "w-full sm:w-auto")}
+                        >
+                          <AlertCircle className="h-3.5 w-3.5" />
+                          Report Issue
+                        </button>
+                      </DialogTrigger>
+                      <DialogContent className="w-[95vw] max-w-md border-flora-ink/10 bg-flora-card text-flora-ink">
+                        <DialogHeader>
+                          <DialogTitle className="text-lg text-flora-ink sm:text-xl">
+                            Report Issue
+                          </DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-3 sm:space-y-4">
+                          <div>
+                            <Label
+                              htmlFor="reason"
+                              className="text-sm text-flora-ink sm:text-base"
+                            >
+                              Reason
+                            </Label>
+                            <select
+                              className="mt-1 w-full rounded-xl border border-flora-ink/15 bg-white p-2 text-sm text-flora-ink sm:text-base"
+                              value={reportReason}
+                              onChange={(e) =>
+                                setReportReason(e.target.value)
+                              }
+                            >
+                              <option value="">Select a reason</option>
+                              <option value="item_not_received">
+                                Item not received
+                              </option>
+                              <option value="item_damaged">
+                                Item damaged
+                              </option>
+                              <option value="wrong_item">
+                                Wrong item received
+                              </option>
+                              <option value="not_as_described">
+                                Not as described
+                              </option>
+                              <option value="other">Other</option>
+                            </select>
+                          </div>
+                          <div>
+                            <Label
+                              htmlFor="description"
+                              className="text-sm text-flora-ink sm:text-base"
+                            >
+                              Description
+                            </Label>
+                            <Textarea
+                              id="description"
+                              placeholder="Please describe the issue in detail"
+                              value={reportDescription}
+                              onChange={(e) =>
+                                setReportDescription(e.target.value)
+                              }
+                              className="mt-1 border-flora-ink/15 bg-white text-sm text-flora-ink sm:text-base"
+                            />
+                          </div>
+                          <div className="flex flex-col gap-3">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                reportIssue(
+                                  order.id,
+                                  reportReason,
+                                  reportDescription
+                                );
+                                setShowReportDialog(false);
+                                setReportReason("");
+                                setReportDescription("");
+                              }}
+                              disabled={!reportReason || !reportDescription}
+                              className={cn(BTN_PRIMARY, "w-full")}
+                            >
+                              Submit Report
+                            </button>
+                            <div className="text-center">
+                              <p className="mb-2 text-xs text-flora-muted">
+                                Need immediate help?
+                              </p>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const message = `Hi! I need help with my order:\n\nOrder ID: #${order.id.slice(
+                                    -8
+                                  )}\nProduct: ${
+                                    order.product?.title
+                                  }\nSeller: ${
+                                    order.seller?.full_name
+                                  }\nQuantity: ${
+                                    order.quantity
+                                  }\nTotal Amount: ₦${order.total_amount.toLocaleString()}\nOrder Status: ${
+                                    order.status
+                                  }\nOrder Date: ${new Date(
+                                    order.created_at
+                                  ).toLocaleDateString()}\nShipping Address: ${
+                                    order.shipping_address
+                                  }\n\nIssue: ${reportReason} - ${reportDescription}\n\nPlease help me resolve this issue.`;
+                                  window.open(
+                                    `https://wa.me/2349133054018?text=${encodeURIComponent(
+                                      message
+                                    )}`,
+                                    "_blank"
+                                  );
+                                }}
+                                className={cn(
+                                  BTN_OUTLINE,
+                                  "border-flora-leaf/30 text-flora-leaf"
+                                )}
+                              >
+                                Chat on WhatsApp
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+                )}
+                {order.status === "disputed" && (
+                  <div className="flex flex-col gap-2">
+                    <button
+                      type="button"
+                      onClick={() => withdrawDispute(order.id)}
+                      className={cn(BTN_OUTLINE, "w-full sm:w-auto")}
+                    >
+                      Withdraw Dispute
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      </div>
     );
   };
 
   if (isLoading && orders.length === 0) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-gradient-to-b from-flora-bgFrom to-flora-bgTo">
         <main className="container mx-auto px-4 py-8">
           <div className="animate-pulse">
-            <div className="h-8 bg-muted rounded mb-4"></div>
-            <div className="h-96 bg-muted rounded"></div>
+            <div className="mb-4 h-8 rounded-full bg-flora-chip"></div>
+            <div className="h-96 rounded-3xl bg-flora-chip"></div>
           </div>
         </main>
       </div>
@@ -1085,35 +1133,35 @@ const Orders = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gradient-to-b from-flora-bgFrom to-flora-bgTo">
       <PullToRefresh onRefresh={handleRefresh} className="min-h-screen">
         <main className="container mx-auto px-4 py-6 sm:py-8">
         <div className="max-w-4xl mx-auto">
-          <div className="flex items-center justify-between mb-4 sm:mb-6">
-            <h1 className="text-2xl sm:text-3xl font-bold text-primary">
+          <div className="mb-4 flex items-center justify-between sm:mb-6">
+            <h1 className="text-2xl font-bold text-flora-ink sm:text-3xl">
               My Orders
             </h1>
             <div className="flex items-center gap-3">
-              <Button
-                variant="outline"
-                size="sm"
+              <button
+                type="button"
                 onClick={() => {
                   refetch();
                   setLastUpdated(new Date());
                 }}
                 disabled={isLoading}
-                className="flex items-center gap-2"
+                className={BTN_OUTLINE}
               >
                 <RefreshCw
-                  className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`}
+                  className={cn("h-3.5 w-3.5", isLoading && "animate-spin")}
                 />
                 <span className="hidden sm:inline">Reload</span>
-              </Button>
-              <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground">
+              </button>
+              <div className="flex items-center gap-2 text-xs text-flora-muted sm:text-sm">
                 <div
-                  className={`w-2 h-2 rounded-full ${
-                    isRealTimeConnected ? "bg-green-500" : "bg-gray-400"
-                  }`}
+                  className={cn(
+                    "h-2 w-2 rounded-full",
+                    isRealTimeConnected ? "bg-flora-leaf" : "bg-flora-muted/50"
+                  )}
                 />
                 <span className="hidden sm:inline">
                   {isRealTimeConnected ? "Live updates" : "Connecting..."}
@@ -1130,17 +1178,10 @@ const Orders = () => {
             <div>
               {orders.filter((order) => order.buyer_id === user?.id).length ===
               0 ? (
-                <Card>
-                  <CardContent className="p-6 sm:pt-6 text-center">
-                    <Package className="h-10 w-10 sm:h-12 sm:w-12 mx-auto mb-3 sm:mb-4 text-muted-foreground" />
-                    <p className="text-base sm:text-lg font-medium">
-                      No orders yet
-                    </p>
-                    <p className="text-sm sm:text-base text-muted-foreground">
-                      Start shopping to see your orders here
-                    </p>
-                  </CardContent>
-                </Card>
+                <OrderEmptyState
+                  title="No orders yet"
+                  copy="Start shopping to see your orders here"
+                />
               ) : (
                 orders
                   .filter((order) => order.buyer_id === user?.id)
@@ -1150,27 +1191,21 @@ const Orders = () => {
           ) : (
             // Seller view with tabs
             <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className="grid w-full grid-cols-2 h-fit">
-                <TabsTrigger value="buyer" className="relative">
+              <TabsList className="grid h-fit w-full grid-cols-2 gap-1 rounded-2xl bg-flora-chip/70 p-1">
+                <TabsTrigger value="buyer" className="relative rounded-xl">
                   As Buyer
                   {getUnattendedBuyerCount() > 0 && (
-                    <Badge
-                      variant="destructive"
-                      className="absolute -top-2 -right-2 h-5 w-5 p-0 text-xs flex items-center justify-center"
-                    >
+                    <span className="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs text-white">
                       {getUnattendedBuyerCount()}
-                    </Badge>
+                    </span>
                   )}
                 </TabsTrigger>
-                <TabsTrigger value="seller" className="relative">
+                <TabsTrigger value="seller" className="relative rounded-xl">
                   As Seller
                   {getUnattendedSellerCount() > 0 && (
-                    <Badge
-                      variant="destructive"
-                      className="absolute -top-2 -right-2 h-5 w-5 p-0 text-xs flex items-center justify-center"
-                    >
+                    <span className="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs text-white">
                       {getUnattendedSellerCount()}
-                    </Badge>
+                    </span>
                   )}
                 </TabsTrigger>
               </TabsList>
@@ -1179,17 +1214,10 @@ const Orders = () => {
                 <div>
                   {orders.filter((order) => order.buyer_id === user?.id)
                     .length === 0 ? (
-                    <Card>
-                      <CardContent className="p-6 sm:pt-6 text-center">
-                        <Package className="h-10 w-10 sm:h-12 sm:w-12 mx-auto mb-3 sm:mb-4 text-muted-foreground" />
-                        <p className="text-base sm:text-lg font-medium">
-                          No orders yet
-                        </p>
-                        <p className="text-sm sm:text-base text-muted-foreground">
-                          Start shopping to see your orders here
-                        </p>
-                      </CardContent>
-                    </Card>
+                    <OrderEmptyState
+                      title="No orders yet"
+                      copy="Start shopping to see your orders here"
+                    />
                   ) : (
                     orders
                       .filter((order) => order.buyer_id === user?.id)
@@ -1204,35 +1232,32 @@ const Orders = () => {
                     const sellerAccess = canAccessSellerFeature('seller_orders');
                     if (!sellerAccess.allowed) {
                       return (
-                        <Card>
-                          <CardContent className="p-6 sm:pt-6 text-center">
-                            <div className="mx-auto w-16 h-16 bg-gradient-to-br from-university-green to-emerald-600 rounded-full flex items-center justify-center mb-4">
-                              <Package className="h-8 w-8 text-white" />
-                            </div>
-                            <h3 className="text-lg font-semibold mb-2">Subscription Required</h3>
-                            <p className="text-sm text-muted-foreground mb-4">
-                              {sellerAccess.reason}
-                            </p>
-                            <Button onClick={() => navigate('/dashboard')} className="w-full sm:w-auto">
-                              Renew Subscription
-                            </Button>
-                          </CardContent>
-                        </Card>
+                        <div className="rounded-3xl bg-flora-card p-8 text-center shadow-card sm:p-10">
+                          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-flora-leafBright to-flora-leaf">
+                            <Package className="h-8 w-8 text-white" />
+                          </div>
+                          <h3 className="mb-2 text-lg font-semibold text-flora-ink">
+                            Subscription Required
+                          </h3>
+                          <p className="mb-4 text-sm text-flora-muted">
+                            {sellerAccess.reason}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => navigate('/dashboard')}
+                            className={cn(BTN_PRIMARY, "w-full sm:w-auto")}
+                          >
+                            Renew Subscription
+                          </button>
+                        </div>
                       );
                     }
-                    
+
                     return orders.filter((order) => order.seller_id === user?.id).length === 0 ? (
-                      <Card>
-                        <CardContent className="p-6 sm:pt-6 text-center">
-                          <Package className="h-10 w-10 sm:h-12 sm:w-12 mx-auto mb-3 sm:mb-4 text-muted-foreground" />
-                          <p className="text-base sm:text-lg font-medium">
-                            No sales yet
-                          </p>
-                          <p className="text-sm sm:text-base text-muted-foreground">
-                            Start selling to see your orders here
-                          </p>
-                        </CardContent>
-                      </Card>
+                      <OrderEmptyState
+                        title="No sales yet"
+                        copy="Start selling to see your orders here"
+                      />
                     ) : (
                       orders
                         .filter((order) => order.seller_id === user?.id)

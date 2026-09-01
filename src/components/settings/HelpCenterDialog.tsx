@@ -125,7 +125,7 @@ export const HelpCenterDialog = ({ children }: HelpCenterDialogProps) => {
       faq.answer.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const getStartedGuide = `Welcome to CampusConnect! 🎓
+  const getStartedGuide = `Welcome to UniMarket! 🎓
 
 1. ACCOUNT SETUP
    • Sign up with your university email
@@ -455,12 +455,12 @@ Thank you.`;
             <div className="grid gap-4">
               <GuideCard 
                 title="Getting Started Guide"
-                description="Complete guide for new users on CampusConnect"
+                description="Complete guide for new users on UniMarket"
                 content={getStartedGuide}
               />
               <GuideCard 
                 title="Seller's Handbook"
-                description="Best practices for selling on CampusConnect"
+                description="Best practices for selling on UniMarket"
                 content={sellerGuide}
               />
               <GuideCard 

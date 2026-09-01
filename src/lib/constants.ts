@@ -1,9 +1,9 @@
 // App-wide constants
 export const APP_CONFIG = {
-  name: "CampusConnect",
+  name: "UniMarket",
   version: "1.0.0",
   description: "Nigeria's Trusted University Marketplace",
-  supportEmail: "support@campusconnect.ng",
+  supportEmail: "support@unimarket.com.ng",
 } as const;
 
 export const API_CONFIG = {

@@ -1,7 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/enhanced-button";
-import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import {
   getVirtualAccount,
@@ -19,7 +17,6 @@ import {
   Check,
   Lock,
   Wallet,
-  PlusCircle,
   RefreshCw,
   ShieldCheck,
   CreditCard,
@@ -161,46 +158,41 @@ export const AnchorVirtualAccountCard = ({
   };
 
   if (loading) {
-    return (
-      <Card className="animate-pulse bg-gradient-to-r from-emerald-950 to-slate-900 text-white border-emerald-800">
-        <CardContent className="p-6 h-48" />
-      </Card>
-    );
+    return <div className="h-48 animate-pulse rounded-3xl bg-flora-chip/60" />;
   }
 
   if (!account) return null;
 
   return (
     <>
-      <Card className="overflow-hidden border-2 border-emerald-500/30 bg-slate-900 text-white shadow-xl relative">
-        <div className="absolute top-0 right-0 p-3 opacity-10 pointer-events-none">
-          <Building2 className="w-40 h-40 text-emerald-400" />
+      <div className="relative overflow-hidden rounded-3xl bg-flora-card shadow-card">
+        <div className="pointer-events-none absolute right-0 top-0 p-3 opacity-[0.06]">
+          <Building2 className="h-40 w-40 text-flora-leaf" />
         </div>
 
-        <CardHeader className="pb-2 border-b border-slate-800 flex flex-row items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <div className="p-2 bg-emerald-500/20 rounded-lg border border-emerald-500/40">
-              <Building2 className="h-5 w-5 text-emerald-400" />
+        <div className="flex flex-row items-center justify-between gap-3 border-b border-flora-ink/10 p-4 pb-3.5 sm:p-6 sm:pb-4">
+          <div className="flex items-center gap-2.5">
+            <div className="rounded-xl bg-flora-tagBg p-2">
+              <Building2 className="h-5 w-5 text-flora-leaf" />
             </div>
             <div>
-              <CardTitle className="text-base font-bold text-slate-100 flex items-center gap-2">
+              <p className="flex items-center gap-2 text-base font-bold text-flora-ink">
                 Anchor Virtual NUBAN Account
                 {kycStatus && (
-                  <Badge
-                    variant="outline"
-                    className={
+                  <span
+                    className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${
                       kycStatus.tier === 3
-                        ? "bg-emerald-950 text-emerald-300 border-emerald-500 text-[10px]"
+                        ? "border-flora-leaf/40 bg-flora-tagBg text-flora-tagText"
                         : kycStatus.tier === 2
-                        ? "bg-blue-950 text-blue-300 border-blue-500 text-[10px]"
-                        : "bg-amber-950 text-amber-300 border-amber-500 text-[10px]"
-                    }
+                        ? "border-blue-300 bg-blue-50 text-blue-600"
+                        : "border-amber-300 bg-amber-50 text-amber-700"
+                    }`}
                   >
                     CBN {kycStatus.tier_name}
-                  </Badge>
+                  </span>
                 )}
-              </CardTitle>
-              <p className="text-xs text-slate-400">Powered by getanchor.co BaaS Infrastructure</p>
+              </p>
+              <p className="text-xs text-flora-muted">Powered by getanchor.co BaaS Infrastructure</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -208,36 +200,36 @@ export const AnchorVirtualAccountCard = ({
               variant="outline"
               size="sm"
               onClick={() => setShowKycModal(true)}
-              className="text-xs border-amber-500/50 text-amber-300 hover:bg-amber-950 font-bold"
+              className="border-amber-300 text-xs font-bold text-amber-700 hover:bg-amber-50"
             >
-              <ShieldAlert className="h-3.5 w-3.5 mr-1" />
+              <ShieldAlert className="mr-1 h-3.5 w-3.5" />
               Verify Identity (BVN / NIN) ⚡
             </Button>
             <Button
               variant="ghost"
               size="sm"
               onClick={loadAccount}
-              className="text-slate-400 hover:text-white hover:bg-slate-800"
+              className="text-flora-muted hover:bg-flora-chip hover:text-flora-ink"
               title="Refresh account"
             >
               <RefreshCw className="h-4 w-4" />
             </Button>
           </div>
-        </CardHeader>
+        </div>
 
-        <CardContent className="pt-4 space-y-4">
+        <div className="space-y-4 p-4 pt-4 sm:p-6">
           {/* Account Details Box */}
-          <div className="bg-slate-950/70 p-3.5 rounded-xl border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex flex-col justify-between gap-3 rounded-2xl bg-flora-chip p-3.5 sm:flex-row sm:items-center">
             <div>
-              <p className="text-xs text-slate-400 font-medium">Virtual Bank & Account Name</p>
-              <p className="text-sm font-semibold text-slate-200">{account.bank_name}</p>
-              <p className="text-xs text-slate-400">{account.account_name}</p>
+              <p className="text-xs font-medium text-flora-muted">Virtual Bank &amp; Account Name</p>
+              <p className="text-sm font-semibold text-flora-ink">{account.bank_name}</p>
+              <p className="text-xs text-flora-muted">{account.account_name}</p>
             </div>
 
-            <div className="flex items-center gap-2 bg-slate-900 px-3 py-2 rounded-lg border border-slate-700">
+            <div className="flex items-center gap-2 rounded-xl border border-flora-ink/10 bg-white px-3 py-2">
               <div>
-                <p className="text-[10px] text-slate-400 uppercase tracking-wider">Account Number</p>
-                <p className="text-base font-mono font-bold text-emerald-400 tracking-wider">
+                <p className="text-[10px] uppercase tracking-wider text-flora-muted">Account Number</p>
+                <p className="text-base font-mono font-bold tracking-wider text-flora-leaf">
                   {account.account_number}
                 </p>
               </div>
@@ -245,50 +237,50 @@ export const AnchorVirtualAccountCard = ({
                 variant="outline"
                 size="icon"
                 onClick={handleCopyAccount}
-                className="h-8 w-8 text-slate-300 border-slate-700 hover:bg-emerald-950 hover:text-emerald-300"
+                className="h-8 w-8 border-flora-ink/15 text-flora-ink hover:bg-flora-tagBg hover:text-flora-tagText"
               >
-                {copied ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
+                {copied ? <Check className="h-4 w-4 text-flora-leaf" /> : <Copy className="h-4 w-4" />}
               </Button>
             </div>
           </div>
 
           {/* Balances Display */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="bg-emerald-950/30 p-3.5 rounded-xl border border-emerald-800/50">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs text-emerald-300 font-medium flex items-center gap-1.5">
-                  <Wallet className="h-3.5 w-3.5 text-emerald-400" />
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="rounded-2xl border border-flora-leaf/25 bg-flora-tagBg/40 p-3.5">
+              <div className="mb-1 flex items-center justify-between">
+                <span className="flex items-center gap-1.5 text-xs font-medium text-flora-tagText">
+                  <Wallet className="h-3.5 w-3.5" />
                   Available Wallet Balance
                 </span>
-                <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
+                <ShieldCheck className="h-3.5 w-3.5 text-flora-leaf" />
               </div>
-              <p className="text-xl font-extrabold text-emerald-300">
+              <p className="text-xl font-extrabold text-flora-tagText">
                 ₦{account.available_balance.toLocaleString("en-NG", { minimumFractionDigits: 2 })}
               </p>
-              <p className="text-[10px] text-emerald-400/80 mt-0.5">Ready for immediate withdrawal</p>
+              <p className="mt-0.5 text-[10px] text-flora-tagText/80">Ready for immediate withdrawal</p>
             </div>
 
-            <div className="bg-amber-950/30 p-3.5 rounded-xl border border-amber-800/50">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs text-amber-300 font-medium flex items-center gap-1.5">
-                  <Lock className="h-3.5 w-3.5 text-amber-400" />
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3.5">
+              <div className="mb-1 flex items-center justify-between">
+                <span className="flex items-center gap-1.5 text-xs font-medium text-amber-700">
+                  <Lock className="h-3.5 w-3.5" />
                   Locked Escrow Balance
                 </span>
-                <Badge variant="outline" className="bg-amber-950 text-amber-300 border-amber-600 text-[9px] px-1 py-0">
+                <span className="rounded-full border border-amber-300 bg-white px-1 py-0 text-[9px] text-amber-700">
                   Pending Approval
-                </Badge>
+                </span>
               </div>
-              <p className="text-xl font-extrabold text-amber-300">
+              <p className="text-xl font-extrabold text-amber-700">
                 ₦{account.pending_balance.toLocaleString("en-NG", { minimumFractionDigits: 2 })}
               </p>
-              <p className="text-[10px] text-amber-400/80 mt-0.5">Unlocks when seller approves order</p>
+              <p className="mt-0.5 text-[10px] text-amber-700/80">Unlocks when seller approves order</p>
             </div>
           </div>
 
           {/* Action Controls & Card Top Up */}
-          <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-800 text-xs">
-            <span className="text-slate-400">
-              CBN Cap: <strong className="text-slate-200">₦{kycStatus?.single_deposit_limit.toLocaleString()} / deposit</strong>
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-flora-ink/10 pt-3 text-xs">
+            <span className="text-flora-muted">
+              CBN Cap: <strong className="text-flora-ink">₦{kycStatus?.single_deposit_limit.toLocaleString()} / deposit</strong>
             </span>
             <div className="flex items-center gap-2">
               <Button
@@ -296,9 +288,9 @@ export const AnchorVirtualAccountCard = ({
                 size="sm"
                 onClick={handleWithdrawClick}
                 disabled={account.available_balance < 100}
-                className="bg-emerald-600 text-white hover:bg-emerald-700 font-bold text-xs h-8"
+                className="h-8 rounded-full bg-flora-ink text-xs font-bold text-white hover:brightness-110"
               >
-                <ArrowUpRight className="h-3.5 w-3.5 mr-1" />
+                <ArrowUpRight className="mr-1 h-3.5 w-3.5" />
                 Withdraw / Transfer ↗️
               </Button>
 
@@ -307,15 +299,15 @@ export const AnchorVirtualAccountCard = ({
                 size="sm"
                 onClick={handleCardTopUp}
                 disabled={depositing}
-                className="bg-blue-950/80 text-blue-300 border-blue-700 hover:bg-blue-900 hover:text-white text-xs h-8"
+                className="h-8 border-blue-200 bg-blue-50 text-xs text-blue-600 hover:bg-blue-100"
               >
-                <CreditCard className="h-3.5 w-3.5 mr-1" />
+                <CreditCard className="mr-1 h-3.5 w-3.5" />
                 Fund with Card 💳
               </Button>
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       <SellerKycModal
         userId={userId}

@@ -49,8 +49,11 @@
 .font-large .text-sm { font-size: 1rem; }
 .font-large .text-xs { font-size: 0.875rem; }
 
-/* Focus Indicators */
-*:focus {
+/* Focus Indicators - :focus-visible, not :focus, so this only shows for
+   keyboard/programmatic focus. Plain :focus fired on every mouse click of
+   every focusable element on every page, which read as a persistent green
+   highlight anywhere you clicked. */
+*:focus-visible {
   outline: 2px solid hsl(var(--ring));
   outline-offset: 2px;
 }
@@ -97,11 +100,14 @@
   outline-offset: 2px;
 }
 
-/* Touch Targets */
-button, 
-a, 
-input, 
-select, 
+/* Touch Targets - excludes checkbox/radio, which aren't meant to grow to
+   button-sized tap targets; doing so via min-height/min-width blew every
+   checkbox/radio in the app up to a 44px square. Give them more tappable
+   area via their wrapping label instead, not by inflating the control. */
+button,
+a,
+input:not([type="checkbox"]):not([type="radio"]),
+select,
 textarea,
 [role="button"],
 [role="link"] {
@@ -247,10 +253,10 @@ footer {
 
 /* Mobile Accessibility */
 @media (max-width: 768px) {
-  button, 
-  a, 
-  input, 
-  select, 
+  button,
+  a,
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
   textarea,
   [role="button"],
   [role="link"] {

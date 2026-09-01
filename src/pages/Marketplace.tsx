@@ -572,6 +572,7 @@ const Marketplace = () => {
               active
               onClick={() => setFiltersOpen((open) => !open)}
             />
+            <FilterChip label="Find Sellers" onClick={() => navigate("/sellers")} />
             {CATEGORIES.filter((category) => !excludedCategories.has(category)).map(
               (category) => (
                 <FilterChip

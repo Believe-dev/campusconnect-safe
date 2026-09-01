@@ -128,31 +128,79 @@ const LoggedOutHome = () => {
           <OfflineNotice />
         </div>
 
-        {/* Hero */}
+        {/* Hero — two-column on desktop: copy on the left, a floating-card
+            visual on the right that dramatizes the "feels safe" headline
+            with verification/escrow badges rather than just asserting it in
+            text. Mobile stays a single centered column (no room for the
+            visual to breathe at that width). */}
         <section className="relative overflow-hidden px-4 py-16 sm:py-24">
-          <div className="relative mx-auto max-w-4xl text-center">
-            <h1 className="font-display text-4xl font-semibold leading-tight text-flora-ink sm:text-6xl">
-              Your campus deserves
-              <span className="block text-flora-leaf">a marketplace that feels safe</span>
-            </h1>
-            <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-flora-muted sm:text-xl">
-              Join thousands of students across Nigeria trading textbooks,
-              electronics, and more in a safe, verified environment.
-            </p>
+          <div className="relative mx-auto grid max-w-6xl items-center gap-12 lg:grid-cols-2 lg:gap-16">
+            <div className="text-center lg:text-left">
+              <h1 className="font-sans text-4xl font-bold tracking-tight leading-tight text-flora-ink sm:text-6xl">
+                Your campus deserves
+                <span className="block text-flora-leaf">a marketplace that feels safe</span>
+              </h1>
+              <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-flora-muted sm:text-xl lg:mx-0">
+                Join thousands of students across Nigeria trading textbooks,
+                electronics, and more in a safe, verified environment.
+              </p>
 
-            <div className="mt-8 flex flex-col justify-center gap-4 sm:flex-row">
-              <Link
-                to={ROUTES.auth}
-                className="flex items-center justify-center gap-2 rounded-full bg-flora-ink px-8 py-4 text-base font-medium text-white transition hover:brightness-110"
-              >
-                Start Shopping <ArrowRight className="h-5 w-5" />
-              </Link>
-              <Link
-                to="/marketplace"
-                className="flex items-center justify-center gap-2 rounded-full border border-flora-ink/20 px-8 py-4 text-base font-medium text-flora-ink transition hover:bg-white/60"
-              >
-                Browse Products
-              </Link>
+              <div className="mt-8 flex flex-col justify-center gap-4 sm:flex-row lg:justify-start">
+                <Link
+                  to={ROUTES.auth}
+                  className="flex items-center justify-center gap-2 rounded-full bg-flora-ink px-8 py-4 text-base font-medium text-white transition hover:brightness-110"
+                >
+                  Start Shopping <ArrowRight className="h-5 w-5" />
+                </Link>
+                <Link
+                  to="/marketplace"
+                  className="flex items-center justify-center gap-2 rounded-full border border-flora-ink/20 px-8 py-4 text-base font-medium text-flora-ink transition hover:bg-white/60"
+                >
+                  Browse Products
+                </Link>
+              </div>
+            </div>
+
+            {/* Visual showcase — desktop only. Two tilted listing-card
+                mocks (echoing DealOfTheDay's fanned-card language) plus two
+                floating badges that put the safety pitch in the picture:
+                "Verified Student" and "Escrow Protected". */}
+            <div className="relative mx-auto hidden aspect-square w-full max-w-md lg:block">
+              <div
+                aria-hidden="true"
+                className="absolute inset-8 rounded-[3rem] bg-gradient-to-br from-flora-leafBright/25 to-flora-leaf/10 blur-2xl"
+              />
+
+              {/* Four-corner pinwheel: cards in the top-left/bottom-right
+                  corners, badges in the two corners left empty — nothing
+                  overlaps another element. */}
+              <div className="absolute left-6 top-6 w-56 -rotate-6 rounded-3xl bg-white p-4 shadow-card">
+                <div className="h-28 rounded-2xl bg-flora-chip" />
+                <div className="mt-3 h-3 w-3/4 rounded-full bg-flora-chip" />
+                <div className="mt-2 flex items-center justify-between">
+                  <div className="h-3 w-1/3 rounded-full bg-flora-chip" />
+                  <span className="text-xs font-semibold text-flora-leaf">₦15,000</span>
+                </div>
+              </div>
+
+              <div className="absolute bottom-6 right-6 w-52 rotate-6 rounded-3xl bg-white p-4 shadow-floating">
+                <div className="h-24 rounded-2xl bg-flora-chip" />
+                <div className="mt-3 h-3 w-2/3 rounded-full bg-flora-chip" />
+                <div className="mt-2 flex items-center justify-between">
+                  <div className="h-3 w-1/4 rounded-full bg-flora-chip" />
+                  <span className="text-xs font-semibold text-flora-leaf">₦8,500</span>
+                </div>
+              </div>
+
+              <div className="absolute right-2 top-2 flex items-center gap-2 rounded-full bg-white px-4 py-2.5 shadow-floating">
+                <Shield className="h-4 w-4 text-flora-leaf" strokeWidth={1.5} />
+                <span className="text-sm font-medium text-flora-ink">Verified Student</span>
+              </div>
+
+              <div className="absolute bottom-2 left-2 flex items-center gap-2 rounded-full bg-flora-ink px-4 py-2.5 shadow-floating">
+                <CheckCircle className="h-4 w-4 text-white" strokeWidth={1.5} />
+                <span className="text-sm font-medium text-white">Escrow Protected</span>
+              </div>
             </div>
           </div>
         </section>

@@ -25,6 +25,7 @@ import { useAnchorPayment } from "@/hooks/useAnchorPayment";
 import { AnchorSellerPaymentModal } from "@/components/seller/AnchorSellerPaymentModal";
 import { useReferrals } from "@/hooks/useReferrals";
 import { BUSINESS_RULES, NIGERIAN_UNIVERSITIES } from "@/lib/constants";
+import { CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION } from "@/lib/legalVersions";
 import {
   User,
   Eye,
@@ -107,6 +108,47 @@ const primaryButtonClass =
   "w-full h-12 rounded-full bg-flora-ink text-white font-semibold shadow-card transition hover:bg-flora-ink hover:brightness-110 hover:text-white lg:h-14 lg:text-base";
 const outlineButtonClass =
   "h-12 flex-1 rounded-full border border-flora-ink/20 bg-white text-flora-ink font-semibold transition hover:bg-flora-chip hover:text-flora-ink lg:h-14 lg:text-base";
+
+// Shared by both the buyer confirm modal and the seller final step - the two
+// places sign-up actually finalizes (supabase.auth.signUp() is called from
+// each independently, there's no single shared "submit" choke point).
+const TermsAgreementCheckbox = ({
+  checked,
+  onChange,
+}: {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) => (
+  <label className="flex items-start gap-2.5 text-left text-sm text-flora-ink">
+    <input
+      type="checkbox"
+      checked={checked}
+      onChange={(e) => onChange(e.target.checked)}
+      className="mt-0.5 h-4 w-4 shrink-0 rounded border-flora-ink/30 text-flora-leaf focus:ring-2 focus:ring-flora-leaf/40"
+    />
+    <span>
+      I agree to the{" "}
+      <Link
+        to="/terms-of-service"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="font-medium text-flora-leaf underline"
+      >
+        Terms of Service
+      </Link>{" "}
+      and{" "}
+      <Link
+        to="/privacy-policy"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="font-medium text-flora-leaf underline"
+      >
+        Privacy Policy
+      </Link>
+      .
+    </span>
+  </label>
+);
 
 // Corner-notch geometry for the photo panel's close button. Two earlier
 // passes (a mask-image circle straddling the panel's own corner, then an
@@ -204,6 +246,7 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [pendingBuyerData, setPendingBuyerData] = useState<BuyerFormData | null>(null);
   const [referralCode, setReferralCode] = useState("");
   const [validatingReferral, setValidatingReferral] = useState(false);
@@ -388,8 +431,47 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
     setShowConfirmModal(true);
   };
 
+  // handle_new_user's profile INSERT can still be in flight when this runs.
+  // UPDATE ... WHERE user_id = X matches zero rows if the row doesn't exist
+  // yet, and PostgREST treats that as success (no error) - a blind
+  // wait-then-update would silently record nothing and nobody would know.
+  // This is a legal consent timestamp, not a cosmetic field, so it retries
+  // with backoff and confirms via .select() that a row actually came back,
+  // rather than trusting the absence of an error.
+  const recordLegalAcceptance = async (userId: string): Promise<boolean> => {
+    const acceptance = {
+      terms_accepted_version: CURRENT_TERMS_VERSION,
+      terms_accepted_at: new Date().toISOString(),
+      privacy_accepted_version: CURRENT_PRIVACY_VERSION,
+      privacy_accepted_at: new Date().toISOString(),
+    };
+
+    const delaysMs = [0, 500, 1000, 1500, 2500];
+    for (const delay of delaysMs) {
+      if (delay > 0) {
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+      const { data, error } = await supabase
+        .from("profiles")
+        .update(acceptance)
+        .eq("user_id", userId)
+        .select("user_id");
+
+      if (!error && data && data.length > 0) return true;
+    }
+    return false;
+  };
+
   const handleConfirmBuyerSignup = async () => {
     if (!pendingBuyerData) return;
+    if (!termsAccepted) {
+      toast({
+        title: "Agreement Required",
+        description: "Please agree to the Terms of Service and Privacy Policy to continue.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     setLoading(true);
     setShowConfirmModal(false);
@@ -407,6 +489,16 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
       });
 
       if (error) throw error;
+
+      if (authData.user) {
+        const recorded = await recordLegalAcceptance(authData.user.id);
+        if (!recorded) {
+          console.error(
+            "Failed to record terms/privacy acceptance for new buyer",
+            authData.user.id
+          );
+        }
+      }
 
       if (authData.user && pendingBuyerData.referralCode) {
         await createReferral(pendingBuyerData.referralCode);
@@ -499,6 +591,20 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
         })
         .eq("user_id", authData.user.id);
 
+      // Separate from the update above - recordLegalAcceptance retries and
+      // confirms a row actually came back, since this is a legal consent
+      // timestamp rather than a cosmetic field. In the common case the row
+      // already exists by now (the wait above already succeeded for
+      // business_name/bio), so its first, immediate attempt should succeed
+      // with no extra delay.
+      const recorded = await recordLegalAcceptance(authData.user.id);
+      if (!recorded) {
+        console.error(
+          "Failed to record terms/privacy acceptance for new seller",
+          authData.user.id
+        );
+      }
+
       if (combinedData.referralCode) {
         await createReferral(combinedData.referralCode);
       }
@@ -550,6 +656,14 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
   // with it passed straight through rather than read back from state, since
   // setSellerAboutData wouldn't have flushed yet on this same tick.
   const handleSellerAboutSubmit = (data: SellerAboutData) => {
+    if (!termsAccepted) {
+      toast({
+        title: "Agreement Required",
+        description: "Please agree to the Terms of Service and Privacy Policy to continue.",
+        variant: "destructive",
+      });
+      return;
+    }
     setSellerAboutData(data);
     handleAccountCreation(data);
   };
@@ -1425,6 +1539,8 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
                           </div>
                         </div>
 
+                        <TermsAgreementCheckbox checked={termsAccepted} onChange={setTermsAccepted} />
+
                         <div className="flex gap-3">
                           <Button
                             type="button"
@@ -1438,7 +1554,7 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
                           <Button
                             type="submit"
                             variant="ghost"
-                            disabled={loading}
+                            disabled={loading || !termsAccepted}
                             className={cn(primaryButtonClass, "flex-1 w-auto")}
                           >
                             {loading ? (
@@ -1515,6 +1631,9 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
                 <div className="text-xs text-flora-muted">Sell & Earn Money</div>
               </div>
             </div>
+
+            <TermsAgreementCheckbox checked={termsAccepted} onChange={setTermsAccepted} />
+
             <div className="flex gap-3">
               <Button
                 variant="ghost"
@@ -1526,7 +1645,7 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
               <Button
                 variant="ghost"
                 onClick={handleConfirmBuyerSignup}
-                disabled={loading}
+                disabled={loading || !termsAccepted}
                 className={cn(primaryButtonClass, "flex-1 w-auto")}
               >
                 {loading ? (
