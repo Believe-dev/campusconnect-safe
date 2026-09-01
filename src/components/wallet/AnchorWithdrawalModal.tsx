@@ -139,21 +139,21 @@ export const AnchorWithdrawalModal = ({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-md bg-slate-900 border-slate-800 text-white">
+      <DialogContent className="max-w-md bg-flora-card border-flora-ink/10 text-flora-ink">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-base font-bold text-slate-100">
-            <ArrowUpRight className="h-5 w-5 text-emerald-400" />
+          <DialogTitle className="flex items-center gap-2 text-base font-bold text-flora-ink">
+            <ArrowUpRight className="h-5 w-5 text-flora-leaf" />
             <span>Withdraw Funds to External Bank</span>
           </DialogTitle>
         </DialogHeader>
 
         {/* Available Balance Box */}
-        <div className="bg-emerald-950/40 border border-emerald-800/60 p-3.5 rounded-xl flex items-center justify-between">
+        <div className="flex items-center justify-between rounded-xl border border-flora-leaf/25 bg-flora-tagBg/40 p-3.5">
           <div>
-            <p className="text-[11px] text-emerald-400 font-medium flex items-center gap-1">
-              <Wallet className="w-3.5 h-3.5" /> Available Wallet Balance
+            <p className="flex items-center gap-1 text-[11px] font-medium text-flora-tagText">
+              <Wallet className="h-3.5 w-3.5" /> Available Wallet Balance
             </p>
-            <p className="text-xl font-extrabold text-emerald-300">
+            <p className="text-xl font-extrabold text-flora-tagText">
               ₦{account.available_balance.toLocaleString("en-NG", { minimumFractionDigits: 2 })}
             </p>
           </div>
@@ -162,7 +162,7 @@ export const AnchorWithdrawalModal = ({
             variant="outline"
             size="sm"
             onClick={setMaxAmount}
-            className="text-xs bg-emerald-900/60 text-emerald-300 border-emerald-700 hover:bg-emerald-800"
+            className="border-flora-leaf/40 bg-white text-xs text-flora-tagText hover:bg-flora-tagBg"
           >
             Withdraw All
           </Button>
@@ -170,11 +170,11 @@ export const AnchorWithdrawalModal = ({
 
         <form onSubmit={handleWithdrawal} className="space-y-3.5 pt-1 text-xs">
           <div>
-            <Label className="text-slate-300">Destination Bank *</Label>
+            <Label className="text-flora-ink">Destination Bank *</Label>
             <select
               value={bankName}
               onChange={(e) => setBankName(e.target.value)}
-              className="w-full h-10 px-3 text-xs border border-slate-700 bg-slate-950 text-slate-200 rounded-md mt-1"
+              className="mt-1 h-10 w-full rounded-md border border-flora-ink/15 bg-white px-3 text-xs text-flora-ink"
             >
               {NIGERIAN_BANKS.map((b) => (
                 <option key={b.code} value={b.name}>
@@ -185,7 +185,7 @@ export const AnchorWithdrawalModal = ({
           </div>
 
           <div>
-            <Label className="text-slate-300">10-Digit Account Number *</Label>
+            <Label className="text-flora-ink">10-Digit Account Number *</Label>
             <Input
               type="text"
               maxLength={10}
@@ -193,26 +193,26 @@ export const AnchorWithdrawalModal = ({
               value={accountNumber}
               onChange={(e) => setAccountNumber(e.target.value.replace(/\D/g, ""))}
               required
-              className="font-mono tracking-wider bg-slate-950 border-slate-700 mt-1"
+              className="mt-1 border-flora-ink/15 bg-white font-mono tracking-wider"
             />
           </div>
 
           <div>
-            <Label className="text-slate-300">Account Holder Full Name *</Label>
+            <Label className="text-flora-ink">Account Holder Full Name *</Label>
             <Input
               type="text"
               placeholder="Enter name on destination bank account"
               value={accountName}
               onChange={(e) => setAccountName(e.target.value)}
               required
-              className="bg-slate-950 border-slate-700 mt-1"
+              className="mt-1 border-flora-ink/15 bg-white"
             />
           </div>
 
           <div>
-            <div className="flex justify-between items-center mb-1">
-              <Label className="text-slate-300">Amount (₦) *</Label>
-              <span className="text-[10px] text-slate-400">Min ₦100</span>
+            <div className="mb-1 flex items-center justify-between">
+              <Label className="text-flora-ink">Amount (₦) *</Label>
+              <span className="text-[10px] text-flora-muted">Min ₦100</span>
             </div>
             <Input
               type="number"
@@ -221,17 +221,17 @@ export const AnchorWithdrawalModal = ({
               value={amountStr}
               onChange={(e) => setAmountStr(e.target.value)}
               required
-              className="bg-slate-950 border-slate-700 text-sm font-semibold"
+              className="border-flora-ink/15 bg-white text-sm font-semibold"
             />
 
             {/* Quick Amount Chips */}
-            <div className="flex gap-2 mt-2">
+            <div className="mt-2 flex gap-2">
               {[1000, 5000, 10000, 25000].map((chip) => (
                 <button
                   key={chip}
                   type="button"
                   onClick={() => setAmountStr(chip.toString())}
-                  className="px-2 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 rounded text-[10px] font-medium"
+                  className="rounded-full border border-flora-ink/15 bg-flora-chip px-2 py-1 text-[10px] font-medium text-flora-ink hover:brightness-95"
                 >
                   +₦{chip.toLocaleString()}
                 </button>
@@ -240,20 +240,20 @@ export const AnchorWithdrawalModal = ({
           </div>
 
           <div>
-            <Label className="text-slate-300">Narration / Memo (Optional)</Label>
+            <Label className="text-flora-ink">Narration / Memo (Optional)</Label>
             <Input
               type="text"
-              placeholder="e.g. CampusConnect Sales Payout"
+              placeholder="e.g. UniMarket Sales Payout"
               value={narration}
               onChange={(e) => setNarration(e.target.value)}
-              className="bg-slate-950 border-slate-700 text-xs mt-1"
+              className="mt-1 border-flora-ink/15 bg-white text-xs"
             />
           </div>
 
           <Button
             type="submit"
             disabled={submitting || !amountStr || parseFloat(amountStr) < 100}
-            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 text-xs mt-2"
+            className="mt-2 w-full rounded-full bg-flora-ink py-2.5 text-xs font-bold text-white hover:brightness-110"
           >
             {submitting ? "Processing Transfer..." : "Transfer Funds to External Bank ↗️"}
           </Button>

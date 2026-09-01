@@ -117,23 +117,23 @@ export const SellerKycModal = ({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-md bg-slate-900 border-slate-800 text-white">
+      <DialogContent className="max-w-md bg-flora-card border-flora-ink/10 text-flora-ink">
         <DialogHeader>
           <DialogTitle className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Zap className="h-5 w-5 text-amber-400" />
+              <Zap className="h-5 w-5 text-flora-leaf" />
               <span>Identity Verification (KYC)</span>
             </div>
             <Badge
               variant="outline"
               className={
                 kycStatus.kyc_status === "verified"
-                  ? "bg-emerald-950 text-emerald-300 border-emerald-500 text-[10px]"
+                  ? "bg-flora-tagBg text-flora-tagText border-flora-leaf/40 text-[10px]"
                   : kycStatus.kyc_status === "pending"
-                  ? "bg-amber-950 text-amber-300 border-amber-500 text-[10px]"
+                  ? "bg-amber-50 text-amber-700 border-amber-300 text-[10px]"
                   : kycStatus.kyc_status === "rejected"
-                  ? "bg-red-950 text-red-300 border-red-500 text-[10px]"
-                  : "bg-slate-800 text-slate-300 border-slate-600 text-[10px]"
+                  ? "bg-red-50 text-red-700 border-red-300 text-[10px]"
+                  : "bg-flora-chip text-flora-muted border-flora-ink/15 text-[10px]"
               }
             >
               {kycStatus.kyc_status || "unverified"}
@@ -145,34 +145,34 @@ export const SellerKycModal = ({
           {kycStatus.kyc_status === "verified" ? (
             /* Verified state */
             <div className="space-y-4 text-center py-2">
-              <div className="mx-auto w-12 h-12 rounded-full bg-emerald-500/20 border-2 border-emerald-500 flex items-center justify-center text-emerald-400">
+              <div className="mx-auto w-12 h-12 rounded-full bg-flora-tagBg border-2 border-flora-leaf flex items-center justify-center text-flora-leaf">
                 <CheckCircle className="w-6 h-6" />
               </div>
               <div>
-                <h4 className="text-base font-bold text-slate-100">Identity Verified</h4>
-                <p className="text-xs text-slate-400 mt-1">
-                  Confirmed by Anchor BaaS (<span className="text-emerald-400 font-mono font-semibold">{kycStatus.bvn_or_nin}</span>)
+                <h4 className="text-base font-bold text-flora-ink">Identity Verified</h4>
+                <p className="text-xs text-flora-muted mt-1">
+                  Confirmed by Anchor BaaS (<span className="text-flora-tagText font-mono font-semibold">{kycStatus.bvn_or_nin}</span>)
                 </p>
               </div>
 
-              <div className="bg-slate-950 border border-slate-800 p-3.5 rounded-xl text-left space-y-2">
-                <div className="flex justify-between border-b border-slate-800 pb-1.5">
-                  <span className="text-slate-400">Single Deposit Limit:</span>
-                  <span className="font-bold text-emerald-400">₦{kycStatus.single_deposit_limit.toLocaleString()}</span>
+              <div className="bg-flora-chip border border-flora-ink/10 p-3.5 rounded-xl text-left space-y-2">
+                <div className="flex justify-between border-b border-flora-ink/10 pb-1.5">
+                  <span className="text-flora-muted">Single Deposit Limit:</span>
+                  <span className="font-bold text-flora-tagText">₦{kycStatus.single_deposit_limit.toLocaleString()}</span>
                 </div>
-                <div className="flex justify-between border-b border-slate-800 pb-1.5">
-                  <span className="text-slate-400">Daily Transfer Limit:</span>
-                  <span className="font-bold text-emerald-400">₦{kycStatus.daily_limit.toLocaleString()} / day</span>
+                <div className="flex justify-between border-b border-flora-ink/10 pb-1.5">
+                  <span className="text-flora-muted">Daily Transfer Limit:</span>
+                  <span className="font-bold text-flora-tagText">₦{kycStatus.daily_limit.toLocaleString()} / day</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-400">Wallet Balance Cap:</span>
-                  <span className="font-bold text-emerald-400">₦{kycStatus.max_balance_limit.toLocaleString()}</span>
+                  <span className="text-flora-muted">Wallet Balance Cap:</span>
+                  <span className="font-bold text-flora-tagText">₦{kycStatus.max_balance_limit.toLocaleString()}</span>
                 </div>
               </div>
 
               <Button
                 onClick={onClose}
-                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                className="w-full bg-flora-ink hover:brightness-110 text-white font-bold"
               >
                 Close & Return
               </Button>
@@ -180,12 +180,12 @@ export const SellerKycModal = ({
           ) : kycStatus.kyc_status === "pending" ? (
             /* Pending state - awaiting Anchor's async result via webhook */
             <div className="space-y-4 text-center py-2">
-              <div className="mx-auto w-12 h-12 rounded-full bg-amber-500/20 border-2 border-amber-500 flex items-center justify-center text-amber-400">
+              <div className="mx-auto w-12 h-12 rounded-full bg-amber-50 border-2 border-amber-400 flex items-center justify-center text-amber-500">
                 <Clock className="w-6 h-6 animate-pulse" />
               </div>
               <div>
-                <h4 className="text-base font-bold text-slate-100">Verification In Progress</h4>
-                <p className="text-xs text-slate-400 mt-1">
+                <h4 className="text-base font-bold text-flora-ink">Verification In Progress</h4>
+                <p className="text-xs text-flora-muted mt-1">
                   Your details were submitted to Anchor BaaS and are being verified. This is usually confirmed
                   within a few moments - check back shortly.
                 </p>
@@ -193,7 +193,7 @@ export const SellerKycModal = ({
               <Button
                 onClick={loadKyc}
                 variant="outline"
-                className="w-full border-slate-700 text-slate-200"
+                className="w-full border-flora-ink/15 text-flora-ink hover:bg-flora-chip"
               >
                 Refresh Status
               </Button>
@@ -202,8 +202,8 @@ export const SellerKycModal = ({
             /* Unverified / rejected - show the form */
             <form onSubmit={handleDigitalVerification} className="space-y-4">
               {kycStatus.kyc_status === "rejected" && (
-                <Alert className="bg-red-950/60 border-red-800 text-red-200">
-                  <XCircle className="h-4 w-4 text-red-400" />
+                <Alert className="bg-red-50 border-red-200 text-red-700">
+                  <XCircle className="h-4 w-4 text-red-500" />
                   <AlertDescription className="text-xs">
                     <strong>Previous submission was not approved:</strong>{" "}
                     {kycStatus.kyc_rejection_reason || "Please check your details and resubmit."}
@@ -211,8 +211,8 @@ export const SellerKycModal = ({
                 </Alert>
               )}
 
-              <Alert className="bg-slate-950 border-slate-800 text-slate-200">
-                <ShieldCheck className="h-4 w-4 text-emerald-400" />
+              <Alert className="bg-flora-chip border-flora-ink/10 text-flora-ink">
+                <ShieldCheck className="h-4 w-4 text-flora-leaf" />
                 <AlertDescription className="text-xs">
                   <strong>Real-time Verification:</strong> Your BVN or NIN is submitted directly to Anchor BaaS and
                   screened against sanctions watchlists before your account can receive escrow funds.
@@ -220,25 +220,25 @@ export const SellerKycModal = ({
               </Alert>
 
               <div className="space-y-2">
-                <Label className="text-slate-300">Choose Identity Method *</Label>
+                <Label className="text-flora-ink">Choose Identity Method *</Label>
                 <div className="flex gap-4">
-                  <label className="flex items-center gap-2 cursor-pointer text-slate-200">
+                  <label className="flex items-center gap-2 cursor-pointer text-flora-ink">
                     <input
                       type="radio"
                       name="idMethod"
                       checked={idCategory === "bvn"}
                       onChange={() => setIdCategory("bvn")}
-                      className="accent-emerald-500"
+                      className="accent-flora-leaf"
                     />
                     Bank Verification Number (BVN)
                   </label>
-                  <label className="flex items-center gap-2 cursor-pointer text-slate-200">
+                  <label className="flex items-center gap-2 cursor-pointer text-flora-ink">
                     <input
                       type="radio"
                       name="idMethod"
                       checked={idCategory === "nin"}
                       onChange={() => setIdCategory("nin")}
-                      className="accent-emerald-500"
+                      className="accent-flora-leaf"
                     />
                     National Identity Number (NIN)
                   </label>
@@ -246,7 +246,7 @@ export const SellerKycModal = ({
               </div>
 
               <div>
-                <Label htmlFor="digitalIdInput" className="text-slate-300">
+                <Label htmlFor="digitalIdInput" className="text-flora-ink">
                   11-Digit {idCategory.toUpperCase()} Number *
                 </Label>
                 <Input
@@ -257,34 +257,34 @@ export const SellerKycModal = ({
                   value={bvnOrNin}
                   onChange={(e) => setBvnOrNin(e.target.value.replace(/\D/g, ""))}
                   required
-                  className="font-mono tracking-wider bg-slate-950 border-slate-700 text-sm mt-1"
+                  className="font-mono tracking-wider bg-white border-flora-ink/15 text-sm mt-1"
                 />
-                <p className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
-                  <Lock className="w-3 h-3 text-slate-500" />
+                <p className="text-[10px] text-flora-muted mt-1 flex items-center gap-1">
+                  <Lock className="w-3 h-3 text-flora-muted" />
                   Dial *565*0# (BVN) or *346# (NIN) if you don't know your number.
                 </p>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label htmlFor="dob" className="text-slate-300">Date of Birth *</Label>
+                  <Label htmlFor="dob" className="text-flora-ink">Date of Birth *</Label>
                   <Input
                     id="dob"
                     type="date"
                     value={dateOfBirth}
                     onChange={(e) => setDateOfBirth(e.target.value)}
                     required
-                    className="bg-slate-950 border-slate-700 text-sm mt-1"
+                    className="bg-white border-flora-ink/15 text-sm mt-1"
                   />
                 </div>
                 <div>
-                  <Label htmlFor="gender" className="text-slate-300">Gender *</Label>
+                  <Label htmlFor="gender" className="text-flora-ink">Gender *</Label>
                   <select
                     id="gender"
                     value={gender}
                     onChange={(e) => setGender(e.target.value as "M" | "F" | "")}
                     required
-                    className="w-full h-10 mt-1 px-3 text-sm rounded-md bg-slate-950 border border-slate-700 text-slate-100"
+                    className="w-full h-10 mt-1 px-3 text-sm rounded-md bg-white border border-flora-ink/15 text-flora-ink"
                   >
                     <option value="">Select</option>
                     <option value="M">Male</option>
@@ -293,14 +293,14 @@ export const SellerKycModal = ({
                 </div>
               </div>
 
-              <p className="text-[10px] text-slate-400">
+              <p className="text-[10px] text-flora-muted">
                 Must match the name and phone number on your account exactly as registered with your BVN/NIN.
               </p>
 
               <Button
                 type="submit"
                 disabled={submitting || bvnOrNin.length !== 11}
-                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5"
+                className="w-full bg-flora-ink hover:brightness-110 text-white font-bold py-2.5"
               >
                 {submitting ? "Submitting to Anchor..." : "Verify with Anchor BaaS"}
               </Button>

@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { getUnreadCounts } from "@/utils/conversationUtils";
 import { MessageTicks } from "@/components/chat/MessageTicks";
-import { MessageCircle, Plus, Trash2 } from "lucide-react";
+import { MessageCircle, Plus, Trash2, Eraser } from "lucide-react";
 import { PullToRefresh } from "@/components/common/PullToRefresh";
 
 interface Conversation {
@@ -311,8 +311,8 @@ export default function Messages() {
       });
     } catch (error) {
       toast({
-        title: "Error",
-        description: "Failed to delete conversation. Please try again.",
+        title: "Couldn't delete conversation",
+        description: "Please try again.",
         variant: "destructive",
       });
     }
@@ -334,8 +334,8 @@ export default function Messages() {
       fetchConversations();
     } catch (error) {
       toast({
-        title: "Error",
-        description: "Failed to clear chat",
+        title: "Couldn't clear chat",
+        description: "Please try again.",
         variant: "destructive",
       });
     }
@@ -485,7 +485,7 @@ export default function Messages() {
                           {conversation.other_user?.full_name || "Anonymous User"}
                         </h3>
                         {conversation.other_user?.is_verified && (
-                          <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-blue-500">
+                          <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-flora-leaf">
                             <svg className="h-2.5 w-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
                               <path
                                 fillRule="evenodd"
@@ -562,7 +562,7 @@ export default function Messages() {
                 }}
                 className="flex w-full items-center gap-3 rounded-2xl border border-flora-ink/10 px-4 py-3 text-left text-sm font-medium text-flora-ink transition hover:bg-flora-chip"
               >
-                <span className="text-lg">🧹</span>
+                <Eraser className="h-4 w-4" />
                 Clear Chat
               </button>
               <button

@@ -135,11 +135,6 @@
   * {
     @apply border-border;
     -webkit-tap-highlight-color: transparent !important;
-    -webkit-touch-callout: none !important;
-    -webkit-user-select: none !important;
-    -moz-user-select: none !important;
-    -ms-user-select: none !important;
-    user-select: none !important;
   }
 
   button,
@@ -158,15 +153,6 @@
     outline: none !important;
     box-shadow: none !important;
     ring: none !important;
-  }
-
-  input,
-  textarea,
-  [contenteditable] {
-    -webkit-user-select: text !important;
-    -moz-user-select: text !important;
-    -ms-user-select: text !important;
-    user-select: text !important;
   }
 
   html,

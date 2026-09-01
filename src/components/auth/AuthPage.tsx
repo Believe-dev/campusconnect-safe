@@ -47,7 +47,6 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { User, Session } from "@supabase/supabase-js";
-import { OnboardingModal } from "@/components/onboarding/OnboardingModal";
 import { SellerSetupModal } from "@/components/seller/SellerSetupModal";
 import { SellerPaymentStep } from "@/components/auth/SellerPaymentStep";
 import { BannedUserModal } from "@/components/auth/BannedUserModal";
@@ -71,7 +70,6 @@ const AuthPage = () => {
 
   const [accountType, setAccountType] = useState<"buyer" | "seller">("buyer");
 
-  const [showOnboarding, setShowOnboarding] = useState(false);
   const [showSellerSetup, setShowSellerSetup] = useState(false);
   const [showSellerPayment, setShowSellerPayment] = useState(false);
   const [paymentReference, setPaymentReference] = useState<string | null>(null);
@@ -450,8 +448,6 @@ const AuthPage = () => {
         setTimeout(() => {
           if (accountType === "seller") {
             setShowSellerSetup(true);
-          } else {
-            setShowOnboarding(true);
           }
         }, 1000);
       } else {
@@ -1083,11 +1079,6 @@ const AuthPage = () => {
           </div>
         </CardFooter>
       </Card>
-
-      <OnboardingModal
-        open={showOnboarding}
-        onClose={() => setShowOnboarding(false)}
-      />
 
       <SellerSetupModal
         open={showSellerSetup}

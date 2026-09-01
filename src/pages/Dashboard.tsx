@@ -4,14 +4,14 @@ import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/enhanced-button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { PullToRefresh } from "@/components/common/PullToRefresh";
+import { cn } from "@/lib/utils";
 import { uploadProductImageToR2 } from "@/utils/r2Upload";
+import { fetchCbnKycStatusFromDb, CbnKycTierDetails } from "@/services/anchorBaasService";
 
 
 import {
@@ -39,6 +39,11 @@ import {
   Copy,
   Check,
   ExternalLink,
+  ClipboardList,
+  ShieldCheck,
+  ShieldAlert,
+  Lock,
+  ArrowRight,
 } from "lucide-react";
 import WalletDashboard from "@/components/wallet/WalletDashboard";
 import { SellerKycReminderBanner } from "@/components/seller/SellerKycReminderBanner";
@@ -66,6 +71,14 @@ interface Analytics {
   revenue: number;
 }
 
+interface SellerOrder {
+  id: string;
+  status: string;
+  total_amount: number;
+  created_at: string;
+  product_title: string | null;
+}
+
 const categories = [
   "Books & Textbooks",
   "Electronics",
@@ -76,6 +89,28 @@ const categories = [
   "Home & Living",
   "Other",
 ];
+
+const ORDER_STATUS_LABEL: Record<string, string> = {
+  pending: "Awaiting payment",
+  paid: "Payment received",
+  confirmed: "Confirmed",
+  shipped: "Shipped",
+  delivered: "Delivered",
+  disputed: "Disputed",
+  cancelled: "Cancelled",
+  refunded: "Refunded",
+};
+
+const ORDER_STATUS_TONE: Record<string, string> = {
+  pending: "bg-flora-chip text-flora-muted",
+  paid: "bg-flora-tagBg text-flora-tagText",
+  confirmed: "bg-flora-tagBg text-flora-tagText",
+  shipped: "bg-flora-chip text-flora-ink",
+  delivered: "bg-flora-tagBg text-flora-tagText",
+  disputed: "bg-red-50 text-red-600",
+  cancelled: "bg-flora-chip text-flora-muted",
+  refunded: "bg-amber-50 text-amber-600",
+};
 
 const Dashboard = () => {
   const [products, setProducts] = useState<Product[]>([]);
@@ -94,12 +129,15 @@ const Dashboard = () => {
   const [newImages, setNewImages] = useState<File[]>([]);
   const [sellerId, setSellerId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [activeTab, setActiveTab] = useState("listings");
+  const [sellerOrders, setSellerOrders] = useState<SellerOrder[]>([]);
+  const [kycStatus, setKycStatus] = useState<CbnKycTierDetails | null>(null);
+  const [heldEscrow, setHeldEscrow] = useState<{ amount: number; count: number }>({ amount: 0, count: 0 });
   const navigate = useNavigate();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const handleRefresh = useCallback(async () => {
-    await fetchProducts();
-    await fetchAnalytics();
+    await Promise.all([fetchProducts(), fetchAnalytics(), fetchSellerOrders(), fetchVerificationContext()]);
     setLastUpdated(new Date());
   }, []);
 
@@ -107,6 +145,8 @@ const Dashboard = () => {
     loadUserProfile();
     fetchProducts();
     fetchAnalytics();
+    fetchSellerOrders();
+    fetchVerificationContext();
 
     // Set up comprehensive real-time subscriptions
     const setupRealTime = async () => {
@@ -154,6 +194,8 @@ const Dashboard = () => {
               const orderData = payload.new as any;
               if (orderData?.seller_id === user.id) {
                 fetchAnalytics(); // Refresh analytics for new orders
+                fetchSellerOrders();
+                fetchVerificationContext();
                 setLastUpdated(new Date());
               }
             }
@@ -282,6 +324,70 @@ const Dashboard = () => {
 
       if (error) throw error;
       setAnalytics(data || []);
+    } catch (error) {
+      // Error handled silently
+    }
+  };
+
+  // Lightweight order summary for the dashboard's Orders tab - counts and a
+  // recent list only. Full order management (confirm delivery, chat,
+  // disputes, escrow status) already exists at /orders?tab=seller; this is a
+  // glance-and-jump-in surface, not a duplicate of that page.
+  const fetchSellerOrders = async () => {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from("orders")
+        .select("id, status, total_amount, created_at, products(title)")
+        .eq("seller_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(50);
+
+      if (error) throw error;
+      setSellerOrders(
+        (data || []).map((o: any) => ({
+          id: o.id,
+          status: o.status,
+          total_amount: o.total_amount,
+          created_at: o.created_at,
+          product_title: o.products?.title || null,
+        }))
+      );
+    } catch (error) {
+      // Error handled silently
+    }
+  };
+
+  // KYC status + this seller's own held escrow - the self-scoped version of
+  // what AtRiskSellersCard shows admins across every seller. An unverified
+  // seller should see this exact risk on their own dashboard, not just find
+  // out about it when a withdrawal silently fails.
+  const fetchVerificationContext = async () => {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const [kyc, { data: held, error: heldError }] = await Promise.all([
+        fetchCbnKycStatusFromDb(user.id),
+        supabase
+          .from("escrow_transactions")
+          .select("seller_amount")
+          .eq("seller_id", user.id)
+          .eq("status", "held"),
+      ]);
+
+      if (heldError) throw heldError;
+      setKycStatus(kyc);
+      setHeldEscrow({
+        amount: (held || []).reduce((sum, r: any) => sum + Number(r.seller_amount || 0), 0),
+        count: (held || []).length,
+      });
     } catch (error) {
       // Error handled silently
     }
@@ -523,17 +629,22 @@ const Dashboard = () => {
   const totalRevenue = analytics.reduce((sum, a) => sum + Number(a.revenue), 0);
   const totalOrders = analytics.reduce((sum, a) => sum + a.orders_count, 0);
   const totalViews = analytics.reduce((sum, a) => sum + a.views, 0);
+  const openOrders = sellerOrders.filter(
+    (o) => !["delivered", "cancelled", "refunded"].includes(o.status)
+  );
+  const needsVerification = kycStatus?.kyc_status !== "verified";
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background">
-        <main className="container mx-auto px-4 py-8">
+      <div className="min-h-screen bg-gradient-to-b from-flora-bgFrom to-flora-bgTo">
+        <main className="mx-auto max-w-5xl px-4 py-6 sm:py-8">
           <div className="animate-pulse space-y-4">
-            <div className="h-8 bg-muted rounded w-1/4"></div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="h-32 bg-muted rounded"></div>
-              <div className="h-32 bg-muted rounded"></div>
-              <div className="h-32 bg-muted rounded"></div>
+            <div className="h-8 w-1/4 rounded-full bg-flora-chip"></div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+              <div className="h-24 rounded-3xl bg-flora-chip/60"></div>
+              <div className="h-24 rounded-3xl bg-flora-chip/60"></div>
+              <div className="h-24 rounded-3xl bg-flora-chip/60"></div>
+              <div className="h-24 rounded-3xl bg-flora-chip/60"></div>
             </div>
           </div>
         </main>
@@ -543,368 +654,450 @@ const Dashboard = () => {
 
   if (accessDenied) {
     return (
-      <div className="min-h-screen bg-background">
-        <main className="container mx-auto px-4 py-8">
-          <Card className="max-w-2xl mx-auto">
-            <CardContent className="pt-6 text-center">
-              <div className="text-center">
-                <div className="mx-auto h-12 w-12 text-muted-foreground mb-4">
-                  🚫
-                </div>
-                <h2 className="text-2xl font-bold mb-2">Access Denied</h2>
-                <p className="text-muted-foreground mb-4">
-                  You need to be an approved seller to access the dashboard.
-                </p>
-                <Button onClick={() => navigate("/profile")} variant="outline">
-                  Go to Profile
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+      <div className="min-h-screen bg-gradient-to-b from-flora-bgFrom to-flora-bgTo">
+        <main className="mx-auto max-w-2xl px-4 py-8">
+          <div className="rounded-3xl bg-flora-card p-8 text-center shadow-card">
+            <div className="mx-auto mb-4 h-12 w-12 text-3xl">🚫</div>
+            <h2 className="mb-2 text-2xl font-bold text-flora-ink">Access Denied</h2>
+            <p className="mb-4 text-flora-muted">
+              You need to be an approved seller to access the dashboard.
+            </p>
+            <Button onClick={() => navigate("/profile")} variant="outline">
+              Go to Profile
+            </Button>
+          </div>
         </main>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gradient-to-b from-flora-bgFrom to-flora-bgTo">
       <PullToRefresh onRefresh={handleRefresh} className="min-h-screen">
-        <main className="container mx-auto px-4 py-4 sm:py-8">
-          {sellerId && <SellerKycReminderBanner userId={sellerId} />}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 sm:mb-8">
-            <div className="flex-1">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h1 className="text-2xl sm:text-3xl font-bold text-primary">
-                    Seller Dashboard
-                  </h1>
-                  <p className="text-sm sm:text-base text-muted-foreground">
-                    Manage your products and view analytics
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground sm:hidden">
-                  <div
-                    className={`w-2 h-2 rounded-full ${
-                      isRealTimeConnected ? "bg-green-500" : "bg-gray-400"
-                    }`}
-                  />
-                  <span>{isRealTimeConnected ? "Live" : "Offline"}</span>
-                </div>
-              </div>
-              <div className="hidden sm:flex items-center gap-2 text-xs text-muted-foreground mt-1">
-                <div
-                  className={`w-2 h-2 rounded-full ${
-                    isRealTimeConnected ? "bg-green-500" : "bg-gray-400"
+        <main className="mx-auto max-w-5xl px-4 py-4 pb-24 sm:py-8 md:pb-8">
+          {/* Header */}
+          <div className="mb-5 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+            <div>
+              <h1 className="text-2xl font-bold text-flora-ink sm:text-3xl">
+                Seller Dashboard
+              </h1>
+              <p className="mt-1 flex items-center gap-2 text-xs text-flora-muted sm:text-sm">
+                <span
+                  className={`h-2 w-2 rounded-full ${
+                    isRealTimeConnected ? "bg-flora-leaf" : "bg-flora-muted/40"
                   }`}
                 />
-                <span>
-                  {isRealTimeConnected ? "Live updates" : "Connecting..."}
+                {isRealTimeConnected ? "Live updates" : "Connecting..."}
+                <span className="hidden sm:inline">
+                  • Updated {lastUpdated.toLocaleTimeString()}
                 </span>
-                <span>•</span>
-                <span>Updated {lastUpdated.toLocaleTimeString()}</span>
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              {sellerId && (() => {
+                const storeUrl = `https://unimarket.com.ng/seller/${sellerId}`;
+                const handleCopy = async () => {
+                  try {
+                    await navigator.clipboard.writeText(storeUrl);
+                  } catch {
+                    const ta = document.createElement('textarea');
+                    ta.value = storeUrl;
+                    ta.style.cssText = 'position:fixed;left:-9999px';
+                    document.body.appendChild(ta);
+                    ta.select();
+                    document.execCommand('copy');
+                    ta.remove();
+                  }
+                  setCopied(true);
+                  toast({ title: 'Store link copied!', description: storeUrl });
+                  setTimeout(() => setCopied(false), 2000);
+                };
+                const handleShare = async () => {
+                  if (navigator.share) {
+                    await navigator.share({ title: 'My UniMarket Store', url: storeUrl });
+                  } else {
+                    handleCopy();
+                  }
+                };
+                return (
+                  <div className="flex w-full items-center gap-2 rounded-2xl border border-flora-ink/10 bg-flora-card px-3 py-2 text-sm sm:w-auto">
+                    <span className="hidden max-w-[180px] truncate text-flora-muted sm:inline">{storeUrl}</span>
+                    <span className="text-xs text-flora-muted sm:hidden">My Store Link</span>
+                    <button onClick={handleCopy} className="ml-auto shrink-0 rounded p-1 text-flora-ink transition hover:bg-flora-chip" title="Copy link">
+                      {copied ? <Check className="h-4 w-4 text-flora-leaf" /> : <Copy className="h-4 w-4" />}
+                    </button>
+                    <button onClick={handleShare} className="shrink-0 rounded p-1 text-flora-ink transition hover:bg-flora-chip" title="Share">
+                      <Share2 className="h-4 w-4" />
+                    </button>
+                    <button onClick={() => navigate(`/seller/${sellerId}`)} className="shrink-0 rounded p-1 text-flora-ink transition hover:bg-flora-chip" title="Preview store">
+                      <ExternalLink className="h-4 w-4" />
+                    </button>
+                  </div>
+                );
+              })()}
+              <Button variant="brand" asChild className="w-full sm:w-auto">
+                <a href="/sell">
+                  <Plus className="h-4 w-4" />
+                  Add Product
+                </a>
+              </Button>
+            </div>
+          </div>
+
+          {/* Slim, non-dismissible verification strip - only shown when there's
+              real held money behind it, and jumps straight to the Verification
+              tab rather than duplicating the full banner up here. */}
+          {needsVerification && heldEscrow.count > 0 && (
+            <button
+              type="button"
+              onClick={() => setActiveTab("verification")}
+              className="mb-4 flex w-full items-center gap-3 rounded-2xl border border-amber-300/70 bg-amber-50 px-4 py-3 text-left transition hover:bg-amber-100"
+            >
+              <ShieldAlert className="h-4 w-4 shrink-0 text-amber-600" />
+              <span className="flex-1 text-sm text-amber-800">
+                ₦{heldEscrow.amount.toLocaleString()} across {heldEscrow.count} order
+                {heldEscrow.count !== 1 ? "s" : ""} is waiting in escrow and can't be withdrawn until you verify your identity.
+              </span>
+              <ArrowRight className="h-4 w-4 shrink-0 text-amber-600" />
+            </button>
+          )}
+
+          {/* Overview — Earnings gets the same "one featured tile + smaller
+              supporting tiles" bento treatment as the home page's stat/
+              feature grids, instead of four visually equal cards burying
+              the number sellers actually care about most. */}
+          <div className="mb-6 space-y-3 sm:space-y-4">
+            <div className="rounded-3xl bg-gradient-to-br from-flora-leafBright to-flora-leaf p-4 text-white shadow-floating sm:p-6">
+              <div className="flex items-center gap-2 text-white/85">
+                <DollarSign className="h-4 w-4" />
+                <span className="text-xs font-medium sm:text-sm">Earnings</span>
+              </div>
+              <div className="mt-1 text-2xl font-bold sm:mt-2 sm:text-3xl">
+                ₦{totalRevenue.toLocaleString()}
               </div>
             </div>
-          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-            {sellerId && (() => {
-              const storeUrl = `https://unimarket.com.ng/seller/${sellerId}`;
-              const handleCopy = async () => {
-                try {
-                  await navigator.clipboard.writeText(storeUrl);
-                } catch {
-                  const ta = document.createElement('textarea');
-                  ta.value = storeUrl;
-                  ta.style.cssText = 'position:fixed;left:-9999px';
-                  document.body.appendChild(ta);
-                  ta.select();
-                  document.execCommand('copy');
-                  ta.remove();
-                }
-                setCopied(true);
-                toast({ title: 'Store link copied!', description: storeUrl });
-                setTimeout(() => setCopied(false), 2000);
-              };
-              const handleShare = async () => {
-                if (navigator.share) {
-                  await navigator.share({ title: 'My UniMarket Store', url: storeUrl });
-                } else {
-                  handleCopy();
-                }
-              };
-              return (
-                <div className="flex items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2 text-sm w-full sm:w-auto">
-                  <span className="text-muted-foreground hidden sm:inline truncate max-w-[180px]">{storeUrl}</span>
-                  <span className="text-muted-foreground sm:hidden text-xs">My Store Link</span>
-                  <button onClick={handleCopy} className="ml-auto shrink-0 p-1 rounded hover:bg-muted transition-colors" title="Copy link">
-                    {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
-                  </button>
-                  <button onClick={handleShare} className="shrink-0 p-1 rounded hover:bg-muted transition-colors" title="Share">
-                    <Share2 className="h-4 w-4" />
-                  </button>
-                  <button onClick={() => navigate(`/seller/${sellerId}`)} className="shrink-0 p-1 rounded hover:bg-muted transition-colors" title="Preview store">
-                    <ExternalLink className="h-4 w-4" />
-                  </button>
-                </div>
-              );
-            })()}
-            <Button variant="brand" asChild className="w-full sm:w-auto">
-              <a href="/sell">
-                <Plus className="h-4 w-4" />
-                Add Product
-              </a>
-            </Button>
-          </div>
-          </div>
 
-          {/* Overview Cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
-            <Card>
-              <CardContent className="p-3 sm:p-6">
-                <div className="flex items-center gap-2">
-                  <Package className="h-4 w-4 text-university-green" />
-                  <span className="text-xs sm:text-sm font-medium">
-                    Products
-                  </span>
+            <div className="grid grid-cols-3 gap-3 sm:gap-4">
+              <div className="rounded-3xl bg-flora-card p-3.5 shadow-card sm:p-5">
+                <div className="flex items-center gap-2 text-flora-muted">
+                  <Package className="h-4 w-4 text-flora-leaf" />
+                  <span className="text-xs font-medium sm:text-sm">Listings</span>
                 </div>
-                <div className="text-lg sm:text-2xl font-bold mt-1 sm:mt-2">
+                <div className="mt-1 text-lg font-bold text-flora-ink sm:mt-2 sm:text-2xl">
                   {products.length}
                 </div>
-              </CardContent>
-            </Card>
+              </div>
 
-            <Card>
-              <CardContent className="p-3 sm:p-6">
-                <div className="flex items-center gap-2">
-                  <DollarSign className="h-4 w-4 text-university-green" />
-                  <span className="text-xs sm:text-sm font-medium">
-                    Revenue
-                  </span>
+              <div className="rounded-3xl bg-flora-card p-3.5 shadow-card sm:p-5">
+                <div className="flex items-center gap-2 text-flora-muted">
+                  <ShoppingCart className="h-4 w-4 text-flora-leaf" />
+                  <span className="text-xs font-medium sm:text-sm">Open Orders</span>
                 </div>
-                <div className="text-lg sm:text-2xl font-bold mt-1 sm:mt-2">
-                  ₦{totalRevenue.toLocaleString()}
+                <div className="mt-1 text-lg font-bold text-flora-ink sm:mt-2 sm:text-2xl">
+                  {openOrders.length}
                 </div>
-              </CardContent>
-            </Card>
+              </div>
 
-            <Card>
-              <CardContent className="p-3 sm:p-6">
-                <div className="flex items-center gap-2">
-                  <ShoppingCart className="h-4 w-4 text-university-green" />
-                  <span className="text-xs sm:text-sm font-medium">Orders</span>
+              <div className="rounded-3xl bg-flora-card p-3.5 shadow-card sm:p-5">
+                <div className="flex items-center gap-2 text-flora-muted">
+                  <Eye className="h-4 w-4 text-flora-leaf" />
+                  <span className="text-xs font-medium sm:text-sm">Views</span>
                 </div>
-                <div className="text-lg sm:text-2xl font-bold mt-1 sm:mt-2">
-                  {totalOrders}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="p-3 sm:p-6">
-                <div className="flex items-center gap-2">
-                  <Eye className="h-4 w-4 text-university-green" />
-                  <span className="text-xs sm:text-sm font-medium">Views</span>
-                </div>
-                <div className="text-lg sm:text-2xl font-bold mt-1 sm:mt-2">
+                <div className="mt-1 text-lg font-bold text-flora-ink sm:mt-2 sm:text-2xl">
                   {totalViews}
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           </div>
 
-          <Tabs defaultValue="products" className="space-y-4 sm:space-y-6">
-            <TabsList className="grid w-full grid-cols-3 h-fit">
-              <TabsTrigger value="products" className="text-xs sm:text-sm">
-                Products
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 sm:space-y-6">
+            <TabsList className="grid h-fit w-full grid-cols-5 gap-1 rounded-2xl bg-flora-chip/70 p-1">
+              <TabsTrigger value="listings" className="rounded-xl text-[11px] sm:text-sm">
+                Listings
               </TabsTrigger>
-              <TabsTrigger value="wallet" className="text-xs sm:text-sm">
-                Wallet
+              <TabsTrigger value="orders" className="rounded-xl text-[11px] sm:text-sm">
+                Orders
               </TabsTrigger>
-              <TabsTrigger value="analytics" className="text-xs sm:text-sm">
+              <TabsTrigger value="verification" className="relative rounded-xl text-[11px] sm:text-sm">
+                Verify
+                {needsVerification && (
+                  <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-amber-500 sm:right-2 sm:top-2" />
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="earnings" className="rounded-xl text-[11px] sm:text-sm">
+                Earnings
+              </TabsTrigger>
+              <TabsTrigger value="analytics" className="rounded-xl text-[11px] sm:text-sm">
                 Analytics
               </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="products" className="space-y-3 sm:space-y-4">
+            {/* Listings */}
+            <TabsContent value="listings" className="space-y-3 sm:space-y-4">
               {products.length === 0 ? (
-                <Card>
-                  <CardContent className="p-6 sm:p-8 text-center">
-                    <Package className="h-10 w-10 sm:h-12 sm:w-12 text-muted-foreground mx-auto mb-3 sm:mb-4" />
-                    <h3 className="text-base sm:text-lg font-semibold mb-2">
-                      No products yet
-                    </h3>
-                    <p className="text-sm sm:text-base text-muted-foreground mb-4">
-                      Start selling by adding your first product
-                    </p>
-                    <Button
-                      variant="brand"
-                      asChild
-                      className="w-full sm:w-auto"
-                    >
-                      <a href="/sell">Add Your First Product</a>
-                    </Button>
-                  </CardContent>
-                </Card>
+                <div className="rounded-3xl bg-flora-card p-6 text-center shadow-card sm:p-8">
+                  <Package className="mx-auto mb-3 h-10 w-10 text-flora-muted sm:mb-4 sm:h-12 sm:w-12" />
+                  <h3 className="mb-2 text-base font-semibold text-flora-ink sm:text-lg">
+                    No listings yet
+                  </h3>
+                  <p className="mb-4 text-sm text-flora-muted sm:text-base">
+                    Start selling by adding your first product
+                  </p>
+                  <Button variant="brand" asChild className="w-full sm:w-auto">
+                    <a href="/sell">Add Your First Product</a>
+                  </Button>
+                </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   {products.map((product) => {
                     const productAnalytics = getProductAnalytics(product.id);
                     return (
-                      <Card key={product.id}>
-                        <CardContent className="p-3 sm:p-4">
-                          <div className="flex flex-col gap-3">
-                            <div className="flex gap-3 cursor-pointer" onClick={() => navigate(`/product/${product.id}`)}>
-                              {product.images && product.images[0] && (
-                                <img
-                                  src={product.images[0]}
-                                  alt={product.title}
-                                  className="w-16 h-16 sm:w-20 sm:h-20 object-cover rounded flex-shrink-0"
-                                />
-                              )}
-                              <div className="flex-1 min-w-0">
-                                <div className="flex flex-wrap items-center gap-1 sm:gap-2 mb-1 sm:mb-2">
-                                  <h3 className="text-sm sm:text-lg font-semibold truncate">
-                                    {product.title}
-                                  </h3>
-                                  <Badge
-                                    variant={
-                                      product.is_active
-                                        ? "default"
-                                        : "secondary"
-                                    }
-                                    className="text-xs"
-                                  >
-                                    {product.is_active ? "Active" : "Inactive"}
-                                  </Badge>
-                                  <Badge variant="outline" className="text-xs">
-                                    {product.condition}
-                                  </Badge>
-                                </div>
-                                <p className="text-xs sm:text-sm text-muted-foreground mb-2 line-clamp-2">
-                                  {product.description}
-                                </p>
-                                <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm text-muted-foreground mb-2">
-                                  <span className="font-medium">
-                                    ₦{product.price.toLocaleString()}
-                                  </span>
-                                  <span>{product.stock_quantity} in stock</span>
-                                  <span className="hidden sm:inline">
-                                    {product.category}
-                                  </span>
-                                </div>
+                      <div key={product.id} className="rounded-3xl bg-flora-card p-3.5 shadow-card sm:p-4">
+                        <div className="flex flex-col gap-3">
+                          <div className="flex cursor-pointer gap-3" onClick={() => navigate(`/product/${product.id}`)}>
+                            {product.images && product.images[0] && (
+                              <img
+                                src={product.images[0]}
+                                alt={product.title}
+                                className="h-16 w-16 flex-shrink-0 rounded-2xl object-cover sm:h-20 sm:w-20"
+                              />
+                            )}
+                            <div className="min-w-0 flex-1">
+                              <div className="mb-1 flex flex-wrap items-center gap-1 sm:mb-2 sm:gap-2">
+                                <h3 className="truncate text-sm font-semibold text-flora-ink sm:text-lg">
+                                  {product.title}
+                                </h3>
+                                <span
+                                  className={cn(
+                                    "rounded-full px-2 py-0.5 text-xs font-medium",
+                                    product.is_active
+                                      ? "bg-flora-tagBg text-flora-tagText"
+                                      : "bg-flora-chip text-flora-muted"
+                                  )}
+                                >
+                                  {product.is_active ? "Active" : "Inactive"}
+                                </span>
+                                <span className="rounded-full border border-flora-ink/15 px-2 py-0.5 text-xs capitalize text-flora-ink">
+                                  {product.condition}
+                                </span>
+                              </div>
+                              <p className="mb-2 line-clamp-2 text-xs text-flora-muted sm:text-sm">
+                                {product.description}
+                              </p>
+                              <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-flora-muted sm:text-sm">
+                                <span className="font-medium text-flora-ink">
+                                  ₦{product.price.toLocaleString()}
+                                </span>
+                                <span>{product.stock_quantity} in stock</span>
+                                <span className="hidden sm:inline">{product.category}</span>
+                              </div>
 
-                                {/* Analytics Summary */}
-                                <div className="flex items-center gap-3 sm:gap-4 text-xs">
-                                  <div className="flex items-center gap-1">
-                                    <Eye className="h-3 w-3" />
-                                    <span>{productAnalytics.views}</span>
-                                  </div>
-                                  <div className="flex items-center gap-1">
-                                    <Heart className="h-3 w-3" />
-                                    <span>
-                                      {productAnalytics.favorites_count}
-                                    </span>
-                                  </div>
-                                  <div className="flex items-center gap-1">
-                                    <ShoppingCart className="h-3 w-3" />
-                                    <span>
-                                      {productAnalytics.cart_additions}
-                                    </span>
-                                  </div>
-                                  <div className="flex items-center gap-1">
-                                    <TrendingUp className="h-3 w-3" />
-                                    <span>{productAnalytics.orders_count}</span>
-                                  </div>
+                              <div className="flex items-center gap-3 text-xs text-flora-muted sm:gap-4">
+                                <div className="flex items-center gap-1">
+                                  <Eye className="h-3 w-3" />
+                                  <span>{productAnalytics.views}</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <Heart className="h-3 w-3" />
+                                  <span>{productAnalytics.favorites_count}</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <ShoppingCart className="h-3 w-3" />
+                                  <span>{productAnalytics.cart_additions}</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <TrendingUp className="h-3 w-3" />
+                                  <span>{productAnalytics.orders_count}</span>
                                 </div>
                               </div>
                             </div>
-
-                            <div className="flex gap-2">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setEditingProduct(product);
-                                }}
-                                className="flex-1 md:w-[fit] md:flex-none text-xs lg:text-sm px-2 lg:px-10"
-                              >
-                                <Edit3 className="h-3 w-3 lg:h-4 lg:w-4 mr-1 lg:mr-2" />
-                                Edit
-                              </Button>
-                              <Button
-                                variant={
-                                  product.is_active ? "destructive" : "default"
-                                }
-                                size="sm"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  toggleProductStatus(
-                                    product.id,
-                                    product.is_active
-                                  );
-                                }}
-                                className="flex-1 md:w-[fit] md:flex-none text-xs lg:text-sm px-2 lg:px-10"
-                              >
-                                {product.is_active ? "Deactivate" : "Activate"}
-                              </Button>
-                            </div>
                           </div>
-                        </CardContent>
-                      </Card>
+
+                          <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingProduct(product);
+                              }}
+                              className="flex-1 px-2 text-xs md:w-[fit] md:flex-none lg:px-10 lg:text-sm"
+                            >
+                              <Edit3 className="mr-1 h-3 w-3 lg:mr-2 lg:h-4 lg:w-4" />
+                              Edit
+                            </Button>
+                            <Button
+                              variant={product.is_active ? "destructive" : "default"}
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleProductStatus(product.id, product.is_active);
+                              }}
+                              className="flex-1 px-2 text-xs md:w-[fit] md:flex-none lg:px-10 lg:text-sm"
+                            >
+                              {product.is_active ? "Deactivate" : "Activate"}
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
                     );
                   })}
                 </div>
               )}
             </TabsContent>
 
-            <TabsContent value="wallet">
+            {/* Orders */}
+            <TabsContent value="orders" className="space-y-3 sm:space-y-4">
+              <div className="flex items-center justify-between rounded-2xl bg-flora-card p-4 shadow-card">
+                <div>
+                  <p className="text-sm font-semibold text-flora-ink">
+                    {openOrders.length} open, {sellerOrders.length} total
+                  </p>
+                  <p className="text-xs text-flora-muted">
+                    Confirm shipments, message buyers, and manage disputes here.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => navigate("/orders")}
+                  className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border border-flora-ink/15 bg-white px-3 py-1.5 text-xs font-medium text-flora-ink transition hover:bg-flora-chip"
+                >
+                  Manage Orders
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
+
+              {sellerOrders.length === 0 ? (
+                <div className="rounded-3xl bg-flora-card p-8 text-center shadow-card">
+                  <ClipboardList className="mx-auto mb-3 h-10 w-10 text-flora-muted" />
+                  <p className="text-sm text-flora-muted">No orders yet.</p>
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {sellerOrders.slice(0, 8).map((order) => (
+                    <button
+                      key={order.id}
+                      type="button"
+                      onClick={() => navigate("/orders")}
+                      className="flex w-full items-center justify-between gap-3 rounded-2xl bg-flora-card p-3.5 text-left shadow-card transition hover:brightness-[0.98]"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-flora-ink">
+                          {order.product_title || "Order"}
+                        </p>
+                        <p className="text-xs text-flora-muted">
+                          {new Date(order.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2.5">
+                        <span className="text-sm font-semibold text-flora-ink">
+                          ₦{order.total_amount.toLocaleString()}
+                        </span>
+                        <span
+                          className={`whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                            ORDER_STATUS_TONE[order.status] || "bg-flora-chip text-flora-muted"
+                          }`}
+                        >
+                          {ORDER_STATUS_LABEL[order.status] || order.status}
+                        </span>
+                      </div>
+                    </button>
+                  ))}
+                  {sellerOrders.length > 8 && (
+                    <button
+                      type="button"
+                      onClick={() => navigate("/orders")}
+                      className="w-full py-2 text-center text-xs font-medium text-flora-leaf hover:underline"
+                    >
+                      View all {sellerOrders.length} orders →
+                    </button>
+                  )}
+                </div>
+              )}
+            </TabsContent>
+
+            {/* Verification */}
+            <TabsContent value="verification" className="space-y-4">
+              {kycStatus?.kyc_status === "verified" ? (
+                <div className="rounded-3xl bg-flora-card p-5 shadow-card">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-flora-tagBg text-flora-leaf">
+                      <ShieldCheck className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-flora-ink">Identity verified</p>
+                      <p className="text-sm text-flora-muted">
+                        You're fully verified — withdrawals aren't restricted.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                sellerId && <SellerKycReminderBanner userId={sellerId} />
+              )}
+
+              {needsVerification && heldEscrow.count > 0 && (
+                <div className="flex items-start gap-3 rounded-2xl border border-amber-300/70 bg-amber-50 p-4">
+                  <Lock className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                  <div>
+                    <p className="text-sm font-semibold text-amber-800">
+                      ₦{heldEscrow.amount.toLocaleString()} waiting on verification
+                    </p>
+                    <p className="mt-0.5 text-xs text-amber-700">
+                      {heldEscrow.count} order{heldEscrow.count !== 1 ? "s" : ""} already paid and sitting in escrow.
+                      This becomes withdrawable the moment your BVN/NIN check clears.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </TabsContent>
+
+            {/* Earnings */}
+            <TabsContent value="earnings">
               <WalletDashboard />
             </TabsContent>
 
+            {/* Analytics */}
             <TabsContent value="analytics" className="space-y-3 sm:space-y-4">
-              <Card>
-                <CardHeader className="p-3 sm:p-6">
-                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
-                    <CardTitle className="text-base sm:text-lg">
-                      Product Analytics
-                    </CardTitle>
-                    <select
-                      value={analyticsFilter}
-                      onChange={(e) => setAnalyticsFilter(e.target.value)}
-                      className="w-full sm:w-48 h-10 px-3 text-sm border border-input bg-background rounded-md"
-                    >
-                      <option value="view_all">View All Products</option>
-                      <option value="best_selling">Best Selling</option>
-                      <option value="most_views">Most Views</option>
-                      <option value="most_cart_adds">Most Cart Adds</option>
-                      <option value="most_favorited">Most Favorited</option>
-                      <option value="highest_revenue">Highest Revenue</option>
-                    </select>
-                  </div>
-                </CardHeader>
-                <CardContent className="p-3 sm:p-6">
+              <div className="rounded-3xl bg-flora-card p-3.5 shadow-card sm:p-6">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <h2 className="text-base font-semibold text-flora-ink sm:text-lg">
+                    Product Analytics
+                  </h2>
+                  <select
+                    value={analyticsFilter}
+                    onChange={(e) => setAnalyticsFilter(e.target.value)}
+                    className="h-10 w-full rounded-xl border border-flora-ink/15 bg-white px-3 text-sm text-flora-ink sm:w-48"
+                  >
+                    <option value="view_all">View All Products</option>
+                    <option value="best_selling">Best Selling</option>
+                    <option value="most_views">Most Views</option>
+                    <option value="most_cart_adds">Most Cart Adds</option>
+                    <option value="most_favorited">Most Favorited</option>
+                    <option value="highest_revenue">Highest Revenue</option>
+                  </select>
+                </div>
+                <div className="mt-4">
                   {analytics.length === 0 ? (
-                    <div className="text-center py-6 sm:py-8">
-                      <BarChart3 className="h-10 w-10 sm:h-12 sm:w-12 mx-auto mb-3 sm:mb-4 text-muted-foreground" />
-                      <p className="text-base sm:text-lg font-medium">
+                    <div className="py-6 text-center sm:py-8">
+                      <BarChart3 className="mx-auto mb-3 h-10 w-10 text-flora-muted sm:mb-4 sm:h-12 sm:w-12" />
+                      <p className="text-base font-medium text-flora-ink sm:text-lg">
                         No analytics data
                       </p>
-                      <p className="text-sm sm:text-base text-muted-foreground">
-                        Analytics will appear once you have products with
-                        activity
+                      <p className="text-sm text-flora-muted sm:text-base">
+                        Analytics will appear once you have products with activity
                       </p>
                     </div>
                   ) : (
-                    <div className="space-y-3 sm:space-y-4">
+                    <div className="space-y-2.5">
                       {analyticsFilter === "view_all"
-                        ? // Show all products when "View All Products" is selected
-                          products.map((product, index) => {
-                            const productAnalytics = getProductAnalytics(
-                              product.id
-                            );
+                        ? products.map((product, index) => {
+                            const productAnalytics = getProductAnalytics(product.id);
                             return (
                               <div
                                 key={product.id}
-                                className="flex items-center justify-between p-3 sm:p-4 border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors"
+                                className="flex cursor-pointer items-center justify-between rounded-2xl border border-flora-ink/10 p-3 transition hover:bg-flora-chip/50 sm:p-4"
                                 onClick={() =>
                                   setSelectedProductAnalytics({
                                     product,
@@ -912,50 +1105,42 @@ const Dashboard = () => {
                                   })
                                 }
                               >
-                                <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
-                                  <div className="flex items-center justify-center w-6 h-6 sm:w-8 sm:h-8 bg-primary/10 rounded-full text-xs sm:text-sm font-bold flex-shrink-0">
+                                <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
+                                  <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-flora-tagBg text-xs font-bold text-flora-tagText sm:h-8 sm:w-8 sm:text-sm">
                                     {index + 1}
                                   </div>
                                   <div className="min-w-0 flex-1">
-                                    <p className="font-medium text-sm sm:text-base truncate">
+                                    <p className="truncate text-sm font-medium text-flora-ink sm:text-base">
                                       {product.title}
                                     </p>
-                                    <div className="flex items-center gap-2 sm:gap-4 text-xs sm:text-sm text-muted-foreground mt-1">
+                                    <div className="mt-1 flex items-center gap-2 text-xs text-flora-muted sm:gap-4 sm:text-sm">
                                       <div className="flex items-center gap-1">
                                         <Eye className="h-3 w-3" />
                                         <span>{productAnalytics.views}</span>
                                       </div>
                                       <div className="flex items-center gap-1">
                                         <Heart className="h-3 w-3" />
-                                        <span>
-                                          {productAnalytics.favorites_count}
-                                        </span>
+                                        <span>{productAnalytics.favorites_count}</span>
                                       </div>
                                       <div className="flex items-center gap-1">
                                         <ShoppingCart className="h-3 w-3" />
-                                        <span>
-                                          {productAnalytics.cart_additions}
-                                        </span>
+                                        <span>{productAnalytics.cart_additions}</span>
                                       </div>
                                     </div>
                                   </div>
                                 </div>
-                                <div className="text-right flex-shrink-0">
-                                  <p className="font-bold text-sm sm:text-lg">
+                                <div className="flex-shrink-0 text-right">
+                                  <p className="text-sm font-bold text-flora-ink sm:text-lg">
                                     {productAnalytics.orders_count} orders
                                   </p>
-                                  <p className="text-xs sm:text-sm text-muted-foreground">
+                                  <p className="text-xs text-flora-muted sm:text-sm">
                                     ₦{productAnalytics.revenue.toLocaleString()}
-                                  </p>
-                                  <p className="text-xs text-primary mt-1">
-                                    Click to view full details
                                   </p>
                                 </div>
                               </div>
                             );
                           })
-                        : // Show filtered analytics for other options
-                          getFilteredAnalytics()
+                        : getFilteredAnalytics()
                             .slice(0, 10)
                             .map((productAnalytics, index) => {
                               const product = products.find(
@@ -964,7 +1149,7 @@ const Dashboard = () => {
                               return (
                                 <div
                                   key={productAnalytics.product_id}
-                                  className="flex items-center justify-between p-3 sm:p-4 border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors"
+                                  className="flex cursor-pointer items-center justify-between rounded-2xl border border-flora-ink/10 p-3 transition hover:bg-flora-chip/50 sm:p-4"
                                   onClick={() =>
                                     product &&
                                     setSelectedProductAnalytics({
@@ -973,44 +1158,36 @@ const Dashboard = () => {
                                     })
                                   }
                                 >
-                                  <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
-                                    <div className="flex items-center justify-center w-6 h-6 sm:w-8 sm:h-8 bg-primary/10 rounded-full text-xs sm:text-sm font-bold flex-shrink-0">
+                                  <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
+                                    <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-flora-tagBg text-xs font-bold text-flora-tagText sm:h-8 sm:w-8 sm:text-sm">
                                       {index + 1}
                                     </div>
                                     <div className="min-w-0 flex-1">
-                                      <p className="font-medium text-sm sm:text-base truncate">
+                                      <p className="truncate text-sm font-medium text-flora-ink sm:text-base">
                                         {product?.title}
                                       </p>
-                                      <div className="flex items-center gap-2 sm:gap-4 text-xs sm:text-sm text-muted-foreground mt-1">
+                                      <div className="mt-1 flex items-center gap-2 text-xs text-flora-muted sm:gap-4 sm:text-sm">
                                         <div className="flex items-center gap-1">
                                           <Eye className="h-3 w-3" />
                                           <span>{productAnalytics.views}</span>
                                         </div>
                                         <div className="flex items-center gap-1">
                                           <Heart className="h-3 w-3" />
-                                          <span>
-                                            {productAnalytics.favorites_count}
-                                          </span>
+                                          <span>{productAnalytics.favorites_count}</span>
                                         </div>
                                         <div className="flex items-center gap-1">
                                           <ShoppingCart className="h-3 w-3" />
-                                          <span>
-                                            {productAnalytics.cart_additions}
-                                          </span>
+                                          <span>{productAnalytics.cart_additions}</span>
                                         </div>
                                       </div>
                                     </div>
                                   </div>
-                                  <div className="text-right flex-shrink-0">
-                                    <p className="font-bold text-sm sm:text-lg">
+                                  <div className="flex-shrink-0 text-right">
+                                    <p className="text-sm font-bold text-flora-ink sm:text-lg">
                                       {productAnalytics.orders_count} orders
                                     </p>
-                                    <p className="text-xs sm:text-sm text-muted-foreground">
-                                      ₦
-                                      {productAnalytics.revenue.toLocaleString()}
-                                    </p>
-                                    <p className="text-xs text-primary mt-1">
-                                      Click to view full details
+                                    <p className="text-xs text-flora-muted sm:text-sm">
+                                      ₦{productAnalytics.revenue.toLocaleString()}
                                     </p>
                                   </div>
                                 </div>
@@ -1018,8 +1195,8 @@ const Dashboard = () => {
                             })}
                     </div>
                   )}
-                </CardContent>
-              </Card>
+                </div>
+              </div>
             </TabsContent>
           </Tabs>
         </main>
@@ -1028,60 +1205,63 @@ const Dashboard = () => {
       {/* Detailed Analytics Modal */}
       {selectedProductAnalytics &&
         createPortal(
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-flora-ink/60 p-4 backdrop-blur-sm"
+            onClick={() => setSelectedProductAnalytics(null)}
+          >
             <div
-              className="w-full max-w-4xl max-h-[90vh] overflow-y-auto bg-white rounded-lg shadow-xl"
+              className="w-full max-w-4xl max-h-[90vh] overflow-y-auto bg-flora-card rounded-3xl shadow-floating"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="sticky top-0 bg-white border-b p-4 flex items-center justify-between">
-                <h2 className="text-lg sm:text-xl font-semibold truncate pr-4">
+              <div className="sticky top-0 bg-flora-card border-b border-flora-ink/10 p-4 flex items-center justify-between rounded-t-3xl">
+                <h2 className="text-lg sm:text-xl font-semibold text-flora-ink truncate pr-4">
                   {selectedProductAnalytics.product.title} - Analytics
                 </h2>
-                <Button
-                  variant="ghost"
-                  size="lg"
+                <button
+                  type="button"
                   onClick={() => setSelectedProductAnalytics(null)}
-                  className="text-2xl font-bold shrink-0"
+                  aria-label="Close"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-flora-ink transition hover:bg-flora-chip"
                 >
-                  ×
-                </Button>
+                  <X className="h-5 w-5" />
+                </button>
               </div>
               <div className="p-4 space-y-4">
                 {/* Overview Cards */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <div className="bg-gray-50 p-3 rounded-lg">
+                  <div className="bg-flora-chip p-3 rounded-2xl">
                     <div className="flex items-center gap-2 mb-2">
-                      <Eye className="h-4 w-4 text-blue-500" />
-                      <span className="text-xs font-medium">Views</span>
+                      <Eye className="h-4 w-4 text-flora-ink" />
+                      <span className="text-xs font-medium text-flora-ink">Views</span>
                     </div>
-                    <div className="text-xl font-bold">
+                    <div className="text-xl font-bold text-flora-ink">
                       {selectedProductAnalytics.analytics.views}
                     </div>
                   </div>
-                  <div className="bg-gray-50 p-3 rounded-lg">
+                  <div className="bg-flora-chip p-3 rounded-2xl">
                     <div className="flex items-center gap-2 mb-2">
                       <Heart className="h-4 w-4 text-red-500" />
-                      <span className="text-xs font-medium">Favorites</span>
+                      <span className="text-xs font-medium text-flora-ink">Favorites</span>
                     </div>
-                    <div className="text-xl font-bold">
+                    <div className="text-xl font-bold text-flora-ink">
                       {selectedProductAnalytics.analytics.favorites_count}
                     </div>
                   </div>
-                  <div className="bg-gray-50 p-3 rounded-lg">
+                  <div className="bg-flora-chip p-3 rounded-2xl">
                     <div className="flex items-center gap-2 mb-2">
-                      <ShoppingCart className="h-4 w-4 text-green-500" />
-                      <span className="text-xs font-medium">Cart Adds</span>
+                      <ShoppingCart className="h-4 w-4 text-flora-leaf" />
+                      <span className="text-xs font-medium text-flora-ink">Cart Adds</span>
                     </div>
-                    <div className="text-xl font-bold">
+                    <div className="text-xl font-bold text-flora-ink">
                       {selectedProductAnalytics.analytics.cart_additions}
                     </div>
                   </div>
-                  <div className="bg-gray-50 p-3 rounded-lg">
+                  <div className="bg-flora-chip p-3 rounded-2xl">
                     <div className="flex items-center gap-2 mb-2">
-                      <TrendingUp className="h-4 w-4 text-purple-500" />
-                      <span className="text-xs font-medium">Orders</span>
+                      <TrendingUp className="h-4 w-4 text-flora-tagText" />
+                      <span className="text-xs font-medium text-flora-ink">Orders</span>
                     </div>
-                    <div className="text-xl font-bold">
+                    <div className="text-xl font-bold text-flora-ink">
                       {selectedProductAnalytics.analytics.orders_count}
                     </div>
                   </div>
@@ -1090,17 +1270,17 @@ const Dashboard = () => {
                 {/* Charts */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {/* Engagement Chart */}
-                  <div className="bg-gray-50 p-4 rounded-lg">
-                    <h3 className="font-semibold mb-4 text-sm">
+                  <div className="bg-flora-chip p-4 rounded-2xl">
+                    <h3 className="font-semibold mb-4 text-sm text-flora-ink">
                       Engagement Metrics
                     </h3>
                     <div className="space-y-3">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs">Views</span>
+                        <span className="text-xs text-flora-muted">Views</span>
                         <div className="flex items-center gap-2 flex-1 max-w-24 sm:max-w-32">
-                          <div className="flex-1 h-2 bg-gray-200 rounded">
+                          <div className="flex-1 h-2 bg-white rounded">
                             <div
-                              className="h-full bg-blue-500 rounded"
+                              className="h-full bg-flora-ink rounded"
                               style={{
                                 width: `${Math.min(
                                   100,
@@ -1117,15 +1297,15 @@ const Dashboard = () => {
                               }}
                             />
                           </div>
-                          <span className="text-xs font-medium">
+                          <span className="text-xs font-medium text-flora-ink">
                             {selectedProductAnalytics.analytics.views}
                           </span>
                         </div>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="text-xs">Favorites</span>
+                        <span className="text-xs text-flora-muted">Favorites</span>
                         <div className="flex items-center gap-2 flex-1 max-w-24 sm:max-w-32">
-                          <div className="flex-1 h-2 bg-gray-200 rounded">
+                          <div className="flex-1 h-2 bg-white rounded">
                             <div
                               className="h-full bg-red-500 rounded"
                               style={{
@@ -1145,17 +1325,17 @@ const Dashboard = () => {
                               }}
                             />
                           </div>
-                          <span className="text-xs font-medium">
+                          <span className="text-xs font-medium text-flora-ink">
                             {selectedProductAnalytics.analytics.favorites_count}
                           </span>
                         </div>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="text-xs">Cart Adds</span>
+                        <span className="text-xs text-flora-muted">Cart Adds</span>
                         <div className="flex items-center gap-2 flex-1 max-w-24 sm:max-w-32">
-                          <div className="flex-1 h-2 bg-gray-200 rounded">
+                          <div className="flex-1 h-2 bg-white rounded">
                             <div
-                              className="h-full bg-green-500 rounded"
+                              className="h-full bg-flora-leaf rounded"
                               style={{
                                 width: `${Math.min(
                                   100,
@@ -1173,7 +1353,7 @@ const Dashboard = () => {
                               }}
                             />
                           </div>
-                          <span className="text-xs font-medium">
+                          <span className="text-xs font-medium text-flora-ink">
                             {selectedProductAnalytics.analytics.cart_additions}
                           </span>
                         </div>
@@ -1182,38 +1362,38 @@ const Dashboard = () => {
                   </div>
 
                   {/* Revenue Chart */}
-                  <div className="bg-gray-50 p-4 rounded-lg">
-                    <h3 className="font-semibold mb-4 text-sm">
+                  <div className="bg-flora-chip p-4 rounded-2xl">
+                    <h3 className="font-semibold mb-4 text-sm text-flora-ink">
                       Revenue & Orders
                     </h3>
                     <div className="space-y-4">
                       <div className="text-center">
-                        <div className="text-xl sm:text-2xl font-bold text-green-600">
+                        <div className="text-xl sm:text-2xl font-bold text-flora-leaf">
                           ₦
                           {selectedProductAnalytics.analytics.revenue.toLocaleString()}
                         </div>
-                        <div className="text-xs text-gray-600">
+                        <div className="text-xs text-flora-muted">
                           Total Revenue
                         </div>
                       </div>
                       <div className="text-center">
-                        <div className="text-lg sm:text-xl font-bold text-blue-600">
+                        <div className="text-lg sm:text-xl font-bold text-flora-ink">
                           {selectedProductAnalytics.analytics.orders_count}
                         </div>
-                        <div className="text-xs text-gray-600">
+                        <div className="text-xs text-flora-muted">
                           Total Orders
                         </div>
                       </div>
                       {selectedProductAnalytics.analytics.orders_count > 0 && (
                         <div className="text-center">
-                          <div className="text-base sm:text-lg font-semibold">
+                          <div className="text-base sm:text-lg font-semibold text-flora-ink">
                             ₦
                             {Math.round(
                               selectedProductAnalytics.analytics.revenue /
                                 selectedProductAnalytics.analytics.orders_count
                             ).toLocaleString()}
                           </div>
-                          <div className="text-xs text-gray-600">
+                          <div className="text-xs text-flora-muted">
                             Average Order Value
                           </div>
                         </div>
@@ -1223,11 +1403,11 @@ const Dashboard = () => {
                 </div>
 
                 {/* Product Details */}
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <h3 className="font-semibold mb-4 text-sm">
+                <div className="bg-flora-chip p-4 rounded-2xl">
+                  <h3 className="font-semibold mb-4 text-sm text-flora-ink">
                     Product Details
                   </h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm text-flora-ink">
                     <div>
                       <span className="font-medium">Price:</span>
                       <span className="ml-2">
@@ -1255,18 +1435,18 @@ const Dashboard = () => {
                     </div>
                     <div>
                       <span className="font-medium">Status:</span>
-                      <Badge
-                        variant={
+                      <span
+                        className={cn(
+                          "ml-2 rounded-full px-2 py-0.5 text-xs font-medium",
                           selectedProductAnalytics.product.is_active
-                            ? "default"
-                            : "secondary"
-                        }
-                        className="ml-2"
+                            ? "bg-flora-tagBg text-flora-tagText"
+                            : "bg-flora-chip text-flora-muted"
+                        )}
                       >
                         {selectedProductAnalytics.product.is_active
                           ? "Active"
                           : "Inactive"}
-                      </Badge>
+                      </span>
                     </div>
                     <div>
                       <span className="font-medium">Created:</span>
@@ -1289,11 +1469,11 @@ const Dashboard = () => {
         createPortal(
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <div
-              className="w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-white rounded-lg shadow-xl"
+              className="w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-flora-card rounded-3xl shadow-xl"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="sticky top-0 bg-white border-b p-4">
-                <h2 className="text-lg font-semibold">Edit Product</h2>
+              <div className="sticky top-0 bg-flora-card border-b border-flora-ink/10 p-4 rounded-t-3xl">
+                <h2 className="text-lg font-semibold text-flora-ink">Edit Product</h2>
               </div>
               <div className="p-4 space-y-4">
                 <div>
@@ -1434,18 +1614,18 @@ const Dashboard = () => {
                 {/* Image Management */}
                 <div>
                   <Label className="text-sm font-medium">Product Images</Label>
-                  
+
                   {/* Existing Images */}
                   {editingProduct.images && editingProduct.images.length > 0 && (
                     <div className="mt-2">
-                      <p className="text-xs text-muted-foreground mb-2">Current Images:</p>
+                      <p className="text-xs text-flora-muted mb-2">Current Images:</p>
                       <div className="grid grid-cols-3 gap-2">
                         {editingProduct.images.map((imageUrl, index) => (
                           <div key={index} className="relative">
                             <img
                               src={imageUrl}
                               alt={`Product ${index + 1}`}
-                              className="w-full h-20 object-cover rounded"
+                              className="w-full h-20 object-cover rounded-xl"
                             />
                             <button
                               type="button"
@@ -1459,18 +1639,18 @@ const Dashboard = () => {
                       </div>
                     </div>
                   )}
-                  
+
                   {/* New Images */}
                   {newImages.length > 0 && (
                     <div className="mt-2">
-                      <p className="text-xs text-muted-foreground mb-2">New Images:</p>
+                      <p className="text-xs text-flora-muted mb-2">New Images:</p>
                       <div className="grid grid-cols-3 gap-2">
                         {newImages.map((file, index) => (
                           <div key={index} className="relative">
                             <img
                               src={URL.createObjectURL(file)}
                               alt={`New ${index + 1}`}
-                              className="w-full h-20 object-cover rounded"
+                              className="w-full h-20 object-cover rounded-xl"
                             />
                             <button
                               type="button"
@@ -1484,7 +1664,7 @@ const Dashboard = () => {
                       </div>
                     </div>
                   )}
-                  
+
                   {/* Upload New Images */}
                   {((editingProduct.images?.length || 0) + newImages.length) < 3 && (
                     <div className="mt-2">
@@ -1498,10 +1678,10 @@ const Dashboard = () => {
                       />
                       <label
                         htmlFor="edit-images"
-                        className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-muted-foreground/25 rounded-lg cursor-pointer hover:bg-muted/50 transition-colors"
+                        className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-flora-ink/20 rounded-2xl cursor-pointer hover:bg-flora-chip/50 transition-colors"
                       >
-                        <Upload className="h-6 w-6 text-muted-foreground mb-1" />
-                        <span className="text-xs text-muted-foreground">
+                        <Upload className="h-6 w-6 text-flora-muted mb-1" />
+                        <span className="text-xs text-flora-muted">
                           Add Images ({(editingProduct.images?.length || 0) + newImages.length}/3)
                         </span>
                       </label>

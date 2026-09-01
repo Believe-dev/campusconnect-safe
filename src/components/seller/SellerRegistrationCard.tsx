@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/enhanced-button";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
@@ -42,14 +41,10 @@ export const SellerRegistrationCard = () => {
 
   if (loading) {
     return (
-      <Card>
-        <CardContent className="p-6">
-          <div className="animate-pulse">
-            <div className="h-4 bg-muted rounded w-3/4 mb-2"></div>
-            <div className="h-4 bg-muted rounded w-1/2"></div>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="animate-pulse rounded-3xl bg-white p-6 shadow-card">
+        <div className="mb-2 h-4 w-3/4 rounded-full bg-flora-chip" />
+        <div className="h-4 w-1/2 rounded-full bg-flora-chip" />
+      </div>
     );
   }
 
@@ -79,74 +74,74 @@ export const SellerRegistrationCard = () => {
   }
 
   return (
-    <Card className="border-orange-200 bg-orange-50">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-orange-800">
+    <div className="overflow-hidden rounded-3xl bg-white shadow-card">
+      <div className="flex items-center gap-3 border-b border-amber-200 bg-amber-50 px-6 py-4">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-600">
           <AlertCircle className="h-5 w-5" />
-          Complete Seller Registration
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="flex items-center gap-2">
+        </span>
+        <div>
+          <p className="font-semibold text-amber-900">Complete Seller Registration</p>
           <Badge
             variant="outline"
-            className="text-orange-700 border-orange-300"
+            className="mt-1 border-amber-300 bg-white text-[10px] text-amber-700"
           >
             <Clock className="h-3 w-3 mr-1" />
             Registration Pending
           </Badge>
         </div>
+      </div>
 
+      <div className="space-y-4 p-6">
         <div className="space-y-3">
-          <p className="text-sm text-orange-800">
+          <p className="text-sm text-flora-ink">
             <strong>Ready to start your campus business?</strong> Pay ₦1000 for your first month's subscription and unlock unlimited earning potential.
           </p>
-          <div className="bg-gradient-to-r from-green-50 to-orange-50 border border-green-200 rounded-lg p-3">
-            <p className="text-sm font-medium text-green-800 mb-1">
+          <div className="rounded-2xl border border-flora-leaf/30 bg-flora-tagBg/50 p-3.5">
+            <p className="text-sm font-medium text-flora-tagText mb-1">
               <strong>ROI Calculator:</strong> Sell just 2-3 items and recover
               your investment
             </p>
-            <p className="text-xs text-green-700">
+            <p className="text-xs text-flora-tagText/80">
               Example: Sell a ₦1,500 textbook - you keep the full ₦1,500 (no
               commission)
             </p>
           </div>
         </div>
 
-        <div className="bg-white border border-orange-200 rounded-lg p-3">
-          <h4 className="font-medium text-orange-900 mb-2">
+        <div className="rounded-2xl bg-flora-chip p-3.5">
+          <h4 className="font-medium text-flora-ink mb-2">
             Unlock Premium Seller Features:
           </h4>
-          <ul className="text-sm text-orange-800 space-y-1">
+          <ul className="text-sm text-flora-muted space-y-1">
             <li>
-              • <strong>100% Profit</strong> - Zero commission on all sales
+              • <strong className="text-flora-ink">100% Profit</strong> - Zero commission on all sales
             </li>
             <li>
-              • <strong>Live Feed Bidding</strong> - Compete for buyer requests
+              • <strong className="text-flora-ink">Live Feed Bidding</strong> - Compete for buyer requests
               in real-time
             </li>
             <li>
-              • <strong>Secure Payments</strong> - Escrow system protects your
+              • <strong className="text-flora-ink">Secure Payments</strong> - Escrow system protects your
               money
             </li>
             <li>
-              • <strong>Smart Communication</strong> - WhatsApp + in-app
+              • <strong className="text-flora-ink">Smart Communication</strong> - WhatsApp + in-app
               messaging
             </li>
             <li>
-              • <strong>Business Analytics</strong> - Track performance & growth
+              • <strong className="text-flora-ink">Business Analytics</strong> - Track performance & growth
             </li>
             <li>
-              • <strong>Gamified Selling</strong> - Earn coins, badges & rewards
+              • <strong className="text-flora-ink">Gamified Selling</strong> - Earn coins, badges & rewards
             </li>
             <li>
-              • <strong>Marketing Tools</strong> - Boost product visibility
+              • <strong className="text-flora-ink">Marketing Tools</strong> - Boost product visibility
             </li>
             <li>
-              • <strong>Priority Support</strong> - Get help when you need it
+              • <strong className="text-flora-ink">Priority Support</strong> - Get help when you need it
             </li>
             <li>
-              • <strong>Campus Network</strong> - Reach students across your campus
+              • <strong className="text-flora-ink">Campus Network</strong> - Reach students across your campus
             </li>
           </ul>
         </div>
@@ -160,10 +155,10 @@ export const SellerRegistrationCard = () => {
           Pay First Month (₦1000)
         </Button>
 
-        <p className="text-xs text-emerald-600 text-center font-medium">
+        <p className="text-xs text-flora-leaf text-center font-medium">
           Secure payment powered by Anchor BaaS (CoreStep Microfinance)
         </p>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 };

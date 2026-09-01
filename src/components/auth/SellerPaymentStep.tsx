@@ -72,7 +72,7 @@ export const SellerPaymentStep = ({
           <div className="flex items-start gap-3">
             <Shield className="h-5 w-5 text-blue-600 mt-0.5" />
             <div className="text-sm">
-              <p className="font-medium text-blue-900 mb-2">Full CampusConnect Seller Access:</p>
+              <p className="font-medium text-blue-900 mb-2">Full UniMarket Seller Access:</p>
               <ul className="text-blue-800 space-y-1">
                 <li>• <strong>0% Commission</strong> - Keep every naira you earn</li>
                 <li>• <strong>Live Feed Bidding</strong> - Respond to buyer requests with competitive offers</li>

@@ -1,17 +1,21 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { Button } from '@/components/ui/enhanced-button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Separator } from '@/components/ui/separator';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 import { PullToRefresh } from '@/components/common/PullToRefresh';
 import { useToast } from '@/hooks/use-toast';
-import { Shield, Bell, User, CreditCard, HelpCircle, LogOut, Trash2 } from 'lucide-react';
+import {
+  Shield,
+  User,
+  HelpCircle,
+  ChevronRight,
+  KeyRound,
+  ScrollText,
+  Download,
+  FileText,
+  MessageCircle,
+  Trash2,
+  LogOut,
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '@/hooks/useAuth';
 import { ChangePasswordDialog } from '@/components/settings/ChangePasswordDialog';
 import { TwoFactorAuthDialog } from '@/components/settings/TwoFactorAuthDialog';
 import { HelpCenterDialog } from '@/components/settings/HelpCenterDialog';
@@ -20,244 +24,141 @@ import { PrivacySettingsDialog } from '@/components/settings/PrivacySettingsDial
 import { DataExportDialog } from '@/components/settings/DataExportDialog';
 import NotificationSettings from '@/components/notifications/NotificationSettings';
 
-interface NotificationSettings {
-  email_notifications: boolean;
-  sms_notifications: boolean;
-  order_updates: boolean;
-  marketing_emails: boolean;
-  security_alerts: boolean;
-}
+const SettingsRow = ({
+  icon: Icon,
+  label,
+  danger,
+  onClick,
+}: {
+  icon: typeof Shield;
+  label: string;
+  danger?: boolean;
+  onClick?: () => void;
+}) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className="flex w-full items-center gap-3 rounded-2xl bg-white px-4 py-3.5 text-left shadow-card transition hover:brightness-[0.98] active:scale-[0.99]"
+  >
+    <span
+      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
+        danger ? "bg-red-50 text-red-600" : "bg-flora-chip text-flora-muted"
+      }`}
+    >
+      <Icon className="h-4 w-4" />
+    </span>
+    <span className={`flex-1 text-sm font-medium ${danger ? "text-red-600" : "text-flora-ink"}`}>
+      {label}
+    </span>
+    <ChevronRight className="h-4 w-4 shrink-0 text-flora-muted" />
+  </button>
+);
 
 const Settings = () => {
-  const [notifications, setNotifications] = useState<NotificationSettings>({
-    email_notifications: true,
-    sms_notifications: false,
-    order_updates: true,
-    marketing_emails: false,
-    security_alerts: true,
-  });
-  const [loading, setLoading] = useState(false);
   const { toast } = useToast();
-  const { user } = useAuth();
   const navigate = useNavigate();
 
   const handleSignOut = async () => {
     const { error } = await supabase.auth.signOut();
     if (error) {
       toast({
-        title: "Error",
-        description: "Failed to sign out",
+        title: "Couldn't sign out",
+        description: "Please check your connection and try again.",
         variant: "destructive",
       });
     } else {
       toast({
-        title: "Signed Out",
-        description: "You've been successfully signed out",
+        title: "Signed out",
+        description: "You've been signed out of UniMarket.",
       });
       navigate('/');
     }
   };
 
   const handleRefresh = useCallback(async () => {
-    // Refresh user data and settings
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await new Promise((resolve) => setTimeout(resolve, 500));
   }, []);
 
-  const updateNotificationSettings = async (key: keyof NotificationSettings, value: boolean) => {
-    setNotifications(prev => ({ ...prev, [key]: value }));
-    
-    // In a real app, you would save this to the database
-    toast({
-      title: "Settings Updated",
-      description: "Your notification preferences have been saved",
-    });
-  };
-
-  const deleteAccount = async () => {
-    if (!user) return;
-    
-    try {
-      setLoading(true);
-      const userId = user.id;
-      
-      const { data, error } = await supabase.rpc('delete_user_completely');
-      
-      if (error || !data) {
-        throw new Error('Failed to delete account');
-      }
-      
-      // Clear local storage and caches
-      localStorage.clear();
-      sessionStorage.clear();
-      
-      if ('caches' in window) {
-        const cacheNames = await caches.keys();
-        await Promise.all(cacheNames.map(name => caches.delete(name)));
-      }
-      
-
-      
-      toast({
-        title: "Account Completely Deleted",
-        description: "Your account has been permanently deleted. You can no longer sign in with this email.",
-      });
-      
-      window.location.href = '/';
-      
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to delete account data. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gradient-to-b from-flora-bgFrom to-flora-bgTo">
       <PullToRefresh onRefresh={handleRefresh} className="min-h-screen">
-        <main className="container mx-auto px-4 py-8">
-        <div className="max-w-4xl mx-auto space-y-6">
-          <h1 className="text-3xl font-bold text-primary">Settings</h1>
+        <main className="mx-auto max-w-2xl px-4 py-6 pb-24 sm:py-8 md:pb-8">
+          <h1 className="mb-6 text-2xl font-bold text-flora-ink sm:text-3xl">Settings</h1>
 
-          {/* Account Settings */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <User className="h-5 w-5" />
-                Account Settings
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Button variant="outline" asChild>
-                  <a href="/profile">Edit Profile</a>
-                </Button>
-                <ChangePasswordDialog>
-                  <Button variant="outline">
-                    Change Password
-                  </Button>
-                </ChangePasswordDialog>
-                <Button variant="outline" disabled>
-                  Verify Student ID
-                </Button>
-                <TwoFactorAuthDialog>
-                  <Button variant="outline">
-                    Two-Factor Authentication
-                  </Button>
-                </TwoFactorAuthDialog>
-              </div>
-            </CardContent>
-          </Card>
+          <div className="mb-6">
+            <h2 className="mb-3 text-sm font-semibold text-flora-muted">Account</h2>
+            <div className="space-y-2.5">
+              <SettingsRow icon={User} label="Edit Profile" onClick={() => navigate('/profile')} />
+              <ChangePasswordDialog>
+                <SettingsRow icon={KeyRound} label="Change Password" />
+              </ChangePasswordDialog>
+              <TwoFactorAuthDialog>
+                <SettingsRow icon={Shield} label="Two-Factor Authentication" />
+              </TwoFactorAuthDialog>
+            </div>
+          </div>
 
-          {/* Enhanced Notification Settings */}
-          <NotificationSettings />
+          <div className="mb-6">
+            <h2 className="mb-3 text-sm font-semibold text-flora-muted">Notifications</h2>
+            <NotificationSettings />
+          </div>
 
-          {/* Privacy & Security */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Shield className="h-5 w-5" />
-                Privacy & Security
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <PrivacySettingsDialog>
-                  <Button variant="outline">
-                    Privacy Settings
-                  </Button>
-                </PrivacySettingsDialog>
-                <DataExportDialog>
-                  <Button variant="outline">
-                    Data Export
-                  </Button>
-                </DataExportDialog>
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button variant="destructive">
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Delete Account
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Delete Account</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        Are you sure you want to permanently delete your account? This will remove all your data from our database including products, orders, messages, and profile information. This action cannot be undone.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
-                      <AlertDialogAction 
-                        onClick={deleteAccount}
-                        disabled={loading}
-                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                      >
-                        {loading ? 'Deleting...' : 'Delete Account'}
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-                <SecurityLogDialog>
-                  <Button variant="outline">
-                    Security Log
-                  </Button>
-                </SecurityLogDialog>
-              </div>
-            </CardContent>
-          </Card>
+          <div className="mb-6">
+            <h2 className="mb-3 text-sm font-semibold text-flora-muted">Privacy &amp; Security</h2>
+            <div className="space-y-2.5">
+              <PrivacySettingsDialog>
+                <SettingsRow icon={Shield} label="Privacy Settings" />
+              </PrivacySettingsDialog>
+              <DataExportDialog>
+                <SettingsRow icon={Download} label="Data Export" />
+              </DataExportDialog>
+              <SecurityLogDialog>
+                <SettingsRow icon={ScrollText} label="Security Log" />
+              </SecurityLogDialog>
+              {/* Routes to the one real Delete Account confirmation (Profile's
+                  Danger Zone, type-your-name-to-confirm) instead of a second,
+                  weaker confirmation living here - one irreversible action,
+                  one confirmation bar. */}
+              <SettingsRow
+                icon={Trash2}
+                label="Delete Account"
+                danger
+                onClick={() => navigate('/profile?action=delete-account')}
+              />
+            </div>
+          </div>
 
+          <div className="mb-6">
+            <h2 className="mb-3 text-sm font-semibold text-flora-muted">Support</h2>
+            <div className="space-y-2.5">
+              <HelpCenterDialog>
+                <SettingsRow icon={HelpCircle} label="Help Center" />
+              </HelpCenterDialog>
+              <SettingsRow
+                icon={MessageCircle}
+                label="Contact Support"
+                onClick={() =>
+                  window.open(
+                    'https://wa.me/2349133054018?text=Hello%2C%20I%20need%20help%20with%20UniMarket',
+                    '_blank',
+                  )
+                }
+              />
+              <SettingsRow icon={FileText} label="Terms of Service" onClick={() => navigate('/terms-of-service')} />
+              <SettingsRow icon={FileText} label="Privacy Policy" onClick={() => navigate('/privacy-policy')} />
+            </div>
+          </div>
 
-
-          {/* Support */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <HelpCircle className="h-5 w-5" />
-                Support & Help
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <HelpCenterDialog>
-                  <Button variant="outline">
-                    Help Center
-                  </Button>
-                </HelpCenterDialog>
-                <Button variant="outline" onClick={() => window.open('https://wa.me/2349133054018?text=Hello%2C%20I%20need%20help%20with%20UniMarket', '_blank')}>
-                  Contact Support
-                </Button>
-                <Button variant="outline" asChild>
-                  <a href="/terms-of-service">Terms of Service</a>
-                </Button>
-                <Button variant="outline" asChild>
-                  <a href="/privacy-policy">Privacy Policy</a>
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Sign Out */}
-          <Card className="border-destructive/20">
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="font-medium text-destructive">Sign Out</h3>
-                  <p className="text-sm text-muted-foreground">
-                    Sign out of your UniMarket account
-                  </p>
-                </div>
-                <Button variant="destructive" onClick={handleSignOut}>
-                  <LogOut className="h-4 w-4 mr-2" />
-                  Sign Out
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+          <button
+            type="button"
+            onClick={handleSignOut}
+            className="flex w-full items-center gap-3 rounded-2xl bg-white px-4 py-3.5 text-left shadow-card transition hover:brightness-[0.98] active:scale-[0.99]"
+          >
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-red-50 text-red-600">
+              <LogOut className="h-4 w-4" />
+            </span>
+            <span className="flex-1 text-sm font-medium text-red-600">Sign Out</span>
+          </button>
         </main>
       </PullToRefresh>
     </div>

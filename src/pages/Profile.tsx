@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/enhanced-button";
 import { useRealTimeProfile } from "@/hooks/useRealTimeProfile";
@@ -19,7 +20,6 @@ import {
   Wallet,
   ArrowUpRight,
   Trash2,
-  Play,
   Eye,
   Headphones,
   Share2,
@@ -44,7 +44,6 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { User as SupabaseUser } from "@supabase/supabase-js";
-import { OnboardingModal } from "@/components/onboarding/OnboardingModal";
 import { SellerDocumentReminder } from "@/components/seller/SellerDocumentReminder";
 import { CompressedImageUpload } from "@/components/ui/CompressedImageUpload";
 import { useMemoryOptimization } from "@/hooks/useMemoryOptimization";
@@ -155,7 +154,6 @@ const Profile = () => {
   const [reviewsOpen, setReviewsOpen] = useState(false);
   const [reviews, setReviews] = useState<any[]>([]);
   const [loadingReviews, setLoadingReviews] = useState(false);
-  const [showOnboarding, setShowOnboarding] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [showAvatarModal, setShowAvatarModal] = useState(false);
   const { toast } = useToast();
@@ -173,6 +171,7 @@ const Profile = () => {
   const [sendingPhoneOtp, setSendingPhoneOtp] = useState(false);
   const [verifyingPhoneOtp, setVerifyingPhoneOtp] = useState(false);
   const [storeLinkCopied, setStoreLinkCopied] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const storeUrl = user && (profile?.account_type === "seller" || profile?.account_type === "both") && profile?.seller_status === "approved"
     ? `https://unimarket.com.ng/seller/${user.id}`
@@ -215,6 +214,19 @@ const Profile = () => {
   useEffect(() => {
     fetchProfile();
   }, []);
+
+  // Settings.tsx's Delete Account row routes here instead of keeping its own
+  // (weaker, no-name-confirmation) delete flow - this is the one real
+  // confirmation for that irreversible action. Clearing the param after
+  // opening means a page refresh with the modal still open doesn't re-open
+  // it a second time once the user closes it.
+  useEffect(() => {
+    if (profile && searchParams.get("action") === "delete-account") {
+      setDeleteModalOpen(true);
+      searchParams.delete("action");
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [profile, searchParams, setSearchParams]);
 
   // Initialize business name and phone number when profile loads
   useEffect(() => {
@@ -1317,8 +1329,6 @@ const Profile = () => {
       <PullToRefresh onRefresh={handleRefresh} className="min-h-screen">
         <div className="container mx-auto px-4 pt-4 lg:pt-8 space-y-4">
           <SellerDocumentReminder />
-          <SellerRegistrationCard />
-          <SellerSubscriptionCard />
           <ReferralCard />
         </div>
 
@@ -1401,6 +1411,10 @@ const Profile = () => {
                 subtitle="Your listings, wallet, and verification status"
                 tone="seller"
               />
+              <div className="mt-3 space-y-3">
+                <SellerRegistrationCard />
+                <SellerSubscriptionCard />
+              </div>
               <div className="mt-3 overflow-hidden rounded-3xl bg-flora-tagBg/40 shadow-card">
                 <Accordion type="single" collapsible>
                   <AccordionItem value="store-details" className="border-b border-flora-leaf/15 px-4">
@@ -1533,17 +1547,6 @@ const Profile = () => {
                   <ChevronRight className="h-4 w-4 text-flora-muted" />
                 </button>
 
-                <button
-                  type="button"
-                  onClick={() => setShowOnboarding(true)}
-                  className="flex w-full items-center justify-between border-b border-flora-ink/10 py-3.5 text-left"
-                >
-                  <span className="flex items-center gap-3 text-sm font-medium text-flora-ink">
-                    <SectionIcon icon={Play} />
-                    How UniMarket Works
-                  </span>
-                </button>
-
                 <AccordionItem value="danger">
                   <AccordionTrigger className="py-3.5 hover:no-underline [&>svg]:text-flora-muted">
                     <span className="flex items-center gap-3 text-sm font-medium text-red-600">
@@ -1636,15 +1639,6 @@ const Profile = () => {
                     )}
 
                     {renderBadgesAndStats()}
-
-                    <button
-                      type="button"
-                      className="mt-4 flex w-full items-center justify-center gap-2 rounded-full border border-flora-ink/10 bg-flora-chip py-2.5 text-sm font-medium text-flora-ink transition hover:brightness-95"
-                      onClick={() => setShowOnboarding(true)}
-                    >
-                      <Play className="h-4 w-4" />
-                      How UniMarket Works
-                    </button>
                   </div>
                 </div>
               </div>
@@ -1661,6 +1655,10 @@ const Profile = () => {
                       subtitle="Your listings, wallet, and verification status"
                       tone="seller"
                     />
+                    <div className="space-y-3">
+                      <SellerRegistrationCard />
+                      <SellerSubscriptionCard />
+                    </div>
                     <Accordion type="single" collapsible defaultValue="store-details">
                       <AccordionItem value="store-details" className="border-b border-flora-leaf/15">
                         <AccordionTrigger className="py-4 hover:no-underline [&>svg]:text-flora-muted">
@@ -2110,9 +2108,6 @@ const Profile = () => {
           </div>
         </DialogContent>
       </Dialog>
-
-      {/* Onboarding Modal */}
-      <OnboardingModal open={showOnboarding} onClose={() => setShowOnboarding(false)} />
 
       {/* Avatar Modal */}
       <Dialog open={showAvatarModal} onOpenChange={setShowAvatarModal}>

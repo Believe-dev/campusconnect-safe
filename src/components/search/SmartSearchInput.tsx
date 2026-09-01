@@ -9,16 +9,19 @@ import {
   CommandGroup,
   CommandItem,
 } from "@/components/ui/command";
-import { Search } from "lucide-react";
+import { Search, User } from "lucide-react";
 import { expandSearchTerms } from "@/utils/searchUtils";
+import { cn } from "@/lib/utils";
 
 interface SearchSuggestion {
   id: string;
   text: string;
-  type: "product" | "category" | "recent" | "trending" | "live_feed";
+  type: "product" | "category" | "recent" | "trending" | "live_feed" | "seller";
   count?: number;
   price?: number;
   imageUrl?: string;
+  sellerId?: string;
+  subtitle?: string;
 }
 
 interface SmartSearchInputProps {
@@ -43,6 +46,7 @@ const formatPrice = (price: number) =>
 // is available — so this is just the grouping label now.
 const TYPE_META: Record<SearchSuggestion["type"], { heading: string }> = {
   live_feed: { heading: "Live Now" },
+  seller: { heading: "Sellers" },
   product: { heading: "Products" },
   category: { heading: "Categories" },
   trending: { heading: "Trending" },
@@ -51,6 +55,7 @@ const TYPE_META: Record<SearchSuggestion["type"], { heading: string }> = {
 
 const GROUP_ORDER: SearchSuggestion["type"][] = [
   "live_feed",
+  "seller",
   "product",
   "category",
   "trending",
@@ -115,6 +120,20 @@ const SmartSearchInput = ({
         .order("created_at", { ascending: false })
         .limit(4);
 
+      // Get matching sellers — same approved-seller filter SellerSearch.tsx
+      // uses, so a name/business-name match here always resolves to a real,
+      // visitable storefront.
+      const sellerConditions = expandedTerms
+        .map((term) => `full_name.ilike.%${term}%,business_name.ilike.%${term}%`)
+        .join(",");
+      const { data: sellers } = await supabase
+        .from("profiles")
+        .select("user_id, full_name, business_name, avatar_url")
+        .in("account_type", ["seller", "both"])
+        .eq("seller_status", "approved")
+        .or(sellerConditions)
+        .limit(3);
+
       // Get popular categories from both products and live feed
       const [{ data: categoryData }, { data: liveFeedTitles }] =
         await Promise.all([
@@ -166,6 +185,24 @@ const SmartSearchInput = ({
               type: "live_feed",
             });
             addedTexts.add(titleLower);
+          }
+        });
+      }
+
+      // Add matching sellers — keyed by user_id, not deduped against
+      // addedTexts (a seller's name colliding with a product title is fine;
+      // they're different result kinds).
+      if (sellers) {
+        sellers.forEach((seller) => {
+          if (newSuggestions.length < 6) {
+            newSuggestions.push({
+              id: `seller-${seller.user_id}`,
+              text: seller.business_name || seller.full_name,
+              type: "seller",
+              imageUrl: seller.avatar_url,
+              sellerId: seller.user_id,
+              subtitle: seller.business_name ? seller.full_name : undefined,
+            });
           }
         });
       }
@@ -247,6 +284,15 @@ const SmartSearchInput = ({
   };
 
   const handleSuggestionSelect = (suggestion: SearchSuggestion) => {
+    // A seller suggestion is a specific person, not a text query — go
+    // straight to their storefront rather than running it back through
+    // the product/live-feed search.
+    if (suggestion.type === "seller" && suggestion.sellerId) {
+      setIsOpen(false);
+      navigate(`/seller/${suggestion.sellerId}`);
+      return;
+    }
+
     onChange(suggestion.text);
     setIsOpen(false);
     if (onSubmit) {
@@ -353,15 +399,34 @@ const SmartSearchInput = ({
                             <img
                               src={suggestion.imageUrl}
                               alt=""
-                              className="h-9 w-9 shrink-0 rounded-xl object-cover"
+                              className={cn(
+                                "h-9 w-9 shrink-0 object-cover",
+                                suggestion.type === "seller" ? "rounded-full" : "rounded-xl"
+                              )}
                             />
                           ) : (
-                            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-flora-chip text-flora-muted">
-                              <Search className="h-4 w-4" />
+                            <span
+                              className={cn(
+                                "flex h-9 w-9 shrink-0 items-center justify-center bg-flora-chip text-flora-muted",
+                                suggestion.type === "seller" ? "rounded-full" : "rounded-xl"
+                              )}
+                            >
+                              {suggestion.type === "seller" ? (
+                                <User className="h-4 w-4" />
+                              ) : (
+                                <Search className="h-4 w-4" />
+                              )}
                             </span>
                           )}
-                          <span className="min-w-0 flex-1 truncate text-sm font-medium text-flora-ink">
-                            {suggestion.text}
+                          <span className="min-w-0 flex-1 truncate">
+                            <span className="block truncate text-sm font-medium text-flora-ink">
+                              {suggestion.text}
+                            </span>
+                            {suggestion.subtitle && (
+                              <span className="block truncate text-xs text-flora-muted">
+                                {suggestion.subtitle}
+                              </span>
+                            )}
                           </span>
                           {suggestion.type === "live_feed" && (
                             <span className="flex shrink-0 items-center gap-1 rounded-full bg-flora-leaf/15 px-2 py-1 text-[10px] font-bold text-flora-leaf">

@@ -1,309 +1,223 @@
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { useState } from "react";
 import { Link } from "react-router-dom";
-import {
-  Shield,
-  Users,
-  CreditCard,
-  MessageSquare,
-  CheckCircle,
-  Truck,
-  Star,
-  BookOpen,
-} from "lucide-react";
+import { Shield, CreditCard, CheckCircle, BookOpen, Store, ArrowRight } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { PullToRefresh } from "@/components/common/PullToRefresh";
 
+const secondaryFeatures = [
+  {
+    title: "Built-in messaging",
+    copy: "Talk directly with buyers and sellers before you commit.",
+  },
+  {
+    title: "Campus delivery",
+    copy: "Meet on campus or arrange delivery within your university area.",
+  },
+  {
+    title: "Rating system",
+    copy: "Every trade builds a public track record you can trust.",
+  },
+  {
+    title: "Campus community",
+    copy: "Trade with students from your own university first.",
+  },
+];
+
+const roles = {
+  buyer: {
+    label: "For Buyers",
+    icon: BookOpen,
+    steps: [
+      { title: "Browse", copy: "Search listings from verified student sellers." },
+      { title: "Contact", copy: "Ask questions and negotiate over chat." },
+      { title: "Pay", copy: "Your payment sits in escrow until you confirm." },
+      { title: "Receive", copy: "Meet on campus or arrange delivery." },
+    ],
+  },
+  seller: {
+    label: "For Sellers",
+    icon: Store,
+    steps: [
+      { title: "Get verified", copy: "Submit your student ID and a photo." },
+      { title: "List", copy: "Add photos and a description once approved." },
+      { title: "Manage", copy: "Respond to buyers from your dashboard." },
+      { title: "Get paid", copy: "Funds release once the buyer confirms." },
+    ],
+  },
+} as const;
+
+const safetyColumns = [
+  [
+    {
+      title: "Identity verification",
+      copy: "Every seller verifies their student status before listing.",
+    },
+    {
+      title: "Escrow protection",
+      copy: "Payments are held until both sides are satisfied.",
+    },
+  ],
+  [
+    {
+      title: "Campus-only access",
+      copy: "Only verified university students can participate.",
+    },
+    {
+      title: "Responsive support",
+      copy: "We respond when we can to help resolve any issues.",
+    },
+  ],
+];
+
 export default function LearnMore() {
+  const [activeRole, setActiveRole] = useState<"buyer" | "seller">("buyer");
+  const role = roles[activeRole];
+
   const handleRefresh = async () => {
-    // Refresh page content - in this case just a simple reload
     window.location.reload();
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gradient-to-b from-flora-bgFrom to-flora-bgTo">
       <PullToRefresh onRefresh={handleRefresh}>
-        <main className="container mx-auto px-4 py-8">
-          {/* Hero Section */}
-          <div className="text-center mb-12">
-            <h1 className="text-4xl font-bold mb-4">How UniMarket Works</h1>
-            <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
-              A secure marketplace designed specifically for university students
-              to buy and sell textbooks, electronics, and other campus
-              essentials safely within their academic community.
+        <main className="mx-auto max-w-6xl px-4 py-12 sm:py-16">
+          {/* Hero */}
+          <div className="mx-auto max-w-3xl text-center">
+            <h1 className="font-sans text-4xl font-bold tracking-tight leading-tight text-flora-ink sm:text-5xl">
+              How <span className="text-flora-leaf">UniMarket</span> works
+            </h1>
+            <p className="mx-auto mt-5 max-w-2xl text-lg leading-relaxed text-flora-muted">
+              A secure marketplace built for university students to buy and
+              sell textbooks, electronics, and other campus essentials safely
+              within their academic community.
             </p>
           </div>
 
-          {/* Features Grid */}
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
-            <Card>
-              <CardHeader>
-                <Shield className="h-8 w-8 text-primary mb-2" />
-                <CardTitle>Verified Students Only</CardTitle>
-                <CardDescription>
-                  All sellers must verify their student status with university
-                  ID and photo verification
-                </CardDescription>
-              </CardHeader>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CreditCard className="h-8 w-8 text-primary mb-2" />
-                <CardTitle>Secure Payments</CardTitle>
-                <CardDescription>
-                  Escrow protection ensures sellers get paid and buyers receive
-                  their items safely
-                </CardDescription>
-              </CardHeader>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <MessageSquare className="h-8 w-8 text-primary mb-2" />
-                <CardTitle>Built-in Messaging</CardTitle>
-                <CardDescription>
-                  Communicate directly with buyers and sellers through our
-                  secure messaging system
-                </CardDescription>
-              </CardHeader>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <Truck className="h-8 w-8 text-primary mb-2" />
-                <CardTitle>Campus Delivery</CardTitle>
-                <CardDescription>
-                  Meet on campus or arrange secure delivery within your
-                  university area
-                </CardDescription>
-              </CardHeader>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <Star className="h-8 w-8 text-primary mb-2" />
-                <CardTitle>Rating System</CardTitle>
-                <CardDescription>
-                  Build trust through our comprehensive rating and review system
-                </CardDescription>
-              </CardHeader>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <Users className="h-8 w-8 text-primary mb-2" />
-                <CardTitle>Campus Community</CardTitle>
-                <CardDescription>
-                  Connect with students from your own university for safer
-                  transactions
-                </CardDescription>
-              </CardHeader>
-            </Card>
-          </div>
-
-          {/* How it Works Section */}
-          <div className="mb-12">
-            <h2 className="text-3xl font-bold text-center mb-8">
-              How It Works
-            </h2>
-
-            <div className="grid md:grid-cols-2 gap-8">
-              {/* For Buyers */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <BookOpen className="h-6 w-6" />
-                    For Buyers
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-start gap-3">
-                    <div className="bg-primary text-primary-foreground w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold">
-                      1
-                    </div>
-                    <div>
-                      <h4 className="font-semibold">Browse Products</h4>
-                      <p className="text-sm text-muted-foreground">
-                        Search for textbooks, electronics, and other items from
-                        verified student sellers
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <div className="bg-primary text-primary-foreground w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold">
-                      2
-                    </div>
-                    <div>
-                      <h4 className="font-semibold">Contact Seller</h4>
-                      <p className="text-sm text-muted-foreground">
-                        Use our messaging system to ask questions and negotiate
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <div className="bg-primary text-primary-foreground w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold">
-                      3
-                    </div>
-                    <div>
-                      <h4 className="font-semibold">Make Payment</h4>
-                      <p className="text-sm text-muted-foreground">
-                        Pay securely through our escrow system for protection
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <div className="bg-primary text-primary-foreground w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold">
-                      4
-                    </div>
-                    <div>
-                      <h4 className="font-semibold">Receive Item</h4>
-                      <p className="text-sm text-muted-foreground">
-                        Meet on campus or arrange delivery to receive your
-                        purchase
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* For Sellers */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <img
-                      src="/logo.png"
-                      alt="UniMarket Logo"
-                      className="h-6 w-6 object-contain"
-                    />
-                    For Sellers
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-start gap-3">
-                    <div className="bg-primary text-primary-foreground w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold">
-                      1
-                    </div>
-                    <div>
-                      <h4 className="font-semibold">Get Verified</h4>
-                      <p className="text-sm text-muted-foreground">
-                        Submit your student ID and photo for verification by our
-                        admin team
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <div className="bg-primary text-primary-foreground w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold">
-                      2
-                    </div>
-                    <div>
-                      <h4 className="font-semibold">List Items</h4>
-                      <p className="text-sm text-muted-foreground">
-                        Once approved, create listings with photos and
-                        descriptions
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <div className="bg-primary text-primary-foreground w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold">
-                      3
-                    </div>
-                    <div>
-                      <h4 className="font-semibold">Manage Orders</h4>
-                      <p className="text-sm text-muted-foreground">
-                        Respond to buyers and manage your sales through the
-                        dashboard
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <div className="bg-primary text-primary-foreground w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold">
-                      4
-                    </div>
-                    <div>
-                      <h4 className="font-semibold">Get Paid</h4>
-                      <p className="text-sm text-muted-foreground">
-                        Receive payment automatically once the buyer confirms
-                        delivery
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-
-          {/* Safety Features */}
-          <Card className="mb-12">
-            <CardHeader>
-              <CardTitle className="text-2xl text-center">
-                Safety First
-              </CardTitle>
-              <CardDescription className="text-center">
-                Your security is our top priority. Here's how we keep you safe:
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid md:grid-cols-2 gap-6">
-                <div className="flex items-start gap-3">
-                  <CheckCircle className="h-6 w-6 text-green-500 mt-1" />
-                  <div>
-                    <h4 className="font-semibold">Identity Verification</h4>
-                    <p className="text-sm text-muted-foreground">
-                      All sellers must verify their student status before they
-                      can list items
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <CheckCircle className="h-6 w-6 text-green-500 mt-1" />
-                  <div>
-                    <h4 className="font-semibold">Escrow Protection</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Payments are held securely until both parties are
-                      satisfied
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <CheckCircle className="h-6 w-6 text-green-500 mt-1" />
-                  <div>
-                    <h4 className="font-semibold">Campus-Only Access</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Only verified university students can participate
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <CheckCircle className="h-6 w-6 text-green-500 mt-1" />
-                  <div>
-                    <h4 className="font-semibold">Responsive Support</h4>
-                    <p className="text-sm text-muted-foreground">
-                      We respond when we can to help resolve any issues
-                    </p>
-                  </div>
-                </div>
+          {/* Trust — a lead panel for the two things that actually make this
+              safe (verification + escrow), then the rest as a Relume
+              "Layout 611" numbered list (bold ghost numeral, no icon boxes,
+              one rule under the panel on desktop, per-row rules on mobile)
+              rather than a grid of identical icon cards. */}
+          <div className="mt-14">
+            <div className="relative overflow-hidden rounded-4xl bg-gradient-to-br from-flora-leafBright to-flora-leaf p-8 text-white shadow-floating sm:p-10">
+              <Shield className="h-10 w-10" strokeWidth={1.5} />
+              <h2 className="mt-6 text-2xl font-semibold sm:text-3xl">
+                Verified sellers. Escrow-protected payments.
+              </h2>
+              <p className="mt-3 max-w-2xl text-white/85">
+                Every seller confirms their student ID before they can list
+                anything, and every payment sits in escrow until you confirm
+                the item arrived. Those two rules are the foundation
+                everything else is built on.
+              </p>
+              <div className="mt-6 flex items-center gap-2 text-sm font-medium">
+                <CreditCard className="h-4 w-4" />
+                Secure payments, every time
               </div>
-            </CardContent>
-          </Card>
-
-          {/* CTA Section */}
-          <div className="text-center">
-            <h2 className="text-3xl font-bold mb-4">Ready to Get Started?</h2>
-            <p className="text-lg text-muted-foreground mb-6">
-              Join students already using UniMarket to buy and sell
-              safely on campus
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button asChild size="lg">
-                <Link to="/marketplace">Browse Marketplace</Link>
-              </Button>
             </div>
+
+            <div className="mt-10 grid grid-cols-1 gap-x-16 sm:grid-cols-2 sm:border-t sm:border-flora-ink/10 sm:pt-8">
+              {secondaryFeatures.map(({ title, copy }, i) => (
+                <div
+                  key={title}
+                  className="flex gap-6 border-t border-flora-ink/10 py-6 first:border-none sm:border-none sm:py-0 sm:[&:nth-child(n+3)]:mt-8"
+                >
+                  <span className="flex-none font-sans text-3xl font-bold text-flora-leaf/30">
+                    {String(i + 1).padStart(2, "0")}
+                  </span>
+                  <div>
+                    <h3 className="font-semibold text-flora-ink">{title}</h3>
+                    <p className="mt-1 text-sm text-flora-muted">{copy}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* How it works — a role toggle instead of showing both paths at
+              once, and a numeral-led step row instead of numbered circles
+              in cards. */}
+          <div className="mt-20">
+            <div className="flex flex-col items-center">
+              <h2 className="font-display text-3xl font-semibold text-flora-ink sm:text-4xl">
+                How it works
+              </h2>
+              <div className="mt-6 inline-flex rounded-full bg-white p-1 shadow-card">
+                {(Object.keys(roles) as Array<keyof typeof roles>).map((key) => {
+                  const Icon = roles[key].icon;
+                  const active = key === activeRole;
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setActiveRole(key)}
+                      className={cn(
+                        "flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-medium transition",
+                        active ? "bg-flora-ink text-white" : "text-flora-ink hover:bg-flora-chip"
+                      )}
+                    >
+                      <Icon className="h-4 w-4" strokeWidth={1.5} />
+                      {roles[key].label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-4 lg:gap-0">
+              {role.steps.map((step, i) => (
+                <div
+                  key={step.title}
+                  className={cn("px-0 lg:px-6", i !== 0 && "lg:border-l lg:border-flora-ink/10")}
+                >
+                  <span className="font-display text-4xl font-semibold text-flora-leaf/30">
+                    {String(i + 1).padStart(2, "0")}
+                  </span>
+                  <h3 className="mt-2 text-lg font-semibold text-flora-ink">{step.title}</h3>
+                  <p className="mt-1 text-sm leading-relaxed text-flora-muted">{step.copy}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Safety — same plain description-list treatment as the trust
+              section above, not a second white card box. */}
+          <div className="mt-20">
+            <h2 className="font-display text-3xl font-semibold text-flora-ink sm:text-4xl">
+              Safety, built in
+            </h2>
+            <div className="mt-8 grid gap-x-12 sm:grid-cols-2">
+              {safetyColumns.map((column, colIndex) => (
+                <div key={colIndex} className="divide-y divide-flora-ink/10">
+                  {column.map((point) => (
+                    <div key={point.title} className="flex items-start gap-3 py-4 first:pt-0">
+                      <CheckCircle className="mt-0.5 h-5 w-5 shrink-0 text-flora-leaf" strokeWidth={1.5} />
+                      <div>
+                        <h3 className="font-semibold text-flora-ink">{point.title}</h3>
+                        <p className="text-sm text-flora-muted">{point.copy}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Closing — text-only, no dark box. */}
+          <div className="mt-24 text-center">
+            <h2 className="font-display text-3xl font-semibold text-flora-ink sm:text-4xl">
+              Ready to get started?
+            </h2>
+            <p className="mx-auto mt-3 max-w-xl text-lg text-flora-muted">
+              Join students already using UniMarket to buy and sell safely on
+              campus.
+            </p>
+            <Link
+              to="/marketplace"
+              className="mt-8 inline-flex items-center gap-2 rounded-full bg-flora-ink px-8 py-4 text-base font-medium text-white transition hover:brightness-110"
+            >
+              Browse Marketplace <ArrowRight className="h-5 w-5" />
+            </Link>
           </div>
         </main>
       </PullToRefresh>

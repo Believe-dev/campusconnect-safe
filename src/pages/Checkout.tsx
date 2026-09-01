@@ -356,7 +356,7 @@ const Checkout = () => {
           await supabase.functions.invoke("send-email", {
             body: {
               to: sellerProfile.email,
-              subject: "New Order Received - CampusConnect",
+              subject: "New Order Received - UniMarket",
               html: `
                 <h2>New Order Received!</h2>
                 <p>Hello ${sellerProfile.full_name},</p>
@@ -369,7 +369,7 @@ const Checkout = () => {
                 </ul>
                 <p><strong>⚠️ Important:</strong> Payment will be automatically released in 2 days if the buyer doesn't confirm receipt.</p>
                 <p>Please log in to your dashboard to manage this order.</p>
-                <p>Best regards,<br>CampusConnect Team</p>
+                <p>Best regards,<br>UniMarket Team</p>
               `,
             },
           });
@@ -395,7 +395,7 @@ const Checkout = () => {
           await supabase.functions.invoke("send-email", {
             body: {
               to: buyerProfile.email,
-              subject: "Order Confirmation - CampusConnect",
+              subject: "Order Confirmation - UniMarket",
               html: `
                 <h2>Order Confirmation</h2>
                 <p>Hello ${buyerProfile.full_name},</p>
@@ -407,7 +407,7 @@ const Checkout = () => {
                   <li><strong>Order Date:</strong> ${new Date().toLocaleDateString()}</li>
                 </ul>
                 <p>You can track your order in your account dashboard.</p>
-                <p>Best regards,<br>CampusConnect Team</p>
+                <p>Best regards,<br>UniMarket Team</p>
               `,
             },
           });

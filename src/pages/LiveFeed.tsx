@@ -8,8 +8,6 @@ import { CreateLiveFeedDialog } from "@/components/feed/CreateLiveFeedDialog";
 import { useLiveFeedNotifications } from "@/hooks/useLiveFeedNotifications";
 import { PullToRefresh } from "@/components/common/PullToRefresh";
 
-import "@/styles/mobile-fixes.css";
-
 interface LiveFeedItem {
   id: string;
   seller_id: string;

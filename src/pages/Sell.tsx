@@ -183,8 +183,8 @@ const Sell = () => {
 
       if (profileError || !currentProfile) {
         toast({
-          title: "Error",
-          description: "Unable to verify your account status",
+          title: "Couldn't verify your account",
+          description: "Please try again in a moment.",
           variant: "destructive",
         });
         return;
@@ -242,8 +242,8 @@ const Sell = () => {
       navigate('/');
     } catch (error) {
       toast({
-        title: "Error",
-        description: "Failed to list product. Please try again.",
+        title: "Couldn't list your product",
+        description: "Please check your details and try again.",
         variant: "destructive",
       });
     } finally {
@@ -338,7 +338,7 @@ const Sell = () => {
           <Card className="max-w-2xl mx-auto">
             <CardHeader>
               <CardTitle className="text-2xl font-bold text-primary">List Your Product</CardTitle>
-              <p className="text-muted-foreground">Fill in the details to list your product on CampusConnect</p>
+              <p className="text-muted-foreground">Fill in the details to list your product on UniMarket</p>
             </CardHeader>
             <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
