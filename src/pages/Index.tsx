@@ -14,6 +14,7 @@ import {
   Plus,
   Search,
   Percent,
+  Heart,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { OfflineNotice } from "@/components/ui/offline-notice";
@@ -449,7 +450,8 @@ const LoggedInHome = () => {
     profile?.account_type !== "buyer" && profile?.seller_status === "approved";
 
   const secondaryActions = [
-    { to: "/live-feed", icon: Zap, label: "Live", copy: "See what's new" },
+    // Live is paused — was here before (see App.tsx's /live-feed route).
+    { to: "/favorites", icon: Heart, label: "Saved", copy: "Your favorites" },
     canSell
       ? { to: "/sell", icon: Plus, label: "Sell", copy: "List an item" }
       : { to: "/sellers", icon: Search, label: "Sellers", copy: "Find a seller" },

@@ -34,31 +34,11 @@ interface SearchProduct {
   };
 }
 
-interface SearchLiveFeed {
-  id: string;
-  title: string;
-  description: string;
-  price: number;
-  image_url: string;
-  location: string;
-  expires_at: string;
-  created_at: string;
-  seller_id: string;
-  seller: {
-    full_name: string;
-    rating: number;
-    is_verified: boolean;
-  };
-  type: "live_feed";
-}
-
-type SearchResult = SearchProduct | SearchLiveFeed;
-
 interface SearchSeller {
   user_id: string;
   full_name: string;
-  business_name?: string;
-  avatar_url?: string;
+  business_name: string | null;
+  avatar_url: string | null;
   is_verified: boolean;
   rating: number;
 }
@@ -79,7 +59,7 @@ const CATEGORIES = [
 
 const CONDITIONS = ["All Conditions", "new", "excellent", "good", "fair"];
 
-const sellerName = (item: SearchResult) =>
+const sellerName = (item: SearchProduct) =>
   item.seller?.full_name || "Unknown seller";
 
 const toCardProduct = (item: SearchProduct): ProductCardProduct => ({
@@ -91,16 +71,6 @@ const toCardProduct = (item: SearchProduct): ProductCardProduct => ({
   sellerName: sellerName(item),
 });
 
-const isLiveFeed = (item: SearchResult): item is SearchLiveFeed =>
-  (item as SearchLiveFeed).type === "live_feed";
-
-const formatPrice = (price: number) =>
-  new Intl.NumberFormat("en-NG", {
-    style: "currency",
-    currency: "NGN",
-    maximumFractionDigits: 0,
-  }).format(price);
-
 const Search = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -110,7 +80,7 @@ const Search = () => {
   const userUniversity = profile?.university_name || null;
 
   const [searchQuery, setSearchQuery] = useState(searchParams.get("q") || "");
-  const [results, setResults] = useState<SearchResult[]>([]);
+  const [results, setResults] = useState<SearchProduct[]>([]);
   const [sellerResults, setSellerResults] = useState<SearchSeller[]>([]);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
@@ -176,7 +146,8 @@ const Search = () => {
         .in("account_type", ["seller", "both"])
         .eq("seller_status", "approved")
         .or(`full_name.ilike.%${searchTerm}%,business_name.ilike.%${searchTerm}%`)
-        .limit(6);
+        .limit(6)
+        .returns<SearchSeller[]>();
       setSellerResults(data || []);
     } catch (error) {
       // Sellers are a supplementary section — a failure here shouldn't
@@ -202,15 +173,8 @@ const Search = () => {
         .select(`*, profiles!products_seller_id_fkey (full_name, avatar_url, is_verified, rating)`)
         .eq("is_active", true);
 
-      let liveFeedQuery = supabase
-        .from("live_feed")
-        .select(`*, profiles!live_feed_seller_id_fkey (full_name, avatar_url, is_verified, rating)`)
-        .eq("is_active", true)
-        .gt("expires_at", new Date().toISOString());
-
       if (userUniversity) {
         productQuery = productQuery.eq("campus", userUniversity);
-        liveFeedQuery = liveFeedQuery.eq("location", userUniversity);
       }
 
       if (searchTerm) {
@@ -227,16 +191,12 @@ const Search = () => {
         });
         if (conditions.length > 0) {
           productQuery = productQuery.or(conditions.join(","));
-          liveFeedQuery = liveFeedQuery.or(conditions.join(","));
         }
       }
 
-      const [{ data: productData }, { data: liveFeedData }] = await Promise.all([
-        productQuery,
-        liveFeedQuery,
-      ]);
+      const { data: productData } = await productQuery;
 
-      let products: SearchResult[] = (productData || []).map((item: any) => ({
+      let products: SearchProduct[] = (productData || []).map((item: any) => ({
         id: item.id,
         title: item.title,
         description: item.description || "",
@@ -257,51 +217,32 @@ const Search = () => {
           : { full_name: "Unknown Seller", rating: 0, is_verified: false },
       }));
 
-      let liveItems: SearchResult[] = (liveFeedData || []).map((item: any) => ({
-        id: item.id,
-        title: item.title,
-        description: item.description || "",
-        price: item.price,
-        image_url: item.image_url,
-        location: item.location,
-        expires_at: item.expires_at,
-        created_at: item.created_at,
-        seller_id: item.seller_id,
-        type: "live_feed" as const,
-        seller: item.profiles
-          ? {
-              full_name: item.profiles.full_name,
-              rating: item.profiles.rating,
-              is_verified: item.profiles.is_verified,
-            }
-          : { full_name: "Unknown Seller", rating: 0, is_verified: false },
-      }));
-
-      // Category filter (products only — live feed items always show,
-      // matching Marketplace's own "categories don't apply to live feed").
+      // Category filter
       if (excludedCategories.size > 0) {
-        products = products.filter((p) => !excludedCategories.has((p as SearchProduct).category));
+        products = products.filter((p) => !excludedCategories.has(p.category));
       }
 
-      // Condition filter (products only)
+      // Condition filter
       if (selectedCondition !== "All Conditions") {
-        products = products.filter(
-          (p) => (p as SearchProduct).condition === selectedCondition
-        );
+        products = products.filter((p) => p.condition === selectedCondition);
       }
 
-      let combined = performAISearch([...products, ...liveItems], searchTerm);
+      // aiSearch.ts declares its own structurally-looser `SearchProduct`
+      // (same name, different module) — this page's products satisfy it at
+      // runtime (id/title/description/category/condition/images all
+      // present), so the cast just bridges the two same-named interfaces
+      // rather than indicating an actual shape mismatch.
+      let combined = performAISearch(products, searchTerm) as SearchProduct[];
 
       combined = combined.sort((a, b) => {
         if (searchTerm) {
           const searchLower = searchTerm.toLowerCase();
-          const score = (item: SearchResult) => {
+          const score = (item: SearchProduct) => {
             const t = item.title.toLowerCase();
             const exact = t === searchLower ? 1000 : 0;
             const starts = t.startsWith(searchLower) ? 500 : 0;
             const includes = t.includes(searchLower) ? 100 : 0;
-            const liveBoost = isLiveFeed(item) ? 50 : 0;
-            return exact + starts + includes + liveBoost;
+            return exact + starts + includes;
           };
           const diff = score(b) - score(a);
           if (diff !== 0) return diff;
@@ -504,37 +445,43 @@ const Search = () => {
           )}
 
           {/* Sellers — a name/business-name match is a person, not a
-              listing, so it gets its own row above the product grid. */}
+              listing, so it gets its own section above the product grid.
+              A horizontal-scroll row of boxes doesn't read well on a narrow
+              screen (easy to miss, awkward tap targets), so mobile gets a
+              proper stacked list instead; sm+ switches to a grid of cards
+              once there's room for them to read as tiles rather than rows. */}
           {sellerResults.length > 0 && (
             <div className="mt-8">
               <h2 className="mb-3 text-xl font-semibold text-flora-ink">Sellers</h2>
-              <div className="flex gap-3 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <div className="divide-y divide-flora-ink/8 overflow-hidden rounded-3xl bg-white shadow-card sm:divide-y-0 sm:overflow-visible sm:rounded-none sm:bg-transparent sm:shadow-none sm:grid sm:grid-cols-3 sm:gap-3 lg:grid-cols-4">
                 {sellerResults.map((seller) => (
                   <button
                     key={seller.user_id}
                     type="button"
                     onClick={() => navigate(`/seller/${seller.user_id}`)}
-                    className="flex w-40 shrink-0 flex-col items-center gap-2 rounded-3xl bg-white p-4 text-center shadow-card transition hover:brightness-[0.98]"
+                    className="flex w-full items-center gap-3 p-4 text-left transition hover:bg-flora-chip/40 sm:flex-col sm:gap-2 sm:rounded-3xl sm:bg-white sm:p-4 sm:text-center sm:shadow-card sm:hover:bg-white sm:hover:brightness-[0.98]"
                   >
                     {seller.avatar_url ? (
                       <img
                         src={seller.avatar_url}
                         alt=""
-                        className="h-14 w-14 rounded-full object-cover ring-2 ring-flora-chip"
+                        className="h-14 w-14 shrink-0 rounded-full object-cover ring-2 ring-flora-chip"
                       />
                     ) : (
-                      <span className="flex h-14 w-14 items-center justify-center rounded-full bg-flora-chip text-lg font-semibold text-flora-ink ring-2 ring-flora-chip">
+                      <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-flora-chip text-lg font-semibold text-flora-ink ring-2 ring-flora-chip">
                         {(seller.business_name || seller.full_name).charAt(0).toUpperCase()}
                       </span>
                     )}
-                    <span className="w-full truncate text-sm font-medium text-flora-ink">
-                      {seller.business_name || seller.full_name}
-                    </span>
-                    {seller.is_verified && (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-flora-tagBg px-2 py-0.5 text-[10px] font-medium text-flora-tagText">
-                        Verified
+                    <span className="flex min-w-0 flex-1 flex-col items-start gap-1 sm:w-full sm:flex-none sm:items-center">
+                      <span className="w-full truncate text-sm font-medium text-flora-ink sm:text-center">
+                        {seller.business_name || seller.full_name}
                       </span>
-                    )}
+                      {seller.is_verified && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-flora-tagBg px-2 py-0.5 text-[10px] font-medium text-flora-tagText">
+                          Verified
+                        </span>
+                      )}
+                    </span>
                   </button>
                 ))}
               </div>
@@ -579,54 +526,15 @@ const Search = () => {
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 lg:gap-6">
-                {results.map((item) =>
-                  isLiveFeed(item) ? (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => navigate(`/live-feed#live-feed-${item.id}`)}
-                      className="overflow-hidden rounded-3xl bg-white text-left shadow-card transition hover:brightness-[0.98]"
-                    >
-                      <div className="relative">
-                        {item.image_url ? (
-                          <img
-                            src={item.image_url}
-                            alt={item.title}
-                            className="h-32 w-full object-cover sm:h-40"
-                          />
-                        ) : (
-                          <div className="h-32 w-full bg-flora-chip sm:h-40" />
-                        )}
-                        <span className="absolute left-2 top-2 flex items-center gap-1 rounded-full bg-flora-ink/80 px-2.5 py-1 text-[10px] font-bold text-white backdrop-blur-sm">
-                          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-flora-leafBright" />
-                          LIVE
-                        </span>
-                      </div>
-                      <div className="p-3 sm:p-4">
-                        <h3 className="line-clamp-2 min-h-[2.5rem] text-sm font-semibold text-flora-ink">
-                          {item.title}
-                        </h3>
-                        <p className="mt-1 truncate text-xs text-flora-muted">by {sellerName(item)}</p>
-                        <div className="mt-2 flex items-center justify-between gap-2">
-                          <span className="text-sm font-bold text-flora-leaf sm:text-base">
-                            {formatPrice(item.price)}
-                          </span>
-                          <span className="rounded-full bg-flora-leaf px-3 py-1.5 text-xs font-medium text-white">
-                            View Live
-                          </span>
-                        </div>
-                      </div>
-                    </button>
-                  ) : (
-                    <ProductCard
-                      key={item.id}
-                      product={toCardProduct(item as SearchProduct)}
-                      isInCart={cart.has(item.id)}
-                      onSelect={handleSelect}
-                      onToggleCart={addToCart}
-                    />
-                  )
-                )}
+                {results.map((item) => (
+                  <ProductCard
+                    key={item.id}
+                    product={toCardProduct(item)}
+                    isInCart={cart.has(item.id)}
+                    onSelect={handleSelect}
+                    onToggleCart={addToCart}
+                  />
+                ))}
               </div>
             )}
           </section>
