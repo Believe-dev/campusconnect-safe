@@ -1,27 +1,9 @@
-import { useEffect, useState } from 'react';
-import { useToast } from '@/hooks/use-toast';
-import { ToastAction } from '@/components/ui/toast';
+import { useEffect } from 'react';
 
 export const useAutoReload = () => {
-  const [updateAvailable, setUpdateAvailable] = useState(false);
-  const { toast } = useToast();
-
   useEffect(() => {
     // Check for service worker updates
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.addEventListener('controllerchange', () => {
-        setUpdateAvailable(true);
-        toast({
-          title: "Update Available",
-          description: "A new version is available. Refresh to update.",
-          action: (
-            <ToastAction altText="Refresh" onClick={() => window.location.reload()}>
-              Refresh
-            </ToastAction>
-          ),
-        });
-      });
-
       // Check for updates periodically
       const checkForUpdates = async () => {
         try {
@@ -51,22 +33,9 @@ export const useAutoReload = () => {
         const currentVersion = localStorage.getItem('app_version');
 
         if (currentVersion && currentVersion !== manifest.version) {
-          setUpdateAvailable(true);
-          toast({
-            title: "Update Available",
-            description: "A new version is available. Refresh to update.",
-            action: (
-              <ToastAction
-                altText="Refresh"
-                onClick={() => {
-                  localStorage.setItem('app_version', manifest.version);
-                  window.location.reload();
-                }}
-              >
-                Refresh
-              </ToastAction>
-            ),
-          });
+          // Silently adopt the new version marker; the updated assets are
+          // picked up naturally on the user's next navigation/reload.
+          localStorage.setItem('app_version', manifest.version);
         } else if (!currentVersion) {
           localStorage.setItem('app_version', manifest.version || '1.0.0');
         }
@@ -79,7 +48,5 @@ export const useAutoReload = () => {
     checkBuildVersion();
 
     return () => clearInterval(versionInterval);
-  }, [toast]);
-
-  return { updateAvailable };
+  }, []);
 };

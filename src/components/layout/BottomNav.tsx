@@ -2,13 +2,13 @@ import { ReactNode, useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { motion, MotionConfig } from "framer-motion";
 import { cn } from "@/lib/utils";
-import { Store, Zap, MessageCircle, Plus } from "lucide-react";
+import { Store, Package, MessageCircle, Plus } from "lucide-react";
 import { ShoppingCartIcon, UserIcon } from "@/components/ui/heroicons";
 import { useCartCount } from "@/contexts/CartCountContext";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/contexts/ProfileContext";
 import { useUniMarketNavigation } from "@/hooks/useUniMarketNavigation";
-import { useLiveFeedNotifications } from "@/hooks/useLiveFeedNotifications";
+import { useOrdersCount } from "@/hooks/useOrdersCount";
 import { useMessageCount } from "@/contexts/MessageCountContext";
 import { ProfileSheet } from "@/components/layout/ProfileSheet";
 
@@ -57,9 +57,8 @@ const BottomNav = () => {
   const { profile } = useProfile();
   const { cartCount } = useCartCount();
   const { messagesCount } = useMessageCount();
-  const { unreadCount: liveFeedUnreadCount, markAsRead: markLiveFeedAsRead } =
-    useLiveFeedNotifications();
-  const { goToMarketplace, goToLiveFeed, goToCart, goToMessages } =
+  const { ordersCount } = useOrdersCount();
+  const { goToMarketplace, goToOrders, goToCart, goToMessages } =
     useUniMarketNavigation();
   const [isProfileSheetOpen, setIsProfileSheetOpen] = useState(false);
 
@@ -99,16 +98,7 @@ const BottomNav = () => {
   // or seller) always sees the same 5 tabs.
   const navItems = [
     { to: "/marketplace", icon: Store, label: "Shop", onClick: goToMarketplace },
-    {
-      to: "/live-feed",
-      icon: Zap,
-      label: "Live",
-      badge: liveFeedUnreadCount,
-      onClick: () => {
-        markLiveFeedAsRead();
-        goToLiveFeed();
-      },
-    },
+    { to: "/orders", icon: Package, label: "Orders", badge: ordersCount, onClick: goToOrders },
     { to: "/cart", icon: ShoppingCartIcon, label: "Cart", badge: cartCount, onClick: goToCart },
     { to: "/messages", icon: MessageCircle, label: "Chat", badge: messagesCount, onClick: goToMessages },
   ];

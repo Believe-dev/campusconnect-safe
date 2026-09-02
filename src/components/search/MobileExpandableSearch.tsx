@@ -1,27 +1,34 @@
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createPortal } from "react-dom";
-import { supabase } from "@/integrations/supabase/client";
-import { Search, X, ArrowRight, TrendingUp, Tag } from "lucide-react";
-import { expandSearchTerms } from "@/utils/searchUtils";
-
-interface SearchSuggestion {
-  id: string;
-  text: string;
-  type: "product" | "category" | "trending" | "live_feed";
-}
+import { Search, X, ArrowRight, TrendingUp, Tag, User } from "lucide-react";
+import { cn } from "@/lib/utils";
+import {
+  useSearchSuggestions,
+  type SearchSuggestion,
+} from "@/hooks/useSearchSuggestions";
 
 interface MobileExpandableSearchProps {
   onExpand?: (expanded: boolean) => void;
 }
 
+const formatPrice = (price: number) =>
+  new Intl.NumberFormat("en-NG", {
+    style: "currency",
+    currency: "NGN",
+    maximumFractionDigits: 0,
+  }).format(price);
+
 const MobileExpandableSearch = ({ onExpand }: MobileExpandableSearchProps) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([]);
-  const [loading, setLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
+  // Same fetch logic (including sellers) and the same 300ms debounce the
+  // desktop SmartSearchInput uses — previously this component had its own
+  // independently-drifted copy with no seller matching and an effectively
+  // zero debounce.
+  const { suggestions, loading } = useSearchSuggestions(searchQuery, isExpanded);
 
   const handleExpand = () => {
     setIsExpanded(true);
@@ -35,136 +42,21 @@ const MobileExpandableSearch = ({ onExpand }: MobileExpandableSearchProps) => {
     onExpand?.(false);
   };
 
-  const fetchSuggestions = async (query: string) => {
-    setLoading(true);
-    try {
-      const searchTerms = query.toLowerCase().trim();
-      const expandedTerms = expandSearchTerms(searchTerms);
-
-      // Smart search conditions with weighted relevance
-      const titleConditions = expandedTerms.map(term => `title.ilike.%${term}%`).join(',');
-      const descConditions = expandedTerms.map(term => `description.ilike.%${term}%`).join(',');
-      const categoryConditions = expandedTerms.map(term => `category.ilike.%${term}%`).join(',');
-      const searchConditions = [titleConditions, descConditions, categoryConditions].join(',');
-
-      const { data: products } = await supabase
-        .from("products")
-        .select("title, category")
-        .eq("is_active", true)
-        .or(searchConditions)
-        .order("created_at", { ascending: false })
-        .limit(4);
-
-      // Enhanced live feed search with description matching
-      const liveFeedConditions = expandedTerms
-        .map((term) => `title.ilike.%${term}%,description.ilike.%${term}%`)
-        .join(",");
-      const { data: liveFeeds } = await supabase
-        .from("live_feed")
-        .select("title")
-        .eq("is_active", true)
-        .gt("expires_at", new Date().toISOString())
-        .or(liveFeedConditions)
-        .order("created_at", { ascending: false })
-        .limit(3);
-
-      console.log("Live feed search results:", liveFeeds);
-      
-      // If no live feed matches, get recent ones as fallback
-      let fallbackLiveFeeds = null;
-      if (!liveFeeds || liveFeeds.length === 0) {
-        const { data: recentLiveFeeds } = await supabase
-          .from("live_feed")
-          .select("title")
-          .eq("is_active", true)
-          .gt("expires_at", new Date().toISOString())
-          .order("created_at", { ascending: false })
-          .limit(2);
-        fallbackLiveFeeds = recentLiveFeeds;
-        console.log('Fallback live feed results:', fallbackLiveFeeds);
-      }
-
-      const { data: categoryData } = await supabase
-        .from("products")
-        .select("category")
-        .eq("is_active", true)
-        .or(expandedTerms.map((term) => `category.ilike.%${term}%`).join(","))
-        .limit(2);
-
-      const newSuggestions: SearchSuggestion[] = [];
-      const addedTexts = new Set<string>();
-
-      // Add live feed results (prioritize search matches, then fallback)
-      const liveFeedResults = liveFeeds && liveFeeds.length > 0 ? liveFeeds : fallbackLiveFeeds;
-      if (liveFeedResults) {
-        liveFeedResults.forEach((liveFeed) => {
-          const titleLower = liveFeed.title.toLowerCase();
-          if (!addedTexts.has(titleLower) && newSuggestions.length < 6) {
-            newSuggestions.push({
-              id: `live_feed-${liveFeed.title}`,
-              text: liveFeed.title,
-              type: "live_feed",
-            });
-            addedTexts.add(titleLower);
-          }
-        });
-      }
-
-      if (products) {
-        products.forEach((product) => {
-          const titleLower = product.title.toLowerCase();
-          if (!addedTexts.has(titleLower) && newSuggestions.length < 6) {
-            newSuggestions.push({
-              id: `product-${product.title}`,
-              text: product.title,
-              type: "product",
-            });
-            addedTexts.add(titleLower);
-          }
-        });
-      }
-
-      if (categoryData) {
-        const uniqueCategories = [
-          ...new Set(categoryData.map((c) => c.category)),
-        ].filter((cat) => cat && !addedTexts.has(cat.toLowerCase()));
-
-        uniqueCategories.slice(0, 2).forEach((category) => {
-          newSuggestions.push({
-            id: `category-${category}`,
-            text: category,
-            type: "category",
-          });
-          addedTexts.add(category.toLowerCase());
-        });
-      }
-
-      // Sort suggestions by relevance
-      const sortedSuggestions = newSuggestions.sort((a, b) => {
-        // Prioritize live feed items
-        if (a.type === 'live_feed' && b.type !== 'live_feed') return -1;
-        if (b.type === 'live_feed' && a.type !== 'live_feed') return 1;
-        
-        // Then by text relevance to query
-        const aRelevance = a.text.toLowerCase().includes(searchTerms) ? 1 : 0;
-        const bRelevance = b.text.toLowerCase().includes(searchTerms) ? 1 : 0;
-        return bRelevance - aRelevance;
-      });
-      
-      setSuggestions(sortedSuggestions);
-    } catch (error) {
-      console.error("Error fetching suggestions:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleSearch = (query?: string) => {
-    const searchTerm = query || searchQuery;
+    const searchTerm = query ?? searchQuery;
     if (searchTerm.trim()) {
       navigate(`/search?q=${encodeURIComponent(searchTerm.trim())}`);
       handleCollapse();
     }
+  };
+
+  const handleSuggestionSelect = (suggestion: SearchSuggestion) => {
+    if (suggestion.type === "seller" && suggestion.sellerId) {
+      navigate(`/seller/${suggestion.sellerId}`);
+      handleCollapse();
+      return;
+    }
+    handleSearch(suggestion.text);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -174,17 +66,6 @@ const MobileExpandableSearch = ({ onExpand }: MobileExpandableSearchProps) => {
       handleCollapse();
     }
   };
-
-  useEffect(() => {
-    if (searchQuery.length >= 1) {
-      const timeoutId = setTimeout(() => {
-        fetchSuggestions(searchQuery);
-      }, 0);
-      return () => clearTimeout(timeoutId);
-    } else {
-      setSuggestions([]);
-    }
-  }, [searchQuery]);
 
   useEffect(() => {
     if (isExpanded) {
@@ -203,7 +84,7 @@ const MobileExpandableSearch = ({ onExpand }: MobileExpandableSearchProps) => {
       {isExpanded &&
         createPortal(
           <div
-            className="fixed inset-0 bg-black/30 backdrop-blur-md z-[9999] lg:hidden transition-all duration-300 opacity-100"
+            className="fixed inset-0 bg-flora-ink/40 backdrop-blur-md z-[9999] lg:hidden transition-all duration-300 opacity-100"
             onClick={handleCollapse}
           />,
           document.body
@@ -249,19 +130,19 @@ const MobileExpandableSearch = ({ onExpand }: MobileExpandableSearchProps) => {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onKeyDown={handleKeyPress}
-                  placeholder="Search products, categories..."
+                  placeholder="Search products, sellers..."
                   className="w-full bg-transparent text-sm text-flora-ink placeholder:text-flora-muted focus:outline-none"
                 />
               </div>
             </div>
 
-            {/* Smart suggestions */}
+            {/* Suggestions */}
             {searchQuery.length > 0 && (
-              <div className="border-t border-gray-100 bg-white max-h-60 overflow-y-auto">
+              <div className="max-h-72 overflow-y-auto border-t border-flora-ink/10 bg-white">
                 {loading && (
                   <div className="flex items-center justify-center py-4">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-flora-leaf"></div>
-                    <span className="ml-2 text-sm">Searching...</span>
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-flora-chip border-t-flora-leaf" />
+                    <span className="ml-2 text-sm text-flora-muted">Searching...</span>
                   </div>
                 )}
 
@@ -269,43 +150,62 @@ const MobileExpandableSearch = ({ onExpand }: MobileExpandableSearchProps) => {
                   suggestions.map((suggestion) => (
                     <button
                       key={suggestion.id}
-                      onClick={() => handleSearch(suggestion.text)}
-                      className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 text-left border-b border-gray-50 last:border-b-0"
+                      onClick={() => handleSuggestionSelect(suggestion)}
+                      className="flex w-full items-center justify-between gap-3 border-b border-flora-ink/5 px-4 py-3 text-left last:border-b-0 hover:bg-flora-chip/40"
                     >
-                      <div className="flex items-center gap-3">
-                        {suggestion.type === "live_feed" && (
-                          <Search className="h-4 w-4 text-green-500" />
+                      <div className="flex min-w-0 items-center gap-3">
+                        {suggestion.imageUrl ? (
+                          <img
+                            src={suggestion.imageUrl}
+                            alt=""
+                            className={cn(
+                              "h-9 w-9 shrink-0 object-cover",
+                              suggestion.type === "seller" ? "rounded-full" : "rounded-xl"
+                            )}
+                          />
+                        ) : (
+                          <span
+                            className={cn(
+                              "flex h-9 w-9 shrink-0 items-center justify-center bg-flora-chip text-flora-muted",
+                              suggestion.type === "seller" ? "rounded-full" : "rounded-xl"
+                            )}
+                          >
+                            {suggestion.type === "seller" && <User className="h-4 w-4" />}
+                            {suggestion.type === "category" && <Tag className="h-4 w-4" />}
+                            {suggestion.type === "trending" && <TrendingUp className="h-4 w-4" />}
+                            {suggestion.type === "product" && <Search className="h-4 w-4" />}
+                          </span>
                         )}
-                        {suggestion.type === "product" && (
-                          <Search className="h-4 w-4 text-blue-500" />
-                        )}
-                        {suggestion.type === "category" && (
-                          <Tag className="h-4 w-4 text-gray-400" />
-                        )}
-                        {suggestion.type === "trending" && (
-                          <TrendingUp className="h-4 w-4 text-orange-500" />
-                        )}
-                        <span className="text-sm">{suggestion.text}</span>
-                        {suggestion.type === "live_feed" && (
-                          <span className="text-xs bg-green-500 text-white px-2 py-0.5 rounded-full animate-pulse">
-                            LIVE
+                        <span className="min-w-0 flex-1 truncate">
+                          <span className="block truncate text-sm font-medium text-flora-ink">
+                            {suggestion.text}
+                          </span>
+                          {suggestion.subtitle && (
+                            <span className="block truncate text-xs text-flora-muted">
+                              {suggestion.subtitle}
+                            </span>
+                          )}
+                        </span>
+                        {suggestion.price != null && (
+                          <span className="shrink-0 text-sm font-semibold text-flora-ink">
+                            {formatPrice(suggestion.price)}
                           </span>
                         )}
                       </div>
-                      <ArrowRight className="h-4 w-4 text-gray-400" />
+                      <ArrowRight className="h-4 w-4 shrink-0 text-flora-muted" />
                     </button>
                   ))}
 
                 {/* Search query option */}
                 <button
                   onClick={() => handleSearch()}
-                  className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 text-left border-t border-gray-100"
+                  className="flex w-full items-center justify-between gap-3 border-t border-flora-ink/10 px-4 py-3 text-left hover:bg-flora-chip/40"
                 >
                   <div className="flex items-center gap-3">
                     <Search className="h-4 w-4 text-flora-leaf" />
-                    <span className="text-sm">
-                      Search for "
-                      <span className="font-medium">{searchQuery}</span>"
+                    <span className="text-sm text-flora-ink">
+                      Search for &ldquo;
+                      <span className="font-medium">{searchQuery}</span>&rdquo;
                     </span>
                   </div>
                   <ArrowRight className="h-4 w-4 text-flora-leaf" />
@@ -315,26 +215,20 @@ const MobileExpandableSearch = ({ onExpand }: MobileExpandableSearchProps) => {
 
             {/* Popular searches when no query */}
             {searchQuery.length === 0 && (
-              <div className="border-t border-gray-100 bg-gray-50 p-4">
-                <p className="text-xs text-gray-500 mb-3 font-medium">
-                  Popular searches
-                </p>
+              <div className="border-t border-flora-ink/10 bg-flora-bgFrom/60 p-4">
+                <p className="mb-3 text-xs font-medium text-flora-muted">Popular searches</p>
                 <div className="flex flex-wrap gap-2">
-                  {[
-                    "Electronics",
-                    "Textbooks",
-                    "Fashion",
-                    "Furniture",
-                    "Sports Equipment",
-                  ].map((item, index) => (
-                    <button
-                      key={index}
-                      onClick={() => handleSearch(item)}
-                      className="px-3 py-1.5 bg-white border border-gray-200 rounded-full text-xs hover:border-flora-leaf hover:text-flora-leaf transition-colors"
-                    >
-                      {item}
-                    </button>
-                  ))}
+                  {["Electronics", "Textbooks", "Fashion", "Furniture", "Sports Equipment"].map(
+                    (item) => (
+                      <button
+                        key={item}
+                        onClick={() => handleSearch(item)}
+                        className="rounded-full border border-flora-ink/10 bg-white px-3 py-1.5 text-xs text-flora-ink transition hover:border-flora-leaf hover:text-flora-leaf"
+                      >
+                        {item}
+                      </button>
+                    )
+                  )}
                 </div>
               </div>
             )}

@@ -27,7 +27,6 @@ import {
   Timer,
   MessageCircle,
   Phone,
-  RefreshCw,
 } from "lucide-react";
 import { findOrCreateConversation } from "@/utils/conversationUtils";
 import { useNavigate } from "react-router-dom";
@@ -126,7 +125,7 @@ const OrderProgress = ({ status }: { status: string }) => {
             key={stage}
             className={cn(
               "h-1.5 flex-1 rounded-full",
-              i <= currentIndex ? "bg-flora-leaf" : "bg-flora-chip"
+              i <= currentIndex ? "bg-flora-leaf" : "bg-flora-chip",
             )}
           />
         ))}
@@ -190,7 +189,7 @@ const Orders = () => {
         seller_profile:profiles!orders_seller_id_fkey (full_name, phone_number),
         buyer_profile:profiles!orders_buyer_id_fkey (full_name, phone_number),
         escrow_transactions (id, status, seller_amount, auto_release_at)
-      `
+      `,
       )
       .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
       .order("created_at", { ascending: false });
@@ -206,8 +205,8 @@ const Orders = () => {
       escrow_transactions: Array.isArray(order.escrow_transactions)
         ? order.escrow_transactions
         : order.escrow_transactions
-        ? [order.escrow_transactions]
-        : [],
+          ? [order.escrow_transactions]
+          : [],
     }));
 
     // Store offline for next time
@@ -269,19 +268,17 @@ const Orders = () => {
             // Force immediate refetch and UI update
             await refetch();
             setLastUpdated(new Date());
-            
+
             // Also update offline storage immediately
             if (newOrder) {
               setOfflineOrders((prevOrders) =>
                 prevOrders.map((order) =>
-                  order.id === orderId
-                    ? { ...order, ...newOrder }
-                    : order
-                )
+                  order.id === orderId ? { ...order, ...newOrder } : order,
+                ),
               );
             }
           }
-        }
+        },
       )
       .on(
         "postgres_changes",
@@ -294,7 +291,7 @@ const Orders = () => {
           // Force immediate refetch when escrow status changes
           await refetch();
           setLastUpdated(new Date());
-        }
+        },
       )
       .on(
         "postgres_changes",
@@ -307,7 +304,7 @@ const Orders = () => {
           // Force immediate refetch when disputes are created/updated
           await refetch();
           setLastUpdated(new Date());
-        }
+        },
       )
       .subscribe((status) => {
         setIsRealTimeConnected(status === "SUBSCRIBED");
@@ -340,7 +337,7 @@ const Orders = () => {
   const updateOrderStatus = async (
     orderId: string,
     status: string,
-    trackingInfo?: string
+    trackingInfo?: string,
   ) => {
     try {
       // Optimistic update - immediately update UI
@@ -352,8 +349,8 @@ const Orders = () => {
                 status,
                 ...(trackingInfo && { tracking_info: trackingInfo }),
               }
-            : order
-        )
+            : order,
+        ),
       );
 
       const updateData: any = { status };
@@ -426,16 +423,15 @@ const Orders = () => {
                 : "Order Delivered - UniMarket";
 
             // Create notification
-            const { sendOrderNotification } = await import(
-              "@/utils/notificationService"
-            );
+            const { sendOrderNotification } =
+              await import("@/utils/notificationService");
             await sendOrderNotification(
               order.buyer_id,
               statusMessage,
               `Order for ${order.product?.title} has been ${status}. ${
                 trackingInfo || ""
               }`,
-              orderId
+              orderId,
             );
 
             // Send email
@@ -475,7 +471,6 @@ const Orders = () => {
         title: "Order Updated",
         description: `Order status updated to ${status}`,
       });
-
     } catch (error) {
       // Revert optimistic update on error
       await refetch();
@@ -490,7 +485,7 @@ const Orders = () => {
   const reportIssue = async (
     orderId: string,
     reason: string,
-    description: string
+    description: string,
   ) => {
     try {
       if (!user) {
@@ -506,7 +501,8 @@ const Orders = () => {
       if (!order) {
         toast({
           title: "Order not found",
-          description: "This order may have been removed. Please refresh and try again.",
+          description:
+            "This order may have been removed. Please refresh and try again.",
           variant: "destructive",
         });
         return;
@@ -533,7 +529,8 @@ const Orders = () => {
       if (!escrowTransaction) {
         toast({
           title: "Couldn't report this issue",
-          description: "This order doesn't have an associated payment record. Please contact support.",
+          description:
+            "This order doesn't have an associated payment record. Please contact support.",
           variant: "destructive",
         });
         return;
@@ -663,7 +660,11 @@ const Orders = () => {
     return orders.filter((order) => order.seller_id === user?.id);
   };
 
-  const [showReportDialog, setShowReportDialog] = useState(false);
+  // Which order's Report dialog is open, not a plain boolean — this is
+  // rendered once per order card, so a shared boolean would flip every
+  // card's dialog open simultaneously the moment any one of them was
+  // clicked (each got its own <Dialog> instance, all watching the same flag).
+  const [reportDialogOrderId, setReportDialogOrderId] = useState<string | null>(null);
   const [reportReason, setReportReason] = useState("");
   const [reportDescription, setReportDescription] = useState("");
   const [showReviewModal, setShowReviewModal] = useState(false);
@@ -678,7 +679,7 @@ const Orders = () => {
   // Count unattended orders
   const getUnattendedBuyerCount = () => {
     return orders.filter(
-      (order) => order.buyer_id === user?.id && order.status === "delivered"
+      (order) => order.buyer_id === user?.id && order.status === "delivered",
     ).length;
   };
 
@@ -686,7 +687,7 @@ const Orders = () => {
     return orders.filter(
       (order) =>
         order.seller_id === user?.id &&
-        (order.status === "paid" || order.status === "shipped")
+        (order.status === "paid" || order.status === "shipped"),
     ).length;
   };
 
@@ -701,14 +702,14 @@ const Orders = () => {
     try {
       const conversationId = await findOrCreateConversation(
         user.id,
-        otherUserId
+        otherUserId,
       );
       if (conversationId) {
         const draftMessage = `Hi! Regarding order #${order.id.slice(-8)} for ${
           order.product?.title
         }.`;
         navigate(
-          `/chat/${conversationId}?draft=${encodeURIComponent(draftMessage)}`
+          `/chat/${conversationId}?draft=${encodeURIComponent(draftMessage)}`,
         );
       }
     } catch (error) {
@@ -720,35 +721,6 @@ const Orders = () => {
     }
   };
 
-  const handleWhatsApp = (order: Order, isSeller: boolean) => {
-    const otherUser = isSeller ? order.buyer : order.seller;
-    const phoneNumber = otherUser?.phone_number;
-
-    if (!phoneNumber) {
-      toast({
-        title: "Phone Number Not Available",
-        description: "This user hasn't provided a phone number.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const message =
-      `Hi! I'm contacting you regarding order #${order.id.slice(-8)}:\n\n` +
-      `Product: ${order.product?.title}\n` +
-      `Quantity: ${order.quantity}\n` +
-      `Total Amount: ₦${order.total_amount.toLocaleString()}\n` +
-      `Order Status: ${order.status}\n` +
-      `Order Date: ${new Date(order.created_at).toLocaleDateString()}\n\n` +
-      `Please let me know the status of this order and the drivers number`;
-
-    const whatsappUrl = `https://wa.me/${phoneNumber.replace(
-      /[^0-9]/g,
-      ""
-    )}?text=${encodeURIComponent(message)}`;
-    window.open(whatsappUrl, "_blank");
-  };
-
   const renderOrderCard = (order: Order, isSeller: boolean = false) => {
     const escrow = order.escrow_transactions?.[0];
     const autoReleaseDate = escrow?.auto_release_at
@@ -756,7 +728,7 @@ const Orders = () => {
       : null;
     const daysUntilAutoRelease = autoReleaseDate
       ? Math.ceil(
-          (autoReleaseDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+          (autoReleaseDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24),
         )
       : null;
 
@@ -765,155 +737,182 @@ const Orders = () => {
         key={order.id}
         className={cn(
           "mb-3 rounded-3xl bg-flora-card p-4 shadow-card transition-all duration-500 sm:mb-4 sm:p-5",
-          updatingOrderId === order.id && "bg-flora-tagBg/30 ring-2 ring-flora-leaf/50"
-        )}
-      >
+          updatingOrderId === order.id &&
+            "bg-flora-tagBg/30 ring-2 ring-flora-leaf/50",
+        )}>
         <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
           <div className="min-w-0 flex-1">
-            <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center">
-              <h3 className="line-clamp-2 text-sm font-semibold text-flora-ink sm:text-base">
-                {order.product?.title}
-              </h3>
-              <div className="flex flex-wrap gap-2">
-                <span
-                  className={cn(
-                    "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium capitalize",
-                    STATUS_TONE[order.status] || "bg-flora-chip text-flora-muted"
+            {/* Product thumbnail sits beside just the title/status row —
+                  it used to sit beside the entire (much taller) content
+                  column, which left a tall empty gap under the short
+                  thumbnail once everything else stacked below it. */}
+              <div className="mb-2 flex gap-3">
+                {order.product?.images?.[0] ? (
+                  <img
+                    src={order.product.images[0]}
+                    alt={order.product.title}
+                    className="h-16 w-16 shrink-0 rounded-2xl object-cover sm:h-20 sm:w-20"
+                    onError={(e) => {
+                      e.currentTarget.src = "/placeholder.svg";
+                    }}
+                  />
+                ) : (
+                  <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-flora-chip sm:h-20 sm:w-20">
+                    <Package className="h-6 w-6 text-flora-muted" />
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <h3 className="line-clamp-2 text-sm font-semibold text-flora-ink sm:text-base">
+                    {order.product?.title}
+                  </h3>
+                  <div className="mt-1.5 flex flex-wrap gap-2">
+                    <span
+                      className={cn(
+                        "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium capitalize",
+                        STATUS_TONE[order.status] ||
+                          "bg-flora-chip text-flora-muted",
+                      )}>
+                      {getStatusIcon(order.status)}
+                      {order.status}
+                    </span>
+                    {escrow && escrow.status === "held" && (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-flora-ink/15 px-2.5 py-1 text-xs font-medium text-flora-ink">
+                        <Shield className="h-3 w-3" />
+                        <span className="hidden sm:inline">Escrow Protected</span>
+                        <span className="sm:hidden">Protected</span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <OrderProgress status={order.status} />
+
+              <div className="mt-3 space-y-1 text-xs text-flora-muted sm:text-sm">
+                <p className="truncate">
+                  {isSeller ? (
+                    `Buyer: ${order.buyer?.full_name}`
+                  ) : (
+                    <span>
+                      Seller:{" "}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/seller/${order.seller_id}`);
+                        }}
+                        className="text-flora-leaf underline hover:brightness-90">
+                        {order.seller?.full_name}
+                      </button>
+                    </span>
                   )}
-                >
-                  {getStatusIcon(order.status)}
-                  {order.status}
-                </span>
-                {escrow && escrow.status === "held" && (
-                  <span className="inline-flex items-center gap-1 rounded-full border border-flora-ink/15 px-2.5 py-1 text-xs font-medium text-flora-ink">
-                    <Shield className="h-3 w-3" />
-                    <span className="hidden sm:inline">Escrow Protected</span>
-                    <span className="sm:hidden">Protected</span>
-                  </span>
+                </p>
+                {((isSeller && order.buyer?.phone_number) ||
+                  (!isSeller && order.seller?.phone_number)) && (
+                  <p className="flex items-center gap-1">
+                    <Phone className="h-3 w-3" />
+                    {isSeller
+                      ? order.buyer?.phone_number
+                      : order.seller?.phone_number}
+                  </p>
                 )}
               </div>
-            </div>
-
-            <OrderProgress status={order.status} />
-
-            <div className="mt-3 space-y-1 text-xs text-flora-muted sm:text-sm">
-              <p className="truncate">
-                {isSeller ? (
-                  `Buyer: ${order.buyer?.full_name}`
-                ) : (
-                  <span>
-                    Seller:{" "}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        navigate(`/seller/${order.seller_id}`);
-                      }}
-                      className="text-flora-leaf underline hover:brightness-90"
-                    >
-                      {order.seller?.full_name}
-                    </button>
-                  </span>
-                )}
-              </p>
-              {((isSeller && order.buyer?.phone_number) ||
-                (!isSeller && order.seller?.phone_number)) && (
-                <p className="flex items-center gap-1">
-                  <Phone className="h-3 w-3" />
-                  {isSeller
-                    ? order.buyer?.phone_number
-                    : order.seller?.phone_number}
+              <div className="space-y-1 text-xs text-flora-muted sm:text-sm">
+                <p>
+                  Qty: {order.quantity}
+                  {order.selected_size && (
+                    <span> • Size: {order.selected_size}</span>
+                  )}
+                  {" • Total: ₦"}
+                  {order.total_amount.toLocaleString()}
                 </p>
-              )}
-            </div>
-            <div className="space-y-1 text-xs text-flora-muted sm:text-sm">
-              <p>
-                Qty: {order.quantity}
-                {order.selected_size && (
-                  <span> • Size: {order.selected_size}</span>
-                )}
-                {" • Total: ₦"}
-                {order.total_amount.toLocaleString()}
-              </p>
-              {isSeller && escrow && (
-                <p className="text-xs text-flora-leaf">
-                  You'll receive: ₦{escrow.seller_amount.toLocaleString()}
-                </p>
-              )}
-              {isSeller && (order.shipping_address || order.delivery_method) && (
-                <div className="mt-2 rounded-xl bg-flora-chip p-2 text-xs text-flora-ink">
-                  <p className="flex items-center gap-1 font-medium">
-                    {order.delivery_method === "pickup" ? (
-                      <Package className="h-3 w-3" />
-                    ) : (
-                      <Truck className="h-3 w-3" />
-                    )}
-                    {order.delivery_method === "pickup"
-                      ? "Pickup — buyer will collect from you"
-                      : "Delivery"}
+                {isSeller && escrow && (
+                  <p className="text-xs text-flora-leaf">
+                    You'll receive: ₦{escrow.seller_amount.toLocaleString()}
                   </p>
-                  {order.delivery_method !== "pickup" && order.shipping_address && (
-                    <p className="mt-1">{order.shipping_address}</p>
+                )}
+                {isSeller &&
+                  (order.shipping_address || order.delivery_method) && (
+                    <div className="mt-2 rounded-xl bg-flora-chip p-2 text-xs text-flora-ink">
+                      <p className="flex items-center gap-1 font-medium">
+                        {order.delivery_method === "pickup" ? (
+                          <Package className="h-3 w-3" />
+                        ) : (
+                          <Truck className="h-3 w-3" />
+                        )}
+                        {order.delivery_method === "pickup"
+                          ? "Pickup — buyer will collect from you"
+                          : "Delivery"}
+                      </p>
+                      {order.delivery_method !== "pickup" &&
+                        order.shipping_address && (
+                          <p className="mt-1">{order.shipping_address}</p>
+                        )}
+                      {order.university_name && (
+                        <p className="mt-1 text-flora-leaf">
+                          {order.university_name}
+                        </p>
+                      )}
+                    </div>
                   )}
-                  {order.university_name && (
-                    <p className="mt-1 text-flora-leaf">{order.university_name}</p>
-                  )}
-                </div>
-              )}
-            </div>
-            <p className="text-xs text-flora-muted">
-              Ordered on {new Date(order.created_at).toLocaleDateString()}
-            </p>
-
-            {order.tracking_info && (
-              <p className="mt-2 text-xs text-flora-muted sm:text-sm">
-                Tracking: {order.tracking_info}
+              </div>
+              <p className="text-xs text-flora-muted">
+                Ordered on {new Date(order.created_at).toLocaleDateString()}
               </p>
-            )}
 
-            {daysUntilAutoRelease &&
-              daysUntilAutoRelease > 0 &&
-              order.status === "delivered" && (
-                <div className="mt-2 flex items-center gap-1 text-xs text-amber-600">
-                  <Timer className="h-3 w-3" />
-                  Auto-confirms in {daysUntilAutoRelease} day
-                  {daysUntilAutoRelease !== 1 ? "s" : ""}
-                </div>
+              {order.tracking_info && (
+                <p className="mt-2 text-xs text-flora-muted sm:text-sm">
+                  Tracking: {order.tracking_info}
+                </p>
               )}
-          </div>
+
+              {daysUntilAutoRelease &&
+                daysUntilAutoRelease > 0 &&
+                order.status === "delivered" && (
+                  <div className="mt-2 flex items-center gap-1 text-xs text-amber-600">
+                    <Timer className="h-3 w-3" />
+                    Auto-confirms in {daysUntilAutoRelease} day
+                    {daysUntilAutoRelease !== 1 ? "s" : ""}
+                  </div>
+                )}
+            </div>
 
           <div className="flex w-full flex-col gap-2 sm:w-auto">
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedOrder(order);
-                setShowOrderDetails(true);
-              }}
-              className={cn(BTN_OUTLINE, "w-full sm:w-auto")}
-            >
-              <Package className="h-3.5 w-3.5" />
-              View Details
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleChat(order, isSeller)}
-              className={cn(BTN_OUTLINE, "w-full sm:w-auto")}
-            >
-              <MessageCircle className="h-3.5 w-3.5" />
-              {isSeller ? "Chat Buyer" : "Chat Seller"}
-            </button>
-
-            {((isSeller && order.buyer?.phone_number) ||
-              (!isSeller && order.seller?.phone_number)) && (
+            {/* Always-available, non-primary actions sit side-by-side as
+                compact icon+text pills instead of three stacked full-width
+                buttons (the main source of mobile clutter) — but keep the
+                text label, since an icon-only row isn't self-explanatory
+                (a bare speech-bubble icon doesn't say "WhatsApp" vs "Chat"). */}
+            <div className="flex gap-1.5">
               <button
                 type="button"
-                onClick={() => handleWhatsApp(order, isSeller)}
-                className={cn(BTN_OUTLINE, "w-full border-flora-leaf/30 text-flora-leaf sm:w-auto")}
+                onClick={() => {
+                  setSelectedOrder(order);
+                  setShowOrderDetails(true);
+                }}
+                className="flex flex-1 items-center justify-center gap-1 rounded-full border border-flora-ink/15 bg-white px-2 py-2 text-[11px] font-medium text-flora-ink transition hover:bg-flora-chip"
               >
-                <MessageCircle className="h-3.5 w-3.5" />
-                WhatsApp
+                <Package className="h-3 w-3 shrink-0" />
+                Details
               </button>
-            )}
+              <button
+                type="button"
+                onClick={() => handleChat(order, isSeller)}
+                className="flex flex-1 items-center justify-center gap-1 rounded-full border border-flora-ink/15 bg-white px-2 py-2 text-[11px] font-medium text-flora-ink transition hover:bg-flora-chip"
+              >
+                <MessageCircle className="h-3 w-3 shrink-0" />
+                Chat
+              </button>
+              {!isSeller && (
+                <button
+                  type="button"
+                  onClick={() => setReportDialogOrderId(order.id)}
+                  className="flex flex-1 items-center justify-center gap-1 rounded-full border border-red-200 bg-white px-2 py-2 text-[11px] font-medium text-red-600 transition hover:bg-red-50"
+                >
+                  <AlertCircle className="h-3 w-3 shrink-0" />
+                  Report
+                </button>
+              )}
+            </div>
 
             {isSeller ? (
               // Seller actions
@@ -925,11 +924,10 @@ const Orders = () => {
                       updateOrderStatus(
                         order.id,
                         "shipped",
-                        "Package dispatched"
+                        "Package dispatched",
                       )
                     }
-                    className={cn(BTN_PRIMARY, "w-full sm:w-auto")}
-                  >
+                    className={cn(BTN_PRIMARY, "w-full sm:w-auto")}>
                     Mark as Shipped
                   </button>
                 )}
@@ -937,8 +935,7 @@ const Orders = () => {
                   <button
                     type="button"
                     onClick={() => updateOrderStatus(order.id, "delivered")}
-                    className={cn(BTN_OUTLINE, "w-full sm:w-auto")}
-                  >
+                    className={cn(BTN_OUTLINE, "w-full sm:w-auto")}>
                     Mark as Delivered
                   </button>
                 )}
@@ -967,25 +964,21 @@ const Orders = () => {
                           setShowReviewModal(true);
                         }, 1500);
                       }}
-                      className={cn(BTN_PRIMARY, "w-full sm:w-auto")}
-                    >
+                      className={cn(BTN_PRIMARY, "w-full sm:w-auto")}>
                       <CheckCircle className="h-3.5 w-3.5" />
                       Confirm Receipt
                     </button>
-                    <Dialog
-                      open={showReportDialog}
-                      onOpenChange={setShowReportDialog}
-                    >
-                      <DialogTrigger asChild>
-                        <button
-                          type="button"
-                          className={cn(BTN_OUTLINE, "w-full sm:w-auto")}
-                        >
-                          <AlertCircle className="h-3.5 w-3.5" />
-                          Report Issue
-                        </button>
-                      </DialogTrigger>
-                      <DialogContent className="w-[95vw] max-w-md border-flora-ink/10 bg-flora-card text-flora-ink">
+                  </div>
+                )}
+                {/* Report dialog trigger lives in the compact action row above;
+                    kept outside the `delivered` gate so it's reachable for any
+                    buyer order status, controlled per-order by reportDialogOrderId. */}
+                <Dialog
+                  open={reportDialogOrderId === order.id}
+                  onOpenChange={(next) =>
+                    setReportDialogOrderId(next ? order.id : null)
+                  }>
+                  <DialogContent className="w-[95vw] max-w-md border-flora-ink/10 bg-flora-card text-flora-ink">
                         <DialogHeader>
                           <DialogTitle className="text-lg text-flora-ink sm:text-xl">
                             Report Issue
@@ -995,24 +988,18 @@ const Orders = () => {
                           <div>
                             <Label
                               htmlFor="reason"
-                              className="text-sm text-flora-ink sm:text-base"
-                            >
+                              className="text-sm text-flora-ink sm:text-base">
                               Reason
                             </Label>
                             <select
                               className="mt-1 w-full rounded-xl border border-flora-ink/15 bg-white p-2 text-sm text-flora-ink sm:text-base"
                               value={reportReason}
-                              onChange={(e) =>
-                                setReportReason(e.target.value)
-                              }
-                            >
+                              onChange={(e) => setReportReason(e.target.value)}>
                               <option value="">Select a reason</option>
                               <option value="item_not_received">
                                 Item not received
                               </option>
-                              <option value="item_damaged">
-                                Item damaged
-                              </option>
+                              <option value="item_damaged">Item damaged</option>
                               <option value="wrong_item">
                                 Wrong item received
                               </option>
@@ -1025,8 +1012,7 @@ const Orders = () => {
                           <div>
                             <Label
                               htmlFor="description"
-                              className="text-sm text-flora-ink sm:text-base"
-                            >
+                              className="text-sm text-flora-ink sm:text-base">
                               Description
                             </Label>
                             <Textarea
@@ -1046,15 +1032,14 @@ const Orders = () => {
                                 reportIssue(
                                   order.id,
                                   reportReason,
-                                  reportDescription
+                                  reportDescription,
                                 );
-                                setShowReportDialog(false);
+                                setReportDialogOrderId(null);
                                 setReportReason("");
                                 setReportDescription("");
                               }}
                               disabled={!reportReason || !reportDescription}
-                              className={cn(BTN_PRIMARY, "w-full")}
-                            >
+                              className={cn(BTN_PRIMARY, "w-full")}>
                               Submit Report
                             </button>
                             <div className="text-center">
@@ -1065,7 +1050,7 @@ const Orders = () => {
                                 type="button"
                                 onClick={() => {
                                   const message = `Hi! I need help with my order:\n\nOrder ID: #${order.id.slice(
-                                    -8
+                                    -8,
                                   )}\nProduct: ${
                                     order.product?.title
                                   }\nSeller: ${
@@ -1075,22 +1060,21 @@ const Orders = () => {
                                   }\nTotal Amount: ₦${order.total_amount.toLocaleString()}\nOrder Status: ${
                                     order.status
                                   }\nOrder Date: ${new Date(
-                                    order.created_at
+                                    order.created_at,
                                   ).toLocaleDateString()}\nShipping Address: ${
                                     order.shipping_address
                                   }\n\nIssue: ${reportReason} - ${reportDescription}\n\nPlease help me resolve this issue.`;
                                   window.open(
                                     `https://wa.me/2349133054018?text=${encodeURIComponent(
-                                      message
+                                      message,
                                     )}`,
-                                    "_blank"
+                                    "_blank",
                                   );
                                 }}
                                 className={cn(
                                   BTN_OUTLINE,
-                                  "border-flora-leaf/30 text-flora-leaf"
-                                )}
-                              >
+                                  "border-flora-leaf/30 text-flora-leaf",
+                                )}>
                                 Chat on WhatsApp
                               </button>
                             </div>
@@ -1098,15 +1082,12 @@ const Orders = () => {
                         </div>
                       </DialogContent>
                     </Dialog>
-                  </div>
-                )}
                 {order.status === "disputed" && (
                   <div className="flex flex-col gap-2">
                     <button
                       type="button"
                       onClick={() => withdrawDispute(order.id)}
-                      className={cn(BTN_OUTLINE, "w-full sm:w-auto")}
-                    >
+                      className={cn(BTN_OUTLINE, "w-full sm:w-auto")}>
                       Withdraw Dispute
                     </button>
                   </div>
@@ -1136,139 +1117,126 @@ const Orders = () => {
     <div className="min-h-screen bg-gradient-to-b from-flora-bgFrom to-flora-bgTo">
       <PullToRefresh onRefresh={handleRefresh} className="min-h-screen">
         <main className="container mx-auto px-4 py-6 sm:py-8">
-        <div className="max-w-4xl mx-auto">
-          <div className="mb-4 flex items-center justify-between sm:mb-6">
-            <h1 className="text-2xl font-bold text-flora-ink sm:text-3xl">
-              My Orders
-            </h1>
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => {
-                  refetch();
-                  setLastUpdated(new Date());
-                }}
-                disabled={isLoading}
-                className={BTN_OUTLINE}
-              >
-                <RefreshCw
-                  className={cn("h-3.5 w-3.5", isLoading && "animate-spin")}
-                />
-                <span className="hidden sm:inline">Reload</span>
-              </button>
+          <div className="max-w-4xl mx-auto">
+            <div className="mb-4 flex items-center justify-between sm:mb-6">
+              <h1 className="text-2xl font-bold text-flora-ink sm:text-3xl">
+                My Orders
+              </h1>
+              {/* Manual reload + "Updated at" removed — PullToRefresh already
+                wraps this whole page, so a separate reload button was a
+                redundant second control. The live-status dot stays, it's a
+                different signal (subscription health, not "refresh me"). */}
               <div className="flex items-center gap-2 text-xs text-flora-muted sm:text-sm">
                 <div
                   className={cn(
                     "h-2 w-2 rounded-full",
-                    isRealTimeConnected ? "bg-flora-leaf" : "bg-flora-muted/50"
+                    isRealTimeConnected ? "bg-flora-leaf" : "bg-flora-muted/50",
                   )}
                 />
-                <span className="hidden sm:inline">
+                <span>
                   {isRealTimeConnected ? "Live updates" : "Connecting..."}
-                </span>
-                <span className="text-xs">
-                  Updated {lastUpdated.toLocaleTimeString()}
                 </span>
               </div>
             </div>
-          </div>
 
-          {profile?.account_type === "buyer" ? (
-            // Buyer-only view
-            <div>
-              {orders.filter((order) => order.buyer_id === user?.id).length ===
-              0 ? (
-                <OrderEmptyState
-                  title="No orders yet"
-                  copy="Start shopping to see your orders here"
-                />
-              ) : (
-                orders
-                  .filter((order) => order.buyer_id === user?.id)
-                  .map((order) => renderOrderCard(order, false))
-              )}
-            </div>
-          ) : (
-            // Seller view with tabs
-            <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList className="grid h-fit w-full grid-cols-2 gap-1 rounded-2xl bg-flora-chip/70 p-1">
-                <TabsTrigger value="buyer" className="relative rounded-xl">
-                  As Buyer
-                  {getUnattendedBuyerCount() > 0 && (
-                    <span className="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs text-white">
-                      {getUnattendedBuyerCount()}
-                    </span>
-                  )}
-                </TabsTrigger>
-                <TabsTrigger value="seller" className="relative rounded-xl">
-                  As Seller
-                  {getUnattendedSellerCount() > 0 && (
-                    <span className="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs text-white">
-                      {getUnattendedSellerCount()}
-                    </span>
-                  )}
-                </TabsTrigger>
-              </TabsList>
+            {profile?.account_type === "buyer" ? (
+              // Buyer-only view
+              <div>
+                {orders.filter((order) => order.buyer_id === user?.id)
+                  .length === 0 ? (
+                  <OrderEmptyState
+                    title="No orders yet"
+                    copy="Start shopping to see your orders here"
+                  />
+                ) : (
+                  orders
+                    .filter((order) => order.buyer_id === user?.id)
+                    .map((order) => renderOrderCard(order, false))
+                )}
+              </div>
+            ) : (
+              // Seller view with tabs
+              <Tabs value={activeTab} onValueChange={setActiveTab}>
+                <TabsList className="grid h-fit w-full grid-cols-2 gap-1 rounded-2xl bg-flora-chip/70 p-1">
+                  <TabsTrigger value="buyer" className="relative rounded-3xl">
+                    As Buyer
+                    {getUnattendedBuyerCount() > 0 && (
+                      <span className="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs text-white">
+                        {getUnattendedBuyerCount()}
+                      </span>
+                    )}
+                  </TabsTrigger>
+                  <TabsTrigger value="seller" className="relative rounded-3xl">
+                    As Seller
+                    {getUnattendedSellerCount() > 0 && (
+                      <span className="absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs text-white">
+                        {getUnattendedSellerCount()}
+                      </span>
+                    )}
+                  </TabsTrigger>
+                </TabsList>
 
-              <TabsContent value="buyer" className="mt-6">
-                <div>
-                  {orders.filter((order) => order.buyer_id === user?.id)
-                    .length === 0 ? (
-                    <OrderEmptyState
-                      title="No orders yet"
-                      copy="Start shopping to see your orders here"
-                    />
-                  ) : (
-                    orders
-                      .filter((order) => order.buyer_id === user?.id)
-                      .map((order) => renderOrderCard(order, false))
-                  )}
-                </div>
-              </TabsContent>
-
-              <TabsContent value="seller" className="mt-6">
-                <div>
-                  {(() => {
-                    const sellerAccess = canAccessSellerFeature('seller_orders');
-                    if (!sellerAccess.allowed) {
-                      return (
-                        <div className="rounded-3xl bg-flora-card p-8 text-center shadow-card sm:p-10">
-                          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-flora-leafBright to-flora-leaf">
-                            <Package className="h-8 w-8 text-white" />
-                          </div>
-                          <h3 className="mb-2 text-lg font-semibold text-flora-ink">
-                            Subscription Required
-                          </h3>
-                          <p className="mb-4 text-sm text-flora-muted">
-                            {sellerAccess.reason}
-                          </p>
-                          <button
-                            type="button"
-                            onClick={() => navigate('/dashboard')}
-                            className={cn(BTN_PRIMARY, "w-full sm:w-auto")}
-                          >
-                            Renew Subscription
-                          </button>
-                        </div>
-                      );
-                    }
-
-                    return orders.filter((order) => order.seller_id === user?.id).length === 0 ? (
+                <TabsContent value="buyer" className="mt-6">
+                  <div>
+                    {orders.filter((order) => order.buyer_id === user?.id)
+                      .length === 0 ? (
                       <OrderEmptyState
-                        title="No sales yet"
-                        copy="Start selling to see your orders here"
+                        title="No orders yet"
+                        copy="Start shopping to see your orders here"
                       />
                     ) : (
                       orders
-                        .filter((order) => order.seller_id === user?.id)
-                        .map((order) => renderOrderCard(order, true))
-                    );
-                  })()}
-                </div>
-              </TabsContent>
-            </Tabs>
-          )}
-        </div>
+                        .filter((order) => order.buyer_id === user?.id)
+                        .map((order) => renderOrderCard(order, false))
+                    )}
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="seller" className="mt-6">
+                  <div>
+                    {(() => {
+                      const sellerAccess =
+                        canAccessSellerFeature("seller_orders");
+                      if (!sellerAccess.allowed) {
+                        return (
+                          <div className="rounded-3xl bg-flora-card p-8 text-center shadow-card sm:p-10">
+                            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-flora-leafBright to-flora-leaf">
+                              <Package className="h-8 w-8 text-white" />
+                            </div>
+                            <h3 className="mb-2 text-lg font-semibold text-flora-ink">
+                              Subscription Required
+                            </h3>
+                            <p className="mb-4 text-sm text-flora-muted">
+                              {sellerAccess.reason}
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => navigate("/dashboard")}
+                              className={cn(BTN_PRIMARY, "w-full sm:w-auto")}>
+                              Renew Subscription
+                            </button>
+                          </div>
+                        );
+                      }
+
+                      return orders.filter(
+                        (order) => order.seller_id === user?.id,
+                      ).length === 0 ? (
+                        <OrderEmptyState
+                          title="No sales yet"
+                          copy="Start selling to see your orders here"
+                        />
+                      ) : (
+                        orders
+                          .filter((order) => order.seller_id === user?.id)
+                          .map((order) => renderOrderCard(order, true))
+                      );
+                    })()}
+                  </div>
+                </TabsContent>
+              </Tabs>
+            )}
+          </div>
         </main>
       </PullToRefresh>
 

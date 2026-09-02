@@ -1,7 +1,6 @@
-import { useState, useEffect, useRef } from "react";
+import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import {
   Command,
@@ -10,19 +9,11 @@ import {
   CommandItem,
 } from "@/components/ui/command";
 import { Search, User } from "lucide-react";
-import { expandSearchTerms } from "@/utils/searchUtils";
 import { cn } from "@/lib/utils";
-
-interface SearchSuggestion {
-  id: string;
-  text: string;
-  type: "product" | "category" | "recent" | "trending" | "live_feed" | "seller";
-  count?: number;
-  price?: number;
-  imageUrl?: string;
-  sellerId?: string;
-  subtitle?: string;
-}
+import {
+  useSearchSuggestions,
+  type SearchSuggestion,
+} from "@/hooks/useSearchSuggestions";
 
 interface SmartSearchInputProps {
   value: string;
@@ -45,7 +36,6 @@ const formatPrice = (price: number) =>
 // actual product/live-feed photo, or a plain search icon when no photo
 // is available — so this is just the grouping label now.
 const TYPE_META: Record<SearchSuggestion["type"], { heading: string }> = {
-  live_feed: { heading: "Live Now" },
   seller: { heading: "Sellers" },
   product: { heading: "Products" },
   category: { heading: "Categories" },
@@ -54,7 +44,6 @@ const TYPE_META: Record<SearchSuggestion["type"], { heading: string }> = {
 };
 
 const GROUP_ORDER: SearchSuggestion["type"][] = [
-  "live_feed",
   "seller",
   "product",
   "category",
@@ -70,218 +59,10 @@ const SmartSearchInput = ({
   showSuggestions = true,
   autoFocus = false,
 }: SmartSearchInputProps) => {
-  const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([]);
   const [isOpen, setIsOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (value.length >= 1 && showSuggestions) {
-      const timeoutId = setTimeout(() => {
-        fetchSuggestions(value);
-      }, 300);
-      return () => clearTimeout(timeoutId);
-    } else {
-      setSuggestions([]);
-    }
-  }, [value, showSuggestions]);
-
-  const fetchSuggestions = async (query: string) => {
-    setLoading(true);
-    try {
-      const searchTerms = query.toLowerCase().trim();
-      const expandedTerms = expandSearchTerms(searchTerms);
-
-      // Build smart search conditions
-      const searchConditions = expandedTerms
-        .map(
-          (term) =>
-            `title.ilike.%${term}%,description.ilike.%${term}%,category.ilike.%${term}%`,
-        )
-        .join(",");
-
-      // Get product suggestions with smart matching
-      const { data: products } = await supabase
-        .from("products")
-        .select("title, category, price, images")
-        .eq("is_active", true)
-        .or(searchConditions)
-        .order("created_at", { ascending: false })
-        .limit(6);
-
-      // Get live feed suggestions
-      const { data: liveFeeds } = await supabase
-        .from("live_feed")
-        .select("title, price, image_url")
-        .eq("is_active", true)
-        .gt("expires_at", new Date().toISOString())
-        .or(searchConditions)
-        .order("created_at", { ascending: false })
-        .limit(4);
-
-      // Get matching sellers — same approved-seller filter SellerSearch.tsx
-      // uses, so a name/business-name match here always resolves to a real,
-      // visitable storefront.
-      const sellerConditions = expandedTerms
-        .map((term) => `full_name.ilike.%${term}%,business_name.ilike.%${term}%`)
-        .join(",");
-      const { data: sellers } = await supabase
-        .from("profiles")
-        .select("user_id, full_name, business_name, avatar_url")
-        .in("account_type", ["seller", "both"])
-        .eq("seller_status", "approved")
-        .or(sellerConditions)
-        .limit(3);
-
-      // Get popular categories from both products and live feed
-      const [{ data: categoryData }, { data: liveFeedTitles }] =
-        await Promise.all([
-          supabase
-            .from("products")
-            .select("category")
-            .eq("is_active", true)
-            .or(
-              expandedTerms.map((term) => `category.ilike.%${term}%`).join(","),
-            )
-            .limit(3),
-          supabase
-            .from("live_feed")
-            .select("title")
-            .eq("is_active", true)
-            .gt("expires_at", new Date().toISOString())
-            .or(expandedTerms.map((term) => `title.ilike.%${term}%`).join(","))
-            .limit(2),
-        ]);
-
-      const newSuggestions: SearchSuggestion[] = [];
-      const addedTexts = new Set<string>();
-
-      // Add live feed matches first (higher priority)
-      if (liveFeeds) {
-        liveFeeds.forEach((liveFeed) => {
-          const titleLower = liveFeed.title.toLowerCase();
-          if (!addedTexts.has(titleLower) && newSuggestions.length < 6) {
-            newSuggestions.push({
-              id: `live_feed-${liveFeed.title}`,
-              text: liveFeed.title,
-              type: "live_feed",
-              price: liveFeed.price,
-              imageUrl: liveFeed.image_url,
-            });
-            addedTexts.add(titleLower);
-          }
-        });
-      }
-
-      // Add additional live feed titles from search
-      if (liveFeedTitles) {
-        liveFeedTitles.forEach((item) => {
-          const titleLower = item.title.toLowerCase();
-          if (!addedTexts.has(titleLower) && newSuggestions.length < 6) {
-            newSuggestions.push({
-              id: `live_feed_search-${item.title}`,
-              text: item.title,
-              type: "live_feed",
-            });
-            addedTexts.add(titleLower);
-          }
-        });
-      }
-
-      // Add matching sellers — keyed by user_id, not deduped against
-      // addedTexts (a seller's name colliding with a product title is fine;
-      // they're different result kinds).
-      if (sellers) {
-        sellers.forEach((seller) => {
-          if (newSuggestions.length < 6) {
-            newSuggestions.push({
-              id: `seller-${seller.user_id}`,
-              text: seller.business_name || seller.full_name,
-              type: "seller",
-              imageUrl: seller.avatar_url,
-              sellerId: seller.user_id,
-              subtitle: seller.business_name ? seller.full_name : undefined,
-            });
-          }
-        });
-      }
-
-      // Add exact product matches
-      if (products) {
-        products.forEach((product) => {
-          const titleLower = product.title.toLowerCase();
-          if (!addedTexts.has(titleLower) && newSuggestions.length < 6) {
-            newSuggestions.push({
-              id: `product-${product.title}`,
-              text: product.title,
-              type: "product",
-              price: product.price,
-              imageUrl: product.images?.[0],
-            });
-            addedTexts.add(titleLower);
-          }
-        });
-      }
-
-      // Add category suggestions
-      if (categoryData) {
-        const uniqueCategories = [
-          ...new Set(categoryData.map((c) => c.category)),
-        ].filter((cat) => cat && !addedTexts.has(cat.toLowerCase()));
-
-        uniqueCategories.slice(0, 3).forEach((category) => {
-          newSuggestions.push({
-            id: `category-${category}`,
-            text: category,
-            type: "category",
-          });
-          addedTexts.add(category.toLowerCase());
-        });
-      }
-
-      // Add smart trending suggestions
-      if (newSuggestions.length < 6) {
-        const smartSuggestions = [
-          "iPhone",
-          "MacBook",
-          "Samsung",
-          "Textbooks",
-          "Laptop",
-          "Headphones",
-          "Nike Shoes",
-          "Backpack",
-          "Calculator",
-          "Notebook",
-          "Charger",
-          "Books",
-        ].filter((item) => {
-          const itemLower = item.toLowerCase();
-          return (
-            !addedTexts.has(itemLower) &&
-            (itemLower.includes(searchTerms) ||
-              searchTerms.includes(itemLower.slice(0, 3)))
-          );
-        });
-
-        smartSuggestions
-          .slice(0, 6 - newSuggestions.length)
-          .forEach((suggestion) => {
-            newSuggestions.push({
-              id: `trending-${suggestion}`,
-              text: suggestion,
-              type: "trending",
-            });
-          });
-      }
-
-      setSuggestions(newSuggestions);
-    } catch (error) {
-      console.error("Error fetching suggestions:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { suggestions, loading } = useSearchSuggestions(value, showSuggestions);
 
   const handleSuggestionSelect = (suggestion: SearchSuggestion) => {
     // A seller suggestion is a specific person, not a text query — go
@@ -313,7 +94,7 @@ const SmartSearchInput = ({
     }
   };
 
-  // Grouped into labeled sections (Live Now / Products / Categories /
+  // Grouped into labeled sections (Sellers / Products / Categories /
   // Trending) instead of one flat list with an inline type badge on every
   // row — the badge-per-row approach was saying the same thing three times
   // (icon, badge text, and implicitly the row's position) for no real
@@ -428,12 +209,6 @@ const SmartSearchInput = ({
                               </span>
                             )}
                           </span>
-                          {suggestion.type === "live_feed" && (
-                            <span className="flex shrink-0 items-center gap-1 rounded-full bg-flora-leaf/15 px-2 py-1 text-[10px] font-bold text-flora-leaf">
-                              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-flora-leaf" />
-                              LIVE
-                            </span>
-                          )}
                           {suggestion.price != null && (
                             <span className="shrink-0 text-sm font-semibold text-flora-ink">
                               {formatPrice(suggestion.price)}

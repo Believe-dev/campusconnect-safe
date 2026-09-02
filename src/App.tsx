@@ -14,6 +14,7 @@ import { useScrollToTop } from "@/hooks/useScrollToTop";
 import { useBackgroundSync } from "@/hooks/useBackgroundSync";
 import { useRealTimeUpdates } from "@/hooks/useRealTimeUpdates";
 import { ErrorBoundary } from "@/components/common/ErrorBoundary";
+import { FeaturePaused } from "@/components/common/FeaturePaused";
 import { LoadingSkeleton } from "@/components/common/LoadingState";
 import { ROUTES } from "@/lib/constants";
 import BottomNav from "@/components/layout/BottomNav";
@@ -33,6 +34,8 @@ import { SecurityProvider } from "@/components/security/SecurityProvider";
 import { ProfileCompletionModal } from "@/components/profile/ProfileCompletionModal";
 import { ReconsentGate } from "@/components/legal/ReconsentGate";
 import { useProfileCompletion } from "@/hooks/useProfileCompletion";
+import { useConfirmReceiptReminder } from "@/hooks/useConfirmReceiptReminder";
+import { ConfirmReceiptReminder } from "@/components/orders/ConfirmReceiptReminder";
 
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { BannedUserModal } from "@/components/auth/BannedUserModal";
@@ -290,6 +293,8 @@ const AppContent = () => {
   const { metrics } = usePerformanceOptimization();
   const { showModal, missingFields, dismissModal, completeProfile } =
     useProfileCompletion();
+  const { showReminder: showConfirmReceiptReminder, orders: unconfirmedOrders, dismiss: dismissConfirmReceiptReminder } =
+    useConfirmReceiptReminder();
   const { isBanned, banReason, userEmail } = useBanCheck();
 
   useEffect(() => {
@@ -395,8 +400,12 @@ const AppContent = () => {
                   />
                   <Route path="/privacy-policy" element={<PrivacyPolicy />} />
                   <Route path="/suggestions" element={<Suggestions />} />
-                  <Route path="/live-feed" element={<LiveFeed />} />
-                  <Route path="/games" element={<Games />} />
+                  {/* Live Feed and UniGames are paused (not removed) — the
+                      pages/routes stay intact, just gated behind this
+                      placeholder. Swap the element back to <LiveFeed />
+                      / <Games /> to re-enable. */}
+                  <Route path="/live-feed" element={<FeaturePaused feature="Live Feed" />} />
+                  <Route path="/games" element={<FeaturePaused feature="UniGames" />} />
                   <Route path="/referrals" element={<ReferralLeaderboard />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
@@ -416,6 +425,11 @@ const AppContent = () => {
         onClose={dismissModal}
         missingFields={missingFields}
         onComplete={completeProfile}
+      />
+      <ConfirmReceiptReminder
+        open={showConfirmReceiptReminder && !isBanned}
+        orders={unconfirmedOrders}
+        onDismiss={dismissConfirmReceiptReminder}
       />
       <ReconsentGate />
     </>

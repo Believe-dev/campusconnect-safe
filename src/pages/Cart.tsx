@@ -14,7 +14,7 @@ import { IconButton } from "@/components/ui/icon-button";
 import ProductCard, {
   type ProductCardProduct,
 } from "@/components/marketplace/ProductCard";
-import { Trash2, ShoppingCart, Package, ChevronLeft, ArrowLeft, Truck } from "lucide-react";
+import { Trash2, ShoppingCart, Package, ChevronLeft, ArrowLeft, Truck, Heart } from "lucide-react";
 import { BUSINESS_RULES, IGBINEDION_UNIVERSITY } from "@/lib/constants";
 import { useProfile } from "@/contexts/ProfileContext";
 
@@ -116,6 +116,7 @@ const Cart = () => {
   const {
     data: cartItems = offlineCartItems,
     isLoading,
+    isFetched,
     error,
     refetch,
   } = useQuery({
@@ -434,7 +435,16 @@ const Cart = () => {
     );
   }
 
-  if (isLoading && cartItems.length === 0) {
+  // `isLoading` alone is unreliable here: `placeholderData` satisfies
+  // react-query's isPending check immediately, so isLoading can read false
+  // before the real fetch ever completes — on a first-ever visit (no
+  // offline cache yet, offlineCartItems still []) that meant this guard
+  // never fired and the page fell straight through to the "Your cart is
+  // empty" branch below while the actual fetch was still in flight.
+  // `isFetched` only flips true after a real completion, so it can't
+  // produce that false-empty flash; after the first completion it stays
+  // true, so background refetches don't re-trigger this skeleton.
+  if (!isFetched && cartItems.length === 0) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-flora-bgFrom to-flora-bgTo">
         <main className="mx-auto max-w-6xl px-3 pt-6 sm:px-6 sm:pt-8">
@@ -465,13 +475,22 @@ const Cart = () => {
                 Cart{itemCount > 0 ? ` (${itemCount})` : ""}
               </h1>
             </div>
-            <Link
-              to="/marketplace"
-              className="hidden items-center gap-2 rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-flora-ink shadow-card transition hover:brightness-105 sm:flex"
-            >
-              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-              Continue shopping
-            </Link>
+            <div className="flex items-center gap-2">
+              <IconButton
+                icon={Heart}
+                label="Saved products"
+                tone="light"
+                size="sm"
+                onClick={() => navigate("/favorites")}
+              />
+              <Link
+                to="/marketplace"
+                className="hidden items-center gap-2 rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-flora-ink shadow-card transition hover:brightness-105 sm:flex"
+              >
+                <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+                Continue shopping
+              </Link>
+            </div>
           </div>
 
           {cartItems.length === 0 ? (

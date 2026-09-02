@@ -2,21 +2,20 @@ import { ComponentType } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   User,
+  Users,
   Package,
   Heart,
   Shield,
   Lightbulb,
   LogOut,
-  Bell,
   LayoutDashboard,
   Wallet,
 } from "lucide-react";
-import { GamesIcon, LearnMoreIcon } from "@/components/ui/heroicons";
+import { LearnMoreIcon } from "@/components/ui/heroicons";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/contexts/ProfileContext";
 import { useOrdersCount } from "@/hooks/useOrdersCount";
-import { useNotifications } from "@/contexts/NotificationCountContext";
 import { useWalletActivity } from "@/hooks/useWalletActivity";
 
 export interface ProfileMenuItem {
@@ -33,18 +32,24 @@ export interface ProfileMenuItem {
  * desktop avatar trigger and the mobile "Profile" tab — both open the same
  * full-page ProfileSheet, so there's one item list instead of two.
  *
- * Deliberately account-scoped only: Shop/Live/Chat/Sell are already reachable
+ * Deliberately account-scoped only: Shop/Chat/Sell are already reachable
  * from the header and bottom nav, so they don't belong here too — repeating
  * them added noise, not access. "My Store" is folded into the single
  * promoted `sellerDashboard` entry rather than being its own row. Wallet has
  * its own dedicated nav entry (shown only when the user has balance/
  * activity), separate from the promoted sellerDashboard entry.
+ *
+ * Notifications was removed from here (it's still reachable via the header
+ * bell icon, an independent entry point — this was a redundant second one)
+ * and Find Sellers was promoted into its place, since it was previously
+ * buried in the secondary list despite being a core discovery feature.
+ * Games was dropped entirely while the feature is paused (see
+ * FeaturePaused / App.tsx route for /games).
  */
 export const useProfileMenuItems = () => {
   const { user, isAdmin } = useAuth();
   const { profile } = useProfile();
   const { ordersCount } = useOrdersCount();
-  const { unreadCount } = useNotifications();
   const { hasWalletActivity } = useWalletActivity();
   const { toast } = useToast();
 
@@ -61,7 +66,7 @@ export const useProfileMenuItems = () => {
 
   const primary: ProfileMenuItem[] = [
     { key: "profile", to: "/profile", label: "Profile", icon: User },
-    { key: "notifications", to: "/notifications", label: "Notifications", icon: Bell, badge: unreadCount },
+    { key: "sellers", to: "/sellers", label: "Find Sellers", icon: Users },
     { key: "orders", to: "/orders", label: "Orders", icon: Package, badge: ordersCount },
     // Not seller-gated like sellerDashboard above - a buyer whose dispute
     // resolved in their favor (reverse_escrow_funds) gets money credited to
@@ -76,8 +81,6 @@ export const useProfileMenuItems = () => {
   const secondary: ProfileMenuItem[] = [
     { key: "saved", to: "/favorites", label: "Saved Items", icon: Heart },
     ...(isAdmin ? [{ key: "admin", to: "/admin", label: "Admin Panel", icon: Shield }] : []),
-    { key: "sellers", to: "/sellers", label: "Find Sellers", icon: User },
-    { key: "games", to: "/games", label: "UniGames", icon: GamesIcon },
     { key: "learn-more", to: "/learn-more", label: "Learn More", icon: LearnMoreIcon },
     { key: "suggestions", to: "/suggestions", label: "Suggestions", icon: Lightbulb },
   ];
