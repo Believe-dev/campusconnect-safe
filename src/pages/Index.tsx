@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, Navigate, useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowRight,
@@ -10,22 +10,14 @@ import {
   Star,
   Quote,
   CheckCircle,
-  Store,
-  Plus,
-  Search,
   Percent,
-  Heart,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { OfflineNotice } from "@/components/ui/offline-notice";
-import { SellerDocumentReminder } from "@/components/seller/SellerDocumentReminder";
 import { PullToRefresh } from "@/components/common/PullToRefresh";
 import ProductCard, { type ProductCardProduct } from "@/components/marketplace/ProductCard";
-import { DealOfTheDay } from "@/components/marketplace/DealOfTheDay";
 import { useAuth } from "@/hooks/useAuth";
-import { useProfile } from "@/contexts/ProfileContext";
 import { useFeaturedProducts } from "@/hooks/useProducts";
-import { useDealsOfTheDay } from "@/hooks/useDealsOfTheDay";
 import { ROUTES } from "@/lib/constants";
 import type { Product } from "@/lib/types";
 
@@ -471,88 +463,6 @@ const LoggedOutHome = () => {
   );
 };
 
-// Logged-in users already have Shop/Live/Cart/Chat/Profile one tap away via
-// the bottom nav — repeating the marketing pitch and a second product grid
-// here would just be duplicate surface area. This is a lightweight,
-// personal landing instead: a greeting, today's deals, and quick entry
-// points into the app's actual functionality.
-const LoggedInHome = () => {
-  const { profile } = useProfile();
-  const { deals, loading: dealsLoading } = useDealsOfTheDay();
-  const navigate = useNavigate();
-
-  const firstName = profile?.full_name?.split(" ")[0] || "there";
-  const canSell =
-    profile?.account_type !== "buyer" && profile?.seller_status === "approved";
-
-  const secondaryActions = [
-    // Live is paused — was here before (see App.tsx's /live-feed route).
-    { to: "/favorites", icon: Heart, label: "Saved", copy: "Your favorites" },
-    canSell
-      ? { to: "/sell", icon: Plus, label: "Sell", copy: "List an item" }
-      : { to: "/sellers", icon: Search, label: "Sellers", copy: "Find a seller" },
-  ];
-
-  return (
-    <div className="min-h-screen bg-gradient-to-b from-flora-bgFrom to-flora-bgTo">
-      <PullToRefresh onRefresh={async () => {}} className="min-h-screen">
-        <main className="mx-auto max-w-6xl px-3 pt-6 sm:px-6 sm:pt-8">
-          <OfflineNotice />
-          <SellerDocumentReminder />
-
-          <h1 className="text-3xl font-semibold leading-tight text-flora-ink sm:text-4xl">
-            Hi, {firstName} 👋
-          </h1>
-          <p className="mt-1 text-flora-muted">
-            Here's what's new around campus today.
-          </p>
-
-          {!dealsLoading && deals.length > 0 && <DealOfTheDay products={deals} onSelect={(id) => navigate(`/product/${id}`)} />}
-
-          {/* Bento layout instead of three identical icon-in-a-circle
-              cards: Shop is the thing most people open this page to do,
-              so it gets a full-bleed green feature card matching the Deal
-              of the Day treatment above it; Live/Sell are secondary, so
-              they stay small and share the remaining column. */}
-          <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3 sm:grid-rows-2 sm:gap-4">
-            <Link
-              to="/marketplace"
-              className="col-span-2 flex flex-col justify-between overflow-hidden rounded-4xl bg-gradient-to-br from-flora-leafBright to-flora-leaf p-6 text-white shadow-floating transition hover:brightness-105 sm:col-span-2 sm:row-span-2 sm:p-8"
-            >
-              <Store className="h-9 w-9" />
-              <div>
-                <h3 className="mt-6 text-2xl font-semibold">Shop the Marketplace</h3>
-                <p className="mt-1 text-white/80">Browse listings from students near you</p>
-                <span className="mt-5 inline-flex items-center gap-1.5 text-sm font-medium">
-                  Browse now <ArrowRight className="h-4 w-4" />
-                </span>
-              </div>
-            </Link>
-
-            {secondaryActions.map(({ to, icon: Icon, label, copy }) => (
-              <Link
-                key={label}
-                to={to}
-                className="flex flex-col justify-between rounded-3xl bg-white p-5 shadow-card transition hover:brightness-105"
-              >
-                <span className="flex h-11 w-11 items-center justify-center rounded-full bg-flora-chip">
-                  <Icon className="h-5 w-5 text-flora-leaf" />
-                </span>
-                <div className="mt-4">
-                  <div className="font-medium text-flora-ink">{label}</div>
-                  <div className="text-xs text-flora-muted">{copy}</div>
-                </div>
-              </Link>
-            ))}
-          </div>
-
-          <div className="h-10" aria-hidden="true" />
-        </main>
-      </PullToRefresh>
-    </div>
-  );
-};
-
 const Index = () => {
   const { user, loading } = useAuth();
 
@@ -576,10 +486,20 @@ const Index = () => {
     );
   }
 
+  // Logged-in users land straight on Marketplace instead of a separate
+  // "Home" dashboard - Shop/Cart/Chat/Profile are already one tap away via
+  // the bottom nav, so a personal greeting page in between was just an
+  // extra stop. The logo link (Header.tsx, "to=/") now effectively goes to
+  // Marketplace too as a result, which is the intended behavior, not a
+  // side effect to work around.
+  if (user) {
+    return <Navigate to="/marketplace" replace />;
+  }
+
   return (
     <>
       {homeMeta}
-      {user ? <LoggedInHome /> : <LoggedOutHome />}
+      <LoggedOutHome />
     </>
   );
 };
