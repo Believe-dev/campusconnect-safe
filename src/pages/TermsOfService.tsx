@@ -122,7 +122,7 @@ const TermsOfService = () => {
                 </ul>
               </section>
 
-              <section className="space-y-2">
+              <section id="prohibited-items" className="scroll-mt-24 space-y-2">
                 <SectionHeading>7. Prohibited Items and Conduct</SectionHeading>
                 <p>You may not list, sell, or attempt to sell:</p>
                 <ul className="list-disc space-y-1.5 pl-5">
