@@ -11,14 +11,12 @@ import {
 } from "@/services/anchorBaasService";
 import { SellerKycModal } from "@/components/seller/SellerKycModal";
 import { AnchorWithdrawalModal } from "@/components/wallet/AnchorWithdrawalModal";
+import { useSellerWalletSummary } from "@/hooks/useSellerWalletSummary";
 import {
   Building2,
   Copy,
   Check,
-  Lock,
-  Wallet,
   RefreshCw,
-  ShieldCheck,
   CreditCard,
   ShieldAlert,
   ArrowUpRight,
@@ -43,6 +41,10 @@ export const AnchorVirtualAccountCard = ({
   const [showKycModal, setShowKycModal] = useState(false);
   const [showWithdrawalModal, setShowWithdrawalModal] = useState(false);
   const { toast } = useToast();
+  // Withdraw eligibility reads the same canonical balance BalanceSummaryCard
+  // displays, instead of this card's own independently-fetched (and
+  // realtime-blind) `account.available_balance`.
+  const { availableBalance } = useSellerWalletSummary();
 
   const loadAccount = useCallback(async () => {
     if (!userId) return;
@@ -170,51 +172,46 @@ export const AnchorVirtualAccountCard = ({
           <Building2 className="h-40 w-40 text-flora-leaf" />
         </div>
 
-        <div className="flex flex-row items-center justify-between gap-3 border-b border-flora-ink/10 p-4 pb-3.5 sm:p-6 sm:pb-4">
-          <div className="flex items-center gap-2.5">
-            <div className="rounded-xl bg-flora-tagBg p-2">
+        <div className="border-b border-flora-ink/10 p-4 pb-3.5 sm:p-6 sm:pb-4">
+          <div className="flex items-start gap-2.5">
+            <div className="shrink-0 rounded-xl bg-flora-tagBg p-2">
               <Building2 className="h-5 w-5 text-flora-leaf" />
             </div>
-            <div>
-              <p className="flex items-center gap-2 text-base font-bold text-flora-ink">
-                Anchor Virtual NUBAN Account
-                {kycStatus && (
-                  <span
-                    className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${
-                      kycStatus.tier === 3
-                        ? "border-flora-leaf/40 bg-flora-tagBg text-flora-tagText"
-                        : kycStatus.tier === 2
-                        ? "border-blue-300 bg-blue-50 text-blue-600"
-                        : "border-amber-300 bg-amber-50 text-amber-700"
-                    }`}
-                  >
-                    CBN {kycStatus.tier_name}
-                  </span>
-                )}
-              </p>
+            <div className="min-w-0 flex-1">
+              <p className="text-base font-bold text-flora-ink">Anchor Virtual NUBAN Account</p>
               <p className="text-xs text-flora-muted">Powered by getanchor.co BaaS Infrastructure</p>
+              {kycStatus && (
+                <span
+                  className={`mt-1.5 inline-flex items-center whitespace-nowrap rounded-full border px-2 py-0.5 text-[10px] font-medium ${
+                    kycStatus.tier === 3
+                      ? "border-flora-leaf/40 bg-flora-tagBg text-flora-tagText"
+                      : kycStatus.tier === 2
+                      ? "border-blue-300 bg-blue-50 text-blue-600"
+                      : "border-amber-300 bg-amber-50 text-amber-700"
+                  }`}
+                >
+                  CBN {kycStatus.tier_name}
+                </span>
+              )}
             </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowKycModal(true)}
-              className="border-amber-300 text-xs font-bold text-amber-700 hover:bg-amber-50"
-            >
-              <ShieldAlert className="mr-1 h-3.5 w-3.5" />
-              Verify Identity (BVN / NIN) ⚡
-            </Button>
             <Button
               variant="ghost"
               size="sm"
               onClick={loadAccount}
-              className="text-flora-muted hover:bg-flora-chip hover:text-flora-ink"
+              className="shrink-0 text-flora-muted hover:bg-flora-chip hover:text-flora-ink"
               title="Refresh account"
             >
               <RefreshCw className="h-4 w-4" />
             </Button>
           </div>
+          <button
+            type="button"
+            onClick={() => setShowKycModal(true)}
+            className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-full border border-amber-300 bg-white px-3 py-2 text-xs font-bold text-amber-700 transition hover:bg-amber-50 sm:w-auto"
+          >
+            <ShieldAlert className="h-3.5 w-3.5 shrink-0" />
+            Verify Identity (BVN / NIN)
+          </button>
         </div>
 
         <div className="space-y-4 p-4 pt-4 sm:p-6">
@@ -244,66 +241,31 @@ export const AnchorVirtualAccountCard = ({
             </div>
           </div>
 
-          {/* Balances Display */}
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="rounded-2xl border border-flora-leaf/25 bg-flora-tagBg/40 p-3.5">
-              <div className="mb-1 flex items-center justify-between">
-                <span className="flex items-center gap-1.5 text-xs font-medium text-flora-tagText">
-                  <Wallet className="h-3.5 w-3.5" />
-                  Available Wallet Balance
-                </span>
-                <ShieldCheck className="h-3.5 w-3.5 text-flora-leaf" />
-              </div>
-              <p className="text-xl font-extrabold text-flora-tagText">
-                ₦{account.available_balance.toLocaleString("en-NG", { minimumFractionDigits: 2 })}
-              </p>
-              <p className="mt-0.5 text-[10px] text-flora-tagText/80">Ready for immediate withdrawal</p>
-            </div>
-
-            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3.5">
-              <div className="mb-1 flex items-center justify-between">
-                <span className="flex items-center gap-1.5 text-xs font-medium text-amber-700">
-                  <Lock className="h-3.5 w-3.5" />
-                  Locked Escrow Balance
-                </span>
-                <span className="rounded-full border border-amber-300 bg-white px-1 py-0 text-[9px] text-amber-700">
-                  Pending Approval
-                </span>
-              </div>
-              <p className="text-xl font-extrabold text-amber-700">
-                ₦{account.pending_balance.toLocaleString("en-NG", { minimumFractionDigits: 2 })}
-              </p>
-              <p className="mt-0.5 text-[10px] text-amber-700/80">Unlocks when seller approves order</p>
-            </div>
-          </div>
-
           {/* Action Controls & Card Top Up */}
-          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-flora-ink/10 pt-3 text-xs">
-            <span className="text-flora-muted">
+          <div className="space-y-3 border-t border-flora-ink/10 pt-3">
+            <p className="text-xs text-flora-muted">
               CBN Cap: <strong className="text-flora-ink">₦{kycStatus?.single_deposit_limit.toLocaleString()} / deposit</strong>
-            </span>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
                 onClick={handleWithdrawClick}
-                disabled={account.available_balance < 100}
-                className="h-8 rounded-full bg-flora-ink text-xs font-bold text-white hover:brightness-110"
+                disabled={availableBalance < 100}
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-full bg-flora-ink px-3 py-2 text-xs font-bold text-white transition hover:brightness-110 disabled:opacity-50 sm:flex-none sm:px-4"
               >
-                <ArrowUpRight className="mr-1 h-3.5 w-3.5" />
-                Withdraw / Transfer ↗️
-              </Button>
+                <ArrowUpRight className="h-3.5 w-3.5 shrink-0" />
+                Withdraw / Transfer
+              </button>
 
-              <Button
-                variant="outline"
-                size="sm"
+              <button
+                type="button"
                 onClick={handleCardTopUp}
                 disabled={depositing}
-                className="h-8 border-blue-200 bg-blue-50 text-xs text-blue-600 hover:bg-blue-100"
+                className="flex flex-1 items-center justify-center gap-1.5 rounded-full border border-flora-ink/15 bg-white px-3 py-2 text-xs font-medium text-flora-ink transition hover:bg-flora-chip disabled:opacity-50 sm:flex-none sm:px-4"
               >
-                <CreditCard className="mr-1 h-3.5 w-3.5" />
-                Fund with Card 💳
-              </Button>
+                <CreditCard className="h-3.5 w-3.5 shrink-0" />
+                Fund with Card
+              </button>
             </div>
           </div>
         </div>
@@ -321,7 +283,7 @@ export const AnchorVirtualAccountCard = ({
 
       <AnchorWithdrawalModal
         userId={userId}
-        account={account}
+        account={{ ...account, available_balance: availableBalance }}
         open={showWithdrawalModal}
         onClose={() => setShowWithdrawalModal(false)}
         onWithdrawalCompleted={(updated) => {

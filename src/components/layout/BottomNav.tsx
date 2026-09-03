@@ -98,8 +98,8 @@ const BottomNav = () => {
   // or seller) always sees the same 5 tabs.
   const navItems = [
     { to: "/marketplace", icon: Store, label: "Shop", onClick: goToMarketplace },
-    { to: "/orders", icon: Package, label: "Orders", badge: ordersCount, onClick: goToOrders },
     { to: "/cart", icon: ShoppingCartIcon, label: "Cart", badge: cartCount, onClick: goToCart },
+    { to: "/orders", icon: Package, label: "Orders", badge: ordersCount, onClick: goToOrders },
     { to: "/messages", icon: MessageCircle, label: "Chat", badge: messagesCount, onClick: goToMessages },
   ];
 

@@ -14,7 +14,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/contexts/ProfileContext";
 import { useCartCount } from "@/contexts/CartCountContext";
 import { useOptimizedQuery } from "@/hooks/useOptimizedQuery";
-import { Package, RotateCcw, AlertCircle } from "lucide-react";
+import { Package, RotateCcw, AlertCircle, Users } from "lucide-react";
 import "@/styles/animations.css";
 
 interface Product {
@@ -572,7 +572,11 @@ const Marketplace = () => {
               active
               onClick={() => setFiltersOpen((open) => !open)}
             />
-            <FilterChip label="Find Sellers" onClick={() => navigate("/sellers")} />
+            <FilterChip
+              label="Find Sellers"
+              icon={<Users className="h-4 w-4 flex-shrink-0" />}
+              onClick={() => navigate("/sellers")}
+            />
             {CATEGORIES.filter((category) => !excludedCategories.has(category)).map(
               (category) => (
                 <FilterChip

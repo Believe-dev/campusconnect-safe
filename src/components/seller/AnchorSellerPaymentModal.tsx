@@ -2,12 +2,9 @@ import React, { useState } from "react";
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/enhanced-button";
-import { Badge } from "@/components/ui/badge";
 import { Shield, Building2, Copy, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAnchorPayment } from "@/hooks/useAnchorPayment";
@@ -83,98 +80,102 @@ export const AnchorSellerPaymentModal: React.FC<AnchorSellerPaymentModalProps> =
     }
   };
 
-  const title = purpose === "registration" ? "Seller Registration Fee" : "Renew Seller Subscription";
+  const title = purpose === "registration" ? "Seller registration fee" : "Renew seller subscription";
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md p-0 overflow-hidden rounded-2xl border-2 border-emerald-500/30">
-        <div className="bg-gradient-to-r from-emerald-600 to-teal-700 p-6 text-white">
-          <div className="flex items-center justify-between mb-2">
-            <Badge className="bg-white/20 text-white hover:bg-white/30 border-0 font-medium">
-              <Shield className="h-3.5 w-3.5 mr-1" />
+      <DialogContent className="overflow-hidden rounded-3xl border-0 bg-flora-card p-0 shadow-floating sm:max-w-md">
+        <div className="p-6 pb-4">
+          <div className="mb-3 flex items-center justify-between">
+            <span className="flex items-center gap-1.5 rounded-full bg-flora-tagBg px-3 py-1 text-xs font-semibold text-flora-tagText">
+              <Shield className="h-3.5 w-3.5" />
               Anchor Sub-Ledger
-            </Badge>
-            <span className="text-xs font-mono text-emerald-100 uppercase tracking-widest">Anchor BaaS</span>
+            </span>
           </div>
-          <DialogTitle className="text-2xl font-bold text-white mb-1">{title}</DialogTitle>
-          <DialogDescription className="text-emerald-100 text-sm">
-            Amount Due: <strong className="text-white text-lg font-bold">₦{amount.toLocaleString()}</strong>
+          <DialogTitle className="mb-1 text-2xl font-bold text-flora-ink">{title}</DialogTitle>
+          <DialogDescription className="text-sm text-flora-muted">
+            Amount due:{" "}
+            <strong className="text-lg font-bold text-flora-ink">₦{amount.toLocaleString()}</strong>
           </DialogDescription>
         </div>
 
-        <div className="p-6 space-y-5">
-          <div className="p-4 bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/40 rounded-xl space-y-3">
+        <div className="space-y-5 px-6 pb-6">
+          <div className="space-y-3 rounded-2xl bg-flora-chip p-4">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-emerald-800 dark:text-emerald-300 uppercase tracking-wider flex items-center gap-1.5">
+              <span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-flora-ink">
                 <Building2 className="h-3.5 w-3.5" />
-                Transfer to This Payment's Anchor Sub-Ledger Account
+                Transfer to this account
               </span>
-              <span className="text-xs text-emerald-600 font-semibold">Instant Deposit</span>
+              <span className="text-xs font-semibold text-flora-leaf">Instant deposit</span>
             </div>
 
-            <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-emerald-100 dark:border-emerald-900 space-y-2.5 shadow-sm">
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-muted-foreground font-medium">Bank Name:</span>
-                <span className="font-bold text-foreground">{bankName || "CoreStep Microfinance (Anchor)"}</span>
+            <div className="space-y-2.5 rounded-xl border border-flora-ink/10 bg-white p-4">
+              <div className="flex items-center justify-between text-sm">
+                <span className="font-medium text-flora-muted">Bank name:</span>
+                <span className="font-bold text-flora-ink">
+                  {bankName || "CoreStep Microfinance (Anchor)"}
+                </span>
               </div>
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-muted-foreground font-medium">Account Number:</span>
+              <div className="flex items-center justify-between text-sm">
+                <span className="font-medium text-flora-muted">Account number:</span>
                 <div className="flex items-center gap-2">
-                  <span className="font-mono text-lg font-bold text-emerald-600 tracking-widest">
+                  <span className="font-mono text-lg font-bold tracking-widest text-flora-leaf">
                     {nubanAccount || "Generating Anchor NUBAN..."}
                   </span>
-                  <Button
+                  <button
                     type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-8 px-2.5 text-xs border-emerald-300 text-emerald-700 hover:bg-emerald-50"
                     onClick={handleCopyNuban}
+                    className="flex h-8 w-8 items-center justify-center rounded-full border border-flora-ink/15 text-flora-ink transition hover:bg-flora-chip"
                   >
-                    {copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
-                  </Button>
+                    {copied ? (
+                      <Check className="h-4 w-4 text-flora-leaf" />
+                    ) : (
+                      <Copy className="h-4 w-4" />
+                    )}
+                  </button>
                 </div>
               </div>
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-muted-foreground font-medium">Account Name:</span>
-                <span className="font-semibold text-foreground">UniMarket / {userName || "Seller"}</span>
+              <div className="flex items-center justify-between text-sm">
+                <span className="font-medium text-flora-muted">Account name:</span>
+                <span className="font-semibold text-flora-ink">UniMarket / {userName || "Seller"}</span>
               </div>
             </div>
 
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              💡 <strong>Instructions:</strong> Open your GTBank, Zenith, Access, Kuda, or PalmPay mobile app. Transfer{" "}
-              <strong>₦{amount.toLocaleString()}</strong> to the NUBAN account above, then click confirm below!
+            <p className="text-xs leading-relaxed text-flora-muted">
+              Open your GTBank, Zenith, Access, Kuda, or PalmPay app and transfer{" "}
+              <strong className="text-flora-ink">₦{amount.toLocaleString()}</strong> to the account above,
+              then confirm below.
             </p>
           </div>
 
-          <div className="pt-2 space-y-2">
-            <Button
+          <div className="space-y-2">
+            <button
               type="button"
               onClick={handleConfirm}
               disabled={verifying}
-              className="w-full min-h-[48px] text-base font-bold bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-lg rounded-xl"
+              className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-flora-leafBright to-flora-leaf text-base font-bold text-white shadow-floating transition hover:brightness-105 disabled:opacity-60"
             >
               {verifying ? (
-                <div className="flex items-center gap-2">
-                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
-                  <span>Verifying Bank Deposit...</span>
-                </div>
+                <>
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  Verifying deposit...
+                </>
               ) : (
                 <>
-                  <Check className="h-5 w-5 mr-2" />
-                  I Have Transferred ₦{amount.toLocaleString()} ⚡
+                  <Check className="h-5 w-5" />
+                  I've transferred ₦{amount.toLocaleString()}
                 </>
               )}
-            </Button>
+            </button>
 
-            <Button
+            <button
               type="button"
-              variant="ghost"
               onClick={onClose}
               disabled={verifying}
-              className="w-full text-xs text-muted-foreground hover:text-foreground"
+              className="w-full py-2 text-xs font-medium text-flora-muted transition hover:text-flora-ink disabled:opacity-60"
             >
-              Cancel Payment
-            </Button>
+              Cancel payment
+            </button>
           </div>
         </div>
       </DialogContent>

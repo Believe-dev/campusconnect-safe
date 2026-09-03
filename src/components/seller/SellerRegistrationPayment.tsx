@@ -1,12 +1,17 @@
 import { useState } from "react";
-import { Button } from "@/components/ui/enhanced-button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAnchorPayment } from "@/hooks/useAnchorPayment";
 import { AnchorSellerPaymentModal } from "./AnchorSellerPaymentModal";
 import { useToast } from "@/hooks/use-toast";
 import { useProfile } from "@/contexts/ProfileContext";
 import { BUSINESS_RULES } from "@/lib/constants";
-import { CreditCard, Shield, CheckCircle } from "lucide-react";
+import {
+  CreditCard,
+  Shield,
+  PackageCheck,
+  BarChart3,
+  Percent,
+  Headset,
+} from "lucide-react";
 
 interface SellerRegistrationPaymentProps {
   userEmail: string;
@@ -77,144 +82,90 @@ export const SellerRegistrationPayment = ({
     onPaymentSuccess(pendingPayment?.intentId || "");
   };
 
+  const fee = isSubscriptionRenewal
+    ? BUSINESS_RULES.sellerSubscription.monthlyFee
+    : BUSINESS_RULES.sellerRegistration.fee;
+
+  const perks = [
+    { icon: PackageCheck, label: "Unlimited listings" },
+    { icon: BarChart3, label: "Sales dashboard & analytics" },
+    { icon: Percent, label: "Zero commission, always" },
+    { icon: Headset, label: "Priority buyer support" },
+  ];
+
   return (
-    <div className="w-full relative">
+    <div className="relative mx-auto w-full max-w-md">
       {starting && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999]">
-          <div className="bg-white rounded-lg p-6 flex flex-col items-center gap-3">
-            <div className="animate-spin rounded-full h-8 w-8 border-4 border-blue-600 border-t-transparent"></div>
-            <p className="text-sm font-medium text-gray-700">Setting up payment...</p>
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-flora-ink/50">
+          <div className="flex flex-col items-center gap-3 rounded-2xl bg-flora-card p-6 shadow-floating">
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-flora-leaf border-t-transparent" />
+            <p className="text-sm font-medium text-flora-ink">Setting up payment...</p>
           </div>
         </div>
       )}
-      <Card className="border-0 shadow-2xl bg-white">
-        <CardHeader className="text-center pb-4 bg-gradient-to-r from-blue-50 to-purple-50">
-          <CardTitle className="flex items-center justify-center gap-2 text-lg text-gray-900">
-            <CreditCard className="h-5 w-5 text-blue-600" />
-            {isSubscriptionRenewal ? 'Renew Subscription' : 'Seller Registration'}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-5 px-6 pb-6">
-        <div className="text-center bg-gradient-to-br from-green-50 via-blue-50 to-purple-50 rounded-xl p-5 border border-blue-200">
-          <div className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-2">
-            ₦{isSubscriptionRenewal
-              ? BUSINESS_RULES.sellerSubscription.monthlyFee.toLocaleString()
-              : BUSINESS_RULES.sellerRegistration.fee.toLocaleString()}
-          </div>
-          <p className="text-sm text-gray-600 font-medium">
-            {isSubscriptionRenewal
-              ? "Monthly subscription • 30 days full access"
-              : "One-time registration fee to start selling"}
+
+      <div className="rounded-3xl bg-flora-card p-6 shadow-floating">
+        <div className="flex items-center gap-2 text-flora-ink">
+          <CreditCard className="h-5 w-5 text-flora-leaf" />
+          <h2 className="text-lg font-bold">
+            {isSubscriptionRenewal ? "Renew subscription" : "Seller registration"}
+          </h2>
+        </div>
+
+        <div className="mt-4 flex items-baseline justify-between rounded-2xl bg-flora-chip p-4">
+          <p className="text-sm text-flora-muted">
+            {isSubscriptionRenewal ? "Monthly subscription · 30 days" : "One-time registration fee"}
           </p>
+          <p className="text-2xl font-bold text-flora-ink">₦{fee.toLocaleString()}</p>
         </div>
 
-        {isSubscriptionRenewal ? (
-          <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl p-4">
-            <div className="flex items-start gap-3">
-              <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 flex-shrink-0" />
-              <div className="text-sm">
-                <p className="font-semibold text-green-900 mb-3">
-                  ✨ Premium Seller Features
-                </p>
-                <div className="grid grid-cols-2 gap-2 text-green-800">
-                  <div className="flex items-center gap-1">
-                    <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
-                    Product listings
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
-                    Live bidding
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
-                    Sales dashboard
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
-                    Marketing tools
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
-                    100% revenue
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
-                    Priority support
-                  </div>
-                </div>
-              </div>
+        <div className="mt-5 grid grid-cols-2 gap-x-4 gap-y-4">
+          {perks.map(({ icon: Icon, label }, i) => (
+            <div key={label} className="flex items-start gap-2">
+              <Icon
+                className={i % 2 === 0 ? "h-4 w-4 shrink-0 text-flora-leaf" : "h-4 w-4 shrink-0 text-flora-ink"}
+                strokeWidth={1.5}
+              />
+              <span className="text-xs text-flora-ink">{label}</span>
             </div>
-          </div>
-        ) : (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <div className="flex items-start gap-3">
-              <Shield className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
-              <div className="text-sm">
-                <p className="font-medium text-blue-900 mb-2">
-                  What you get with UniMarket:
-                </p>
-                <div className="grid grid-cols-1 gap-1 text-blue-800">
-                  <div>• <strong>Keep 100% of sales</strong> - No commission fees</div>
-                  <div>• <strong>Live feed bidding</strong> - Competitive marketplace</div>
-                  <div>• <strong>Secure escrow system</strong> - Protected payments</div>
-                  <div>• <strong>Sales dashboard</strong> - Track your performance</div>
-                  <div>• <strong>University-focused</strong> - Target market reach</div>
-                  <div>• <strong>Mobile optimized</strong> - Sell anywhere, anytime</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-          <div className="flex items-center gap-2 text-green-800">
-            <CheckCircle className="h-4 w-4" />
-            <span className="text-sm font-medium">
-              Keep 100% of your sales - No commission fees!
-            </span>
-          </div>
+          ))}
         </div>
 
-        <div className="space-y-3">
-          <Button
+        <div className="mt-6 space-y-2.5">
+          <button
+            type="button"
             onClick={handleStartPayment}
             disabled={starting}
-            className="w-full h-12 text-base font-semibold bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 shadow-lg"
-            size="lg"
+            className="flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-r from-flora-leafBright to-flora-leaf px-6 py-3.5 text-base font-bold text-white shadow-floating transition hover:brightness-105 disabled:opacity-60"
           >
             {starting ? (
-              <div className="flex items-center gap-2">
-                <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                Setting Up Payment...
-              </div>
+              <>
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                Setting up payment...
+              </>
             ) : (
               <>
-                <CreditCard className="h-5 w-5 mr-2" />
-                Pay ₦{isSubscriptionRenewal
-                  ? BUSINESS_RULES.sellerSubscription.monthlyFee.toLocaleString()
-                  : BUSINESS_RULES.sellerRegistration.fee.toLocaleString()}
+                <CreditCard className="h-5 w-5" />
+                Pay ₦{fee.toLocaleString()}
               </>
             )}
-          </Button>
+          </button>
 
-          <Button
+          <button
+            type="button"
             onClick={onCancel}
-            variant="ghost"
-            className="w-full h-10 text-gray-600 hover:text-gray-800 hover:bg-gray-100"
             disabled={starting}
+            className="w-full rounded-full py-2.5 text-sm font-medium text-flora-muted transition hover:text-flora-ink disabled:opacity-60"
           >
             Cancel
-          </Button>
+          </button>
         </div>
 
-        <div className="flex items-center justify-center gap-2 pt-2">
-          <Shield className="h-3 w-3 text-muted-foreground" />
-          <p className="text-xs text-muted-foreground text-center">
-            Secure payment powered by Anchor BaaS
-          </p>
+        <div className="mt-3 flex items-center justify-center gap-2 text-flora-muted">
+          <Shield className="h-3.5 w-3.5" />
+          <p className="text-center text-xs">Secure payment powered by Anchor BaaS</p>
         </div>
-        </CardContent>
-      </Card>
+      </div>
 
       {pendingPayment && (
         <AnchorSellerPaymentModal

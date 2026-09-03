@@ -176,20 +176,56 @@ const LoggedOutHome = () => {
                   corners, badges in the two corners left empty — nothing
                   overlaps another element. */}
               <div className="absolute left-6 top-6 w-56 -rotate-6 rounded-3xl bg-white p-4 shadow-card">
-                <div className="h-28 rounded-2xl bg-flora-chip" />
-                <div className="mt-3 h-3 w-3/4 rounded-full bg-flora-chip" />
+                {products[0]?.images?.[0] ? (
+                  <img
+                    src={products[0].images[0]}
+                    alt=""
+                    className="h-28 w-full rounded-2xl object-cover"
+                  />
+                ) : (
+                  <div className="h-28 rounded-2xl bg-flora-chip" />
+                )}
+                {products[0] ? (
+                  <p className="mt-3 truncate text-sm font-medium text-flora-ink">
+                    {products[0].title}
+                  </p>
+                ) : (
+                  <div className="mt-3 h-3 w-3/4 rounded-full bg-flora-chip" />
+                )}
                 <div className="mt-2 flex items-center justify-between">
-                  <div className="h-3 w-1/3 rounded-full bg-flora-chip" />
-                  <span className="text-xs font-semibold text-flora-leaf">₦15,000</span>
+                  <span className="text-xs text-flora-muted">
+                    {products[0] ? "Verified seller" : ""}
+                  </span>
+                  <span className="text-xs font-semibold text-flora-leaf">
+                    ₦{(products[0]?.price ?? 15000).toLocaleString()}
+                  </span>
                 </div>
               </div>
 
               <div className="absolute bottom-6 right-6 w-52 rotate-6 rounded-3xl bg-white p-4 shadow-floating">
-                <div className="h-24 rounded-2xl bg-flora-chip" />
-                <div className="mt-3 h-3 w-2/3 rounded-full bg-flora-chip" />
+                {products[1]?.images?.[0] ? (
+                  <img
+                    src={products[1].images[0]}
+                    alt=""
+                    className="h-24 w-full rounded-2xl object-cover"
+                  />
+                ) : (
+                  <div className="h-24 rounded-2xl bg-flora-chip" />
+                )}
+                {products[1] ? (
+                  <p className="mt-3 truncate text-sm font-medium text-flora-ink">
+                    {products[1].title}
+                  </p>
+                ) : (
+                  <div className="mt-3 h-3 w-2/3 rounded-full bg-flora-chip" />
+                )}
                 <div className="mt-2 flex items-center justify-between">
-                  <div className="h-3 w-1/4 rounded-full bg-flora-chip" />
-                  <span className="text-xs font-semibold text-flora-leaf">₦8,500</span>
+                  <span className="text-xs text-flora-muted">
+                    {products[1] ? "Verified seller" : ""}
+                  </span>
+                  <span className="text-xs font-semibold text-flora-leaf">
+                    ₦{(products[1]?.price ?? 8500).toLocaleString()}
+                  </span>
                 </div>
               </div>
 

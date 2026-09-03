@@ -1,26 +1,13 @@
-import { useState, useEffect, useCallback } from "react";
-import { createPortal } from "react-dom";
+import { useState, useEffect, useCallback, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/enhanced-button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { PullToRefresh } from "@/components/common/PullToRefresh";
 import { cn } from "@/lib/utils";
 import { uploadProductImageToR2 } from "@/utils/r2Upload";
 import { fetchCbnKycStatusFromDb, CbnKycTierDetails } from "@/services/anchorBaasService";
-
-
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import {
   Edit3,
@@ -29,7 +16,6 @@ import {
   ShoppingCart,
   TrendingUp,
   Package,
-  DollarSign,
   BarChart3,
   Plus,
   Wallet,
@@ -44,9 +30,13 @@ import {
   ShieldAlert,
   Lock,
   ArrowRight,
+  AlertCircle,
 } from "lucide-react";
 import WalletDashboard from "@/components/wallet/WalletDashboard";
 import { SellerKycReminderBanner } from "@/components/seller/SellerKycReminderBanner";
+import { BalanceSummaryCard } from "@/components/wallet/BalanceSummaryCard";
+import { ResponsiveModal } from "@/components/ui/responsive-modal";
+import { useSellerWalletSummary } from "@/hooks/useSellerWalletSummary";
 
 interface Product {
   id: string;
@@ -129,10 +119,10 @@ const Dashboard = () => {
   const [newImages, setNewImages] = useState<File[]>([]);
   const [sellerId, setSellerId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [activeTab, setActiveTab] = useState("listings");
+  const [activeTab, setActiveTab] = useState("overview");
   const [sellerOrders, setSellerOrders] = useState<SellerOrder[]>([]);
   const [kycStatus, setKycStatus] = useState<CbnKycTierDetails | null>(null);
-  const [heldEscrow, setHeldEscrow] = useState<{ amount: number; count: number }>({ amount: 0, count: 0 });
+  const { escrowAmount: heldEscrowAmount, escrowCount: heldEscrowCount } = useSellerWalletSummary();
   const navigate = useNavigate();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -362,10 +352,13 @@ const Dashboard = () => {
     }
   };
 
-  // KYC status + this seller's own held escrow - the self-scoped version of
-  // what AtRiskSellersCard shows admins across every seller. An unverified
-  // seller should see this exact risk on their own dashboard, not just find
-  // out about it when a withdrawal silently fails.
+  // KYC status - the self-scoped version of what AtRiskSellersCard shows
+  // admins across every seller. An unverified seller should see this exact
+  // risk on their own dashboard, not just find out about it when a
+  // withdrawal silently fails. Held-escrow amount comes from
+  // useSellerWalletSummary below, not a second independent fetch here -
+  // see BalanceSummaryCard for why that used to cause two different
+  // numbers to be shown for the same underlying figure.
   const fetchVerificationContext = async () => {
     try {
       const {
@@ -373,21 +366,7 @@ const Dashboard = () => {
       } = await supabase.auth.getUser();
       if (!user) return;
 
-      const [kyc, { data: held, error: heldError }] = await Promise.all([
-        fetchCbnKycStatusFromDb(user.id),
-        supabase
-          .from("escrow_transactions")
-          .select("seller_amount")
-          .eq("seller_id", user.id)
-          .eq("status", "held"),
-      ]);
-
-      if (heldError) throw heldError;
-      setKycStatus(kyc);
-      setHeldEscrow({
-        amount: (held || []).reduce((sum, r: any) => sum + Number(r.seller_amount || 0), 0),
-        count: (held || []).length,
-      });
+      setKycStatus(await fetchCbnKycStatusFromDb(user.id));
     } catch (error) {
       // Error handled silently
     }
@@ -745,93 +724,191 @@ const Dashboard = () => {
             </div>
           </div>
 
-          {/* Slim, non-dismissible verification strip - only shown when there's
-              real held money behind it, and jumps straight to the Verification
-              tab rather than duplicating the full banner up here. */}
-          {needsVerification && heldEscrow.count > 0 && (
-            <button
-              type="button"
-              onClick={() => setActiveTab("verification")}
-              className="mb-4 flex w-full items-center gap-3 rounded-2xl border border-amber-300/70 bg-amber-50 px-4 py-3 text-left transition hover:bg-amber-100"
-            >
-              <ShieldAlert className="h-4 w-4 shrink-0 text-amber-600" />
-              <span className="flex-1 text-sm text-amber-800">
-                ₦{heldEscrow.amount.toLocaleString()} across {heldEscrow.count} order
-                {heldEscrow.count !== 1 ? "s" : ""} is waiting in escrow and can't be withdrawn until you verify your identity.
-              </span>
-              <ArrowRight className="h-4 w-4 shrink-0 text-amber-600" />
-            </button>
-          )}
-
-          {/* Overview — Earnings gets the same "one featured tile + smaller
-              supporting tiles" bento treatment as the home page's stat/
-              feature grids, instead of four visually equal cards burying
-              the number sellers actually care about most. */}
-          <div className="mb-6 space-y-3 sm:space-y-4">
-            <div className="rounded-3xl bg-gradient-to-br from-flora-leafBright to-flora-leaf p-4 text-white shadow-floating sm:p-6">
-              <div className="flex items-center gap-2 text-white/85">
-                <DollarSign className="h-4 w-4" />
-                <span className="text-xs font-medium sm:text-sm">Earnings</span>
-              </div>
-              <div className="mt-1 text-2xl font-bold sm:mt-2 sm:text-3xl">
-                ₦{totalRevenue.toLocaleString()}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-3 sm:gap-4">
-              <div className="rounded-3xl bg-flora-card p-3.5 shadow-card sm:p-5">
-                <div className="flex items-center gap-2 text-flora-muted">
-                  <Package className="h-4 w-4 text-flora-leaf" />
-                  <span className="text-xs font-medium sm:text-sm">Listings</span>
-                </div>
-                <div className="mt-1 text-lg font-bold text-flora-ink sm:mt-2 sm:text-2xl">
-                  {products.length}
-                </div>
-              </div>
-
-              <div className="rounded-3xl bg-flora-card p-3.5 shadow-card sm:p-5">
-                <div className="flex items-center gap-2 text-flora-muted">
-                  <ShoppingCart className="h-4 w-4 text-flora-leaf" />
-                  <span className="text-xs font-medium sm:text-sm">Open Orders</span>
-                </div>
-                <div className="mt-1 text-lg font-bold text-flora-ink sm:mt-2 sm:text-2xl">
-                  {openOrders.length}
-                </div>
-              </div>
-
-              <div className="rounded-3xl bg-flora-card p-3.5 shadow-card sm:p-5">
-                <div className="flex items-center gap-2 text-flora-muted">
-                  <Eye className="h-4 w-4 text-flora-leaf" />
-                  <span className="text-xs font-medium sm:text-sm">Views</span>
-                </div>
-                <div className="mt-1 text-lg font-bold text-flora-ink sm:mt-2 sm:text-2xl">
-                  {totalViews}
-                </div>
-              </div>
-            </div>
-          </div>
-
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 sm:space-y-6">
-            <TabsList className="grid h-fit w-full grid-cols-5 gap-1 rounded-2xl bg-flora-chip/70 p-1">
-              <TabsTrigger value="listings" className="rounded-xl text-[11px] sm:text-sm">
-                Listings
-              </TabsTrigger>
-              <TabsTrigger value="orders" className="rounded-xl text-[11px] sm:text-sm">
-                Orders
-              </TabsTrigger>
-              <TabsTrigger value="verification" className="relative rounded-xl text-[11px] sm:text-sm">
-                Verify
-                {needsVerification && (
-                  <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-amber-500 sm:right-2 sm:top-2" />
+            {/* Horizontally scrollable instead of a fixed grid-cols-N - at
+                narrow widths (~320px) a 5-up grid of these labels visibly
+                truncates ("Earnin…", "Analyt…"); scrolling means it never
+                truncates regardless of future label changes, matching how
+                Shopify's and Etsy's own mobile apps handle primary tab nav
+                rather than hiding tabs behind a dropdown/sheet picker. */}
+            <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+              <TabsList className="inline-flex h-fit w-full min-w-full gap-1 rounded-2xl bg-flora-chip/70 p-1 sm:w-fit sm:min-w-0">
+                <TabsTrigger value="overview" className="shrink-0 rounded-xl px-4 text-[13px] sm:text-sm">
+                  Overview
+                </TabsTrigger>
+                <TabsTrigger value="listings" className="shrink-0 rounded-xl px-4 text-[13px] sm:text-sm">
+                  Listings
+                </TabsTrigger>
+                <TabsTrigger value="orders" className="shrink-0 rounded-xl px-4 text-[13px] sm:text-sm">
+                  Orders
+                </TabsTrigger>
+                <TabsTrigger value="earnings" className="shrink-0 rounded-xl px-4 text-[13px] sm:text-sm">
+                  Earnings
+                </TabsTrigger>
+                <TabsTrigger value="analytics" className="shrink-0 rounded-xl px-4 text-[13px] sm:text-sm">
+                  Analytics
+                </TabsTrigger>
+              </TabsList>
+            </div>
+
+            {/* Overview - a seller's home view: the one canonical balance
+                figure, anything that needs their attention (KYC gate,
+                disputes), a condensed stat glance, and a peek at recent
+                orders - instead of making them click into 4-5 separate tabs
+                to find out if their business needs anything from them.
+                "Verify" is no longer its own persistent tab (verification
+                is a one-time task, not a place sellers browse); it's still
+                reachable here and stays fully functional at the
+                "verification" tab value, just without a permanent trigger
+                pill taking up space in the bar above. */}
+            <TabsContent value="overview" className="space-y-4">
+              <BalanceSummaryCard
+                kycStatus={kycStatus}
+                onVerifyClick={() => setActiveTab("verification")}
+              />
+
+              {(() => {
+                const disputedOrders = sellerOrders.filter((o) => o.status === "disputed");
+                const attentionItems: { key: string; icon: typeof ShieldAlert; tone: string; text: ReactNode; onClick: () => void }[] = [];
+
+                if (needsVerification && heldEscrowCount > 0) {
+                  attentionItems.push({
+                    key: "kyc",
+                    icon: Lock,
+                    tone: "amber",
+                    text: (
+                      <>
+                        Verify your identity to unlock{" "}
+                        <strong className="font-semibold">₦{heldEscrowAmount.toLocaleString()}</strong> held in
+                        escrow across {heldEscrowCount} order{heldEscrowCount !== 1 ? "s" : ""}.
+                      </>
+                    ),
+                    onClick: () => setActiveTab("verification"),
+                  });
+                }
+                if (disputedOrders.length > 0) {
+                  attentionItems.push({
+                    key: "disputed",
+                    icon: AlertCircle,
+                    tone: "red",
+                    text: (
+                      <>
+                        <strong className="font-semibold">{disputedOrders.length}</strong> order
+                        {disputedOrders.length !== 1 ? "s" : ""} disputed - needs your response.
+                      </>
+                    ),
+                    onClick: () => setActiveTab("orders"),
+                  });
+                }
+
+                if (attentionItems.length === 0) return null;
+
+                return (
+                  <div>
+                    <h2 className="mb-2 text-sm font-semibold text-flora-ink">Needs your attention</h2>
+                    <div className="overflow-hidden rounded-2xl bg-flora-card shadow-card">
+                      {attentionItems.map((item) => (
+                        <button
+                          key={item.key}
+                          type="button"
+                          onClick={item.onClick}
+                          className="flex w-full items-center gap-3 border-b border-flora-ink/5 p-3.5 text-left transition last:border-b-0 hover:bg-flora-chip/50"
+                        >
+                          <span
+                            className={cn(
+                              "flex h-8 w-8 shrink-0 items-center justify-center rounded-full",
+                              item.tone === "amber" ? "bg-amber-50 text-amber-600" : "bg-red-50 text-red-600"
+                            )}
+                          >
+                            <item.icon className="h-4 w-4" />
+                          </span>
+                          <span className="flex-1 text-sm text-flora-ink">{item.text}</span>
+                          <ArrowRight className="h-4 w-4 shrink-0 text-flora-muted" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              <div>
+                <h2 className="mb-2 text-sm font-semibold text-flora-ink">At a glance</h2>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="rounded-2xl bg-flora-card p-3 text-center shadow-card sm:p-4">
+                    <Package className="mx-auto h-4 w-4 text-flora-leaf" />
+                    <div className="mt-1.5 text-base font-bold text-flora-ink sm:text-xl">
+                      {products.length}
+                    </div>
+                    <p className="text-[11px] text-flora-muted">Listings</p>
+                  </div>
+                  <div className="rounded-2xl bg-flora-card p-3 text-center shadow-card sm:p-4">
+                    <ShoppingCart className="mx-auto h-4 w-4 text-flora-leaf" />
+                    <div className="mt-1.5 text-base font-bold text-flora-ink sm:text-xl">
+                      {openOrders.length}
+                    </div>
+                    <p className="text-[11px] text-flora-muted">Open orders</p>
+                  </div>
+                  <div className="rounded-2xl bg-flora-card p-3 text-center shadow-card sm:p-4">
+                    <Eye className="mx-auto h-4 w-4 text-flora-leaf" />
+                    <div className="mt-1.5 text-base font-bold text-flora-ink sm:text-xl">
+                      {totalViews}
+                    </div>
+                    <p className="text-[11px] text-flora-muted">Views</p>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <div className="mb-2 flex items-center justify-between">
+                  <h2 className="text-sm font-semibold text-flora-ink">Recent orders</h2>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("orders")}
+                    className="text-xs font-medium text-flora-leaf hover:underline"
+                  >
+                    View all
+                  </button>
+                </div>
+                {sellerOrders.length === 0 ? (
+                  <div className="rounded-2xl bg-flora-card p-6 text-center shadow-card">
+                    <ClipboardList className="mx-auto mb-2 h-8 w-8 text-flora-muted" />
+                    <p className="text-sm text-flora-muted">No orders yet.</p>
+                  </div>
+                ) : (
+                  <div className="overflow-hidden rounded-2xl bg-flora-card shadow-card">
+                    {sellerOrders.slice(0, 3).map((order) => (
+                      <button
+                        key={order.id}
+                        type="button"
+                        onClick={() => navigate("/orders")}
+                        className="flex w-full items-center justify-between gap-3 border-b border-flora-ink/5 p-3.5 text-left transition last:border-b-0 hover:bg-flora-chip/50"
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium text-flora-ink">
+                            {order.product_title || "Order"}
+                          </p>
+                          <p className="text-xs text-flora-muted">
+                            {new Date(order.created_at).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2.5">
+                          <span className="text-sm font-semibold text-flora-ink">
+                            ₦{order.total_amount.toLocaleString()}
+                          </span>
+                          <span
+                            className={`whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                              ORDER_STATUS_TONE[order.status] || "bg-flora-chip text-flora-muted"
+                            }`}
+                          >
+                            {ORDER_STATUS_LABEL[order.status] || order.status}
+                          </span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
                 )}
-              </TabsTrigger>
-              <TabsTrigger value="earnings" className="rounded-xl text-[11px] sm:text-sm">
-                Earnings
-              </TabsTrigger>
-              <TabsTrigger value="analytics" className="rounded-xl text-[11px] sm:text-sm">
-                Analytics
-              </TabsTrigger>
-            </TabsList>
+              </div>
+            </TabsContent>
 
             {/* Listings */}
             <TabsContent value="listings" className="space-y-3 sm:space-y-4">
@@ -914,30 +991,33 @@ const Dashboard = () => {
                             </div>
                           </div>
 
-                          <div className="flex gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
+                          <div className="flex gap-1.5">
+                            <button
+                              type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setEditingProduct(product);
                               }}
-                              className="flex-1 px-2 text-xs md:w-[fit] md:flex-none lg:px-10 lg:text-sm"
+                              className="flex flex-1 items-center justify-center gap-1.5 rounded-full border border-flora-ink/15 bg-white px-3 py-2 text-xs font-medium text-flora-ink transition hover:bg-flora-chip"
                             >
-                              <Edit3 className="mr-1 h-3 w-3 lg:mr-2 lg:h-4 lg:w-4" />
+                              <Edit3 className="h-3.5 w-3.5 shrink-0" />
                               Edit
-                            </Button>
-                            <Button
-                              variant={product.is_active ? "destructive" : "default"}
-                              size="sm"
+                            </button>
+                            <button
+                              type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 toggleProductStatus(product.id, product.is_active);
                               }}
-                              className="flex-1 px-2 text-xs md:w-[fit] md:flex-none lg:px-10 lg:text-sm"
+                              className={cn(
+                                "flex flex-1 items-center justify-center gap-1.5 rounded-full px-3 py-2 text-xs font-medium transition",
+                                product.is_active
+                                  ? "border border-red-200 bg-white text-red-600 hover:bg-red-50"
+                                  : "bg-flora-ink text-white hover:brightness-110"
+                              )}
                             >
                               {product.is_active ? "Deactivate" : "Activate"}
-                            </Button>
+                            </button>
                           </div>
                         </div>
                       </div>
@@ -948,73 +1028,28 @@ const Dashboard = () => {
             </TabsContent>
 
             {/* Orders */}
+            {/* Trimmed to a slim launcher - a recent-orders preview already
+                lives on Overview, and the full list/management flow lives
+                at /orders?tab=seller, so a third copy of the same list here
+                was just noise between those two, not new information. */}
             <TabsContent value="orders" className="space-y-3 sm:space-y-4">
-              <div className="flex items-center justify-between rounded-2xl bg-flora-card p-4 shadow-card">
-                <div>
-                  <p className="text-sm font-semibold text-flora-ink">
-                    {openOrders.length} open, {sellerOrders.length} total
-                  </p>
-                  <p className="text-xs text-flora-muted">
-                    Confirm shipments, message buyers, and manage disputes here.
-                  </p>
-                </div>
+              <div className="rounded-3xl bg-flora-card p-5 text-center shadow-card sm:p-8">
+                <ClipboardList className="mx-auto mb-3 h-10 w-10 text-flora-muted" />
+                <p className="text-lg font-bold text-flora-ink">
+                  {openOrders.length} open, {sellerOrders.length} total
+                </p>
+                <p className="mt-1 text-sm text-flora-muted">
+                  Confirm shipments, message buyers, and manage disputes here.
+                </p>
                 <button
                   type="button"
                   onClick={() => navigate("/orders")}
-                  className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border border-flora-ink/15 bg-white px-3 py-1.5 text-xs font-medium text-flora-ink transition hover:bg-flora-chip"
+                  className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-flora-ink px-5 py-2.5 text-sm font-medium text-white transition hover:brightness-110"
                 >
                   Manage Orders
                   <ArrowRight className="h-3.5 w-3.5" />
                 </button>
               </div>
-
-              {sellerOrders.length === 0 ? (
-                <div className="rounded-3xl bg-flora-card p-8 text-center shadow-card">
-                  <ClipboardList className="mx-auto mb-3 h-10 w-10 text-flora-muted" />
-                  <p className="text-sm text-flora-muted">No orders yet.</p>
-                </div>
-              ) : (
-                <div className="space-y-2.5">
-                  {sellerOrders.slice(0, 8).map((order) => (
-                    <button
-                      key={order.id}
-                      type="button"
-                      onClick={() => navigate("/orders")}
-                      className="flex w-full items-center justify-between gap-3 rounded-2xl bg-flora-card p-3.5 text-left shadow-card transition hover:brightness-[0.98]"
-                    >
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-flora-ink">
-                          {order.product_title || "Order"}
-                        </p>
-                        <p className="text-xs text-flora-muted">
-                          {new Date(order.created_at).toLocaleDateString()}
-                        </p>
-                      </div>
-                      <div className="flex shrink-0 items-center gap-2.5">
-                        <span className="text-sm font-semibold text-flora-ink">
-                          ₦{order.total_amount.toLocaleString()}
-                        </span>
-                        <span
-                          className={`whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                            ORDER_STATUS_TONE[order.status] || "bg-flora-chip text-flora-muted"
-                          }`}
-                        >
-                          {ORDER_STATUS_LABEL[order.status] || order.status}
-                        </span>
-                      </div>
-                    </button>
-                  ))}
-                  {sellerOrders.length > 8 && (
-                    <button
-                      type="button"
-                      onClick={() => navigate("/orders")}
-                      className="w-full py-2 text-center text-xs font-medium text-flora-leaf hover:underline"
-                    >
-                      View all {sellerOrders.length} orders →
-                    </button>
-                  )}
-                </div>
-              )}
             </TabsContent>
 
             {/* Verification */}
@@ -1037,15 +1072,15 @@ const Dashboard = () => {
                 sellerId && <SellerKycReminderBanner userId={sellerId} />
               )}
 
-              {needsVerification && heldEscrow.count > 0 && (
+              {needsVerification && heldEscrowCount > 0 && (
                 <div className="flex items-start gap-3 rounded-2xl border border-amber-300/70 bg-amber-50 p-4">
                   <Lock className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
                   <div>
                     <p className="text-sm font-semibold text-amber-800">
-                      ₦{heldEscrow.amount.toLocaleString()} waiting on verification
+                      ₦{heldEscrowAmount.toLocaleString()} waiting on verification
                     </p>
                     <p className="mt-0.5 text-xs text-amber-700">
-                      {heldEscrow.count} order{heldEscrow.count !== 1 ? "s" : ""} already paid and sitting in escrow.
+                      {heldEscrowCount} order{heldEscrowCount !== 1 ? "s" : ""} already paid and sitting in escrow.
                       This becomes withdrawable the moment your BVN/NIN check clears.
                     </p>
                   </div>
@@ -1055,178 +1090,124 @@ const Dashboard = () => {
 
             {/* Earnings */}
             <TabsContent value="earnings">
-              <WalletDashboard />
+              <WalletDashboard onNavigateToVerification={() => setActiveTab("verification")} />
             </TabsContent>
 
             {/* Analytics */}
+            {/* Analytics - card grid matching Listings' own visual language
+                (thumbnail, title, metric-icon row) instead of a dense
+                numbered list, so the dashboard reads as one consistent
+                system rather than a table bolted onto a card-based app. */}
             <TabsContent value="analytics" className="space-y-3 sm:space-y-4">
-              <div className="rounded-3xl bg-flora-card p-3.5 shadow-card sm:p-6">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <h2 className="text-base font-semibold text-flora-ink sm:text-lg">
-                    Product Analytics
-                  </h2>
-                  <select
-                    value={analyticsFilter}
-                    onChange={(e) => setAnalyticsFilter(e.target.value)}
-                    className="h-10 w-full rounded-xl border border-flora-ink/15 bg-white px-3 text-sm text-flora-ink sm:w-48"
-                  >
-                    <option value="view_all">View All Products</option>
-                    <option value="best_selling">Best Selling</option>
-                    <option value="most_views">Most Views</option>
-                    <option value="most_cart_adds">Most Cart Adds</option>
-                    <option value="most_favorited">Most Favorited</option>
-                    <option value="highest_revenue">Highest Revenue</option>
-                  </select>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <h2 className="text-base font-semibold text-flora-ink sm:text-lg">
+                  Product Analytics
+                </h2>
+                <select
+                  value={analyticsFilter}
+                  onChange={(e) => setAnalyticsFilter(e.target.value)}
+                  className="h-10 w-full rounded-xl border border-flora-ink/15 bg-white px-3 text-sm text-flora-ink sm:w-52"
+                >
+                  <option value="view_all">View All Products</option>
+                  <option value="best_selling">Best Selling</option>
+                  <option value="most_views">Most Views</option>
+                  <option value="most_cart_adds">Most Cart Adds</option>
+                  <option value="most_favorited">Most Favorited</option>
+                  <option value="highest_revenue">Highest Revenue</option>
+                </select>
+              </div>
+
+              {analytics.length === 0 ? (
+                <div className="rounded-3xl bg-flora-card p-6 text-center shadow-card sm:p-8">
+                  <BarChart3 className="mx-auto mb-3 h-10 w-10 text-flora-muted sm:mb-4 sm:h-12 sm:w-12" />
+                  <p className="text-base font-medium text-flora-ink sm:text-lg">
+                    No analytics data
+                  </p>
+                  <p className="text-sm text-flora-muted sm:text-base">
+                    Analytics will appear once you have products with activity
+                  </p>
                 </div>
-                <div className="mt-4">
-                  {analytics.length === 0 ? (
-                    <div className="py-6 text-center sm:py-8">
-                      <BarChart3 className="mx-auto mb-3 h-10 w-10 text-flora-muted sm:mb-4 sm:h-12 sm:w-12" />
-                      <p className="text-base font-medium text-flora-ink sm:text-lg">
-                        No analytics data
-                      </p>
-                      <p className="text-sm text-flora-muted sm:text-base">
-                        Analytics will appear once you have products with activity
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="space-y-2.5">
-                      {analyticsFilter === "view_all"
-                        ? products.map((product, index) => {
-                            const productAnalytics = getProductAnalytics(product.id);
-                            return (
-                              <div
-                                key={product.id}
-                                className="flex cursor-pointer items-center justify-between rounded-2xl border border-flora-ink/10 p-3 transition hover:bg-flora-chip/50 sm:p-4"
-                                onClick={() =>
-                                  setSelectedProductAnalytics({
-                                    product,
-                                    analytics: productAnalytics,
-                                  })
-                                }
-                              >
-                                <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
-                                  <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-flora-tagBg text-xs font-bold text-flora-tagText sm:h-8 sm:w-8 sm:text-sm">
-                                    {index + 1}
-                                  </div>
-                                  <div className="min-w-0 flex-1">
-                                    <p className="truncate text-sm font-medium text-flora-ink sm:text-base">
-                                      {product.title}
-                                    </p>
-                                    <div className="mt-1 flex items-center gap-2 text-xs text-flora-muted sm:gap-4 sm:text-sm">
-                                      <div className="flex items-center gap-1">
-                                        <Eye className="h-3 w-3" />
-                                        <span>{productAnalytics.views}</span>
-                                      </div>
-                                      <div className="flex items-center gap-1">
-                                        <Heart className="h-3 w-3" />
-                                        <span>{productAnalytics.favorites_count}</span>
-                                      </div>
-                                      <div className="flex items-center gap-1">
-                                        <ShoppingCart className="h-3 w-3" />
-                                        <span>{productAnalytics.cart_additions}</span>
-                                      </div>
-                                    </div>
-                                  </div>
-                                </div>
-                                <div className="flex-shrink-0 text-right">
-                                  <p className="text-sm font-bold text-flora-ink sm:text-lg">
-                                    {productAnalytics.orders_count} orders
-                                  </p>
-                                  <p className="text-xs text-flora-muted sm:text-sm">
-                                    ₦{productAnalytics.revenue.toLocaleString()}
-                                  </p>
-                                </div>
-                              </div>
-                            );
-                          })
-                        : getFilteredAnalytics()
-                            .slice(0, 10)
-                            .map((productAnalytics, index) => {
-                              const product = products.find(
-                                (p) => p.id === productAnalytics.product_id
-                              );
-                              return (
-                                <div
-                                  key={productAnalytics.product_id}
-                                  className="flex cursor-pointer items-center justify-between rounded-2xl border border-flora-ink/10 p-3 transition hover:bg-flora-chip/50 sm:p-4"
-                                  onClick={() =>
-                                    product &&
-                                    setSelectedProductAnalytics({
-                                      product,
-                                      analytics: productAnalytics,
-                                    })
-                                  }
-                                >
-                                  <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
-                                    <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-flora-tagBg text-xs font-bold text-flora-tagText sm:h-8 sm:w-8 sm:text-sm">
-                                      {index + 1}
-                                    </div>
-                                    <div className="min-w-0 flex-1">
-                                      <p className="truncate text-sm font-medium text-flora-ink sm:text-base">
-                                        {product?.title}
-                                      </p>
-                                      <div className="mt-1 flex items-center gap-2 text-xs text-flora-muted sm:gap-4 sm:text-sm">
-                                        <div className="flex items-center gap-1">
-                                          <Eye className="h-3 w-3" />
-                                          <span>{productAnalytics.views}</span>
-                                        </div>
-                                        <div className="flex items-center gap-1">
-                                          <Heart className="h-3 w-3" />
-                                          <span>{productAnalytics.favorites_count}</span>
-                                        </div>
-                                        <div className="flex items-center gap-1">
-                                          <ShoppingCart className="h-3 w-3" />
-                                          <span>{productAnalytics.cart_additions}</span>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  </div>
-                                  <div className="flex-shrink-0 text-right">
-                                    <p className="text-sm font-bold text-flora-ink sm:text-lg">
-                                      {productAnalytics.orders_count} orders
-                                    </p>
-                                    <p className="text-xs text-flora-muted sm:text-sm">
-                                      ₦{productAnalytics.revenue.toLocaleString()}
-                                    </p>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                    </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  {(analyticsFilter === "view_all"
+                    ? products.map((product) => ({ product, productAnalytics: getProductAnalytics(product.id) }))
+                    : getFilteredAnalytics()
+                        .slice(0, 10)
+                        .map((productAnalytics) => ({
+                          product: products.find((p) => p.id === productAnalytics.product_id),
+                          productAnalytics,
+                        }))
+                  ).map(({ product, productAnalytics }, index) =>
+                    !product ? null : (
+                      <button
+                        key={product.id}
+                        type="button"
+                        onClick={() => setSelectedProductAnalytics({ product, analytics: productAnalytics })}
+                        className="flex gap-3 rounded-3xl bg-flora-card p-3.5 text-left shadow-card transition hover:brightness-[0.98] sm:p-4"
+                      >
+                        {product.images?.[0] ? (
+                          <img
+                            src={product.images[0]}
+                            alt={product.title}
+                            className="h-16 w-16 flex-shrink-0 rounded-2xl object-cover sm:h-20 sm:w-20"
+                          />
+                        ) : (
+                          <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-2xl bg-flora-chip sm:h-20 sm:w-20">
+                            <Package className="h-6 w-6 text-flora-muted" />
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="truncate text-sm font-semibold text-flora-ink sm:text-base">
+                              {product.title}
+                            </p>
+                            <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-flora-tagBg text-[10px] font-bold text-flora-tagText">
+                              {index + 1}
+                            </span>
+                          </div>
+                          <div className="mt-1.5 flex items-center gap-3 text-xs text-flora-muted">
+                            <div className="flex items-center gap-1">
+                              <Eye className="h-3 w-3" />
+                              <span>{productAnalytics.views}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Heart className="h-3 w-3" />
+                              <span>{productAnalytics.favorites_count}</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <ShoppingCart className="h-3 w-3" />
+                              <span>{productAnalytics.cart_additions}</span>
+                            </div>
+                          </div>
+                          <div className="mt-2 flex items-center gap-2 text-sm">
+                            <span className="font-bold text-flora-ink">
+                              {productAnalytics.orders_count} orders
+                            </span>
+                            <span className="text-flora-muted">·</span>
+                            <span className="font-medium text-flora-leaf">
+                              ₦{productAnalytics.revenue.toLocaleString()}
+                            </span>
+                          </div>
+                        </div>
+                      </button>
+                    )
                   )}
                 </div>
-              </div>
+              )}
             </TabsContent>
           </Tabs>
         </main>
       </PullToRefresh>
 
-      {/* Detailed Analytics Modal */}
-      {selectedProductAnalytics &&
-        createPortal(
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-flora-ink/60 p-4 backdrop-blur-sm"
-            onClick={() => setSelectedProductAnalytics(null)}
-          >
-            <div
-              className="w-full max-w-4xl max-h-[90vh] overflow-y-auto bg-flora-card rounded-3xl shadow-floating"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="sticky top-0 bg-flora-card border-b border-flora-ink/10 p-4 flex items-center justify-between rounded-t-3xl">
-                <h2 className="text-lg sm:text-xl font-semibold text-flora-ink truncate pr-4">
-                  {selectedProductAnalytics.product.title} - Analytics
-                </h2>
-                <button
-                  type="button"
-                  onClick={() => setSelectedProductAnalytics(null)}
-                  aria-label="Close"
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-flora-ink transition hover:bg-flora-chip"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-              <div className="p-4 space-y-4">
+      {/* Analytics detail - a proper mobile bottom sheet, not a fixed-width
+          dialog shrunk to fit a phone screen. */}
+      {selectedProductAnalytics && (
+        <ResponsiveModal
+          open={!!selectedProductAnalytics}
+          onOpenChange={(open) => !open && setSelectedProductAnalytics(null)}
+          title={`${selectedProductAnalytics.product.title} - Analytics`}
+        >
+          <div className="space-y-4">
                 {/* Overview Cards */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   <div className="bg-flora-chip p-3 rounded-2xl">
@@ -1458,261 +1439,230 @@ const Dashboard = () => {
                     </div>
                   </div>
                 </div>
+          </div>
+        </ResponsiveModal>
+      )}
+
+      {/* Edit Product - mobile bottom sheet / desktop dialog, flora-styled
+          form fields throughout instead of the shadcn defaults (which pull
+          from the base un-flora'd theme, not our tokens). */}
+      {editingProduct && (
+        <ResponsiveModal
+          open={!!editingProduct}
+          onOpenChange={(open) => {
+            if (!open) {
+              setEditingProduct(null);
+              setNewImages([]);
+            }
+          }}
+          title="Edit Product"
+        >
+          <div className="space-y-4">
+            <div>
+              <label htmlFor="edit-title" className="text-sm font-medium text-flora-ink">
+                Title
+              </label>
+              <input
+                id="edit-title"
+                value={editingProduct.title}
+                onChange={(e) =>
+                  setEditingProduct({ ...editingProduct, title: e.target.value })
+                }
+                className="mt-1 w-full rounded-xl border border-flora-ink/15 bg-white p-2.5 text-sm text-flora-ink"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="edit-description" className="text-sm font-medium text-flora-ink">
+                Description
+              </label>
+              <textarea
+                id="edit-description"
+                value={editingProduct.description || ""}
+                onChange={(e) =>
+                  setEditingProduct({ ...editingProduct, description: e.target.value })
+                }
+                rows={3}
+                className="mt-1 w-full rounded-xl border border-flora-ink/15 bg-white p-2.5 text-sm text-flora-ink"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label htmlFor="edit-category" className="text-sm font-medium text-flora-ink">
+                  Category
+                </label>
+                <select
+                  id="edit-category"
+                  value={editingProduct.category}
+                  onChange={(e) =>
+                    setEditingProduct({ ...editingProduct, category: e.target.value })
+                  }
+                  className="mt-1 w-full rounded-xl border border-flora-ink/15 bg-white p-2.5 text-sm text-flora-ink"
+                >
+                  {categories.map((cat) => (
+                    <option key={cat} value={cat}>
+                      {cat}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label htmlFor="edit-condition" className="text-sm font-medium text-flora-ink">
+                  Condition
+                </label>
+                <select
+                  id="edit-condition"
+                  value={editingProduct.condition}
+                  onChange={(e) =>
+                    setEditingProduct({ ...editingProduct, condition: e.target.value })
+                  }
+                  className="mt-1 w-full rounded-xl border border-flora-ink/15 bg-white p-2.5 text-sm text-flora-ink"
+                >
+                  <option value="new">New</option>
+                  <option value="excellent">Excellent</option>
+                  <option value="good">Good</option>
+                  <option value="fair">Fair</option>
+                </select>
               </div>
             </div>
-          </div>,
-          document.body
-        )}
 
-      {/* Edit Product Modal */}
-      {editingProduct &&
-        createPortal(
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div
-              className="w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-flora-card rounded-3xl shadow-xl"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="sticky top-0 bg-flora-card border-b border-flora-ink/10 p-4 rounded-t-3xl">
-                <h2 className="text-lg font-semibold text-flora-ink">Edit Product</h2>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label htmlFor="edit-price" className="text-sm font-medium text-flora-ink">
+                  Price (₦)
+                </label>
+                <input
+                  id="edit-price"
+                  type="number"
+                  value={editingProduct.price}
+                  onChange={(e) =>
+                    setEditingProduct({
+                      ...editingProduct,
+                      price: parseFloat(e.target.value) || 0,
+                    })
+                  }
+                  className="mt-1 w-full rounded-xl border border-flora-ink/15 bg-white p-2.5 text-sm text-flora-ink"
+                />
               </div>
-              <div className="p-4 space-y-4">
-                <div>
-                  <Label htmlFor="edit-title" className="text-sm font-medium">
-                    Title
-                  </Label>
-                  <Input
-                    id="edit-title"
-                    value={editingProduct.title}
-                    onChange={(e) =>
-                      setEditingProduct({
-                        ...editingProduct,
-                        title: e.target.value,
-                      })
-                    }
-                    className="mt-1"
-                  />
-                </div>
 
-                <div>
-                  <Label
-                    htmlFor="edit-description"
-                    className="text-sm font-medium"
-                  >
-                    Description
-                  </Label>
-                  <Textarea
-                    id="edit-description"
-                    value={editingProduct.description || ""}
-                    onChange={(e) =>
-                      setEditingProduct({
-                        ...editingProduct,
-                        description: e.target.value,
-                      })
-                    }
-                    rows={3}
-                    className="mt-1"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <Label
-                      htmlFor="edit-category"
-                      className="text-sm font-medium"
-                    >
-                      Category
-                    </Label>
-                    <Select
-                      value={editingProduct.category}
-                      onValueChange={(value) =>
-                        setEditingProduct({
-                          ...editingProduct,
-                          category: value,
-                        })
-                      }
-                    >
-                      <SelectTrigger className="mt-1">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {categories.map((cat) => (
-                          <SelectItem key={cat} value={cat}>
-                            {cat}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div>
-                    <Label
-                      htmlFor="edit-condition"
-                      className="text-sm font-medium"
-                    >
-                      Condition
-                    </Label>
-                    <Select
-                      value={editingProduct.condition}
-                      onValueChange={(value) =>
-                        setEditingProduct({
-                          ...editingProduct,
-                          condition: value,
-                        })
-                      }
-                    >
-                      <SelectTrigger className="mt-1">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="new">New</SelectItem>
-                        <SelectItem value="excellent">Excellent</SelectItem>
-                        <SelectItem value="good">Good</SelectItem>
-                        <SelectItem value="fair">Fair</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="edit-price" className="text-sm font-medium">
-                      Price (₦)
-                    </Label>
-                    <Input
-                      id="edit-price"
-                      type="number"
-                      value={editingProduct.price}
-                      onChange={(e) =>
-                        setEditingProduct({
-                          ...editingProduct,
-                          price: parseFloat(e.target.value) || 0,
-                        })
-                      }
-                      className="mt-1"
-                    />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="edit-stock" className="text-sm font-medium">
-                      Stock Quantity
-                    </Label>
-                    <Input
-                      id="edit-stock"
-                      type="number"
-                      value={editingProduct.stock_quantity}
-                      onChange={(e) =>
-                        setEditingProduct({
-                          ...editingProduct,
-                          stock_quantity: parseInt(e.target.value) || 0,
-                        })
-                      }
-                      className="mt-1"
-                    />
-                  </div>
-                </div>
-
-                {/* Image Management */}
-                <div>
-                  <Label className="text-sm font-medium">Product Images</Label>
-
-                  {/* Existing Images */}
-                  {editingProduct.images && editingProduct.images.length > 0 && (
-                    <div className="mt-2">
-                      <p className="text-xs text-flora-muted mb-2">Current Images:</p>
-                      <div className="grid grid-cols-3 gap-2">
-                        {editingProduct.images.map((imageUrl, index) => (
-                          <div key={index} className="relative">
-                            <img
-                              src={imageUrl}
-                              alt={`Product ${index + 1}`}
-                              className="w-full h-20 object-cover rounded-xl"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => removeExistingImage(index)}
-                              className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full p-1"
-                            >
-                              <X className="h-3 w-3" />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* New Images */}
-                  {newImages.length > 0 && (
-                    <div className="mt-2">
-                      <p className="text-xs text-flora-muted mb-2">New Images:</p>
-                      <div className="grid grid-cols-3 gap-2">
-                        {newImages.map((file, index) => (
-                          <div key={index} className="relative">
-                            <img
-                              src={URL.createObjectURL(file)}
-                              alt={`New ${index + 1}`}
-                              className="w-full h-20 object-cover rounded-xl"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => removeNewImage(index)}
-                              className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full p-1"
-                            >
-                              <X className="h-3 w-3" />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Upload New Images */}
-                  {((editingProduct.images?.length || 0) + newImages.length) < 3 && (
-                    <div className="mt-2">
-                      <input
-                        type="file"
-                        id="edit-images"
-                        multiple
-                        accept="image/*"
-                        onChange={handleImageChange}
-                        className="hidden"
-                      />
-                      <label
-                        htmlFor="edit-images"
-                        className="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-flora-ink/20 rounded-2xl cursor-pointer hover:bg-flora-chip/50 transition-colors"
-                      >
-                        <Upload className="h-6 w-6 text-flora-muted mb-1" />
-                        <span className="text-xs text-flora-muted">
-                          Add Images ({(editingProduct.images?.length || 0) + newImages.length}/3)
-                        </span>
-                      </label>
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex flex-col sm:flex-row gap-2 sm:justify-end pt-4">
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setEditingProduct(null);
-                      setNewImages([]);
-                    }}
-                    className="w-full sm:w-auto"
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    variant="brand"
-                    onClick={() => handleUpdateProduct(editingProduct)}
-                    className="w-full sm:w-auto"
-                  >
-                    Save Changes
-                  </Button>
-                </div>
+              <div>
+                <label htmlFor="edit-stock" className="text-sm font-medium text-flora-ink">
+                  Stock Quantity
+                </label>
+                <input
+                  id="edit-stock"
+                  type="number"
+                  value={editingProduct.stock_quantity}
+                  onChange={(e) =>
+                    setEditingProduct({
+                      ...editingProduct,
+                      stock_quantity: parseInt(e.target.value) || 0,
+                    })
+                  }
+                  className="mt-1 w-full rounded-xl border border-flora-ink/15 bg-white p-2.5 text-sm text-flora-ink"
+                />
               </div>
             </div>
-          </div>,
-          document.body
-        )}
+
+            {/* Image Management */}
+            <div>
+              <p className="text-sm font-medium text-flora-ink">Product Images</p>
+
+              {editingProduct.images && editingProduct.images.length > 0 && (
+                <div className="mt-2">
+                  <p className="mb-2 text-xs text-flora-muted">Current Images:</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {editingProduct.images.map((imageUrl, index) => (
+                      <div key={index} className="relative">
+                        <img
+                          src={imageUrl}
+                          alt={`Product ${index + 1}`}
+                          className="h-20 w-full rounded-xl object-cover"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeExistingImage(index)}
+                          className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-white text-red-600 shadow-card"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {newImages.length > 0 && (
+                <div className="mt-2">
+                  <p className="mb-2 text-xs text-flora-muted">New Images:</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {newImages.map((file, index) => (
+                      <div key={index} className="relative">
+                        <img
+                          src={URL.createObjectURL(file)}
+                          alt={`New ${index + 1}`}
+                          className="h-20 w-full rounded-xl object-cover"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeNewImage(index)}
+                          className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-white text-red-600 shadow-card"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {((editingProduct.images?.length || 0) + newImages.length) < 3 && (
+                <div className="mt-2">
+                  <input
+                    type="file"
+                    id="edit-images"
+                    multiple
+                    accept="image/*"
+                    onChange={handleImageChange}
+                    className="hidden"
+                  />
+                  <label
+                    htmlFor="edit-images"
+                    className="flex h-24 w-full cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-flora-ink/20 transition-colors hover:bg-flora-chip/50"
+                  >
+                    <Upload className="mb-1 h-6 w-6 text-flora-muted" />
+                    <span className="text-xs text-flora-muted">
+                      Add Images ({(editingProduct.images?.length || 0) + newImages.length}/3)
+                    </span>
+                  </label>
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-2 pt-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingProduct(null);
+                  setNewImages([]);
+                }}
+                className="w-full rounded-full border border-flora-ink/15 bg-white px-5 py-2.5 text-sm font-medium text-flora-ink transition hover:bg-flora-chip sm:w-auto"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleUpdateProduct(editingProduct)}
+                className="w-full rounded-full bg-flora-ink px-5 py-2.5 text-sm font-medium text-white transition hover:brightness-110 sm:w-auto"
+              >
+                Save Changes
+              </button>
+            </div>
+          </div>
+        </ResponsiveModal>
+      )}
     </div>
   );
 };
