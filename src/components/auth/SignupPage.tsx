@@ -53,11 +53,30 @@ const signinSchema = z.object({
   password: z.string().min(1, "Password is required"),
 });
 
+// Nigeria Data Protection Act eligibility floor (see Privacy Policy Section
+// 6 / Terms of Service Section 2, both already published) - not previously
+// enforced anywhere, despite both documents asserting it.
+const isAtLeast18 = (dobString: string) => {
+  const dob = new Date(dobString);
+  if (Number.isNaN(dob.getTime())) return false;
+  const today = new Date();
+  let age = today.getFullYear() - dob.getFullYear();
+  const monthDiff = today.getMonth() - dob.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
+    age--;
+  }
+  return age >= 18;
+};
+
 const buyerAccountSchema = z.object({
   fullName: z.string().min(2, "Full name is required"),
   email: z.string().email("Invalid email address"),
   password: z.string().min(8, "Password must be at least 8 characters"),
   university: z.string().min(1, "University is required"),
+  dateOfBirth: z
+    .string()
+    .min(1, "Date of birth is required")
+    .refine(isAtLeast18, { message: "You must be at least 18 years old to use UniMarket" }),
 });
 
 const buyerReferralSchema = z.object({
@@ -108,6 +127,13 @@ const primaryButtonClass =
   "w-full h-12 rounded-full bg-flora-ink text-white font-semibold shadow-card transition hover:bg-flora-ink hover:brightness-110 hover:text-white lg:h-14 lg:text-base";
 const outlineButtonClass =
   "h-12 flex-1 rounded-full border border-flora-ink/20 bg-white text-flora-ink font-semibold transition hover:bg-flora-chip hover:text-flora-ink lg:h-14 lg:text-base";
+
+// Caps the native date picker at "18 years ago today" so the UI steers
+// toward a valid date up front, on top of (not instead of) the zod
+// isAtLeast18 check actually enforcing it on submit.
+const eighteenYearsAgo = new Date();
+eighteenYearsAgo.setFullYear(eighteenYearsAgo.getFullYear() - 18);
+const MAX_DOB = eighteenYearsAgo.toISOString().split("T")[0];
 
 // Shared by both the buyer confirm modal and the seller final step - the two
 // places sign-up actually finalizes (supabase.auth.signUp() is called from
@@ -438,13 +464,19 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
   // This is a legal consent timestamp, not a cosmetic field, so it retries
   // with backoff and confirms via .select() that a row actually came back,
   // rather than trusting the absence of an error.
-  const recordLegalAcceptance = async (userId: string): Promise<boolean> => {
-    const acceptance = {
+  const recordLegalAcceptance = async (
+    userId: string,
+    dateOfBirth?: string
+  ): Promise<boolean> => {
+    const acceptance: Record<string, string> = {
       terms_accepted_version: CURRENT_TERMS_VERSION,
       terms_accepted_at: new Date().toISOString(),
       privacy_accepted_version: CURRENT_PRIVACY_VERSION,
       privacy_accepted_at: new Date().toISOString(),
     };
+    if (dateOfBirth) {
+      acceptance.date_of_birth = dateOfBirth;
+    }
 
     const delaysMs = [0, 500, 1000, 1500, 2500];
     for (const delay of delaysMs) {
@@ -491,7 +523,10 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
       if (error) throw error;
 
       if (authData.user) {
-        const recorded = await recordLegalAcceptance(authData.user.id);
+        const recorded = await recordLegalAcceptance(
+          authData.user.id,
+          pendingBuyerData.dateOfBirth
+        );
         if (!recorded) {
           console.error(
             "Failed to record terms/privacy acceptance for new buyer",
@@ -597,7 +632,10 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
       // already exists by now (the wait above already succeeded for
       // business_name/bio), so its first, immediate attempt should succeed
       // with no extra delay.
-      const recorded = await recordLegalAcceptance(authData.user.id);
+      const recorded = await recordLegalAcceptance(
+        authData.user.id,
+        combinedData.dateOfBirth
+      );
       if (!recorded) {
         console.error(
           "Failed to record terms/privacy acceptance for new seller",
@@ -1105,6 +1143,24 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
                           )}
                         </div>
 
+                        <div className="space-y-1.5">
+                          <Label htmlFor="dateOfBirth" className={labelClass}>
+                            Date of Birth
+                          </Label>
+                          <Input
+                            id="dateOfBirth"
+                            type="date"
+                            max={MAX_DOB}
+                            {...buyerAccountForm.register("dateOfBirth")}
+                            className={inputClass}
+                          />
+                          {buyerAccountForm.formState.errors.dateOfBirth && (
+                            <p className={errorClass}>
+                              {buyerAccountForm.formState.errors.dateOfBirth.message}
+                            </p>
+                          )}
+                        </div>
+
                         <div className="mt-4 flex gap-3">
                           <Button
                             type="button"
@@ -1325,6 +1381,24 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
                           {sellerAccountForm.formState.errors.university && (
                             <p className={errorClass}>
                               {sellerAccountForm.formState.errors.university.message}
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="space-y-1.5">
+                          <Label htmlFor="sellerDateOfBirth" className={labelClass}>
+                            Date of Birth
+                          </Label>
+                          <Input
+                            id="sellerDateOfBirth"
+                            type="date"
+                            max={MAX_DOB}
+                            {...sellerAccountForm.register("dateOfBirth")}
+                            className={inputClass}
+                          />
+                          {sellerAccountForm.formState.errors.dateOfBirth && (
+                            <p className={errorClass}>
+                              {sellerAccountForm.formState.errors.dateOfBirth.message}
                             </p>
                           )}
                         </div>

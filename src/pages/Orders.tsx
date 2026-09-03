@@ -401,71 +401,15 @@ const Orders = () => {
         }
       }
 
-      // Send notifications and emails for shipped/delivered status
-      if (status === "shipped" || status === "delivered") {
-        const order = orders.find((o) => o.id === orderId);
-        if (order) {
-          const { data: buyerProfile } = await supabase
-            .from("profiles")
-            .select("full_name, email")
-            .eq("user_id", order.buyer_id)
-            .single();
-
-          if (buyerProfile) {
-            const statusMessage =
-              status === "shipped"
-                ? "Your order has been shipped! 📦"
-                : "Your order has been delivered! 🎉";
-
-            const emailSubject =
-              status === "shipped"
-                ? "Order Shipped - UniMarket"
-                : "Order Delivered - UniMarket";
-
-            // Create notification
-            const { sendOrderNotification } =
-              await import("@/utils/notificationService");
-            await sendOrderNotification(
-              order.buyer_id,
-              statusMessage,
-              `Order for ${order.product?.title} has been ${status}. ${
-                trackingInfo || ""
-              }`,
-              orderId,
-            );
-
-            // Send email
-            try {
-              await supabase.functions.invoke("send-email", {
-                body: {
-                  to: buyerProfile.email,
-                  subject: emailSubject,
-                  html: `
-                    <h2>${statusMessage}</h2>
-                    <p>Hello ${buyerProfile.full_name},</p>
-                    <p>Your order has been ${status}:</p>
-                    <ul>
-                      <li><strong>Product:</strong> ${order.product?.title}</li>
-                      <li><strong>Status:</strong> ${
-                        status.charAt(0).toUpperCase() + status.slice(1)
-                      }</li>
-                      ${
-                        trackingInfo
-                          ? `<li><strong>Tracking:</strong> ${trackingInfo}</li>`
-                          : ""
-                      }
-                    </ul>
-                    <p>You can track your order in your account dashboard.</p>
-                    <p>Best regards,<br>UniMarket Team</p>
-                  `,
-                },
-              });
-            } catch (emailError) {
-              // Error handled silently
-            }
-          }
-        }
-      }
+      // Notification + email for every buyer-facing status transition
+      // (shipped, delivered, confirmed, cancelled, refunded, disputed) is
+      // now handled by a single DB trigger (notify_order_status_change,
+      // see migration 20260903000001) fired directly off orders.status
+      // changing - covers every code path that can update an order's
+      // status (this handler, admin dispute resolution, the escrow-resolve
+      // edge function), not just this one, and reuses the same
+      // email+push pipeline every other notification type already goes
+      // through instead of a separate one-off client-side call.
 
       toast({
         title: "Order Updated",

@@ -732,7 +732,11 @@ const Dashboard = () => {
                 Shopify's and Etsy's own mobile apps handle primary tab nav
                 rather than hiding tabs behind a dropdown/sheet picker. */}
             <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-              <TabsList className="inline-flex h-fit w-full min-w-full gap-1 rounded-2xl bg-flora-chip/70 p-1 sm:w-fit sm:min-w-0">
+              {/* w-max (not w-full/min-w-full) so the list sizes to its own
+                  content and can genuinely exceed the viewport width; the
+                  base TabsList's justify-center otherwise fights the scroll
+                  container and can leave overflowing content unreachable. */}
+              <TabsList className="flex h-fit w-max justify-start gap-1 rounded-2xl bg-flora-chip/70 p-1">
                 <TabsTrigger value="overview" className="shrink-0 rounded-xl px-4 text-[13px] sm:text-sm">
                   Overview
                 </TabsTrigger>
