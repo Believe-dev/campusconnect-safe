@@ -1,16 +1,10 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { ResponsiveModal } from "@/components/ui/responsive-modal";
 import { useToast } from "@/hooks/use-toast";
 import {
   Wallet,
-  TrendingUp,
   DollarSign,
   CreditCard,
   ArrowUpRight,
@@ -18,14 +12,8 @@ import {
   Clock,
 } from "lucide-react";
 import { AnchorVirtualAccountCard } from "./AnchorVirtualAccountCard";
-
-interface WalletData {
-  id: string;
-  available_balance: number;
-  pending_balance: number;
-  total_earnings: number;
-  total_commission_paid: number;
-}
+import { BalanceSummaryCard } from "./BalanceSummaryCard";
+import { fetchCbnKycStatusFromDb, CbnKycTierDetails } from "@/services/anchorBaasService";
 
 interface EscrowData {
   total_escrow_amount: number;
@@ -85,8 +73,11 @@ const STATUS_TONE: Record<string, string> = {
   cancelled: "bg-flora-chip text-flora-muted",
 };
 
-const WalletDashboard = () => {
-  const [wallet, setWallet] = useState<WalletData | null>(null);
+interface WalletDashboardProps {
+  onNavigateToVerification?: () => void;
+}
+
+const WalletDashboard = ({ onNavigateToVerification }: WalletDashboardProps) => {
   const [escrowData, setEscrowData] = useState<EscrowData>({ total_escrow_amount: 0, escrow_count: 0 });
   const [escrowTransactions, setEscrowTransactions] = useState<EscrowTransaction[]>([]);
   const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
@@ -94,6 +85,7 @@ const WalletDashboard = () => {
   const [productAnalytics, setProductAnalytics] = useState<ProductAnalytics[]>(
     []
   );
+  const [kycStatus, setKycStatus] = useState<CbnKycTierDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [showEscrowModal, setShowEscrowModal] = useState(false);
   const [analyticsFilter, setAnalyticsFilter] = useState("best_selling");
@@ -104,6 +96,17 @@ const WalletDashboard = () => {
     fetchWalletData();
     fetchEscrowData();
     fetchProductAnalytics();
+  }, []);
+
+  useEffect(() => {
+    const loadKyc = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+      setKycStatus(await fetchCbnKycStatusFromDb(user.id));
+    };
+    loadKyc();
   }, []);
 
   // Real-time updates for wallet, orders, and transactions
@@ -211,19 +214,6 @@ const WalletDashboard = () => {
       } = await supabase.auth.getUser();
       if (!user) return;
       setUserId(user.id);
-
-      // Fetch wallet
-      const { data: walletData, error: walletError } = await supabase
-        .from("wallets")
-        .select("*")
-        .eq("user_id", user.id)
-        .single();
-
-      if (walletError && walletError.code !== "PGRST116") throw walletError;
-
-      if (walletData) {
-        setWallet(walletData);
-      }
 
       // Fetch transactions
       const { data: transactionsData, error: transactionsError } =
@@ -412,58 +402,19 @@ const WalletDashboard = () => {
         />
       )}
 
-      {/* Balance Cards */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
-        <div className="rounded-3xl bg-flora-card p-3.5 shadow-card sm:p-5">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-flora-muted sm:text-sm">
-              Available Balance
-            </span>
-            <Wallet className="h-4 w-4 text-flora-leaf" />
-          </div>
-          <div className="mt-1 text-lg font-bold text-flora-ink sm:mt-2 sm:text-2xl">
-            ₦{wallet?.available_balance.toLocaleString() || 0}
-          </div>
-          <p className="text-xs text-flora-muted">
-            Ready for withdrawal
-          </p>
-        </div>
-
-        <div className="rounded-3xl bg-flora-card p-3.5 shadow-card sm:p-5">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-flora-muted sm:text-sm">
-              Total Earnings
-            </span>
-            <TrendingUp className="h-4 w-4 text-flora-leaf" />
-          </div>
-          <div className="mt-1 text-lg font-bold text-flora-ink sm:mt-2 sm:text-2xl">
-            ₦{wallet?.total_earnings.toLocaleString() || 0}
-          </div>
-          <p className="text-xs text-flora-muted">Lifetime earnings</p>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => setShowEscrowModal(true)}
-          className="rounded-3xl bg-flora-card p-3.5 text-left shadow-card transition hover:brightness-[0.98] sm:p-5"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-flora-muted sm:text-sm">
-              Pending Balance
-            </span>
-            <Clock className="h-4 w-4 text-flora-leaf" />
-          </div>
-          <div className="mt-1 text-lg font-bold text-flora-ink sm:mt-2 sm:text-2xl">
-            ₦{escrowData.total_escrow_amount.toLocaleString()}
-          </div>
-          <p className="text-xs text-flora-muted">
-            {escrowData.escrow_count} orders in escrow
-          </p>
-          <p className="text-xs text-flora-leaf mt-1">
-            Tap to view details
-          </p>
-        </button>
-      </div>
+      {/* The one canonical balance display - see BalanceSummaryCard for why
+          this replaced a second, independently-fetched "Balance Cards" grid
+          that used to show a different number than AnchorVirtualAccountCard
+          above it for the exact same underlying wallet row. */}
+      <BalanceSummaryCard kycStatus={kycStatus} onVerifyClick={onNavigateToVerification} />
+      <button
+        type="button"
+        onClick={() => setShowEscrowModal(true)}
+        className="flex w-full items-center gap-2 text-left text-xs font-medium text-flora-leaf hover:underline"
+      >
+        <Clock className="h-3.5 w-3.5" />
+        View escrow breakdown by order
+      </button>
 
       {/* Tabs for Transactions and Payouts */}
       <Tabs defaultValue="transactions" className="space-y-3 sm:space-y-4">
@@ -591,71 +542,71 @@ const WalletDashboard = () => {
         </TabsContent>
       </Tabs>
 
-      {/* Escrow Details Modal */}
-      <Dialog open={showEscrowModal} onOpenChange={setShowEscrowModal}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Escrow Details</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="rounded-2xl bg-flora-chip p-4">
-              <div className="flex justify-between items-center">
-                <span className="font-medium text-flora-ink">Total Amount in Escrow:</span>
-                <span className="text-lg font-bold text-flora-ink">
-                  ₦{escrowData.total_escrow_amount.toLocaleString()}
-                </span>
-              </div>
-              <p className="text-sm text-flora-muted mt-1">
-                {escrowData.escrow_count} orders pending buyer confirmation
-              </p>
+      {/* Escrow breakdown - a proper mobile bottom sheet rather than a
+          fixed-width dialog shrunk to fit a phone screen. */}
+      <ResponsiveModal
+        open={showEscrowModal}
+        onOpenChange={setShowEscrowModal}
+        title="Escrow Details"
+      >
+        <div className="space-y-4">
+          <div className="rounded-2xl bg-flora-chip p-4">
+            <div className="flex items-center justify-between">
+              <span className="font-medium text-flora-ink">Total in escrow</span>
+              <span className="text-lg font-bold text-flora-ink">
+                ₦{escrowData.total_escrow_amount.toLocaleString()}
+              </span>
             </div>
+            <p className="mt-1 text-sm text-flora-muted">
+              {escrowData.escrow_count} orders pending buyer confirmation
+            </p>
+          </div>
 
-            {escrowTransactions.length === 0 ? (
-              <div className="text-center py-8">
-                <Clock className="h-12 w-12 mx-auto mb-4 text-flora-muted" />
-                <p className="text-lg font-medium text-flora-ink">No funds in escrow</p>
-                <p className="text-flora-muted">All your orders have been confirmed</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <h3 className="font-medium text-flora-ink">Orders in Escrow:</h3>
-                {escrowTransactions.map((transaction) => (
-                  <div key={transaction.id} className="rounded-2xl border border-flora-ink/10 p-3">
-                    <div className="flex justify-between items-start mb-2">
-                      <div className="flex-1">
-                        <p className="font-medium text-flora-ink">
-                          {transaction.orders?.products?.title || "Unknown Product"}
-                        </p>
-                        <p className="text-sm text-flora-muted">
-                          Buyer: {transaction.orders?.buyer_profile?.full_name || "Unknown"}
-                        </p>
-                        <p className="text-xs text-flora-muted">
-                          Order #{transaction.order_id.slice(-8)}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-bold text-flora-leaf">
-                          ₦{transaction.seller_amount.toLocaleString()}
-                        </p>
-                        <p className="text-xs text-flora-muted">
-                          {new Date(transaction.created_at).toLocaleDateString()}
-                        </p>
-                      </div>
+          {escrowTransactions.length === 0 ? (
+            <div className="py-8 text-center">
+              <Clock className="mx-auto mb-4 h-12 w-12 text-flora-muted" />
+              <p className="text-lg font-medium text-flora-ink">No funds in escrow</p>
+              <p className="text-flora-muted">All your orders have been confirmed</p>
+            </div>
+          ) : (
+            <div className="space-y-2.5">
+              <h3 className="text-sm font-medium text-flora-ink">Orders in escrow</h3>
+              {escrowTransactions.map((transaction) => (
+                <div key={transaction.id} className="rounded-2xl border border-flora-ink/10 p-3">
+                  <div className="mb-2 flex items-start justify-between">
+                    <div className="flex-1">
+                      <p className="font-medium text-flora-ink">
+                        {transaction.orders?.products?.title || "Unknown Product"}
+                      </p>
+                      <p className="text-sm text-flora-muted">
+                        Buyer: {transaction.orders?.buyer_profile?.full_name || "Unknown"}
+                      </p>
+                      <p className="text-xs text-flora-muted">
+                        Order #{transaction.order_id.slice(-8)}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-bold text-flora-leaf">
+                        ₦{transaction.seller_amount.toLocaleString()}
+                      </p>
+                      <p className="text-xs text-flora-muted">
+                        {new Date(transaction.created_at).toLocaleDateString()}
+                      </p>
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
-
-            <div className="rounded-2xl bg-flora-chip p-3.5">
-              <p className="text-sm text-flora-ink">
-                💡 <strong>Note:</strong> Funds are automatically released when buyers confirm receipt,
-                or after 2 days if no action is taken.
-              </p>
+                </div>
+              ))}
             </div>
+          )}
+
+          <div className="rounded-2xl bg-flora-chip p-3.5">
+            <p className="text-sm text-flora-ink">
+              <strong>Note:</strong> Funds are automatically released when buyers confirm receipt,
+              or after 2 days if no action is taken.
+            </p>
           </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+      </ResponsiveModal>
     </div>
   );
 };

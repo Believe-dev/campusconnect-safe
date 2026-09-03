@@ -1,3 +1,4 @@
+import { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 interface FilterChipProps {
@@ -7,6 +8,8 @@ interface FilterChipProps {
   onRemove?: () => void;
   onClick?: () => void;
   className?: string;
+  /** Optional leading icon for the plain (non-active, non-removable) variant. */
+  icon?: ReactNode;
 }
 
 // Matches the design reference's FilterChip exactly, including its icons
@@ -47,6 +50,7 @@ export const FilterChip = ({
   onRemove,
   onClick,
   className,
+  icon,
 }: FilterChipProps) => {
   if (active) {
     return (
@@ -93,6 +97,7 @@ export const FilterChip = ({
         "inline-flex min-h-0 min-w-0 shrink-0 items-center gap-2 rounded-full border border-flora-ink/10 bg-white/70 px-4 py-2.5 text-sm font-medium leading-none text-flora-ink transition hover:bg-white",
         className,
       )}>
+      {icon}
       {label}
     </button>
   );
