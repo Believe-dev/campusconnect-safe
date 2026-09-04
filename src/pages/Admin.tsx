@@ -111,7 +111,6 @@ interface User {
   campus: string | null;
   university_name: string | null;
   face_photo_url: string | null;
-  student_id_photo_url: string | null;
   verification_status: string | null;
   created_at: string;
   user_roles?: { role: string }[];
@@ -372,7 +371,6 @@ export default function Admin() {
           campus,
           university_name,
           face_photo_url,
-          student_id_photo_url,
           verification_status,
           created_at,
           avatar_url,
@@ -598,7 +596,6 @@ export default function Admin() {
           rating,
           total_reviews,
           face_photo_url,
-          student_id_photo_url,
           created_at,
           is_banned,
           verification_status,
@@ -634,7 +631,6 @@ export default function Admin() {
         total_reviews: profile.total_reviews || 0,
         avatar_url: getImageUrl(profile.face_photo_url),
         face_photo_url: getImageUrl(profile.face_photo_url),
-        student_id_photo_url: getImageUrl(profile.student_id_photo_url),
         created_at: profile.created_at,
         is_banned: profile.is_banned || false,
         verification_status: profile.verification_status || "pending",
@@ -704,7 +700,6 @@ export default function Admin() {
           total_reviews: profile?.total_reviews || 0,
           avatar_url: profile?.avatar_url,
           face_photo_url: profile?.avatar_url,
-          student_id_photo_url: getImageUrl(profile?.student_id_photo_url),
           created_at: request.created_at,
           is_banned: profile?.is_banned || false,
           verification_status: profile?.verification_status || "pending",
@@ -2779,30 +2774,6 @@ export default function Admin() {
                                         )}
                                       </div>
 
-                                      <div>
-                                        <Label className="font-medium mb-2 block">
-                                          Student ID Card
-                                        </Label>
-                                        {selectedUser?.student_id_photo_url ? (
-                                          <img
-                                            src={getImageUrl(
-                                              selectedUser.student_id_photo_url
-                                            )}
-                                            alt="Student ID"
-                                            className="w-full max-w-xs h-auto rounded border"
-                                            onError={(e) => {
-                                              const target =
-                                                e.currentTarget as HTMLImageElement;
-                                              target.style.display = "none";
-                                            }}
-                                          />
-                                        ) : (
-                                          <p className="text-muted-foreground text-sm">
-                                            No student ID photo
-                                          </p>
-                                        )}
-                                      </div>
-
                                       {selectedUser?.face_photo_url && (
                                         <div>
                                           <Label className="font-medium mb-2 block">
@@ -3640,47 +3611,6 @@ export default function Admin() {
                                             seller.face_photo_url
                                           )}
                                           alt="Face verification"
-                                          className="max-w-full max-h-96 object-contain border rounded"
-                                          onError={(e) => {
-                                            const target =
-                                              e.currentTarget as HTMLImageElement;
-                                            target.style.display = "none";
-                                            const errorMsg =
-                                              target.nextElementSibling as HTMLElement;
-                                            if (errorMsg)
-                                              errorMsg.style.display = "block";
-                                          }}
-                                        />
-                                        <div
-                                          className="text-red-500 text-sm text-center"
-                                          style={{ display: "none" }}
-                                        >
-                                          ❌ Image failed to load
-                                        </div>
-                                      </div>
-                                    </DialogContent>
-                                  </Dialog>
-                                )}
-                                {seller.student_id_photo_url && (
-                                  <Dialog>
-                                    <DialogTrigger asChild>
-                                      <Button variant="outline" size="sm">
-                                        <IdCard className="h-4 w-4 mr-1" />
-                                        ID Photo
-                                      </Button>
-                                    </DialogTrigger>
-                                    <DialogContent>
-                                      <DialogHeader>
-                                        <DialogTitle>
-                                          Student ID Verification Photo
-                                        </DialogTitle>
-                                      </DialogHeader>
-                                      <div className="flex justify-center">
-                                        <img
-                                          src={getImageUrl(
-                                            seller.student_id_photo_url
-                                          )}
-                                          alt="Student ID verification"
                                           className="max-w-full max-h-96 object-contain border rounded"
                                           onError={(e) => {
                                             const target =
@@ -4709,29 +4639,6 @@ export default function Admin() {
                                           )}
                                         </div>
 
-                                        <div>
-                                          <Label className="font-medium mb-2 block">
-                                            Student ID Card (Click to enlarge)
-                                          </Label>
-                                          {user.student_id_photo_url ? (
-                                            <img
-                                              src={user.student_id_photo_url}
-                                              alt="Student ID verification"
-                                              className="w-full h-auto rounded border"
-                                              onClick={() =>
-                                                window.open(
-                                                  user.student_id_photo_url,
-                                                  "_blank"
-                                                )
-                                              }
-                                              title="Click to view full size"
-                                            />
-                                          ) : (
-                                            <p className="text-muted-foreground text-sm">
-                                              No ID photo
-                                            </p>
-                                          )}
-                                        </div>
                                       </div>
                                     </div>
                                   </DialogContent>
@@ -4827,7 +4734,7 @@ export default function Admin() {
                                           </Label>
                                           <Textarea
                                             name="rejection_reason"
-                                            placeholder="e.g., Photo quality is poor, Student ID is not clear, Additional verification needed..."
+                                            placeholder="e.g., Photo quality is poor, BVN/NIN mismatch, Additional verification needed..."
                                             required
                                             rows={3}
                                           />

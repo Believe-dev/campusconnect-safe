@@ -38,7 +38,7 @@ const roles = {
     label: "For Sellers",
     icon: Store,
     steps: [
-      { title: "Get verified", copy: "Submit your student ID and a photo." },
+      { title: "Get verified", copy: "Complete your profile and BVN/NIN verification." },
       { title: "List", copy: "Add photos and a description once approved." },
       { title: "Manage", copy: "Respond to buyers from your dashboard." },
       { title: "Get paid", copy: "Funds release once the buyer confirms." },
@@ -105,10 +105,10 @@ export default function LearnMore() {
                 Verified sellers. Escrow-protected payments.
               </h2>
               <p className="mt-3 max-w-2xl text-white/85">
-                Every seller confirms their student ID before they can list
-                anything, and every payment sits in escrow until you confirm
-                the item arrived. Those two rules are the foundation
-                everything else is built on.
+                Every seller completes BVN/NIN identity verification before
+                withdrawing earnings, and every payment sits in escrow until
+                you confirm the item arrived. Those two rules are the
+                foundation everything else is built on.
               </p>
               <div className="mt-6 flex items-center gap-2 text-sm font-medium">
                 <CreditCard className="h-4 w-4" />
