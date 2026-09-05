@@ -602,6 +602,21 @@ const Profile = () => {
         throw new Error("Failed to delete account");
       }
 
+      // Scrubs the real email/password so this identity can never be used
+      // to log back in - separate from the RPC above because it needs
+      // service-role Auth Admin API access, not available from a plain
+      // Postgres function. Called after the RPC succeeds, using the
+      // still-active session (before it's cleared below) to identify the
+      // caller. If this step fails, the account is already anonymized and
+      // banned by the RPC above - not touching auth.users on failure here
+      // just means the old credentials keep working, no less safe than
+      // that already-committed state.
+      try {
+        await supabase.functions.invoke("delete-account");
+      } catch (scrubError) {
+        console.error("Failed to scrub auth credentials:", scrubError);
+      }
+
       // Clear local storage and caches
       localStorage.clear();
       sessionStorage.clear();

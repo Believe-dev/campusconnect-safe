@@ -22,6 +22,7 @@ const TAB_OPTIONS = [
   { key: "wallet", label: "Admin Wallet" },
   { key: "orders", label: "Orders" },
   { key: "settings", label: "Settings" },
+  { key: "commission_settings", label: "Commission Rate" },
 ];
 
 interface StaffMember {

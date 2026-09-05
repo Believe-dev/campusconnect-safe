@@ -302,6 +302,9 @@ export default function Admin() {
   const [disputeTemplates, setDisputeTemplates] = useState<any[]>([]);
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [showPassword, setShowPassword] = useState(false);
+  const [platformSettings, setPlatformSettings] = useState<any>(null);
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [savingCommission, setSavingCommission] = useState(false);
 
   // Refresh function for pull-to-refresh
   const handleRefresh = async () => {
@@ -320,7 +323,8 @@ export default function Admin() {
         fetchBanAppeals(),
         fetchEmailLogs(),
         fetchDisputeTemplates(),
-        fetchSuggestions()
+        fetchSuggestions(),
+        fetchPlatformSettings()
       ]);
     }
   };
@@ -352,6 +356,7 @@ export default function Admin() {
       fetchEmailLogs();
       fetchDisputeTemplates();
       fetchSuggestions();
+      fetchPlatformSettings();
     }
   }, [isAdmin, isSuperAdmin]);
 
@@ -955,6 +960,21 @@ export default function Admin() {
       setDisputeTemplates(templates || []);
     } catch (error) {
       setDisputeTemplates([]);
+    }
+  };
+
+  const fetchPlatformSettings = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("platform_settings")
+        .select("*")
+        .eq("id", 1)
+        .single();
+
+      if (error) throw error;
+      setPlatformSettings(data);
+    } catch (error) {
+      console.error("Error fetching platform settings:", error);
     }
   };
 
@@ -2225,6 +2245,14 @@ export default function Admin() {
               </p>
             </CardContent>
           </Card>
+          {/* Financial - default withheld from a regular admin unless
+              specifically granted one of the financial tabs, same boundary
+              as the tabs themselves (this card sits outside the tab system
+              entirely, so it needs its own check). */}
+          {(isSuperAdmin ||
+            canAccessTab("escrow") ||
+            canAccessTab("wallet") ||
+            canAccessTab("subscriptions")) && (
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Revenue</CardTitle>
@@ -2249,6 +2277,7 @@ export default function Admin() {
               </p>
             </CardContent>
           </Card>
+          )}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Conversations</CardTitle>
@@ -3149,17 +3178,25 @@ export default function Admin() {
                                       <AlertDialogTrigger asChild>
                                         <Button variant="destructive" size="sm">
                                           <Trash2 className="h-4 w-4 mr-2" />
-                                          Delete
+                                          Delete Account
                                         </Button>
                                       </AlertDialogTrigger>
                                       <AlertDialogContent>
                                         <AlertDialogHeader>
                                           <AlertDialogTitle>
-                                            Delete User Account
+                                            Delete Account
                                           </AlertDialogTitle>
                                           <AlertDialogDescription>
-                                            Permanently delete {user.full_name}
-                                            's account and all data?
+                                            Permanently ban {user.full_name} and
+                                            remove their personal information
+                                            (name, email, phone, photos, bio).
+                                            Their orders, products, and
+                                            messages stay on record - other
+                                            users' order/dispute history still
+                                            needs them to make sense - but will
+                                            show as "Deleted User" going
+                                            forward. Their listings are taken
+                                            down. This cannot be undone.
                                           </AlertDialogDescription>
                                         </AlertDialogHeader>
                                         <AlertDialogFooter>
@@ -3169,23 +3206,22 @@ export default function Admin() {
                                           <AlertDialogAction
                                             onClick={async () => {
                                               try {
-                                                // Since delete_user_completely function doesn't exist, we'll handle this manually
-                                                const { error } = await supabase
-                                                  .from("profiles")
-                                                  .delete()
-                                                  .eq("user_id", user.user_id);
+                                                const { error } = await supabase.rpc(
+                                                  "admin_delete_user",
+                                                  { target_user_id: user.user_id }
+                                                );
                                                 if (error) throw error;
-                                                toast.success("User deleted");
+                                                toast.success("Account deleted");
                                                 fetchUsers();
-                                              } catch (error) {
+                                              } catch (error: any) {
                                                 toast.error(
-                                                  "Failed to delete user"
+                                                  error.message || "Failed to delete account"
                                                 );
                                               }
                                             }}
                                             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                                           >
-                                            Delete
+                                            Delete Account
                                           </AlertDialogAction>
                                         </AlertDialogFooter>
                                       </AlertDialogContent>
@@ -5718,33 +5754,35 @@ export default function Admin() {
                                         const formData = new FormData(
                                           e.currentTarget
                                         );
-                                        const updates = {
-                                          template_name: formData.get(
-                                            "template_name"
-                                          ) as string,
-                                          subject: formData.get(
-                                            "subject"
-                                          ) as string,
-                                          message: formData.get(
-                                            "message"
-                                          ) as string,
-                                          updated_at: new Date().toISOString(),
-                                        };
-
                                         try {
-                                          // Mock update since table doesn't exist
+                                          const { error } = await supabase.rpc(
+                                            "update_dispute_template",
+                                            {
+                                              p_template_id: template.id,
+                                              p_template_name: formData.get(
+                                                "template_name"
+                                              ) as string,
+                                              p_subject: formData.get(
+                                                "subject"
+                                              ) as string,
+                                              p_message: formData.get(
+                                                "message"
+                                              ) as string,
+                                            }
+                                          );
+                                          if (error) throw error;
 
                                           toast.success(
                                             "Template updated successfully"
                                           );
                                           fetchDisputeTemplates();
-                                        } catch (error) {
+                                        } catch (error: any) {
                                           console.error(
                                             "Update template error:",
                                             error
                                           );
                                           toast.error(
-                                            "Failed to update template"
+                                            error.message || "Failed to update template"
                                           );
                                         }
                                       }}
@@ -6993,14 +7031,58 @@ export default function Admin() {
 
               <Card>
                 <CardHeader>
-                  <CardTitle>System Settings</CardTitle>
+                  <CardTitle>Platform Configuration</CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    Persisted in platform_settings - these now actually save.
+                    Note: these control what an admin can configure, not
+                    enforcement elsewhere in the app (e.g. turning off "Allow
+                    New Registrations" here doesn't yet block signups).
+                  </p>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-6">
-                    <div>
-                      <h3 className="text-lg font-semibold mb-4">
-                        Platform Configuration
-                      </h3>
+                  {!platformSettings ? (
+                    <div className="py-8 text-center text-sm text-muted-foreground">
+                      Loading...
+                    </div>
+                  ) : (
+                    <form
+                      key={platformSettings.updated_at}
+                      onSubmit={async (e) => {
+                        e.preventDefault();
+                        const formData = new FormData(e.currentTarget);
+                        setSavingSettings(true);
+                        try {
+                          const { error } = await supabase.rpc(
+                            "update_platform_settings",
+                            {
+                              p_allow_new_registrations:
+                                formData.get("allow_new_registrations") === "on",
+                              p_require_email_verification:
+                                formData.get("require_email_verification") === "on",
+                              p_enable_product_moderation:
+                                formData.get("enable_product_moderation") === "on",
+                              p_minimum_order_value: Number(
+                                formData.get("minimum_order_value") || 0
+                              ),
+                              p_support_whatsapp_number: String(
+                                formData.get("support_whatsapp_number") || ""
+                              ),
+                            }
+                          );
+                          if (error) throw error;
+                          toast.success("Settings saved");
+                          fetchPlatformSettings();
+                        } catch (error: any) {
+                          console.error("Save platform settings error:", error);
+                          toast.error(
+                            error.message || "Failed to save settings"
+                          );
+                        } finally {
+                          setSavingSettings(false);
+                        }
+                      }}
+                      className="space-y-6"
+                    >
                       <div className="space-y-4">
                         <div className="flex items-center justify-between">
                           <div>
@@ -7009,7 +7091,11 @@ export default function Admin() {
                               Control whether new users can register
                             </p>
                           </div>
-                          <input type="checkbox" defaultChecked />
+                          <input
+                            type="checkbox"
+                            name="allow_new_registrations"
+                            defaultChecked={platformSettings.allow_new_registrations}
+                          />
                         </div>
                         <div className="flex items-center justify-between">
                           <div>
@@ -7018,7 +7104,11 @@ export default function Admin() {
                               Require users to verify their email
                             </p>
                           </div>
-                          <input type="checkbox" defaultChecked />
+                          <input
+                            type="checkbox"
+                            name="require_email_verification"
+                            defaultChecked={platformSettings.require_email_verification}
+                          />
                         </div>
                         <div className="flex items-center justify-between">
                           <div>
@@ -7027,38 +7117,115 @@ export default function Admin() {
                               All new products require admin approval
                             </p>
                           </div>
-                          <input type="checkbox" />
+                          <input
+                            type="checkbox"
+                            name="enable_product_moderation"
+                            defaultChecked={platformSettings.enable_product_moderation}
+                          />
                         </div>
                       </div>
-                    </div>
 
-                    <div>
-                      <h3 className="text-lg font-semibold mb-4">
-                        Commission Settings
-                      </h3>
                       <div className="space-y-4">
                         <div>
-                          <Label>Platform Commission (%)</Label>
+                          <Label>Minimum Order Value</Label>
                           <Input
                             type="number"
-                            defaultValue="5"
+                            name="minimum_order_value"
+                            defaultValue={platformSettings.minimum_order_value}
                             min="0"
-                            max="100"
                           />
                         </div>
                         <div>
-                          <Label>Minimum Order Value</Label>
-                          <Input type="number" defaultValue="10" min="0" />
+                          <Label>Support WhatsApp Number</Label>
+                          <p className="text-sm text-muted-foreground">
+                            Shown to buyers/sellers as a contact option (e.g.
+                            in the Escrow dispute view) - was hardcoded in
+                            source before this.
+                          </p>
+                          <Input
+                            type="text"
+                            name="support_whatsapp_number"
+                            defaultValue={platformSettings.support_whatsapp_number || ""}
+                            placeholder="2349133054018"
+                          />
                         </div>
                       </div>
-                    </div>
 
-                    <div className="flex justify-end">
-                      <Button>Save Settings</Button>
-                    </div>
-                  </div>
+                      <div className="flex justify-end">
+                        <Button type="submit" disabled={savingSettings}>
+                          {savingSettings ? "Saving..." : "Save Settings"}
+                        </Button>
+                      </div>
+                    </form>
+                  )}
                 </CardContent>
               </Card>
+
+              {/* Default withheld from any admin who isn't Super Admin -
+                  canAccessTab('commission_settings') only returns true for
+                  isSuperAdmin or a regular admin specifically granted this
+                  key via Staff Access, same mechanism as escrow/wallet/
+                  subscriptions, independent of whether they also have plain
+                  'settings' access above. */}
+              {canAccessTab("commission_settings") && platformSettings && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Commission Rate</CardTitle>
+                    <p className="text-sm text-muted-foreground">
+                      Applied to new orders at checkout. Only visible to
+                      Super Admins by default.
+                    </p>
+                  </CardHeader>
+                  <CardContent>
+                    <form
+                      key={platformSettings.updated_at}
+                      onSubmit={async (e) => {
+                        e.preventDefault();
+                        const formData = new FormData(e.currentTarget);
+                        setSavingCommission(true);
+                        try {
+                          const { error } = await supabase.rpc(
+                            "update_commission_rate",
+                            {
+                              p_rate: Number(
+                                formData.get("commission_rate_percent")
+                              ),
+                            }
+                          );
+                          if (error) throw error;
+                          toast.success("Commission rate updated");
+                          fetchPlatformSettings();
+                        } catch (error: any) {
+                          console.error("Update commission rate error:", error);
+                          toast.error(
+                            error.message || "Failed to update commission rate"
+                          );
+                        } finally {
+                          setSavingCommission(false);
+                        }
+                      }}
+                      className="space-y-4"
+                    >
+                      <div>
+                        <Label>Platform Commission (%)</Label>
+                        <Input
+                          type="number"
+                          name="commission_rate_percent"
+                          defaultValue={platformSettings.commission_rate_percent}
+                          min="0"
+                          max="50"
+                          step="0.1"
+                        />
+                      </div>
+                      <div className="flex justify-end">
+                        <Button type="submit" disabled={savingCommission}>
+                          {savingCommission ? "Saving..." : "Save Commission Rate"}
+                        </Button>
+                      </div>
+                    </form>
+                  </CardContent>
+                </Card>
+              )}
             </div>
           </TabsContent>
           {/* Orders Tab */}
