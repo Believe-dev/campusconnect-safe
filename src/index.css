@@ -195,8 +195,16 @@
     }
   }
 
+  /* 68px flat used to under-reserve on two counts: it ignored
+     env(safe-area-inset-bottom) even though the nav's own bottom padding
+     (BottomNav.tsx) already grows with it on notched devices, and it never
+     accounted for the extra "Sell" floating button approved sellers see
+     stacked above the pill bar (~52px more). Content sitting near the
+     bottom of any page could end up partly hidden behind the nav as a
+     result - this reserves the worst case (Sell button + safe area)
+     unconditionally rather than tracking which pages/users hit which case. */
   body.has-fixed-bottom-nav {
-    padding-bottom: 68px;
+    padding-bottom: calc(130px + env(safe-area-inset-bottom));
   }
 
   @media (min-width: 1024px) {

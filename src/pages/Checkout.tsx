@@ -339,44 +339,18 @@ const Checkout = () => {
         .map((i) => i.products.title)
         .join(", ");
 
-      if (sellerProfile) {
-        try {
-          const { sendOrderNotification } = await import("@/utils/notificationService");
-          await sendOrderNotification(
-            sellerId,
-            "New Order Received! 🎉",
-            `You have a new order for ${productTitles}. Total: ₦${orderTotal.toLocaleString()}`,
-            orderId
-          );
-        } catch (notifErr) {
-          console.warn("Seller notification error:", notifErr);
-        }
-
-        try {
-          await supabase.functions.invoke("send-email", {
-            body: {
-              to: sellerProfile.email,
-              subject: "New Order Received - UniMarket",
-              html: `
-                <h2>New Order Received!</h2>
-                <p>Hello ${sellerProfile.full_name},</p>
-                <p>You have received a new order:</p>
-                <ul>
-                  <li><strong>Products:</strong> ${productTitles}</li>
-                  <li><strong>Buyer:</strong> ${buyerProfile?.full_name || "Unknown"}</li>
-                  <li><strong>Total Amount:</strong> ₦${orderTotal.toLocaleString()}</li>
-                  <li><strong>Order Date:</strong> ${new Date().toLocaleDateString()}</li>
-                </ul>
-                <p><strong>⚠️ Important:</strong> Payment will be automatically released in 2 days if the buyer doesn't confirm receipt.</p>
-                <p>Please log in to your dashboard to manage this order.</p>
-                <p>Best regards,<br>UniMarket Team</p>
-              `,
-            },
-          });
-        } catch (emailError) {
-          // Error handled silently
-        }
-      }
+      // Seller-facing "New Order Received" notification + email used to be
+      // sent from here - the instant the buyer clicks "I've paid", before
+      // Anchor's webhook has actually confirmed the transfer cleared (the
+      // order is still 'pending' at this point). That let a seller be
+      // notified for money that was never sent, and gave nothing if the
+      // buyer's tab closed right after this click. It's now sent from
+      // notify_seller_new_order() (see migration
+      // 20260905000001_seller_new_order_notification.sql), a DB trigger on
+      // orders.status pending -> paid - the same webhook-confirmed moment
+      // Bug 2's fix already made the source of truth for payment
+      // completion - through the standard notifications pipeline instead of
+      // a separate one-off client-side email.
 
       try {
         const { sendOrderNotification } = await import("@/utils/notificationService");

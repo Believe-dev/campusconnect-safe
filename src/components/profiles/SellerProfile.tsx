@@ -25,8 +25,12 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { Textarea } from "@/components/ui/textarea";
+import { IconButton } from "@/components/ui/icon-button";
 import { cn } from "@/lib/utils";
-import { shareSellerProfile, generateSellerProfileUrl } from "@/utils/shareUtils";
+import {
+  shareSellerProfile,
+  generateSellerProfileUrl,
+} from "@/utils/shareUtils";
 
 interface SellerProfile {
   id: string;
@@ -91,16 +95,26 @@ const SellerProfile = () => {
   const [gameBadge, setGameBadge] = useState<GameBadgeData | null>(null);
   const [isSellerAdmin, setIsSellerAdmin] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [isBioExpanded, setIsBioExpanded] = useState(false);
+
+  const scrollToReviews = () => {
+    document
+      .getElementById("seller-reviews")
+      ?.scrollIntoView({ behavior: "smooth" });
+  };
 
   const handleShare = async () => {
     if (!seller) return;
     const shared = await shareSellerProfile(seller);
     if (shared) {
       setCopied(true);
-      toast({ title: navigator.share ? 'Shared!' : 'Link copied!', description: generateSellerProfileUrl(seller.user_id) });
+      toast({
+        title: navigator.share ? "Shared!" : "Link copied!",
+        description: generateSellerProfileUrl(seller.user_id),
+      });
       setTimeout(() => setCopied(false), 2000);
     } else {
-      toast({ title: 'Could not share', variant: 'destructive' });
+      toast({ title: "Could not share", variant: "destructive" });
     }
   };
 
@@ -174,7 +188,7 @@ const SellerProfile = () => {
           department,
           business_name,
           created_at
-        `
+        `,
         )
         .eq("user_id", sellerId)
         .single();
@@ -207,7 +221,7 @@ const SellerProfile = () => {
             full_name,
             avatar_url
           )
-        `
+        `,
         )
         .eq("reviewed_id", sellerId)
         .order("created_at", { ascending: false })
@@ -254,7 +268,7 @@ const SellerProfile = () => {
           p_buyer_id: user.id,
           p_seller_id: seller.user_id,
           p_product_id: null,
-        }
+        },
       );
 
       if (error) throw error;
@@ -388,7 +402,9 @@ const SellerProfile = () => {
         <div className="flex min-h-[60vh] items-center justify-center px-4">
           <div className="rounded-3xl bg-flora-card p-8 text-center shadow-card">
             <User className="mx-auto mb-4 h-16 w-16 text-flora-muted" />
-            <h2 className="mb-2 text-2xl font-bold text-flora-ink">Profile Not Found</h2>
+            <h2 className="mb-2 text-2xl font-bold text-flora-ink">
+              Profile Not Found
+            </h2>
             <p className="text-flora-muted">This profile is not available.</p>
           </div>
         </div>
@@ -403,15 +419,16 @@ const SellerProfile = () => {
         <div className="flex min-h-[60vh] items-center justify-center px-4">
           <div className="max-w-md rounded-3xl bg-flora-card p-8 text-center shadow-card">
             <User className="mx-auto mb-4 h-16 w-16 text-flora-muted" />
-            <h2 className="mb-2 text-2xl font-bold text-flora-ink">Buyer Account</h2>
+            <h2 className="mb-2 text-2xl font-bold text-flora-ink">
+              Buyer Account
+            </h2>
             <p className="mb-4 text-flora-muted">
               This is a buyer's account and has no seller profile.
             </p>
             <button
               type="button"
               onClick={() => window.history.back()}
-              className="rounded-full border border-flora-ink/15 bg-white px-5 py-2.5 text-sm font-medium text-flora-ink transition hover:bg-flora-chip"
-            >
+              className="rounded-full border border-flora-ink/15 bg-white px-5 py-2.5 text-sm font-medium text-flora-ink transition hover:bg-flora-chip">
               Go Back
             </button>
           </div>
@@ -425,12 +442,20 @@ const SellerProfile = () => {
       <div className="py-8 pb-24 md:pb-8">
         <div className="max-w-4xl mx-auto px-4 space-y-6">
           {/* Seller Identity */}
-          <div className="rounded-4xl bg-flora-card p-6 shadow-card sm:p-8">
+          <div className="relative rounded-4xl bg-flora-card p-6 shadow-card sm:p-8">
+            <IconButton
+              icon={copied ? Check : Share2}
+              label={copied ? "Link copied" : "Share profile"}
+              tone="ghost"
+              size="sm"
+              onClick={handleShare}
+              className="absolute right-4 top-4 sm:right-6 sm:top-6"
+            />
+
             <div className="flex flex-col items-start gap-4 sm:flex-row sm:gap-6">
               <Avatar
                 className="mx-auto h-20 w-20 cursor-pointer ring-4 ring-flora-chip transition hover:brightness-95 sm:mx-0 sm:h-24 sm:w-24"
-                onClick={() => setShowAvatarModal(true)}
-              >
+                onClick={() => setShowAvatarModal(true)}>
                 <AvatarImage
                   src={seller.avatar_url}
                   alt={seller.business_name || seller.full_name}
@@ -480,21 +505,27 @@ const SellerProfile = () => {
                 </div>
 
                 <div className="mb-3 flex flex-col gap-2 text-flora-muted sm:flex-row sm:items-center sm:gap-4">
-                  {(seller.university_name || seller.campus) && (
+                  {seller.university_name && (
                     <div className="flex items-center justify-center gap-1 sm:justify-start">
-                      <MapPin className="h-4 w-4 flex-shrink-0" />
+                      <GraduationCap className="h-4 w-4 flex-shrink-0" />
                       <span className="truncate text-sm sm:text-base">
-                        {seller.university_name || seller.campus}
+                        {seller.university_name}
                       </span>
                     </div>
                   )}
 
-                  <div className="flex items-center justify-center gap-1 sm:justify-start">
-                    <GraduationCap className="h-4 w-4 flex-shrink-0" />
-                    <span className="text-sm sm:text-base">
-                      {seller.university_name}
-                    </span>
-                  </div>
+                  {/* Only shown when campus is a distinct value from the
+                      university name above - otherwise this used to repeat
+                      the exact same text twice on the card. */}
+                  {seller.campus &&
+                    seller.campus !== seller.university_name && (
+                      <div className="flex items-center justify-center gap-1 sm:justify-start">
+                        <MapPin className="h-4 w-4 flex-shrink-0" />
+                        <span className="truncate text-sm sm:text-base">
+                          {seller.campus}
+                        </span>
+                      </div>
+                    )}
                   {seller.phone_number && (
                     <div className="flex items-center justify-center gap-1 sm:justify-start">
                       <Phone className="h-4 w-4 flex-shrink-0" />
@@ -518,29 +549,43 @@ const SellerProfile = () => {
                 </div>
 
                 {seller.bio && (
-                  <p className="mb-4 break-words text-sm text-flora-muted sm:text-base">
-                    {seller.bio}
-                  </p>
+                  <div className="mb-4">
+                    <p
+                      className={cn(
+                        "break-words text-sm text-flora-muted sm:text-base",
+                        !isBioExpanded &&
+                          seller.bio.length > 150 &&
+                          "line-clamp-3",
+                      )}>
+                      {seller.bio}
+                    </p>
+                    {seller.bio.length > 150 && (
+                      <button
+                        type="button"
+                        onClick={() => setIsBioExpanded((v) => !v)}
+                        className="mt-1 text-sm font-medium text-flora-leaf transition hover:brightness-90">
+                        {isBioExpanded ? "Show less" : "Show more"}
+                      </button>
+                    )}
+                  </div>
                 )}
 
-                <div className="flex flex-wrap justify-center gap-2 sm:justify-start">
+                <div className="flex gap-2">
                   {user && user.id !== seller.user_id && (
                     <button
                       type="button"
                       onClick={startConversation}
-                      className="inline-flex items-center gap-2 rounded-full bg-flora-ink px-5 py-2.5 text-sm font-medium text-white transition hover:brightness-110"
-                    >
+                      className="inline-flex flex-1 items-center justify-center gap-2 rounded-full bg-flora-ink px-5 py-2.5 text-sm font-medium text-white transition hover:brightness-110 sm:flex-initial">
                       <MessageCircle className="h-4 w-4" />
-                      Message Seller
+                      Message
                     </button>
                   )}
                   <button
                     type="button"
-                    onClick={handleShare}
-                    className="inline-flex items-center gap-2 rounded-full border border-flora-ink/15 bg-white px-5 py-2.5 text-sm font-medium text-flora-ink transition hover:bg-flora-chip"
-                  >
-                    {copied ? <Check className="h-4 w-4" /> : <Share2 className="h-4 w-4" />}
-                    {copied ? 'Copied!' : 'Share Profile'}
+                    onClick={scrollToReviews}
+                    className="inline-flex flex-1 items-center justify-center gap-2 rounded-full border border-flora-ink/15 bg-white px-5 py-2.5 text-sm font-medium text-flora-ink transition hover:bg-flora-chip sm:flex-initial">
+                    <Star className="h-4 w-4" />
+                    Reviews ({reviews.length})
                   </button>
                 </div>
               </div>
@@ -564,8 +609,7 @@ const SellerProfile = () => {
                     <div
                       key={product.id}
                       className="cursor-pointer overflow-hidden rounded-3xl bg-white shadow-card transition hover:brightness-[0.98]"
-                      onClick={() => navigate(`/product/${product.id}`)}
-                    >
+                      onClick={() => navigate(`/product/${product.id}`)}>
                       <div className="relative">
                         {product.images && product.images[0] ? (
                           <img
@@ -607,8 +651,7 @@ const SellerProfile = () => {
                     <button
                       type="button"
                       onClick={() => setVisibleProducts((prev) => prev + 10)}
-                      className="rounded-full border border-flora-ink/15 bg-white px-5 py-2.5 text-sm font-medium text-flora-ink transition hover:bg-flora-chip"
-                    >
+                      className="rounded-full border border-flora-ink/15 bg-white px-5 py-2.5 text-sm font-medium text-flora-ink transition hover:bg-flora-chip">
                       Show More
                     </button>
                   </div>
@@ -618,13 +661,15 @@ const SellerProfile = () => {
           </div>
 
           {/* Reviews Section */}
-          <div className="rounded-4xl bg-flora-card p-6 shadow-card sm:p-8">
+          <div
+            id="seller-reviews"
+            className="scroll-mt-24 rounded-4xl bg-flora-card p-6 shadow-card sm:p-8">
             <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-flora-ink sm:text-xl">
               <Star className="h-4 w-4 text-flora-leaf sm:h-5 sm:w-5" />
               Reviews ({reviews.length})
             </h2>
             {user && user.id !== seller.user_id && (
-              <div className="mb-6 rounded-2xl border border-flora-ink/10 p-3 sm:p-4">
+              <div className="mb-6 rounded-2xl bg-flora-chip p-3 sm:p-4">
                 <h4 className="mb-3 text-sm font-medium text-flora-ink sm:text-base">
                   Leave a Review
                 </h4>
@@ -634,14 +679,13 @@ const SellerProfile = () => {
                       key={i}
                       onClick={() => setRatingInput(i)}
                       className="touch-manipulation p-1"
-                      aria-label={`Rate ${i} star`}
-                    >
+                      aria-label={`Rate ${i} star`}>
                       <Star
                         className={cn(
                           "h-6 w-6 sm:h-5 sm:w-5",
                           i <= ratingInput
                             ? "fill-amber-400 text-amber-400"
-                            : "text-flora-chip"
+                            : "text-flora-chip",
                         )}
                       />
                     </button>
@@ -658,8 +702,7 @@ const SellerProfile = () => {
                   type="button"
                   onClick={submitReview}
                   disabled={submittingReview || ratingInput === 0}
-                  className="w-full rounded-full bg-flora-ink px-5 py-2.5 text-sm font-medium text-white transition hover:brightness-110 disabled:opacity-50 sm:w-auto"
-                >
+                  className="w-full rounded-full bg-flora-ink px-5 py-2.5 text-sm font-medium text-white transition hover:brightness-110 disabled:opacity-50 sm:w-auto">
                   {submittingReview ? "Submitting..." : "Submit Review"}
                 </button>
               </div>
@@ -669,11 +712,13 @@ const SellerProfile = () => {
                 No reviews yet.
               </p>
             ) : (
-              <div className="divide-y divide-flora-ink/10">
+              <div className="space-y-5">
                 {reviews.map((review) => (
-                  <div key={review.id} className="py-4 first:pt-0 last:pb-0">
+                  <div
+                    key={review.id}
+                    className="border-t border-flora-ink/10 pt-5 first:border-t-0 first:pt-0">
                     <div className="flex items-start gap-3">
-                      <Avatar className="h-8 w-8 flex-shrink-0">
+                      <Avatar className="h-10 w-10 flex-shrink-0">
                         <AvatarImage src={review.reviewer.avatar_url} />
                         <AvatarFallback className="bg-flora-chip text-xs text-flora-ink">
                           {getInitials(review.reviewer.full_name)}
@@ -693,7 +738,7 @@ const SellerProfile = () => {
                                   "h-3 w-3",
                                   i < review.rating
                                     ? "fill-amber-400 text-amber-400"
-                                    : "text-flora-chip"
+                                    : "text-flora-chip",
                                 )}
                               />
                             ))}
@@ -722,7 +767,9 @@ const SellerProfile = () => {
       <Dialog open={showAvatarModal} onOpenChange={setShowAvatarModal}>
         <DialogContent className="max-w-md border-flora-ink/10 bg-flora-card text-flora-ink">
           <DialogHeader>
-            <DialogTitle className="text-flora-ink">Profile Picture</DialogTitle>
+            <DialogTitle className="text-flora-ink">
+              Profile Picture
+            </DialogTitle>
           </DialogHeader>
           <div className="flex justify-center">
             {seller.avatar_url ? (
