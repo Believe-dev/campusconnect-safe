@@ -104,19 +104,57 @@ serve(async (req) => {
       );
     }
 
-    const { data: updated } = await admin
+    // Atomically claim the right to complete this intent - whichever of this
+    // call or the webhook gets here first "wins" via the same
+    // .eq("status","pending") guard as before. Status only reaches "paid"
+    // once completion below actually succeeds; a failure reverts to
+    // "pending" so the claim-guard picks it up again on retry, instead of
+    // silently reporting success while seller_features_active never flips.
+    const { data: claimed } = await admin
       .from("seller_payment_intents")
-      .update({ status: "paid", payment_reference: match.id, updated_at: new Date().toISOString() })
+      .update({ status: "completing", payment_reference: match.id, updated_at: new Date().toISOString() })
       .eq("id", intentId)
-      .eq("status", "pending") // idempotent: no-op if the webhook already flipped it
+      .eq("status", "pending")
       .select("id");
 
-    if (updated?.length) {
-      if (intent.purpose === "registration") {
-        await completeSellerRegistration(admin, intent.user_id, match.id, Number(intent.amount));
-      } else {
-        await completeSellerRenewal(admin, intent.user_id, match.id);
+    if (claimed?.length) {
+      try {
+        if (intent.purpose === "registration") {
+          await completeSellerRegistration(admin, intent.user_id, match.id, Number(intent.amount));
+        } else {
+          await completeSellerRenewal(admin, intent.user_id, match.id);
+        }
+        await admin
+          .from("seller_payment_intents")
+          .update({ status: "paid", updated_at: new Date().toISOString() })
+          .eq("id", intentId);
+      } catch (completionErr) {
+        console.error("🔴 Seller payment completion failed, reverting intent to pending for retry:", completionErr);
+        await admin
+          .from("seller_payment_intents")
+          .update({ status: "pending", updated_at: new Date().toISOString() })
+          .eq("id", intentId);
+        return new Response(
+          JSON.stringify({ verified: false, message: "Payment received but activation failed. Please try again in a moment." }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
       }
+    } else {
+      // Another caller (the webhook) already claimed or finished this intent
+      // between our SELECT above and now - report its actual current status
+      // rather than assuming.
+      const { data: current } = await admin
+        .from("seller_payment_intents")
+        .select("status")
+        .eq("id", intentId)
+        .single();
+      return new Response(
+        JSON.stringify({
+          verified: current?.status === "paid",
+          message: current?.status === "paid" ? "Bank transfer verified with Anchor." : "Payment status: " + current?.status,
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     return new Response(

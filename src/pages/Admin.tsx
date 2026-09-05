@@ -305,7 +305,7 @@ export default function Admin() {
 
   // Refresh function for pull-to-refresh
   const handleRefresh = async () => {
-    if (isAdmin) {
+    if (isAdmin || isSuperAdmin) {
       await Promise.all([
         fetchUsers(),
         fetchProducts(),
@@ -336,7 +336,7 @@ export default function Admin() {
   };
 
   useEffect(() => {
-    if (isAdmin) {
+    if (isAdmin || isSuperAdmin) {
       console.log("Admin dashboard loading...");
       fetchUsers();
       fetchProducts();
@@ -353,7 +353,7 @@ export default function Admin() {
       fetchDisputeTemplates();
       fetchSuggestions();
     }
-  }, [isAdmin]);
+  }, [isAdmin, isSuperAdmin]);
 
   const fetchUsers = async () => {
     try {
@@ -1931,7 +1931,7 @@ export default function Admin() {
     return <Navigate to="/auth" replace />;
   }
 
-  if (!isAdmin) {
+  if (!isAdmin && !isSuperAdmin) {
     return (
       <div className="min-h-screen bg-background">
         <div className="container mx-auto px-4 py-8">
