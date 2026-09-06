@@ -1225,6 +1225,42 @@ export type Database = {
         }
         Relationships: []
       }
+      platform_settings: {
+        Row: {
+          allow_new_registrations: boolean
+          commission_rate_percent: number
+          enable_product_moderation: boolean
+          id: number
+          minimum_order_value: number
+          require_email_verification: boolean
+          support_whatsapp_number: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          allow_new_registrations?: boolean
+          commission_rate_percent?: number
+          enable_product_moderation?: boolean
+          id?: number
+          minimum_order_value?: number
+          require_email_verification?: boolean
+          support_whatsapp_number?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          allow_new_registrations?: boolean
+          commission_rate_percent?: number
+          enable_product_moderation?: boolean
+          id?: number
+          minimum_order_value?: number
+          require_email_verification?: boolean
+          support_whatsapp_number?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       privacy_settings: {
         Row: {
           allow_messages: boolean | null
@@ -2232,12 +2268,20 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      _anonymize_and_deactivate_account: {
+        Args: { p_note: string; target_user_id: string }
+        Returns: undefined
+      }
       activate_seller_features: {
         Args: { p_user_id: string }
         Returns: boolean
       }
       admin_approve_payout_request: {
         Args: { p_notes?: string; p_payout_id: string }
+        Returns: undefined
+      }
+      admin_delete_user: {
+        Args: { target_user_id: string }
         Returns: undefined
       }
       admin_extend_subscription: {
@@ -2597,6 +2641,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      update_commission_rate: { Args: { p_rate: number }; Returns: undefined }
       update_crossword_leaderboard: {
         Args: {
           p_completion_time: number
@@ -2605,6 +2650,25 @@ export type Database = {
           p_user_id: string
         }
         Returns: boolean
+      }
+      update_dispute_template: {
+        Args: {
+          p_message: string
+          p_subject: string
+          p_template_id: string
+          p_template_name: string
+        }
+        Returns: undefined
+      }
+      update_platform_settings: {
+        Args: {
+          p_allow_new_registrations: boolean
+          p_enable_product_moderation: boolean
+          p_minimum_order_value: number
+          p_require_email_verification: boolean
+          p_support_whatsapp_number: string
+        }
+        Returns: undefined
       }
       update_seller_subscription_payment: {
         Args: {

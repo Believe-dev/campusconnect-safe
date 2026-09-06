@@ -23,6 +23,8 @@ interface LiveFeedItem {
   profiles?: {
     full_name: string;
     avatar_url: string;
+    user_id: string;
+    is_verified?: boolean;
   };
   live_feed_likes?: { count: number }[];
   live_feed_comments?: { count: number }[];
@@ -46,8 +48,10 @@ const LiveFeed = () => {
           `
           *,
           profiles(
+            user_id,
             full_name,
-            avatar_url
+            avatar_url,
+            is_verified
           )
         `
         )

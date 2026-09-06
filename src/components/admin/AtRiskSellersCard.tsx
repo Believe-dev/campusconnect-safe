@@ -1,9 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, RefreshCw } from "lucide-react";
-import { Button } from "@/components/ui/enhanced-button";
 
 interface AtRiskSeller {
   user_id: string;
@@ -82,64 +79,73 @@ export const AtRiskSellersCard = () => {
   const totalHeld = sellers.reduce((sum, s) => sum + s.heldAmount, 0);
 
   return (
-    <Card className={sellers.length > 0 ? "border-amber-300" : undefined}>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <AlertTriangle className={`h-4 w-4 ${sellers.length > 0 ? "text-amber-500" : "text-muted-foreground"}`} />
+    <div
+      className={`rounded-3xl bg-flora-card p-5 shadow-card sm:p-6 ${
+        sellers.length > 0 ? "ring-1 ring-amber-300" : ""
+      }`}
+    >
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="flex items-center gap-2 text-base font-bold text-flora-ink">
+          <AlertTriangle
+            className={`h-4 w-4 ${sellers.length > 0 ? "text-amber-500" : "text-flora-muted"}`}
+          />
           Unverified Sellers With Held Escrow
-        </CardTitle>
-        <Button variant="ghost" size="sm" onClick={load} disabled={loading} title="Refresh">
+        </h2>
+        <button
+          type="button"
+          onClick={load}
+          disabled={loading}
+          title="Refresh"
+          className="inline-flex items-center justify-center rounded-full border border-flora-ink/15 bg-white p-2 text-flora-ink transition hover:bg-flora-chip disabled:opacity-50"
+        >
           <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-        </Button>
-      </CardHeader>
-      <CardContent>
-        {loading ? (
-          <p className="text-sm text-muted-foreground">Loading...</p>
-        ) : sellers.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            No unverified or rejected-KYC sellers currently have held escrow. Nothing at risk right now.
+        </button>
+      </div>
+      {loading ? (
+        <p className="mt-3 text-sm text-flora-muted">Loading...</p>
+      ) : sellers.length === 0 ? (
+        <p className="mt-3 text-sm text-flora-muted">
+          No unverified or rejected-KYC sellers currently have held escrow. Nothing at risk right now.
+        </p>
+      ) : (
+        <div className="mt-3 space-y-3">
+          <p className="text-sm text-flora-muted">
+            <strong className="text-flora-ink">{sellers.length}</strong> seller{sellers.length !== 1 ? "s" : ""} with{" "}
+            <strong className="text-flora-ink">₦{totalHeld.toLocaleString()}</strong> in held escrow can't be paid out until
+            they complete or resubmit identity verification.
           </p>
-        ) : (
-          <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              <strong className="text-foreground">{sellers.length}</strong> seller{sellers.length !== 1 ? "s" : ""} with{" "}
-              <strong className="text-foreground">₦{totalHeld.toLocaleString()}</strong> in held escrow can't be paid out until
-              they complete or resubmit identity verification.
-            </p>
-            <div className="space-y-2">
-              {sellers.map((s) => (
-                <div
-                  key={s.user_id}
-                  className="flex items-center justify-between gap-3 rounded-lg border p-3 text-sm"
-                >
-                  <div className="min-w-0">
-                    <p className="font-medium truncate">{s.full_name || "Unknown seller"}</p>
-                    <p className="text-xs text-muted-foreground truncate">{s.email}</p>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-3">
-                    <Badge
-                      variant="outline"
-                      className={
-                        s.kyc_status === "rejected"
-                          ? "border-red-400 text-red-600"
-                          : "border-amber-400 text-amber-600"
-                      }
-                    >
-                      {s.kyc_status}
-                    </Badge>
-                    <div className="text-right">
-                      <p className="font-semibold">₦{s.heldAmount.toLocaleString()}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {s.heldOrders} order{s.heldOrders !== 1 ? "s" : ""}
-                      </p>
-                    </div>
+          <div className="space-y-2">
+            {sellers.map((s) => (
+              <div
+                key={s.user_id}
+                className="flex items-center justify-between gap-3 rounded-2xl border border-flora-ink/10 p-3 text-sm"
+              >
+                <div className="min-w-0">
+                  <p className="truncate font-medium text-flora-ink">{s.full_name || "Unknown seller"}</p>
+                  <p className="truncate text-xs text-flora-muted">{s.email}</p>
+                </div>
+                <div className="flex shrink-0 items-center gap-3">
+                  <span
+                    className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                      s.kyc_status === "rejected"
+                        ? "bg-red-100 text-red-600"
+                        : "bg-amber-100 text-amber-700"
+                    }`}
+                  >
+                    {s.kyc_status}
+                  </span>
+                  <div className="text-right">
+                    <p className="font-semibold text-flora-ink">₦{s.heldAmount.toLocaleString()}</p>
+                    <p className="text-xs text-flora-muted">
+                      {s.heldOrders} order{s.heldOrders !== 1 ? "s" : ""}
+                    </p>
                   </div>
                 </div>
-              ))}
-            </div>
+              </div>
+            ))}
           </div>
-        )}
-      </CardContent>
-    </Card>
+        </div>
+      )}
+    </div>
   );
 };

@@ -16,7 +16,6 @@ const TAB_OPTIONS = [
   { key: "messages", label: "Messages" },
   { key: "emails", label: "Emails" },
   { key: "templates", label: "Templates" },
-  { key: "analytics", label: "Analytics" },
   { key: "suggestions", label: "Suggestions" },
   { key: "subscriptions", label: "Subscriptions" },
   { key: "wallet", label: "Admin Wallet" },

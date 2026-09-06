@@ -36,6 +36,7 @@ interface SellerProfile {
   id: string;
   user_id: string;
   full_name: string;
+  account_type: string;
   university_name?: string;
   campus: string;
   bio: string;

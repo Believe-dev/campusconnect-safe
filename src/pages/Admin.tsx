@@ -2,12 +2,20 @@ import React, { useState, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdminPermissions } from "@/hooks/useAdminPermissions";
+import { NIGERIAN_UNIVERSITIES } from "@/lib/constants";
 import { Navigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import {
   Table,
   TableBody,
@@ -83,10 +91,11 @@ import {
   TrendingUp,
   TrendingDown,
   DollarSign,
-  IdCard,
+  ShoppingBag,
   Flag,
   Check,
   ChevronsUpDown,
+  ChevronDown,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "sonner";
@@ -98,6 +107,7 @@ import { SellerSubscriptionManager } from "@/components/admin/SellerSubscription
 import { PullToRefresh } from "@/components/common/PullToRefresh";
 import { OrdersTab } from "@/components/admin/OrdersTab";
 import { AdminStaffAccessTab } from "@/components/admin/tabs/AdminStaffAccessTab";
+import { PendingApprovalsTab } from "@/components/admin/tabs/PendingApprovalsTab";
 import { AtRiskSellersCard } from "@/components/admin/AtRiskSellersCard";
 import { approveSellerEscrow, refundAnchorPayment } from "@/services/anchorBaasService";
 
@@ -175,6 +185,8 @@ interface Analytics {
   monthlyGrowth: number;
   topCategories: { category: string; count: number }[];
   recentOrders: number;
+  sellerFeesEarned: number;
+  commissionsEarned: number;
 }
 
 interface EscrowTransaction {
@@ -227,7 +239,7 @@ interface Dispute {
     seller_id: string;
     buyer_id: string;
     products: { title: string };
-    seller_profile: { full_name: string; student_id?: string };
+    seller_profile: { full_name: string; student_id?: string; email?: string };
     buyer_profile: { full_name: string; student_id?: string };
   };
   reporter: { full_name: string };
@@ -254,6 +266,7 @@ export default function Admin() {
   const [products, setProducts] = useState<Product[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
+  const [conversationSearch, setConversationSearch] = useState("");
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [conversationMessages, setConversationMessages] = useState<Message[]>([]);
   const [loadingConversation, setLoadingConversation] = useState(false);
@@ -262,6 +275,8 @@ export default function Admin() {
     monthlyGrowth: 0,
     topCategories: [],
     recentOrders: 0,
+    sellerFeesEarned: 0,
+    commissionsEarned: 0,
   });
   const [stats, setStats] = useState({
     totalUsers: 0,
@@ -286,9 +301,22 @@ export default function Admin() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [showBulkActions, setShowBulkActions] = useState(false);
 
-  // Seller approval states
-  const [pendingSellers, setPendingSellers] = useState<User[]>([]);
-  const [verificationRequests, setVerificationRequests] = useState<User[]>([]);
+  // Sellers + Verification are now PendingApprovalsTab's own state (see
+  // that component) - this just receives its counts back for the combined
+  // TabsTrigger badge, since that lives here in the tab strip.
+  const [pendingApprovalCounts, setPendingApprovalCounts] = useState({
+    sellers: 0,
+    verification: 0,
+  });
+  // Same lift pattern as pendingApprovalCounts above, for the nav sidebar's
+  // Orders and Subscriptions badges.
+  const [pendingOrdersCount, setPendingOrdersCount] = useState(0);
+  const [subscriptionAttentionCount, setSubscriptionAttentionCount] = useState(0);
+  // Grouped-nav state (Stage 6) - Tabs is now controlled so the sidebar /
+  // mobile picker can drive selection directly, instead of TabsTrigger
+  // switching itself internally.
+  const [activeTab, setActiveTab] = useState("overview");
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   // Escrow and payout states
   const [escrowTransactions, setEscrowTransactions] = useState<
@@ -297,7 +325,9 @@ export default function Admin() {
   const [payoutRequests, setPayoutRequests] = useState<PayoutRequest[]>([]);
   const [disputes, setDisputes] = useState<Dispute[]>([]);
   const [productReports, setProductReports] = useState<ProductReport[]>([]);
+  const [reportSearch, setReportSearch] = useState("");
   const [banAppeals, setBanAppeals] = useState<any[]>([]);
+  const [appealSearch, setAppealSearch] = useState("");
   const [emailLogs, setEmailLogs] = useState<any[]>([]);
   const [disputeTemplates, setDisputeTemplates] = useState<any[]>([]);
   const [suggestions, setSuggestions] = useState<any[]>([]);
@@ -316,8 +346,6 @@ export default function Admin() {
         fetchConversations(),
         fetchStats(),
         fetchAnalytics(),
-        fetchPendingSellers(),
-        fetchVerificationRequests(),
         fetchEscrowData(),
         fetchProductReports(),
         fetchBanAppeals(),
@@ -348,8 +376,6 @@ export default function Admin() {
       fetchConversations();
       fetchStats();
       fetchAnalytics();
-      fetchPendingSellers();
-      fetchVerificationRequests();
       fetchEscrowData();
       fetchProductReports();
       fetchBanAppeals();
@@ -580,77 +606,6 @@ export default function Admin() {
     }
   };
 
-  const fetchPendingSellers = async () => {
-    try {
-      // Get profiles that want to be sellers but haven't been approved yet
-      // Include both sellers with pending status AND those who have paid registration fee
-      const { data: profiles, error: profilesError } = await supabase
-        .from("profiles")
-        .select(
-          `
-          id,
-          user_id,
-          full_name,
-          email,
-          university_name,
-          campus,
-          student_id,
-          phone_number,
-          bio,
-          account_type,
-          rating,
-          total_reviews,
-          face_photo_url,
-          created_at,
-          is_banned,
-          verification_status,
-          is_verified,
-          seller_status,
-          seller_registration_paid
-        `
-        )
-        .or("account_type.eq.seller,seller_registration_paid.eq.true")
-        .or("seller_status.is.null,seller_status.eq.pending")
-        .eq("is_banned", false)
-        .order("created_at", { ascending: false });
-
-      if (profilesError) {
-        console.error("Error fetching pending sellers:", profilesError);
-        setPendingSellers([]);
-        return;
-      }
-
-      // Transform data for pending sellers
-      const transformedData = (profiles || []).map((profile) => ({
-        id: profile.id,
-        user_id: profile.user_id,
-        full_name: profile.full_name || "Unknown",
-        email: profile.email || "Unknown",
-        university_name: profile.university_name || "N/A",
-        campus: profile.campus || "N/A",
-        student_id: profile.student_id || "N/A",
-        phone_number: profile.phone_number || "N/A",
-        bio: profile.bio || "No bio provided",
-        account_type: profile.account_type || "buyer",
-        rating: profile.rating || 0,
-        total_reviews: profile.total_reviews || 0,
-        avatar_url: getImageUrl(profile.face_photo_url),
-        face_photo_url: getImageUrl(profile.face_photo_url),
-        created_at: profile.created_at,
-        is_banned: profile.is_banned || false,
-        verification_status: profile.verification_status || "pending",
-        is_verified: profile.is_verified || false,
-        user_roles: [],
-      }));
-
-      console.log("Pending sellers found:", transformedData.length);
-      setPendingSellers(transformedData);
-    } catch (error) {
-      console.error("Error in fetchPendingSellers:", error);
-      setPendingSellers([]);
-    }
-  };
-
   const getImageUrl = (filePath: string | null) => {
     if (!filePath) return null;
 
@@ -665,245 +620,6 @@ export default function Admin() {
       .getPublicUrl(filePath);
 
     return data.publicUrl;
-  };
-
-  const fetchVerificationRequests = async () => {
-    try {
-      const { data: requests, error } = await supabase
-        .from("verification_requests")
-        .select("*")
-        .eq("status", "pending")
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-
-      if (!requests || requests.length === 0) {
-        setVerificationRequests([]);
-        return;
-      }
-
-      const userIds = requests.map((r) => r.user_id);
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("*")
-        .in("user_id", userIds);
-
-      const transformedData = requests.map((request) => {
-        const profile = profiles?.find((p) => p.user_id === request.user_id);
-        return {
-          id: profile?.id || request.id,
-          user_id: request.user_id,
-          full_name: profile?.full_name || "Unknown",
-          email: profile?.email || "Unknown",
-          university_name: profile?.university_name || "N/A",
-          campus: profile?.campus || "N/A",
-          student_id: profile?.student_id || "N/A",
-          phone_number: profile?.phone_number || "N/A",
-          bio: profile?.bio || "No bio provided",
-          account_type: profile?.account_type || "buyer",
-          rating: profile?.rating || 0,
-          total_reviews: profile?.total_reviews || 0,
-          avatar_url: profile?.avatar_url,
-          face_photo_url: profile?.avatar_url,
-          created_at: request.created_at,
-          is_banned: profile?.is_banned || false,
-          verification_status: profile?.verification_status || "pending",
-          is_verified: profile?.is_verified || false,
-          user_roles: [],
-          verification_request_id: request.id,
-          verification_reason: request.reason,
-          verification_documents: request.documents || [],
-        };
-      });
-
-      setVerificationRequests(transformedData);
-    } catch (error) {
-      setVerificationRequests([]);
-    }
-  };
-
-  const approveSeller = async (
-    userId: string,
-    userEmail: string,
-    fullName: string
-  ) => {
-    try {
-      // Update both seller status and account type
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .update({
-          seller_status: "approved",
-          account_type: "seller",
-        })
-        .eq("user_id", userId);
-
-      if (profileError) throw profileError;
-
-      // Remove any existing buyer role and add seller role
-      await supabase
-        .from("user_roles")
-        .delete()
-        .eq("user_id", userId)
-        .eq("role", "buyer");
-
-      // Add seller role
-      const { error: roleError } = await supabase.from("user_roles").upsert(
-        {
-          user_id: userId,
-          role: "seller",
-        },
-        {
-          onConflict: "user_id,role",
-        }
-      );
-
-      if (roleError) {
-        // Failed to add seller role silently
-      }
-
-      // Create in-app notification
-      const { sendNotification } = await import('@/utils/notificationService');
-      await sendNotification({
-        userId: userId,
-        title: "Seller Account Approved! 🎉",
-        message:
-          "Congratulations! Your seller verification has been approved. You can now start listing items on UniMarket.",
-        type: "success",
-        url: "/dashboard"
-      });
-
-      if (notifError) {
-        // Notification creation failed silently
-      }
-
-      // Notify all admins about the approval
-      const { data: admins } = await supabase
-        .from("user_roles")
-        .select("user_id")
-        .eq("role", "admin");
-
-      if (admins) {
-        const { sendNotification } = await import('@/utils/notificationService');
-        for (const admin of admins) {
-          await sendNotification({
-            userId: admin.user_id,
-            title: "Seller Approved",
-            message: `${fullName} has been approved as a seller`,
-            type: "info",
-            url: "/admin"
-          });
-        }
-      }
-
-      // Send email notification
-      try {
-        await supabase.functions.invoke("send-notification-email", {
-          body: {
-            email: userEmail,
-            name: fullName,
-            type: "approved",
-          },
-        });
-      } catch (emailError) {
-        // Email notification failed silently
-      }
-
-      toast.success("Seller approved successfully");
-      fetchPendingSellers();
-      fetchUsers();
-
-      // Trigger real-time profile update for the approved seller
-      triggerProfileUpdate();
-
-      // Force refresh profile context for the approved user
-      window.dispatchEvent(
-        new CustomEvent("profileUpdated", { detail: { userId } })
-      );
-    } catch (error) {
-      toast.error("Failed to approve seller");
-    }
-  };
-
-  const rejectSeller = async (
-    userId: string,
-    userEmail: string,
-    fullName: string
-  ) => {
-    try {
-      // Simple rejection - update verification status and convert to buyer
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .update({
-          seller_status: "rejected",
-          account_type: "buyer",
-        })
-        .eq("user_id", userId);
-
-      if (profileError) throw profileError;
-
-      // Remove seller role, keep only buyer role
-      await supabase
-        .from("user_roles")
-        .delete()
-        .eq("user_id", userId)
-        .eq("role", "seller");
-
-      // Create in-app notification
-      const { sendNotification } = await import('@/utils/notificationService');
-      await sendNotification({
-        userId: userId,
-        title: "Seller Application Update",
-        message:
-          "Your seller application was not approved at this time. Your account has been converted to buyer-only. You can still browse and purchase items.",
-        type: "warning",
-        url: "/profile"
-      });
-
-      if (notifError) {
-        // Notification creation failed silently
-      }
-
-      // Notify all admins about the rejection
-      const { data: admins } = await supabase
-        .from("user_roles")
-        .select("user_id")
-        .eq("role", "admin");
-
-      if (admins) {
-        const { sendNotification } = await import('@/utils/notificationService');
-        for (const admin of admins) {
-          await sendNotification({
-            userId: admin.user_id,
-            title: "Seller Rejected",
-            message: `${fullName}'s seller application has been rejected`,
-            type: "warning",
-            url: "/admin"
-          });
-        }
-      }
-
-      // Send email notification
-      try {
-        await supabase.functions.invoke("send-notification-email", {
-          body: {
-            email: userEmail,
-            name: fullName,
-            type: "rejected",
-          },
-        });
-      } catch (emailError) {
-        // Email notification failed silently
-      }
-
-      toast.success("Seller application rejected");
-      fetchPendingSellers();
-      fetchUsers();
-
-      // Trigger real-time profile update for the rejected seller
-      triggerProfileUpdate();
-    } catch (error) {
-      toast.error("Failed to reject seller");
-    }
   };
 
   const fetchStats = async () => {
@@ -1225,7 +941,7 @@ export default function Admin() {
         allUserIds.length > 0
           ? await supabase
               .from("profiles")
-              .select("user_id, full_name, student_id")
+              .select("user_id, full_name, student_id, email")
               .in("user_id", allUserIds)
           : { data: [] };
 
@@ -1257,6 +973,7 @@ export default function Admin() {
             seller_profile: {
               full_name: seller?.full_name || "Seller Not Found",
               student_id: seller?.student_id || "N/A",
+              email: seller?.email || undefined,
             },
             buyer_profile: {
               full_name: buyer?.full_name || "Buyer Not Found",
@@ -1297,7 +1014,7 @@ export default function Admin() {
     }
   };
 
-  const resolveDisputeForSeller = async (dispute: Dispute) => {
+  const resolveDisputeForSeller = async (dispute: Dispute, reason: string) => {
     if (!dispute.orders?.seller_id) {
       toast.error("Missing seller information for this order");
       return;
@@ -1317,7 +1034,7 @@ export default function Admin() {
         .from("disputes")
         .update({
           status: "resolved",
-          resolution: "Resolved in favor of seller - funds released",
+          resolution: `Resolved in favor of seller - funds released. Reason: ${reason}`,
           resolved_by: user?.id,
           resolved_at: new Date().toISOString(),
         })
@@ -1333,7 +1050,7 @@ export default function Admin() {
     }
   };
 
-  const resolveDisputeForBuyer = async (dispute: Dispute) => {
+  const resolveDisputeForBuyer = async (dispute: Dispute, reason: string) => {
     try {
       const {
         data: { user },
@@ -1349,7 +1066,7 @@ export default function Admin() {
         .from("disputes")
         .update({
           status: "resolved",
-          resolution: "Resolved in favor of buyer - payment reversed",
+          resolution: `Resolved in favor of buyer - payment reversed. Reason: ${reason}`,
           resolved_by: user?.id,
           resolved_at: new Date().toISOString(),
         })
@@ -1493,11 +1210,41 @@ export default function Admin() {
         .sort((a, b) => b.count - a.count)
         .slice(0, 5);
 
+      // What the platform itself earns, as opposed to totalRevenue above
+      // (the gross value of products sold, which passes through to
+      // sellers). Two real sources today: seller registration/renewal fees
+      // (seller_subscriptions.amount - not seller_payment_intents, which
+      // has zero 'paid' rows since all revenue so far predates the Anchor
+      // payment flow) and commission on sales (escrow_transactions.
+      // commission_amount where released - computed live rather than read
+      // from admin_wallet.total_commissions, since that table currently has
+      // no row and would silently read as 0 regardless of real commission
+      // activity). Commission is 0% by deliberate current pricing (sellers
+      // pay the registration fee instead), so this will legitimately show
+      // ₦0 commission until/unless that changes.
+      const { data: sellerFeeRows } = await supabase
+        .from("seller_subscriptions")
+        .select("amount");
+      const sellerFeesEarned =
+        sellerFeeRows?.reduce((sum, row) => sum + Number(row.amount), 0) || 0;
+
+      const { data: commissionRows } = await supabase
+        .from("escrow_transactions")
+        .select("commission_amount")
+        .eq("status", "released");
+      const commissionsEarned =
+        commissionRows?.reduce(
+          (sum, row) => sum + Number(row.commission_amount || 0),
+          0
+        ) || 0;
+
       setAnalytics({
         totalRevenue,
         monthlyGrowth,
         topCategories,
         recentOrders: thisMonthOrders?.length || 0,
+        sellerFeesEarned,
+        commissionsEarned,
       });
     } catch (error) {
       // Analytics fetch failed silently
@@ -1633,74 +1380,6 @@ export default function Admin() {
     }
   };
 
-  const approveVerification = async (
-    requestId: string,
-    userId: string,
-    userEmail: string,
-    fullName: string
-  ) => {
-    try {
-      await supabase
-        .from("verification_requests")
-        .update({ status: "approved" })
-        .eq("id", requestId);
-
-      await supabase
-        .from("profiles")
-        .update({ is_verified: true })
-        .eq("user_id", userId);
-
-      const { sendNotification } = await import('@/utils/notificationService');
-      await sendNotification({
-        userId: userId,
-        title: "Account Verified! ✅",
-        message:
-          "Congratulations! Your account has been verified. You now have a verified badge on your profile.",
-        type: "success",
-        url: "/profile"
-      });
-
-      toast.success("User verification approved");
-      fetchVerificationRequests();
-      fetchUsers();
-    } catch (error) {
-      toast.error("Failed to approve verification");
-    }
-  };
-
-  const rejectVerification = async (
-    requestId: string,
-    userId: string,
-    userEmail: string,
-    fullName: string,
-    rejectionReason: string
-  ) => {
-    try {
-      await supabase
-        .from("verification_requests")
-        .update({
-          status: "rejected",
-          admin_notes: rejectionReason,
-        })
-        .eq("id", requestId);
-
-      const { sendNotification } = await import('@/utils/notificationService');
-      await sendNotification({
-        userId: userId,
-        title: "Verification Request Rejected",
-        message: `Your verification request was rejected. Reason: ${rejectionReason}. You can submit a new request.`,
-        type: "warning",
-        url: "/profile"
-      });
-
-      toast.success("Verification request rejected");
-      fetchVerificationRequests();
-      fetchUsers();
-    } catch (error) {
-      toast.error("Failed to reject verification");
-    }
-  };
-
   const toggleUserVerification = async (
     userId: string,
     isVerified: boolean,
@@ -1765,6 +1444,25 @@ export default function Admin() {
       fetchProducts();
     } catch (error) {
       toast.error("Failed to delete product");
+    }
+  };
+
+  const updateProductDetails = async (productId: string, updates: any) => {
+    try {
+      const { error } = await supabase
+        .from("products")
+        .update(updates)
+        .eq("id", productId);
+
+      if (error) throw error;
+
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      toast.success("Product updated successfully");
+      fetchProducts();
+      setEditingProduct(null);
+    } catch (error) {
+      console.error("Update product error:", error);
+      toast.error("Failed to update product");
     }
   };
 
@@ -1979,33 +1677,6 @@ export default function Admin() {
       const [useCustomMessage, setUseCustomMessage] = useState(false);
       const [sending, setSending] = useState(false);
 
-      const handleSendInvestigation = async () => {
-        if (!selectedTemplate && !useCustomMessage) {
-          toast.error("Please select a template or write a custom message");
-          return;
-        }
-
-        if (useCustomMessage && !customMessage.trim()) {
-          toast.error("Please enter a custom message");
-          return;
-        }
-
-        setSending(true);
-        try {
-          // Since send_dispute_investigation_notification function doesn't exist in types, we'll skip this
-          const error = null;
-
-          if (error) throw error;
-
-          toast.success("Investigation notification sent to seller");
-          onSuccess();
-        } catch (error) {
-          toast.error("Failed to send investigation notification");
-        } finally {
-          setSending(false);
-        }
-      };
-
       const getTemplatePreview = () => {
         const template = disputeTemplates.find(
           (t) => t.dispute_type === selectedTemplate
@@ -2032,91 +1703,73 @@ export default function Admin() {
           );
       };
 
+      const handleSendInvestigation = async () => {
+        if (!selectedTemplate && !useCustomMessage) {
+          toast.error("Please select a template or write a custom message");
+          return;
+        }
+
+        if (useCustomMessage && !customMessage.trim()) {
+          toast.error("Please enter a custom message");
+          return;
+        }
+
+        if (!dispute.orders?.seller_id) {
+          toast.error("Missing seller information for this order");
+          return;
+        }
+
+        const template = disputeTemplates.find(
+          (t) => t.dispute_type === selectedTemplate
+        );
+        const message = useCustomMessage
+          ? customMessage.trim()
+          : getTemplatePreview();
+        const subject =
+          !useCustomMessage && template?.subject
+            ? template.subject
+            : `Dispute Investigation - Order #${dispute.order_id.slice(0, 8)}`;
+
+        setSending(true);
+        try {
+          const { sendNotification } = await import(
+            "@/utils/notificationService"
+          );
+          const notified = await sendNotification({
+            userId: dispute.orders.seller_id,
+            title: subject,
+            message,
+            type: "warning",
+            url: "/orders",
+          });
+
+          let emailed = true;
+          if (dispute.orders.seller_profile?.email) {
+            emailed = await sendEmailNotification({
+              to_email: dispute.orders.seller_profile.email,
+              to_name: dispute.orders.seller_profile?.full_name || "Seller",
+              subject,
+              message,
+              notification_type: "dispute_investigation",
+            });
+          }
+
+          if (!notified && !emailed) {
+            throw new Error("Both notification channels failed");
+          }
+
+          toast.success("Investigation notification sent to seller");
+          onSuccess();
+        } catch (error) {
+          console.error("Error sending investigation notification:", error);
+          toast.error("Failed to send investigation notification");
+        } finally {
+          setSending(false);
+        }
+      };
+
       return (
         <div className="space-y-4">
-          <div className="p-4 bg-muted/50 rounded">
-            <h4 className="font-medium mb-2">Dispute Details</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <p>
-                  <strong>Product:</strong>{" "}
-                  {dispute.orders?.products?.title || "Unknown Product"}
-                </p>
-                <p>
-                  <strong>Order ID:</strong> #{dispute.order_id.slice(0, 8)}...
-                </p>
-                <p>
-                  <strong>Status:</strong>{" "}
-                  <Badge
-                    variant={
-                      dispute.status === "open" ? "destructive" : "default"
-                    }
-                  >
-                    {dispute.status}
-                  </Badge>
-                </p>
-              </div>
-              <div>
-                <p>
-                  <strong>Reported By:</strong>{" "}
-                  {dispute.reporter?.full_name || "Unknown Reporter"}
-                </p>
-                <p>
-                  <strong>Date:</strong>{" "}
-                  {new Date(dispute.created_at).toLocaleDateString()}
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="p-3 bg-blue-50 rounded">
-                <h5 className="font-medium text-blue-900 mb-2">
-                  Seller Information
-                </h5>
-                <p className="text-sm">
-                  <strong>Name:</strong>{" "}
-                  {dispute.orders?.seller_profile?.full_name ||
-                    "Unknown Seller"}
-                </p>
-                <p className="text-sm">
-                  <strong>Student ID:</strong>{" "}
-                  {dispute.orders?.seller_profile?.student_id || "N/A"}
-                </p>
-              </div>
-              <div className="p-3 bg-green-50 rounded">
-                <h5 className="font-medium text-green-900 mb-2">
-                  Buyer Information
-                </h5>
-                <p className="text-sm">
-                  <strong>Name:</strong>{" "}
-                  {dispute.orders?.buyer_profile?.full_name || "Unknown Buyer"}
-                </p>
-                <p className="text-sm">
-                  <strong>Student ID:</strong>{" "}
-                  {dispute.orders?.buyer_profile?.student_id || "N/A"}
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-4 p-3 bg-red-50 rounded">
-              <h5 className="font-medium text-red-900 mb-2">
-                Dispute Information
-              </h5>
-              <p className="text-sm">
-                <strong>Reason:</strong>{" "}
-                <Badge variant="outline" className="ml-1">
-                  {dispute.reason.replace("_", " ").toUpperCase()}
-                </Badge>
-              </p>
-              {dispute.description && (
-                <p className="text-sm mt-2">
-                  <strong>Description:</strong>{" "}
-                  <span className="italic">{dispute.description}</span>
-                </p>
-              )}
-            </div>
-          </div>
-
           <div className="space-y-3">
             <div className="flex items-center space-x-2">
               <input
@@ -2125,14 +1778,16 @@ export default function Admin() {
                 checked={!useCustomMessage}
                 onChange={() => setUseCustomMessage(false)}
               />
-              <Label htmlFor="use-template">Use Template Message</Label>
+              <Label htmlFor="use-template" className="text-flora-ink">
+                Use Template Message
+              </Label>
             </div>
 
             {!useCustomMessage && (
               <div>
-                <Label>Select Template</Label>
+                <Label className="text-flora-ink">Select Template</Label>
                 <select
-                  className="w-full p-2 border rounded"
+                  className="w-full rounded-lg border border-flora-ink/15 bg-white p-2 text-sm text-flora-ink"
                   value={selectedTemplate}
                   onChange={(e) => setSelectedTemplate(e.target.value)}
                 >
@@ -2145,9 +1800,9 @@ export default function Admin() {
                 </select>
 
                 {selectedTemplate && (
-                  <div className="mt-3 p-3 bg-muted/30 rounded text-sm">
-                    <Label className="font-medium">Preview:</Label>
-                    <pre className="whitespace-pre-wrap mt-2 text-xs">
+                  <div className="mt-3 rounded-xl bg-flora-chip/30 p-3 text-sm">
+                    <Label className="font-medium text-flora-ink">Preview:</Label>
+                    <pre className="mt-2 whitespace-pre-wrap text-xs text-flora-ink">
                       {getTemplatePreview()}
                     </pre>
                   </div>
@@ -2162,12 +1817,14 @@ export default function Admin() {
                 checked={useCustomMessage}
                 onChange={() => setUseCustomMessage(true)}
               />
-              <Label htmlFor="use-custom">Write Custom Message</Label>
+              <Label htmlFor="use-custom" className="text-flora-ink">
+                Write Custom Message
+              </Label>
             </div>
 
             {useCustomMessage && (
               <div>
-                <Label>Custom Investigation Message</Label>
+                <Label className="text-flora-ink">Custom Investigation Message</Label>
                 <Textarea
                   value={customMessage}
                   onChange={(e) => setCustomMessage(e.target.value)}
@@ -2180,276 +1837,476 @@ export default function Admin() {
 
           <div className="flex justify-end gap-2">
             <DialogTrigger asChild>
-              <Button variant="outline" disabled={sending}>
+              <button
+                type="button"
+                disabled={sending}
+                className="inline-flex items-center gap-2 rounded-full border border-flora-ink/15 bg-white px-4 py-2 text-sm font-medium text-flora-ink transition hover:bg-flora-chip disabled:opacity-50"
+              >
                 Cancel
-              </Button>
+              </button>
             </DialogTrigger>
-            <Button
+            <button
+              type="button"
               onClick={handleSendInvestigation}
               disabled={
                 sending ||
                 (!selectedTemplate && !useCustomMessage) ||
                 (useCustomMessage && !customMessage.trim())
               }
+              className="inline-flex items-center gap-2 rounded-full bg-flora-ink px-4 py-2 text-sm font-medium text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {sending ? "Sending..." : "Send Investigation Notice"}
-            </Button>
+            </button>
           </div>
         </div>
       );
     }
   );
 
+  // Grouped nav config (Stage 6). Each tab keeps using the exact same
+  // canAccessTab()/isSuperAdmin checks the old flat TabsTrigger strip used -
+  // grouping is presentation only, a group heading grants nothing. A group
+  // only renders if at least one of its tabs is visible; a badge only
+  // counts tabs the current admin can actually see.
+  const navGroups = [
+    {
+      key: "overview",
+      label: "Overview",
+      icon: BarChart3,
+      tabs: [{ value: "overview", label: "Overview", visible: true, badge: 0 }],
+    },
+    {
+      key: "moderation",
+      label: "Moderation",
+      icon: Flag,
+      tabs: [
+        {
+          value: "approvals",
+          label: "Approvals",
+          visible: canAccessTab("sellers") || canAccessTab("verification"),
+          badge: pendingApprovalCounts.sellers + pendingApprovalCounts.verification,
+        },
+        {
+          value: "reports",
+          label: "Reports",
+          visible: canAccessTab("reports"),
+          badge: productReports.filter((r) => r.status === "pending").length,
+        },
+        {
+          value: "appeals",
+          label: "Appeals",
+          visible: canAccessTab("appeals"),
+          badge: banAppeals.filter((a) => a.status === "pending").length,
+        },
+      ],
+    },
+    {
+      key: "marketplace",
+      label: "Marketplace",
+      icon: Package,
+      tabs: [
+        { value: "products", label: "Products", visible: canAccessTab("products"), badge: 0 },
+        {
+          value: "orders",
+          label: "Orders",
+          visible: canAccessTab("orders"),
+          badge: pendingOrdersCount,
+        },
+        { value: "messages", label: "Messages", visible: canAccessTab("messages"), badge: 0 },
+      ],
+    },
+    {
+      key: "finance",
+      label: "Finance",
+      icon: DollarSign,
+      tabs: [
+        {
+          value: "escrow",
+          label: "Escrow",
+          visible: canAccessTab("escrow"),
+          badge:
+            escrowTransactions.filter((e) => e.status === "held").length +
+            payoutRequests.filter((p) => p.status === "pending").length +
+            disputes.filter((d) => d.status === "open").length,
+        },
+        { value: "wallet", label: "Admin Wallet", visible: canAccessTab("wallet"), badge: 0 },
+        {
+          value: "subscriptions",
+          label: "Subscriptions",
+          visible: canAccessTab("subscriptions"),
+          badge: subscriptionAttentionCount,
+        },
+      ],
+    },
+    {
+      key: "people",
+      label: "People",
+      icon: Users,
+      tabs: [{ value: "users", label: "Users", visible: canAccessTab("users"), badge: 0 }],
+    },
+    {
+      key: "platform",
+      label: "Platform",
+      icon: Settings,
+      tabs: [
+        {
+          value: "suggestions",
+          label: "Suggestions",
+          visible: canAccessTab("suggestions"),
+          badge: suggestions.filter((s) => s.status === "pending").length,
+        },
+        { value: "settings", label: "Settings", visible: canAccessTab("settings"), badge: 0 },
+        { value: "templates", label: "Templates", visible: canAccessTab("templates"), badge: 0 },
+        { value: "emails", label: "Emails", visible: canAccessTab("emails"), badge: 0 },
+      ],
+    },
+    {
+      key: "staff",
+      label: "Staff",
+      icon: Shield,
+      tabs: [{ value: "staff", label: "Staff Access", visible: isSuperAdmin, badge: 0 }],
+    },
+  ]
+    .map((group) => ({
+      ...group,
+      tabs: group.tabs.filter((t) => t.visible),
+    }))
+    .filter((group) => group.tabs.length > 0)
+    .map((group) => ({
+      ...group,
+      badge: group.tabs.reduce((sum, t) => sum + t.badge, 0),
+    }));
+
+  const activeGroup =
+    navGroups.find((g) => g.tabs.some((t) => t.value === activeTab)) ||
+    navGroups[0];
+
+  const selectGroup = (group: (typeof navGroups)[number]) => {
+    if (!group.tabs.some((t) => t.value === activeTab)) {
+      setActiveTab(group.tabs[0].value);
+    }
+    setMobileNavOpen(false);
+  };
+
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gradient-to-b from-flora-bgFrom to-flora-bgTo">
       <PullToRefresh onRefresh={handleRefresh} className="min-h-screen">
         <div className="container mx-auto px-4 py-8">
-        <div className="mb-8 flex justify-between items-center">
+        <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold mb-2">Admin Dashboard</h1>
-            <p className="text-muted-foreground">
+            <h1 className="text-2xl font-extrabold tracking-tight text-flora-ink sm:text-3xl">
+              Admin Dashboard
+            </h1>
+            <p className="mt-1 text-flora-muted">
               Manage all aspects of your marketplace
             </p>
           </div>
-          <Button onClick={() => window.location.reload()} variant="outline">
-            <RefreshCw className="h-4 w-4 mr-2" />
+          <button
+            type="button"
+            onClick={handleRefresh}
+            className="inline-flex items-center gap-2 rounded-full border border-flora-ink/15 bg-white px-5 py-2.5 text-sm font-medium text-flora-ink transition hover:bg-flora-chip"
+          >
+            <RefreshCw className="h-4 w-4" />
             Refresh
-          </Button>
+          </button>
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Users</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.totalUsers}</div>
-              <p className="text-xs text-muted-foreground">
-                {stats.activeUsers} active users
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">
-                Total Products
-              </CardTitle>
-              <Package className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.totalProducts}</div>
-              <p className="text-xs text-muted-foreground">
-                +12% from last month
-              </p>
-            </CardContent>
-          </Card>
-          {/* Financial - default withheld from a regular admin unless
-              specifically granted one of the financial tabs, same boundary
-              as the tabs themselves (this card sits outside the tab system
-              entirely, so it needs its own check). */}
-          {(isSuperAdmin ||
-            canAccessTab("escrow") ||
-            canAccessTab("wallet") ||
-            canAccessTab("subscriptions")) && (
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Revenue</CardTitle>
-              <DollarSign className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                ₦{analytics.totalRevenue.toLocaleString()}
+        {/* Grouped navigation (Stage 6) - all TabsContent blocks below are
+            unchanged from the old flat-TabsList version; only the nav chrome
+            around them changed. Tabs is now controlled so the sidebar/mobile
+            picker can drive selection. */}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+          <div className="flex flex-col gap-6 md:flex-row md:items-start">
+            {/* Desktop sidebar */}
+            <nav className="hidden shrink-0 flex-col gap-1 md:flex md:w-56">
+              {navGroups.map((group) => {
+                const Icon = group.icon;
+                const isActive = group.key === activeGroup.key;
+                return (
+                  <button
+                    key={group.key}
+                    type="button"
+                    onClick={() => selectGroup(group)}
+                    className={`flex items-center justify-between gap-2 rounded-2xl px-4 py-2.5 text-sm font-medium transition ${
+                      isActive
+                        ? "bg-flora-ink text-white"
+                        : "text-flora-ink hover:bg-flora-chip"
+                    }`}
+                  >
+                    <span className="flex items-center gap-2">
+                      <Icon className="h-4 w-4" />
+                      {group.label}
+                    </span>
+                    {group.badge > 0 && (
+                      <span
+                        className={`flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-xs font-semibold ${
+                          isActive ? "bg-white/20 text-white" : "bg-flora-chip text-flora-ink"
+                        }`}
+                      >
+                        {group.badge}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </nav>
+
+            <div className="min-w-0 flex-1">
+              {/* Mobile section picker */}
+              <div className="mb-4 md:hidden">
+                <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+                  <SheetTrigger asChild>
+                    <button
+                      type="button"
+                      className="flex w-full items-center justify-between rounded-full border border-flora-ink/15 bg-white px-4 py-2.5 text-sm font-medium text-flora-ink"
+                    >
+                      <span className="flex items-center gap-2">
+                        <activeGroup.icon className="h-4 w-4" />
+                        {activeGroup.label}
+                      </span>
+                      <span className="flex items-center gap-2">
+                        {activeGroup.badge > 0 && (
+                          <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-flora-chip px-1 text-xs font-semibold text-flora-ink">
+                            {activeGroup.badge}
+                          </span>
+                        )}
+                        <ChevronDown className="h-4 w-4 text-flora-muted" />
+                      </span>
+                    </button>
+                  </SheetTrigger>
+                  <SheetContent side="bottom" className="rounded-t-3xl">
+                    <SheetHeader>
+                      <SheetTitle className="text-flora-ink">Jump to section</SheetTitle>
+                    </SheetHeader>
+                    <div className="mt-4 space-y-1 pb-4">
+                      {navGroups.map((group) => {
+                        const Icon = group.icon;
+                        const isActive = group.key === activeGroup.key;
+                        return (
+                          <button
+                            key={group.key}
+                            type="button"
+                            onClick={() => selectGroup(group)}
+                            className={`flex w-full items-center justify-between gap-2 rounded-2xl px-4 py-3 text-sm font-medium transition ${
+                              isActive
+                                ? "bg-flora-ink text-white"
+                                : "text-flora-ink hover:bg-flora-chip"
+                            }`}
+                          >
+                            <span className="flex items-center gap-2">
+                              <Icon className="h-4 w-4" />
+                              {group.label}
+                            </span>
+                            {group.badge > 0 && (
+                              <span
+                                className={`flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-xs font-semibold ${
+                                  isActive ? "bg-white/20 text-white" : "bg-flora-chip text-flora-ink"
+                                }`}
+                              >
+                                {group.badge}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </SheetContent>
+                </Sheet>
               </div>
-              <p
-                className={`text-xs flex items-center ${
-                  analytics.monthlyGrowth >= 0 ? "text-muted-foreground" : "text-destructive"
-                }`}
-              >
-                {analytics.monthlyGrowth >= 0 ? (
-                  <TrendingUp className="h-3 w-3 mr-1" />
-                ) : (
-                  <TrendingDown className="h-3 w-3 mr-1" />
-                )}
-                {analytics.monthlyGrowth >= 0 ? "+" : ""}
-                {analytics.monthlyGrowth}% from last month
-              </p>
-            </CardContent>
-          </Card>
-          )}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Conversations</CardTitle>
-              <MessageSquare className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.totalConversations}</div>
-              <p className="text-xs text-muted-foreground">
-                {stats.totalMessages} total messages
-              </p>
-            </CardContent>
-          </Card>
-        </div>
 
-        {/* Tabs for different management areas */}
-        <Tabs defaultValue="users" className="space-y-6">
-          <div className="overflow-x-auto">
-            <TabsList className="flex w-max min-w-full h-fit py-2 px-1">
-              {canAccessTab("users") && (
-              <TabsTrigger value="users" className="text-xs md:text-sm whitespace-nowrap px-3 py-2">
-                Users
-              </TabsTrigger>
+              {/* Sub-tab pills - only for groups with more than one visible
+                  tab; single-destination groups (Overview, People, Staff)
+                  render straight into their content. */}
+              {activeGroup.tabs.length > 1 && (
+                <div className="mb-4 flex w-fit flex-wrap items-center gap-1 rounded-full border border-flora-ink/15 bg-white p-1">
+                  {activeGroup.tabs.map((tab) => {
+                    const isActive = tab.value === activeTab;
+                    return (
+                      <button
+                        key={tab.value}
+                        type="button"
+                        onClick={() => setActiveTab(tab.value)}
+                        className={`relative flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-medium transition ${
+                          isActive
+                            ? "bg-flora-ink text-white"
+                            : "text-flora-ink hover:bg-flora-chip"
+                        }`}
+                      >
+                        {tab.label}
+                        {tab.badge > 0 && (
+                          <span
+                            className={`flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-xs font-semibold ${
+                              isActive ? "bg-white/20 text-white" : "bg-flora-chip text-flora-ink"
+                            }`}
+                          >
+                            {tab.badge}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
               )}
-              {canAccessTab("sellers") && (
-              <TabsTrigger
-                value="sellers"
-                className="text-xs md:text-sm relative whitespace-nowrap px-3 py-2"
-              >
-                Sellers
-                {pendingSellers.length > 0 && (
-                  <Badge
-                    variant="destructive"
-                    className="absolute -top-1 -right-1 h-4 w-4 p-0 text-xs flex items-center justify-center"
-                  >
-                    {pendingSellers.length}
-                  </Badge>
-                )}
-              </TabsTrigger>
-              )}
-              {canAccessTab("verification") && (
-              <TabsTrigger
-                value="verification"
-                className="text-xs md:text-sm relative whitespace-nowrap px-3 py-2"
-              >
-                Verify
-                {verificationRequests.length > 0 && (
-                  <Badge
-                    variant="destructive"
-                    className="absolute -top-1 -right-1 h-4 w-4 p-0 text-xs flex items-center justify-center"
-                  >
-                    {verificationRequests.length}
-                  </Badge>
-                )}
-              </TabsTrigger>
-              )}
-              {canAccessTab("appeals") && (
-              <TabsTrigger
-                value="appeals"
-                className="text-xs md:text-sm relative whitespace-nowrap px-3 py-2"
-              >
-                Appeals
-                {banAppeals.filter((a) => a.status === "pending").length >
-                  0 && (
-                  <Badge
-                    variant="destructive"
-                    className="absolute -top-1 -right-1 h-4 w-4 p-0 text-xs flex items-center justify-center"
-                  >
-                    {banAppeals.filter((a) => a.status === "pending").length}
-                  </Badge>
-                )}
-              </TabsTrigger>
-              )}
-              {canAccessTab("reports") && (
-              <TabsTrigger
-                value="reports"
-                className="text-xs md:text-sm relative whitespace-nowrap px-3 py-2"
-              >
-                Reports
-                {productReports.filter((r) => r.status === "pending").length >
-                  0 && (
-                  <Badge
-                    variant="destructive"
-                    className="absolute -top-1 -right-1 h-4 w-4 p-0 text-xs flex items-center justify-center"
-                  >
-                    {
-                      productReports.filter((r) => r.status === "pending")
-                        .length
-                    }
-                  </Badge>
-                )}
-              </TabsTrigger>
-              )}
-              {canAccessTab("escrow") && (
-              <TabsTrigger
-                value="escrow"
-                className="text-xs md:text-sm relative whitespace-nowrap px-3 py-2"
-              >
-                Escrow
-                {escrowTransactions.filter((e) => e.status === "held").length +
-                  payoutRequests.filter((p) => p.status === "pending").length +
-                  disputes.filter((d) => d.status === "open").length >
-                  0 && (
-                  <Badge
-                    variant="destructive"
-                    className="absolute -top-1 -right-1 h-4 w-4 p-0 text-xs flex items-center justify-center"
-                  >
-                    {escrowTransactions.filter((e) => e.status === "held")
-                      .length +
-                      payoutRequests.filter((p) => p.status === "pending")
-                        .length +
-                      disputes.filter((d) => d.status === "open").length}
-                  </Badge>
-                )}
-              </TabsTrigger>
-              )}
-              {canAccessTab("products") && (
-              <TabsTrigger value="products" className="text-xs md:text-sm whitespace-nowrap px-3 py-2">
-                Products
-              </TabsTrigger>
-              )}
-              {canAccessTab("messages") && (
-              <TabsTrigger value="messages" className="text-xs md:text-sm whitespace-nowrap px-3 py-2">
-                Messages
-              </TabsTrigger>
-              )}
-              {canAccessTab("emails") && (
-              <TabsTrigger value="emails" className="text-xs md:text-sm whitespace-nowrap px-3 py-2">
-                Emails
-              </TabsTrigger>
-              )}
-              {canAccessTab("templates") && (
-              <TabsTrigger value="templates" className="text-xs md:text-sm whitespace-nowrap px-3 py-2">
-                Templates
-              </TabsTrigger>
-              )}
-              {canAccessTab("analytics") && (
-              <TabsTrigger value="analytics" className="text-xs md:text-sm whitespace-nowrap px-3 py-2">
-                Analytics
-              </TabsTrigger>
-              )}
-              {canAccessTab("suggestions") && (
-              <TabsTrigger value="suggestions" className="text-xs md:text-sm whitespace-nowrap px-3 py-2">
-                Suggestions
-              </TabsTrigger>
-              )}
-              {canAccessTab("subscriptions") && (
-              <TabsTrigger value="subscriptions" className="text-xs md:text-sm whitespace-nowrap px-3 py-2">
-                Subscriptions
-              </TabsTrigger>
-              )}
-              {canAccessTab("wallet") && (
-              <TabsTrigger value="wallet" className="text-xs md:text-sm whitespace-nowrap px-3 py-2">
-                Admin Wallet
-              </TabsTrigger>
-              )}
-              {canAccessTab("orders") && (
-              <TabsTrigger value="orders" className="text-xs md:text-sm whitespace-nowrap px-3 py-2">
-                Orders
-              </TabsTrigger>
-              )}
-              {canAccessTab("settings") && (
-              <TabsTrigger value="settings" className="text-xs md:text-sm whitespace-nowrap px-3 py-2">
-                Settings
-              </TabsTrigger>
-              )}
-              {isSuperAdmin && (
-              <TabsTrigger value="staff" className="text-xs md:text-sm whitespace-nowrap px-3 py-2">
-                Staff Access
-              </TabsTrigger>
-              )}
-            </TabsList>
-          </div>
+
+              {/* Overview Tab */}
+              <TabsContent value="overview">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+                  <div className="rounded-3xl bg-flora-card p-5 shadow-card">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium text-flora-muted">Total Users</p>
+                      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-flora-chip text-flora-ink">
+                        <Users className="h-4 w-4" />
+                      </span>
+                    </div>
+                    <p className="mt-3 text-2xl font-bold text-flora-ink">{stats.totalUsers}</p>
+                    <p className="mt-1 text-xs text-flora-muted">
+                      {stats.activeUsers} active users
+                    </p>
+                  </div>
+
+                  <div className="rounded-3xl bg-flora-card p-5 shadow-card">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium text-flora-muted">Total Products</p>
+                      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-flora-chip text-flora-ink">
+                        <Package className="h-4 w-4" />
+                      </span>
+                    </div>
+                    <p className="mt-3 text-2xl font-bold text-flora-ink">{stats.totalProducts}</p>
+                  </div>
+
+                  {/* Financial - default withheld from a regular admin unless
+                      specifically granted one of the financial tabs, same boundary
+                      as the tabs themselves (this card sits outside the tab system
+                      entirely, so it needs its own check). */}
+                  {(isSuperAdmin ||
+                    canAccessTab("escrow") ||
+                    canAccessTab("wallet") ||
+                    canAccessTab("subscriptions")) && (
+                  <div className="rounded-3xl bg-flora-card p-5 shadow-card">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium text-flora-muted">Products Sold</p>
+                      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-flora-chip text-flora-ink">
+                        <DollarSign className="h-4 w-4" />
+                      </span>
+                    </div>
+                    <p className="mt-3 text-2xl font-bold text-flora-ink">
+                      ₦{analytics.totalRevenue.toLocaleString()}
+                    </p>
+                    <p
+                      className={`mt-1 flex items-center text-xs ${
+                        analytics.monthlyGrowth >= 0 ? "text-flora-leaf" : "text-red-600"
+                      }`}
+                    >
+                      {analytics.monthlyGrowth >= 0 ? (
+                        <TrendingUp className="h-3 w-3 mr-1" />
+                      ) : (
+                        <TrendingDown className="h-3 w-3 mr-1" />
+                      )}
+                      {analytics.monthlyGrowth >= 0 ? "+" : ""}
+                      {analytics.monthlyGrowth}% from last month
+                    </p>
+                  </div>
+                  )}
+
+                  {/* What the platform itself earns (fees + commission), separate
+                      from the gross product value above which passes through to
+                      sellers. Same financial-visibility boundary. */}
+                  {(isSuperAdmin ||
+                    canAccessTab("escrow") ||
+                    canAccessTab("wallet") ||
+                    canAccessTab("subscriptions")) && (
+                  <div className="rounded-3xl bg-flora-card p-5 shadow-card">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium text-flora-muted">Platform Earnings</p>
+                      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-flora-chip text-flora-ink">
+                        <DollarSign className="h-4 w-4" />
+                      </span>
+                    </div>
+                    <p className="mt-3 text-2xl font-bold text-flora-ink">
+                      ₦{(analytics.sellerFeesEarned + analytics.commissionsEarned).toLocaleString()}
+                    </p>
+                    <p className="mt-1 text-xs text-flora-muted">
+                      ₦{analytics.sellerFeesEarned.toLocaleString()} fees · ₦{analytics.commissionsEarned.toLocaleString()} commission
+                    </p>
+                  </div>
+                  )}
+
+                  {/* Same financial-visibility boundary as Revenue - order volume is
+                      business-performance data, not something a regular admin needs
+                      by default. */}
+                  {(isSuperAdmin ||
+                    canAccessTab("escrow") ||
+                    canAccessTab("wallet") ||
+                    canAccessTab("subscriptions")) && (
+                  <div className="rounded-3xl bg-flora-card p-5 shadow-card">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium text-flora-muted">Orders This Month</p>
+                      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-flora-chip text-flora-ink">
+                        <ShoppingBag className="h-4 w-4" />
+                      </span>
+                    </div>
+                    <p className="mt-3 text-2xl font-bold text-flora-ink">{analytics.recentOrders}</p>
+                  </div>
+                  )}
+
+                  <div className="rounded-3xl bg-flora-card p-5 shadow-card">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium text-flora-muted">Conversations</p>
+                      <span className="flex h-9 w-9 items-center justify-center rounded-full bg-flora-chip text-flora-ink">
+                        <MessageSquare className="h-4 w-4" />
+                      </span>
+                    </div>
+                    <p className="mt-3 text-2xl font-bold text-flora-ink">{stats.totalConversations}</p>
+                    <p className="mt-1 text-xs text-flora-muted">
+                      {stats.totalMessages} total messages
+                    </p>
+                  </div>
+                </div>
+
+                {/* Top Categories - active product distribution, not financial, so
+                    visible to any admin regardless of tab grants. */}
+                <div className="rounded-3xl bg-flora-card p-5 shadow-card sm:p-6">
+                  <h2 className="text-lg font-bold text-flora-ink">Top Categories</h2>
+                  <p className="mt-1 text-sm text-flora-muted">
+                    Active product listings by category
+                  </p>
+                  {analytics.topCategories.length === 0 ? (
+                    <p className="mt-4 text-sm text-flora-muted">
+                      No active products yet
+                    </p>
+                  ) : (
+                    <div className="mt-4 space-y-4">
+                      {analytics.topCategories.map((category) => (
+                        <div
+                          key={category.category}
+                          className="flex items-center justify-between gap-4"
+                        >
+                          <span className="font-medium text-flora-ink">
+                            {category.category}
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <div className="h-2 w-24 rounded-full bg-flora-chip sm:w-40">
+                              <div
+                                className="h-full rounded-full bg-flora-leaf"
+                                style={{
+                                  width: `${
+                                    (category.count /
+                                      analytics.topCategories[0]?.count) *
+                                      100 || 0
+                                  }%`,
+                                }}
+                              />
+                            </div>
+                            <span className="text-sm text-flora-muted">
+                              {category.count}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </TabsContent>
 
           {/* Users Tab */}
           <TabsContent value="users">
@@ -3324,124 +3181,11 @@ export default function Admin() {
                                             }}
                                           >
                                             <option value="">Select university...</option>
-                                            <option value="Abia State University">Abia State University</option>
-                                            <option value="Abubakar Tafawa Balewa University">Abubakar Tafawa Balewa University</option>
-                                            <option value="Achievers University">Achievers University</option>
-                                            <option value="Adamawa State University">Adamawa State University</option>
-                                            <option value="Adeleke University">Adeleke University</option>
-                                            <option value="Afe Babalola University">Afe Babalola University</option>
-                                            <option value="African University of Science and Technology">African University of Science and Technology</option>
-                                            <option value="Ahmadu Bello University">Ahmadu Bello University</option>
-                                            <option value="Ajayi Crowther University">Ajayi Crowther University</option>
-                                            <option value="Akwa Ibom State University">Akwa Ibom State University</option>
-                                            <option value="Alex Ekwueme Federal University">Alex Ekwueme Federal University</option>
-                                            <option value="American University of Nigeria">American University of Nigeria</option>
-                                            <option value="Anchor University">Anchor University</option>
-                                            <option value="Augustine University">Augustine University</option>
-                                            <option value="Babcock University">Babcock University</option>
-                                            <option value="Baze University">Baze University</option>
-                                            <option value="Bayero University Kano">Bayero University Kano</option>
-                                            <option value="Bells University of Technology">Bells University of Technology</option>
-                                            <option value="Benson Idahosa University">Benson Idahosa University</option>
-                                            <option value="Bingham University">Bingham University</option>
-                                            <option value="Bowen University">Bowen University</option>
-                                            <option value="Caleb University">Caleb University</option>
-                                            <option value="Caritas University">Caritas University</option>
-                                            <option value="Chrisland University">Chrisland University</option>
-                                            <option value="Christopher University">Christopher University</option>
-                                            <option value="Clifford University">Clifford University</option>
-                                            <option value="Coal City University">Coal City University</option>
-                                            <option value="Covenant University">Covenant University</option>
-                                            <option value="Crawford University">Crawford University</option>
-                                            <option value="Cross River University of Technology">Cross River University of Technology</option>
-                                            <option value="Delta State University">Delta State University</option>
-                                            <option value="Eastern Palm University">Eastern Palm University</option>
-                                            <option value="Ebonyi State University">Ebonyi State University</option>
-                                            <option value="Edo University">Edo University</option>
-                                            <option value="Ekiti State University">Ekiti State University</option>
-                                            <option value="Elizade University">Elizade University</option>
-                                            <option value="Enugu State University of Science and Technology">Enugu State University of Science and Technology</option>
-                                            <option value="Federal University Birnin Kebbi">Federal University Birnin Kebbi</option>
-                                            <option value="Federal University Dutse">Federal University Dutse</option>
-                                            <option value="Federal University Dutsin-Ma">Federal University Dutsin-Ma</option>
-                                            <option value="Federal University Gashua">Federal University Gashua</option>
-                                            <option value="Federal University Gusau">Federal University Gusau</option>
-                                            <option value="Federal University Kashere">Federal University Kashere</option>
-                                            <option value="Federal University Lafia">Federal University Lafia</option>
-                                            <option value="Federal University Lokoja">Federal University Lokoja</option>
-                                            <option value="Federal University Ndufu-Alike">Federal University Ndufu-Alike</option>
-                                            <option value="Federal University of Agriculture, Abeokuta">Federal University of Agriculture, Abeokuta</option>
-                                            <option value="Federal University of Agriculture, Makurdi">Federal University of Agriculture, Makurdi</option>
-                                            <option value="Federal University of Petroleum Resources">Federal University of Petroleum Resources</option>
-                                            <option value="Federal University of Technology, Akure">Federal University of Technology, Akure</option>
-                                            <option value="Federal University of Technology, Minna">Federal University of Technology, Minna</option>
-                                            <option value="Federal University of Technology, Owerri">Federal University of Technology, Owerri</option>
-                                            <option value="Federal University Otuoke">Federal University Otuoke</option>
-                                            <option value="Federal University Oye-Ekiti">Federal University Oye-Ekiti</option>
-                                            <option value="Federal University Wukari">Federal University Wukari</option>
-                                            <option value="Fountain University">Fountain University</option>
-                                            <option value="Godfrey Okoye University">Godfrey Okoye University</option>
-                                            <option value="Gombe State University">Gombe State University</option>
-                                            <option value="Gregory University">Gregory University</option>
-                                            <option value="Hallmark University">Hallmark University</option>
-                                            <option value="Hezekiah University">Hezekiah University</option>
-                                            <option value="Igbinedion University">Igbinedion University</option>
-                                            <option value="Imo State University">Imo State University</option>
-                                            <option value="Joseph Ayo Babalola University">Joseph Ayo Babalola University</option>
-                                            <option value="Kaduna State University">Kaduna State University</option>
-                                            <option value="Kano University of Science and Technology">Kano University of Science and Technology</option>
-                                            <option value="Kebbi State University of Science and Technology">Kebbi State University of Science and Technology</option>
-                                            <option value="Kogi State University">Kogi State University</option>
-                                            <option value="Kwara State University">Kwara State University</option>
-                                            <option value="Ladoke Akintola University of Technology">Ladoke Akintola University of Technology</option>
-                                            <option value="Lagos State University">Lagos State University</option>
-                                            <option value="Landmark University">Landmark University</option>
-                                            <option value="Lead City University">Lead City University</option>
-                                            <option value="Madonna University">Madonna University</option>
-                                            <option value="Michael Okpara University of Agriculture">Michael Okpara University of Agriculture</option>
-                                            <option value="Modibbo Adama University of Technology">Modibbo Adama University of Technology</option>
-                                            <option value="Mountain Top University">Mountain Top University</option>
-                                            <option value="Nasarawa State University">Nasarawa State University</option>
-                                            <option value="Niger Delta University">Niger Delta University</option>
-                                            <option value="Nile University of Nigeria">Nile University of Nigeria</option>
-                                            <option value="Nnamdi Azikiwe University">Nnamdi Azikiwe University</option>
-                                            <option value="Northwest University">Northwest University</option>
-                                            <option value="Novena University">Novena University</option>
-                                            <option value="Obafemi Awolowo University">Obafemi Awolowo University</option>
-                                            <option value="Obong University">Obong University</option>
-                                            <option value="Oduduwa University">Oduduwa University</option>
-                                            <option value="Olabisi Onabanjo University">Olabisi Onabanjo University</option>
-                                            <option value="Osun State University">Osun State University</option>
-                                            <option value="Pan-Atlantic University">Pan-Atlantic University</option>
-                                            <option value="Paul University">Paul University</option>
-                                            <option value="Plateau State University">Plateau State University</option>
-                                            <option value="Redeemer's University">Redeemer's University</option>
-                                            <option value="Renaissance University">Renaissance University</option>
-                                            <option value="Rhema University">Rhema University</option>
-                                            <option value="Rivers State University">Rivers State University</option>
-                                            <option value="Salem University">Salem University</option>
-                                            <option value="Samuel Adegboyega University">Samuel Adegboyega University</option>
-                                            <option value="Sokoto State University">Sokoto State University</option>
-                                            <option value="Summit University">Summit University</option>
-                                            <option value="Taraba State University">Taraba State University</option>
-                                            <option value="Tansian University">Tansian University</option>
-                                            <option value="University of Abuja">University of Abuja</option>
-                                            <option value="University of Agriculture and Environmental Sciences">University of Agriculture and Environmental Sciences</option>
-                                            <option value="University of Benin">University of Benin</option>
-                                            <option value="University of Calabar">University of Calabar</option>
-                                            <option value="University of Ibadan">University of Ibadan</option>
-                                            <option value="University of Ilorin">University of Ilorin</option>
-                                            <option value="University of Jos">University of Jos</option>
-                                            <option value="University of Lagos">University of Lagos</option>
-                                            <option value="University of Maiduguri">University of Maiduguri</option>
-                                            <option value="University of Nigeria, Nsukka">University of Nigeria, Nsukka</option>
-                                            <option value="University of Port Harcourt">University of Port Harcourt</option>
-                                            <option value="University of Uyo">University of Uyo</option>
-                                            <option value="Veritas University">Veritas University</option>
-                                            <option value="Wesley University">Wesley University</option>
-                                            <option value="Western Delta University">Western Delta University</option>
-                                            <option value="Yobe State University">Yobe State University</option>
-                                            <option value="Yusuf Maitama Sule University">Yusuf Maitama Sule University</option>
+                                            {NIGERIAN_UNIVERSITIES.map((university) => (
+                                              <option key={university} value={university}>
+                                                {university}
+                                              </option>
+                                            ))}
                                           </select>
                                         </div>
                                         <div>
@@ -3535,1281 +3279,818 @@ export default function Admin() {
             </Card>
           </TabsContent>
 
-          {/* Seller Approvals Tab */}
-          <TabsContent value="sellers">
-            <Card>
-              <CardHeader>
-                <div className="flex justify-between items-center">
-                  <CardTitle>Seller Account Approvals</CardTitle>
-                  <div className="flex items-center gap-2">
-                    {pendingSellers.length > 0 && (
-                      <Badge variant="secondary">
-                        {pendingSellers.length} pending
-                      </Badge>
-                    )}
-                    <Button
-                      onClick={fetchPendingSellers}
-                      variant="outline"
-                      size="sm"
-                    >
-                      <RefreshCw className="h-4 w-4 mr-2" />
-                      Refresh
-                    </Button>
-                  </div>
-                </div>
-                <p className="text-sm text-muted-foreground mt-2">
-                  Approve or reject users who want to become sellers on the
-                  platform
-                </p>
-              </CardHeader>
-              <CardContent>
-                {pendingSellers.length === 0 ? (
-                  <div className="text-center py-12">
-                    <UserCheck className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold mb-2">
-                      No pending seller approvals
-                    </h3>
-                    <p className="text-muted-foreground">
-                      All seller account requests have been processed
-                    </p>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Applicant</TableHead>
-                          <TableHead>Email</TableHead>
-                          <TableHead>University</TableHead>
-                          <TableHead>Applied</TableHead>
-                          <TableHead>Verification Photos</TableHead>
-                          <TableHead>Actions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {pendingSellers.map((seller) => (
-                          <TableRow key={seller.id}>
-                            <TableCell>
-                              <div className="flex items-center gap-3">
-                                <Avatar className="h-10 w-10">
-                                  <AvatarImage
-                                    src={seller.avatar_url}
-                                    alt={seller.full_name}
-                                  />
-                                  <AvatarFallback className="bg-university-green text-white text-sm">
-                                    {seller.full_name
-                                      ? seller.full_name
-                                          .split(" ")
-                                          .map((n) => n[0])
-                                          .join("")
-                                          .slice(0, 2)
-                                      : "U"}
-                                  </AvatarFallback>
-                                </Avatar>
-                                <div>
-                                  <p className="font-medium">
-                                    {seller.full_name || "N/A"}
-                                  </p>
-                                  <p className="text-xs text-muted-foreground">
-                                    ID: {seller.user_id.slice(0, 8)}...
-                                  </p>
-                                </div>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <p className="font-medium">{seller.email}</p>
-                            </TableCell>
-                            <TableCell>
-                              {seller.university_name || "N/A"}
-                            </TableCell>
-                            <TableCell>
-                              {new Date(seller.created_at).toLocaleDateString()}
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex gap-2">
-                                {seller.face_photo_url && (
-                                  <Dialog>
-                                    <DialogTrigger asChild>
-                                      <Button variant="outline" size="sm">
-                                        <Eye className="h-4 w-4 mr-1" />
-                                        Face Photo
-                                      </Button>
-                                    </DialogTrigger>
-                                    <DialogContent>
-                                      <DialogHeader>
-                                        <DialogTitle>
-                                          Face Verification Photo
-                                        </DialogTitle>
-                                      </DialogHeader>
-                                      <div className="flex justify-center">
-                                        <img
-                                          src={getImageUrl(
-                                            seller.face_photo_url
-                                          )}
-                                          alt="Face verification"
-                                          className="max-w-full max-h-96 object-contain border rounded"
-                                          onError={(e) => {
-                                            const target =
-                                              e.currentTarget as HTMLImageElement;
-                                            target.style.display = "none";
-                                            const errorMsg =
-                                              target.nextElementSibling as HTMLElement;
-                                            if (errorMsg)
-                                              errorMsg.style.display = "block";
-                                          }}
-                                        />
-                                        <div
-                                          className="text-red-500 text-sm text-center"
-                                          style={{ display: "none" }}
-                                        >
-                                          ❌ Image failed to load
-                                        </div>
-                                      </div>
-                                    </DialogContent>
-                                  </Dialog>
-                                )}
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex gap-2">
-                                <AlertDialog>
-                                  <AlertDialogTrigger asChild>
-                                    <Button variant="default" size="sm">
-                                      <CheckSquare className="h-4 w-4 mr-1" />
-                                      Approve
-                                    </Button>
-                                  </AlertDialogTrigger>
-                                  <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                      <AlertDialogTitle>
-                                        Approve Seller Application
-                                      </AlertDialogTitle>
-                                      <AlertDialogDescription>
-                                        Are you sure you want to approve{" "}
-                                        {seller.full_name || "this user"}'s
-                                        seller application? This will allow them
-                                        to list items on the marketplace and
-                                        they will receive an email notification.
-                                      </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                      <AlertDialogCancel>
-                                        Cancel
-                                      </AlertDialogCancel>
-                                      <AlertDialogAction
-                                        onClick={() =>
-                                          approveSeller(
-                                            seller.user_id,
-                                            seller.email,
-                                            seller.full_name || "User"
-                                          )
-                                        }
-                                      >
-                                        Approve
-                                      </AlertDialogAction>
-                                    </AlertDialogFooter>
-                                  </AlertDialogContent>
-                                </AlertDialog>
-
-                                <AlertDialog>
-                                  <AlertDialogTrigger asChild>
-                                    <Button variant="destructive" size="sm">
-                                      <UserX className="h-4 w-4 mr-1" />
-                                      Reject
-                                    </Button>
-                                  </AlertDialogTrigger>
-                                  <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                      <AlertDialogTitle>
-                                        Reject Seller Application
-                                      </AlertDialogTitle>
-                                      <AlertDialogDescription>
-                                        Are you sure you want to reject{" "}
-                                        {seller.full_name || "this user"}'s
-                                        seller application? Their account will
-                                        be converted to buyer-only and they will
-                                        receive an email notification.
-                                      </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                      <AlertDialogCancel>
-                                        Cancel
-                                      </AlertDialogCancel>
-                                      <AlertDialogAction
-                                        onClick={() =>
-                                          rejectSeller(
-                                            seller.user_id,
-                                            seller.email,
-                                            seller.full_name || "User"
-                                          )
-                                        }
-                                      >
-                                        Reject
-                                      </AlertDialogAction>
-                                    </AlertDialogFooter>
-                                  </AlertDialogContent>
-                                </AlertDialog>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+          {/* Seller applications + verification badge requests - merged into
+              one tab with two sub-views (see PendingApprovalsTab); the two
+              admin_permissions tab_keys stay separate so a Super Admin can
+              still delegate one without the other. */}
+          <TabsContent value="approvals">
+            <PendingApprovalsTab
+              canAccessSellers={canAccessTab("sellers")}
+              canAccessVerification={canAccessTab("verification")}
+              onUserDataChanged={fetchUsers}
+              onCountsChange={(sellers, verification) =>
+                setPendingApprovalCounts({ sellers, verification })
+              }
+            />
           </TabsContent>
 
           {/* Product Reports Tab */}
           <TabsContent value="reports">
-            <Card>
-              <CardHeader>
-                <div className="flex justify-between items-center">
-                  <CardTitle>Product Issue Reports</CardTitle>
-                  <div className="flex items-center gap-2">
-                    {productReports.filter((r) => r.status === "pending")
-                      .length > 0 && (
-                      <Badge variant="secondary">
-                        {
-                          productReports.filter((r) => r.status === "pending")
-                            .length
-                        }{" "}
-                        pending
-                      </Badge>
-                    )}
-                    <Button
-                      onClick={fetchProductReports}
-                      variant="outline"
-                      size="sm"
-                    >
-                      <RefreshCw className="h-4 w-4 mr-2" />
-                      Refresh
-                    </Button>
-                  </div>
+            <div className="rounded-3xl bg-flora-card p-5 shadow-card sm:p-6">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h2 className="text-lg font-bold text-flora-ink">
+                  Product Issue Reports
+                </h2>
+                <div className="flex items-center gap-2">
+                  {productReports.filter((r) => r.status === "pending")
+                    .length > 0 && (
+                    <span className="rounded-full bg-flora-chip px-2.5 py-0.5 text-xs font-medium text-flora-ink">
+                      {
+                        productReports.filter((r) => r.status === "pending")
+                          .length
+                      }{" "}
+                      pending
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={fetchProductReports}
+                    className="inline-flex items-center gap-2 rounded-full border border-flora-ink/15 bg-white px-4 py-1.5 text-sm font-medium text-flora-ink transition hover:bg-flora-chip"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    Refresh
+                  </button>
                 </div>
-                <p className="text-sm text-muted-foreground mt-2">
-                  Review product issue reports and contact sellers via email
-                </p>
-              </CardHeader>
-              <CardContent>
-                {productReports.length === 0 ? (
-                  <div className="text-center py-12">
-                    <Flag className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold mb-2">
-                      No product reports
-                    </h3>
-                    <p className="text-muted-foreground">
-                      No issues have been reported with products
-                    </p>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Product</TableHead>
-                          <TableHead>Reported By</TableHead>
-                          <TableHead>Reason</TableHead>
-                          <TableHead>Description</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Reported</TableHead>
-                          <TableHead>Actions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {productReports.map((report) => (
-                          <TableRow key={report.id}>
-                            <TableCell>
-                              <div>
-                                <p className="font-medium">
-                                  {report.product?.title || "Unknown Product"}
-                                </p>
-                                <p className="text-sm text-muted-foreground">
-                                  Seller:{" "}
-                                  {report.seller?.full_name || "Unknown"}
-                                </p>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <div>
-                                <p className="font-medium">
-                                  {report.reporter?.full_name || "Unknown"}
-                                </p>
-                                <p className="text-sm text-muted-foreground">
-                                  {report.reporter?.email}
-                                </p>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant="outline">
-                                {report.reason.replace("_", " ")}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="max-w-xs">
-                              <p
-                                className="text-sm truncate"
-                                title={report.description}
-                              >
-                                {report.description}
-                              </p>
-                            </TableCell>
-                            <TableCell>
-                              <Badge
-                                variant={
-                                  report.status === "pending"
-                                    ? "destructive"
-                                    : "default"
-                                }
-                              >
-                                {report.status}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              {new Date(report.created_at).toLocaleDateString()}
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex gap-2">
-                                <Dialog>
-                                  <DialogTrigger asChild>
-                                    <Button size="sm" variant="outline">
-                                      Email Seller
-                                    </Button>
-                                  </DialogTrigger>
-                                  <DialogContent>
-                                    <DialogHeader>
-                                      <DialogTitle>
-                                        Send Email to Seller
-                                      </DialogTitle>
-                                      <DialogDescription>
-                                        Send an email notification to{" "}
-                                        {report.seller?.full_name} about the
-                                        reported issue
-                                      </DialogDescription>
-                                    </DialogHeader>
-                                    <div className="space-y-4">
-                                      <div>
-                                        <Label>Seller Email</Label>
-                                        <Input
-                                          value={report.seller?.email || ""}
-                                          disabled
-                                        />
-                                      </div>
-                                      <div>
-                                        <Label>Subject</Label>
-                                        <Input
-                                          defaultValue={`Issue Reported: ${report.product?.title}`}
-                                          id={`subject-${report.id}`}
-                                        />
-                                      </div>
-                                      <div>
-                                        <Label>Message</Label>
-                                        <Textarea
-                                          defaultValue={`Hello ${
-                                            report.seller?.full_name
-                                          },\n\nA user has reported an issue with your product "${
-                                            report.product?.title
-                                          }".\n\nReason: ${report.reason.replace(
-                                            "_",
-                                            " "
-                                          )}\nDescription: ${
-                                            report.description
-                                          }\n\nPlease review your product listing and make any necessary corrections.\n\nBest regards,\nUniMarket Admin Team`}
-                                          rows={8}
-                                          id={`message-${report.id}`}
-                                        />
-                                      </div>
-                                      <div className="flex justify-end gap-2">
-                                        <DialogTrigger asChild>
-                                          <Button variant="outline">
-                                            Cancel
-                                          </Button>
-                                        </DialogTrigger>
-                                        <Button
-                                          onClick={async () => {
-                                            const subject = (
-                                              document.getElementById(
-                                                `subject-${report.id}`
-                                              ) as HTMLInputElement
-                                            )?.value;
-                                            const message = (
-                                              document.getElementById(
-                                                `message-${report.id}`
-                                              ) as HTMLTextAreaElement
-                                            )?.value;
+              </div>
+              <p className="mt-2 text-sm text-flora-muted">
+                Review product issue reports and contact sellers via email
+              </p>
+              <div className="relative mt-3">
+                <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-flora-muted" />
+                <Input
+                  placeholder="Search by product, seller, or reporter..."
+                  value={reportSearch}
+                  onChange={(e) => setReportSearch(e.target.value)}
+                  className="rounded-full border-flora-ink/15 bg-white pl-10 text-sm focus-visible:ring-flora-ink"
+                />
+              </div>
+              {productReports.length === 0 ? (
+                <div className="py-12 text-center">
+                  <Flag className="mx-auto mb-4 h-12 w-12 text-flora-muted" />
+                  <h3 className="mb-2 text-lg font-semibold text-flora-ink">
+                    No product reports
+                  </h3>
+                  <p className="text-flora-muted">
+                    No issues have been reported with products
+                  </p>
+                </div>
+              ) : (
+                (() => {
+                  const q = reportSearch.trim().toLowerCase();
+                  const filteredReports = q
+                    ? productReports.filter(
+                        (report) =>
+                          report.product?.title?.toLowerCase().includes(q) ||
+                          report.seller?.full_name
+                            ?.toLowerCase()
+                            .includes(q) ||
+                          report.reporter?.full_name
+                            ?.toLowerCase()
+                            .includes(q) ||
+                          report.reporter?.email?.toLowerCase().includes(q)
+                      )
+                    : productReports;
 
-                                            try {
-                                              await supabase.functions.invoke(
-                                                "send-notification-email",
-                                                {
-                                                  body: {
-                                                    email: report.seller?.email,
-                                                    name: report.seller
-                                                      ?.full_name,
-                                                    subject: subject,
-                                                    message: message,
-                                                    type: "custom",
-                                                  },
-                                                }
-                                              );
-
-                                              // Update report status - skip since table doesn't exist
-
-                                              toast.success(
-                                                "Email sent successfully"
-                                              );
-                                              fetchProductReports();
-                                            } catch (error) {
-                                              toast.error(
-                                                "Failed to send email"
-                                              );
-                                            }
-                                          }}
-                                        >
-                                          Send Email
-                                        </Button>
-                                      </div>
-                                    </div>
-                                  </DialogContent>
-                                </Dialog>
-                                {report.status === "pending" && (
-                                  <Button
-                                    size="sm"
-                                    variant="default"
-                                    onClick={async () => {
-                                      try {
-                                        const { error } = await supabase
-                                          .from("product_reports")
-                                          .update({ status: "resolved" })
-                                          .eq("id", report.id);
-
-                                        if (error) throw error;
-
-                                        toast.success(
-                                          "Report marked as resolved"
-                                        );
-                                        fetchProductReports();
-                                      } catch (error) {
-                                        toast.error("Failed to update report");
-                                      }
-                                    }}
-                                  >
-                                    Mark Resolved
-                                  </Button>
-                                )}
-                              </div>
-                            </TableCell>
+                  return filteredReports.length === 0 ? (
+                    <div className="py-12 text-center">
+                      <Search className="mx-auto mb-4 h-10 w-10 text-flora-muted" />
+                      <p className="text-flora-muted">
+                        No reports match "{reportSearch}"
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="mt-4 overflow-x-auto rounded-2xl border border-flora-ink/10">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="bg-flora-chip/40 hover:bg-flora-chip/40">
+                            <TableHead className="text-flora-ink">
+                              Product
+                            </TableHead>
+                            <TableHead className="text-flora-ink">
+                              Reported By
+                            </TableHead>
+                            <TableHead className="text-flora-ink">
+                              Reason
+                            </TableHead>
+                            <TableHead className="text-flora-ink">
+                              Description
+                            </TableHead>
+                            <TableHead className="text-flora-ink">
+                              Status
+                            </TableHead>
+                            <TableHead className="text-flora-ink">
+                              Reported
+                            </TableHead>
+                            <TableHead className="text-flora-ink">
+                              Actions
+                            </TableHead>
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Ban Appeals Tab */}
-          <TabsContent value="appeals">
-            <Card>
-              <CardHeader>
-                <div className="flex justify-between items-center">
-                  <CardTitle>Ban Appeals</CardTitle>
-                  <div className="flex items-center gap-2">
-                    {banAppeals.filter((a) => a.status === "pending").length >
-                      0 && (
-                      <Badge variant="secondary">
-                        {
-                          banAppeals.filter((a) => a.status === "pending")
-                            .length
-                        }{" "}
-                        pending
-                      </Badge>
-                    )}
-                    <Button
-                      onClick={fetchBanAppeals}
-                      variant="outline"
-                      size="sm"
-                    >
-                      <RefreshCw className="h-4 w-4 mr-2" />
-                      Refresh
-                    </Button>
-                  </div>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  Review appeals from banned users
-                </p>
-              </CardHeader>
-              <CardContent>
-                {banAppeals.length === 0 ? (
-                  <div className="text-center py-12">
-                    <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold mb-2">
-                      No ban appeals
-                    </h3>
-                    <p className="text-muted-foreground">
-                      Banned users can submit appeals through the login screen
-                    </p>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>User Details</TableHead>
-                          <TableHead>Email</TableHead>
-                          <TableHead>Student ID</TableHead>
-                          <TableHead>Appeal Message</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Submitted</TableHead>
-                          <TableHead>Actions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {banAppeals.map((appeal) => (
-                          <TableRow key={appeal.id}>
-                            <TableCell>
-                              <div>
-                                <p className="font-medium">
-                                  {appeal.full_name}
-                                </p>
-                                <p className="text-xs text-muted-foreground">
-                                  Appeal #{appeal.id.slice(0, 8)}
-                                </p>
-                              </div>
-                            </TableCell>
-                            <TableCell>{appeal.user_email}</TableCell>
-                            <TableCell>{appeal.matric_number}</TableCell>
-                            <TableCell className="max-w-xs">
-                              <div className="flex items-center gap-2">
+                        </TableHeader>
+                        <TableBody>
+                          {filteredReports.map((report) => (
+                            <TableRow
+                              key={report.id}
+                              className="hover:bg-flora-chip/20"
+                            >
+                              <TableCell>
+                                <div>
+                                  <p className="font-medium text-flora-ink">
+                                    {report.product?.title ||
+                                      "Unknown Product"}
+                                  </p>
+                                  <p className="text-sm text-flora-muted">
+                                    Seller:{" "}
+                                    {report.seller?.full_name || "Unknown"}
+                                  </p>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <div>
+                                  <p className="font-medium text-flora-ink">
+                                    {report.reporter?.full_name || "Unknown"}
+                                  </p>
+                                  <p className="text-sm text-flora-muted">
+                                    {report.reporter?.email}
+                                  </p>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <span className="rounded-full bg-flora-chip px-2.5 py-0.5 text-xs font-medium text-flora-ink">
+                                  {report.reason.replace("_", " ")}
+                                </span>
+                              </TableCell>
+                              <TableCell className="max-w-xs">
                                 <p
-                                  className="text-sm truncate flex-1"
-                                  title={appeal.message}
+                                  className="truncate text-sm text-flora-muted"
+                                  title={report.description}
                                 >
-                                  {appeal.message}
+                                  {report.description}
                                 </p>
-                                {appeal.message.length > 50 && (
-                                  <Dialog>
-                                    <DialogTrigger asChild>
-                                      <Button variant="outline" size="sm">
-                                        <Eye className="h-4 w-4" />
-                                      </Button>
-                                    </DialogTrigger>
-                                    <DialogContent>
-                                      <DialogHeader>
-                                        <DialogTitle>
-                                          Full Appeal Message
-                                        </DialogTitle>
-                                      </DialogHeader>
-                                      <div className="max-h-96 overflow-y-auto">
-                                        <p className="text-sm whitespace-pre-wrap">
-                                          {appeal.message}
-                                        </p>
-                                      </div>
-                                    </DialogContent>
-                                  </Dialog>
-                                )}
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <Badge
-                                variant={
-                                  appeal.status === "pending"
-                                    ? "secondary"
-                                    : appeal.status === "approved"
-                                    ? "default"
-                                    : "destructive"
-                                }
-                              >
-                                {appeal.status}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              {new Date(appeal.created_at).toLocaleDateString()}
-                            </TableCell>
-                            <TableCell>
-                              {appeal.status === "pending" && (
+                              </TableCell>
+                              <TableCell>
+                                <span
+                                  className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                                    report.status === "pending"
+                                      ? "bg-amber-100 text-amber-700"
+                                      : "bg-flora-leaf/15 text-flora-leaf"
+                                  }`}
+                                >
+                                  {report.status}
+                                </span>
+                              </TableCell>
+                              <TableCell className="text-flora-muted">
+                                {new Date(
+                                  report.created_at
+                                ).toLocaleDateString()}
+                              </TableCell>
+                              <TableCell>
                                 <div className="flex gap-2">
                                   <Dialog>
                                     <DialogTrigger asChild>
-                                      <Button size="sm" variant="default">
-                                        Approve
-                                      </Button>
+                                      <button
+                                        type="button"
+                                        className="inline-flex items-center gap-1.5 rounded-full border border-flora-ink/15 bg-white px-3.5 py-1.5 text-sm font-medium text-flora-ink transition hover:bg-flora-chip"
+                                      >
+                                        Email Seller
+                                      </button>
                                     </DialogTrigger>
-                                    <DialogContent>
+                                    <DialogContent className="rounded-3xl">
                                       <DialogHeader>
-                                        <DialogTitle>
-                                          Approve Ban Appeal
+                                        <DialogTitle className="text-flora-ink">
+                                          Send Email to Seller
                                         </DialogTitle>
-                                        <DialogDescription>
-                                          This will unban the user and send them
-                                          a notification. Provide a response
-                                          message.
+                                        <DialogDescription className="text-flora-muted">
+                                          Send an email notification to{" "}
+                                          {report.seller?.full_name} about the
+                                          reported issue
                                         </DialogDescription>
                                       </DialogHeader>
-                                      <form
-                                        onSubmit={async (e) => {
-                                          e.preventDefault();
-                                          const formData = new FormData(
-                                            e.currentTarget
-                                          );
-                                          const response = formData.get(
-                                            "admin_response"
-                                          ) as string;
-
-                                          try {
-                                            // Update appeal status
-                                            const { error: appealError } =
-                                              await supabase
-                                                .from("ban_appeals")
-                                                .update({
-                                                  status: "approved",
-                                                  admin_response:
-                                                    response ||
-                                                    "Your appeal was approved and your account has been restored.",
-                                                })
-                                                .eq("id", appeal.id);
-
-                                            if (appealError) throw appealError;
-
-                                            // Find and unban the user
-                                            const { data: user } =
-                                              await supabase
-                                                .from("profiles")
-                                                .select("user_id, full_name")
-                                                .eq("email", appeal.user_email)
-                                                .eq(
-                                                  "student_id",
-                                                  appeal.matric_number
-                                                )
-                                                .single();
-
-                                            if (user) {
-                                              // Unban the user
-                                              await supabase.rpc("unban_user", {
-                                                target_user_id: user.user_id,
-                                                clear_notes: true,
-                                              });
-
-                                              // Send notification to unbanned user
-                                              const { sendNotification } = await import('@/utils/notificationService');
-                                              await sendNotification({
-                                                userId: user.user_id,
-                                                title: "Account Restored! 🎉",
-                                                message:
-                                                  response ||
-                                                  "Your ban appeal has been approved and your account has been restored. Welcome back to UniMarket!",
-                                                type: "success",
-                                                url: "/"
-                                              });
-
-                                              // Send secure email notification
-                                              try {
-                                                await sendEmailNotification({
-                                                  to_email: appeal.user_email,
-                                                  to_name: appeal.full_name,
-                                                  subject: 'Ban Appeal Approved - Account Restored',
-                                                  message: response || "Your appeal was approved and your account has been restored.",
-                                                  notification_type: 'ban_approval'
-                                                });
-                                              } catch (emailError) {
-                                                // Email notification failed silently
-                                              }
-                                            }
-
-                                            toast.success(
-                                              "Appeal approved, user unbanned, and email sent"
-                                            );
-                                            fetchBanAppeals();
-                                            fetchUsers();
-                                          } catch (error) {
-                                            toast.error(
-                                              "Failed to approve appeal"
-                                            );
-                                          }
-                                        }}
-                                      >
-                                        <div className="space-y-4">
-                                          <div>
-                                            <Label>Response to User</Label>
-                                            <Textarea
-                                              name="admin_response"
-                                              placeholder="Your appeal has been approved. Welcome back to UniMarket."
-                                              rows={3}
-                                            />
-                                          </div>
-                                          <div className="flex justify-end gap-2">
-                                            <DialogTrigger asChild>
-                                              <Button
-                                                type="button"
-                                                variant="outline"
-                                              >
-                                                Cancel
-                                              </Button>
-                                            </DialogTrigger>
-                                            <Button type="submit">
-                                              Approve Appeal
-                                            </Button>
-                                          </div>
-                                        </div>
-                                      </form>
-                                    </DialogContent>
-                                  </Dialog>
-
-                                  <Dialog>
-                                    <DialogTrigger asChild>
-                                      <Button size="sm" variant="outline">
-                                        Reject
-                                      </Button>
-                                    </DialogTrigger>
-                                    <DialogContent>
-                                      <DialogHeader>
-                                        <DialogTitle>
-                                          Reject Ban Appeal
-                                        </DialogTitle>
-                                        <DialogDescription>
-                                          Provide a reason for rejecting this
-                                          appeal.
-                                        </DialogDescription>
-                                      </DialogHeader>
-                                      <form
-                                        onSubmit={async (e) => {
-                                          e.preventDefault();
-                                          const formData = new FormData(
-                                            e.currentTarget
-                                          );
-                                          const response = formData.get(
-                                            "admin_response"
-                                          ) as string;
-
-                                          try {
-                                            // Update appeal status
-                                            const { error: appealError } =
-                                              await supabase
-                                                .from("ban_appeals")
-                                                .update({
-                                                  status: "rejected",
-                                                  admin_response: response,
-                                                })
-                                                .eq("id", appeal.id);
-
-                                            if (appealError) throw appealError;
-
-                                            // Send rejection email
-                                            try {
-                                              await sendEmailNotification({
-                                                to_email: appeal.user_email,
-                                                to_name: appeal.full_name,
-                                                subject: 'Ban Appeal Rejected',
-                                                message: response,
-                                                notification_type: 'ban_rejection'
-                                              });
-                                            } catch (emailError) {
-                                              // Email notification failed silently
-                                            }
-
-                                            toast.success(
-                                              "Appeal rejected and email sent"
-                                            );
-                                            fetchBanAppeals();
-                                          } catch (error) {
-                                            toast.error(
-                                              "Failed to reject appeal"
-                                            );
-                                          }
-                                        }}
-                                      >
-                                        <div className="space-y-4">
-                                          <div>
-                                            <Label>Rejection Reason</Label>
-                                            <Textarea
-                                              name="admin_response"
-                                              placeholder="Your appeal has been reviewed and rejected because..."
-                                              required
-                                              rows={3}
-                                            />
-                                          </div>
-                                          <div className="flex justify-end gap-2">
-                                            <DialogTrigger asChild>
-                                              <Button
-                                                type="button"
-                                                variant="outline"
-                                              >
-                                                Cancel
-                                              </Button>
-                                            </DialogTrigger>
-                                            <Button
-                                              type="submit"
-                                              variant="destructive"
-                                            >
-                                              Reject Appeal
-                                            </Button>
-                                          </div>
-                                        </div>
-                                      </form>
-                                    </DialogContent>
-                                  </Dialog>
-                                </div>
-                              )}
-                              {appeal.status !== "pending" &&
-                                appeal.admin_response && (
-                                  <Dialog>
-                                    <DialogTrigger asChild>
-                                      <Button size="sm" variant="outline">
-                                        View Response
-                                      </Button>
-                                    </DialogTrigger>
-                                    <DialogContent>
-                                      <DialogHeader>
-                                        <DialogTitle>
-                                          Admin Response
-                                        </DialogTitle>
-                                      </DialogHeader>
-                                      <div className="space-y-2">
-                                        <p className="text-sm">
-                                          {appeal.admin_response}
-                                        </p>
-                                      </div>
-                                    </DialogContent>
-                                  </Dialog>
-                                )}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Verification Requests Tab */}
-          <TabsContent value="verification">
-            <Card>
-              <CardHeader>
-                <div className="flex justify-between items-center">
-                  <CardTitle>Verification Badge Requests</CardTitle>
-                  <div className="flex items-center gap-2">
-                    {verificationRequests.length > 0 && (
-                      <Badge variant="secondary">
-                        {verificationRequests.length} pending
-                      </Badge>
-                    )}
-                    <Button
-                      onClick={fetchVerificationRequests}
-                      variant="outline"
-                      size="sm"
-                    >
-                      <RefreshCw className="h-4 w-4 mr-2" />
-                      Refresh
-                    </Button>
-                  </div>
-                </div>
-                <p className="text-sm text-muted-foreground mt-2">
-                  Review and approve verification badge requests for trusted
-                  users
-                </p>
-              </CardHeader>
-              <CardContent>
-                {verificationRequests.length === 0 ? (
-                  <div className="text-center py-12">
-                    <Shield className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold mb-2">
-                      No pending verification requests
-                    </h3>
-                    <p className="text-muted-foreground">
-                      All verification badge requests have been processed
-                    </p>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>User</TableHead>
-                          <TableHead>Email</TableHead>
-                          <TableHead>University</TableHead>
-                          <TableHead>Requested</TableHead>
-                          <TableHead>Verification Photos</TableHead>
-                          <TableHead>Actions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {verificationRequests.map((user) => (
-                          <TableRow
-                            key={user.verification_request_id || user.id}
-                          >
-                            <TableCell>
-                              <div className="flex items-center gap-3">
-                                <Avatar className="h-10 w-10">
-                                  <AvatarImage
-                                    src={user.avatar_url}
-                                    alt={user.full_name}
-                                  />
-                                  <AvatarFallback className="bg-university-green text-white text-sm">
-                                    {user.full_name
-                                      ? user.full_name
-                                          .split(" ")
-                                          .map((n) => n[0])
-                                          .join("")
-                                          .slice(0, 2)
-                                      : "U"}
-                                  </AvatarFallback>
-                                </Avatar>
-                                <div>
-                                  <p className="font-medium">
-                                    {user.full_name || "N/A"}
-                                  </p>
-                                  <p className="text-xs text-muted-foreground">
-                                    ID:{" "}
-                                    {user.student_id ||
-                                      user.user_id.slice(0, 8)}
-                                  </p>
-                                  <p className="text-xs text-muted-foreground">
-                                    {user.account_type} • Rating:{" "}
-                                    {user.rating?.toFixed(1) || "0.0"}
-                                  </p>
-                                </div>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <p className="font-medium">{user.email}</p>
-                            </TableCell>
-                            <TableCell>
-                              <div>
-                                <p>{user.university_name || "N/A"}</p>
-                                <p className="text-xs text-muted-foreground">
-                                  {user.phone_number || "No phone"}
-                                </p>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <div>
-                                <p>
-                                  {new Date(
-                                    user.created_at
-                                  ).toLocaleDateString()}
-                                </p>
-                                <p className="text-xs text-muted-foreground">
-                                  {user.total_reviews || 0} reviews
-                                </p>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex gap-2">
-                                <Dialog>
-                                  <DialogTrigger asChild>
-                                    <Button variant="outline" size="sm">
-                                      <Eye className="h-4 w-4 mr-1" />
-                                      Face Photo
-                                    </Button>
-                                  </DialogTrigger>
-                                  <DialogContent>
-                                    <DialogHeader>
-                                      <DialogTitle>
-                                        Face Verification Photo
-                                      </DialogTitle>
-                                      <DialogDescription>
-                                        View the user's face verification photo
-                                      </DialogDescription>
-                                    </DialogHeader>
-                                    <div className="flex justify-center flex-col items-center gap-2">
-                                      {user.face_photo_url ? (
-                                        <>
-                                          <img
-                                            src={user.face_photo_url}
-                                            alt="Face verification"
-                                            className="max-w-full max-h-96 object-contain border rounded"
-                                            onError={(e) => {
-                                              const target =
-                                                e.currentTarget as HTMLImageElement;
-                                              target.style.display = "none";
-                                              const errorMsg =
-                                                target.nextElementSibling as HTMLElement;
-                                              if (errorMsg)
-                                                errorMsg.style.display =
-                                                  "block";
-                                            }}
+                                      <div className="space-y-4">
+                                        <div>
+                                          <Label>Seller Email</Label>
+                                          <Input
+                                            value={report.seller?.email || ""}
+                                            disabled
                                           />
-                                          <div
-                                            className="text-red-500 text-sm text-center"
-                                            style={{ display: "none" }}
-                                          >
-                                            ❌ Image failed to load
-                                            <br />
-                                            <span className="text-xs">
-                                              Check storage permissions or run
-                                              fix_profile_photos.sql
-                                            </span>
-                                          </div>
-                                        </>
-                                      ) : (
-                                        <p className="text-muted-foreground">
-                                          No face photo uploaded
-                                        </p>
-                                      )}
-                                    </div>
-                                  </DialogContent>
-                                </Dialog>
-                                <Dialog>
-                                  <DialogTrigger asChild>
-                                    <Button variant="outline" size="sm">
-                                      <IdCard className="h-4 w-4 mr-1" />
-                                      View Profile
-                                    </Button>
-                                  </DialogTrigger>
-                                  <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                                    <DialogHeader>
-                                      <DialogTitle>
-                                        Complete Seller Profile -{" "}
-                                        {user.full_name}
-                                      </DialogTitle>
-                                      <DialogDescription>
-                                        View all seller details and verification
-                                        documents
-                                      </DialogDescription>
-                                    </DialogHeader>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                      <div className="space-y-4">
-                                        <div className="flex items-center gap-4">
-                                          <Avatar className="h-16 w-16">
-                                            <AvatarImage
-                                              src={user.avatar_url}
-                                            />
-                                            <AvatarFallback className="bg-university-green text-white">
-                                              {user.full_name
-                                                ? user.full_name
-                                                    .split(" ")
-                                                    .map((n) => n[0])
-                                                    .join("")
-                                                    .slice(0, 2)
-                                                : "U"}
-                                            </AvatarFallback>
-                                          </Avatar>
-                                          <div>
-                                            <h3 className="font-semibold text-lg">
-                                              {user.full_name}
-                                            </h3>
-                                            <p className="text-muted-foreground">
-                                              {user.email}
-                                            </p>
-                                            <div className="flex gap-2 mt-1">
-                                              <Badge variant="outline">
-                                                {user.account_type}
-                                              </Badge>
-                                              {user.is_verified && (
-                                                <Badge variant="secondary">
-                                                  Verified
-                                                </Badge>
-                                              )}
-                                            </div>
-                                          </div>
                                         </div>
-
-                                        <div className="grid grid-cols-2 gap-4 text-sm">
-                                          <div>
-                                            <Label className="font-medium">
-                                              University
-                                            </Label>
-                                            <p>
-                                              {user.university_name ||
-                                                "Not set"}
-                                            </p>
-                                          </div>
-                                          <div>
-                                            <Label className="font-medium">
-                                              Student ID
-                                            </Label>
-                                            <p>
-                                              {user.student_id || "Not set"}
-                                            </p>
-                                          </div>
-                                          <div>
-                                            <Label className="font-medium">
-                                              Phone
-                                            </Label>
-                                            <p>
-                                              {user.phone_number || "Not set"}
-                                            </p>
-                                          </div>
-                                          <div>
-                                            <Label className="font-medium">
-                                              Rating
-                                            </Label>
-                                            <p>
-                                              {user.rating?.toFixed(1) || "0.0"}{" "}
-                                              ({user.total_reviews || 0}{" "}
-                                              reviews)
-                                            </p>
-                                          </div>
-                                        </div>
-
-                                        {user.bio && (
-                                          <div>
-                                            <Label className="font-medium">
-                                              Bio
-                                            </Label>
-                                            <p className="text-sm text-muted-foreground">
-                                              {user.bio}
-                                            </p>
-                                          </div>
-                                        )}
-                                      </div>
-
-                                      <div className="space-y-4">
                                         <div>
-                                          <Label className="font-medium mb-2 block">
-                                            Face Verification Photo
-                                          </Label>
-                                          {user.avatar_url ? (
-                                            <img
-                                              src={user.avatar_url}
-                                              alt="Face verification"
-                                              className="w-full max-w-xs h-auto rounded border"
-                                            />
-                                          ) : (
-                                            <p className="text-muted-foreground text-sm">
-                                              No profile photo
-                                            </p>
-                                          )}
+                                          <Label>Subject</Label>
+                                          <Input
+                                            defaultValue={`Issue Reported: ${report.product?.title}`}
+                                            id={`subject-${report.id}`}
+                                          />
                                         </div>
-
-                                      </div>
-                                    </div>
-                                  </DialogContent>
-                                </Dialog>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex gap-2">
-                                <AlertDialog>
-                                  <AlertDialogTrigger asChild>
-                                    <Button variant="default" size="sm">
-                                      <Shield className="h-4 w-4 mr-1" />
-                                      Verify
-                                    </Button>
-                                  </AlertDialogTrigger>
-                                  <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                      <AlertDialogTitle>
-                                        Approve Verification Badge
-                                      </AlertDialogTitle>
-                                      <AlertDialogDescription>
-                                        Are you sure you want to grant{" "}
-                                        {user.full_name || "this user"} a
-                                        verification badge? This will show a
-                                        green checkmark on their profile
-                                        indicating they are a trusted user.
-                                      </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                      <AlertDialogCancel>
-                                        Cancel
-                                      </AlertDialogCancel>
-                                      <AlertDialogAction
-                                        onClick={() =>
-                                          approveVerification(
-                                            user.verification_request_id ||
-                                              user.id,
-                                            user.user_id,
-                                            user.email,
-                                            user.full_name || "User"
-                                          )
-                                        }
-                                      >
-                                        Grant Badge
-                                      </AlertDialogAction>
-                                    </AlertDialogFooter>
-                                  </AlertDialogContent>
-                                </AlertDialog>
-
-                                <Dialog>
-                                  <DialogTrigger asChild>
-                                    <Button variant="outline" size="sm">
-                                      <UserX className="h-4 w-4 mr-1" />
-                                      Reject
-                                    </Button>
-                                  </DialogTrigger>
-                                  <DialogContent>
-                                    <DialogHeader>
-                                      <DialogTitle>
-                                        Reject Verification Request
-                                      </DialogTitle>
-                                      <DialogDescription>
-                                        Provide a reason for rejecting{" "}
-                                        {user.full_name || "this user"}'s
-                                        verification request.
-                                      </DialogDescription>
-                                    </DialogHeader>
-                                    <form
-                                      onSubmit={(e) => {
-                                        e.preventDefault();
-                                        const formData = new FormData(
-                                          e.currentTarget
-                                        );
-                                        const reason = formData.get(
-                                          "rejection_reason"
-                                        ) as string;
-                                        if (reason.trim()) {
-                                          rejectVerification(
-                                            user.verification_request_id ||
-                                              user.id,
-                                            user.user_id,
-                                            user.email,
-                                            user.full_name || "User",
-                                            reason.trim()
-                                          );
-                                        }
-                                      }}
-                                    >
-                                      <div className="space-y-4">
                                         <div>
-                                          <Label htmlFor="rejection_reason">
-                                            Rejection Reason *
-                                          </Label>
+                                          <Label>Message</Label>
                                           <Textarea
-                                            name="rejection_reason"
-                                            placeholder="e.g., Photo quality is poor, BVN/NIN mismatch, Additional verification needed..."
-                                            required
-                                            rows={3}
+                                            defaultValue={`Hello ${
+                                              report.seller?.full_name
+                                            },\n\nA user has reported an issue with your product "${
+                                              report.product?.title
+                                            }".\n\nReason: ${report.reason.replace(
+                                              "_",
+                                              " "
+                                            )}\nDescription: ${
+                                              report.description
+                                            }\n\nPlease review your product listing and make any necessary corrections.\n\nBest regards,\nUniMarket Admin Team`}
+                                            rows={8}
+                                            id={`message-${report.id}`}
                                           />
                                         </div>
                                         <div className="flex justify-end gap-2">
                                           <DialogTrigger asChild>
-                                            <Button
-                                              type="button"
-                                              variant="outline"
-                                            >
+                                            <Button variant="outline">
                                               Cancel
                                             </Button>
                                           </DialogTrigger>
                                           <Button
-                                            type="submit"
-                                            variant="destructive"
+                                            onClick={async () => {
+                                              const subject = (
+                                                document.getElementById(
+                                                  `subject-${report.id}`
+                                                ) as HTMLInputElement
+                                              )?.value;
+                                              const message = (
+                                                document.getElementById(
+                                                  `message-${report.id}`
+                                                ) as HTMLTextAreaElement
+                                              )?.value;
+
+                                              try {
+                                                await supabase.functions.invoke(
+                                                  "send-notification-email",
+                                                  {
+                                                    body: {
+                                                      email:
+                                                        report.seller?.email,
+                                                      name: report.seller
+                                                        ?.full_name,
+                                                      subject: subject,
+                                                      message: message,
+                                                      type: "custom",
+                                                    },
+                                                  }
+                                                );
+
+                                                // Update report status - skip since table doesn't exist
+
+                                                toast.success(
+                                                  "Email sent successfully"
+                                                );
+                                                fetchProductReports();
+                                              } catch (error) {
+                                                toast.error(
+                                                  "Failed to send email"
+                                                );
+                                              }
+                                            }}
                                           >
-                                            Reject Request
+                                            Send Email
                                           </Button>
                                         </div>
                                       </div>
-                                    </form>
-                                  </DialogContent>
-                                </Dialog>
-                              </div>
-                            </TableCell>
+                                    </DialogContent>
+                                  </Dialog>
+                                  {report.status === "pending" && (
+                                    <AlertDialog>
+                                      <AlertDialogTrigger asChild>
+                                        <button
+                                          type="button"
+                                          className="inline-flex items-center gap-1.5 rounded-full bg-flora-ink px-3.5 py-1.5 text-sm font-medium text-white transition hover:brightness-110"
+                                        >
+                                          Mark Resolved
+                                        </button>
+                                      </AlertDialogTrigger>
+                                      <AlertDialogContent className="rounded-3xl">
+                                        <AlertDialogHeader>
+                                          <AlertDialogTitle className="text-flora-ink">
+                                            Mark Report as Resolved
+                                          </AlertDialogTitle>
+                                          <AlertDialogDescription className="text-flora-muted">
+                                            This just updates the report's
+                                            status for your own tracking - the
+                                            reporter and seller are not
+                                            notified.
+                                          </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                          <AlertDialogCancel>
+                                            Cancel
+                                          </AlertDialogCancel>
+                                          <AlertDialogAction
+                                            onClick={async () => {
+                                              try {
+                                                const { error } =
+                                                  await supabase
+                                                    .from("product_reports")
+                                                    .update({
+                                                      status: "resolved",
+                                                    })
+                                                    .eq("id", report.id);
+
+                                                if (error) throw error;
+
+                                                toast.success(
+                                                  "Report marked as resolved"
+                                                );
+                                                fetchProductReports();
+                                              } catch (error) {
+                                                toast.error(
+                                                  "Failed to update report"
+                                                );
+                                              }
+                                            }}
+                                          >
+                                            Mark Resolved
+                                          </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                      </AlertDialogContent>
+                                    </AlertDialog>
+                                  )}
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  );
+                })()
+              )}
+            </div>
+          </TabsContent>
+
+          {/* Ban Appeals Tab */}
+          <TabsContent value="appeals">
+            <div className="rounded-3xl bg-flora-card p-5 shadow-card sm:p-6">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h2 className="text-lg font-bold text-flora-ink">
+                  Ban Appeals
+                </h2>
+                <div className="flex items-center gap-2">
+                  {banAppeals.filter((a) => a.status === "pending").length >
+                    0 && (
+                    <span className="rounded-full bg-flora-chip px-2.5 py-0.5 text-xs font-medium text-flora-ink">
+                      {
+                        banAppeals.filter((a) => a.status === "pending")
+                          .length
+                      }{" "}
+                      pending
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={fetchBanAppeals}
+                    className="inline-flex items-center gap-2 rounded-full border border-flora-ink/15 bg-white px-4 py-1.5 text-sm font-medium text-flora-ink transition hover:bg-flora-chip"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    Refresh
+                  </button>
+                </div>
+              </div>
+              <p className="mt-2 text-sm text-flora-muted">
+                Review appeals from banned users
+              </p>
+              <div className="relative mt-3">
+                <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-flora-muted" />
+                <Input
+                  placeholder="Search by name, email, or student ID..."
+                  value={appealSearch}
+                  onChange={(e) => setAppealSearch(e.target.value)}
+                  className="rounded-full border-flora-ink/15 bg-white pl-10 text-sm focus-visible:ring-flora-ink"
+                />
+              </div>
+              {banAppeals.length === 0 ? (
+                <div className="py-12 text-center">
+                  <MessageSquare className="mx-auto mb-4 h-12 w-12 text-flora-muted" />
+                  <h3 className="mb-2 text-lg font-semibold text-flora-ink">
+                    No ban appeals
+                  </h3>
+                  <p className="text-flora-muted">
+                    Banned users can submit appeals through the login screen
+                  </p>
+                </div>
+              ) : (
+                (() => {
+                  const q = appealSearch.trim().toLowerCase();
+                  const filteredAppeals = q
+                    ? banAppeals.filter(
+                        (appeal) =>
+                          appeal.full_name?.toLowerCase().includes(q) ||
+                          appeal.user_email?.toLowerCase().includes(q) ||
+                          appeal.matric_number?.toLowerCase().includes(q)
+                      )
+                    : banAppeals;
+
+                  return filteredAppeals.length === 0 ? (
+                    <div className="py-12 text-center">
+                      <Search className="mx-auto mb-4 h-10 w-10 text-flora-muted" />
+                      <p className="text-flora-muted">
+                        No appeals match "{appealSearch}"
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="mt-4 overflow-x-auto rounded-2xl border border-flora-ink/10">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="bg-flora-chip/40 hover:bg-flora-chip/40">
+                            <TableHead className="text-flora-ink">
+                              User Details
+                            </TableHead>
+                            <TableHead className="text-flora-ink">
+                              Email
+                            </TableHead>
+                            <TableHead className="text-flora-ink">
+                              Student ID
+                            </TableHead>
+                            <TableHead className="text-flora-ink">
+                              Appeal Message
+                            </TableHead>
+                            <TableHead className="text-flora-ink">
+                              Status
+                            </TableHead>
+                            <TableHead className="text-flora-ink">
+                              Submitted
+                            </TableHead>
+                            <TableHead className="text-flora-ink">
+                              Actions
+                            </TableHead>
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                        </TableHeader>
+                        <TableBody>
+                          {filteredAppeals.map((appeal) => (
+                            <TableRow
+                              key={appeal.id}
+                              className="hover:bg-flora-chip/20"
+                            >
+                              <TableCell>
+                                <div>
+                                  <p className="font-medium text-flora-ink">
+                                    {appeal.full_name}
+                                  </p>
+                                  <p className="text-xs text-flora-muted">
+                                    Appeal #{appeal.id.slice(0, 8)}
+                                  </p>
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-flora-muted">
+                                {appeal.user_email}
+                              </TableCell>
+                              <TableCell className="text-flora-muted">
+                                {appeal.matric_number}
+                              </TableCell>
+                              <TableCell className="max-w-xs">
+                                <div className="flex items-center gap-2">
+                                  <p
+                                    className="flex-1 truncate text-sm text-flora-muted"
+                                    title={appeal.message}
+                                  >
+                                    {appeal.message}
+                                  </p>
+                                  {appeal.message.length > 50 && (
+                                    <Dialog>
+                                      <DialogTrigger asChild>
+                                        <button
+                                          type="button"
+                                          className="inline-flex items-center justify-center rounded-full border border-flora-ink/15 bg-white p-1.5 text-flora-ink transition hover:bg-flora-chip"
+                                        >
+                                          <Eye className="h-4 w-4" />
+                                        </button>
+                                      </DialogTrigger>
+                                      <DialogContent className="rounded-3xl">
+                                        <DialogHeader>
+                                          <DialogTitle className="text-flora-ink">
+                                            Full Appeal Message
+                                          </DialogTitle>
+                                        </DialogHeader>
+                                        <div className="max-h-96 overflow-y-auto">
+                                          <p className="whitespace-pre-wrap text-sm text-flora-ink">
+                                            {appeal.message}
+                                          </p>
+                                        </div>
+                                      </DialogContent>
+                                    </Dialog>
+                                  )}
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <span
+                                  className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                                    appeal.status === "pending"
+                                      ? "bg-amber-100 text-amber-700"
+                                      : appeal.status === "approved"
+                                      ? "bg-flora-leaf/15 text-flora-leaf"
+                                      : "bg-red-100 text-red-600"
+                                  }`}
+                                >
+                                  {appeal.status}
+                                </span>
+                              </TableCell>
+                              <TableCell className="text-flora-muted">
+                                {new Date(
+                                  appeal.created_at
+                                ).toLocaleDateString()}
+                              </TableCell>
+                              <TableCell>
+                                {appeal.status === "pending" && (
+                                  <div className="flex gap-2">
+                                    <Dialog>
+                                      <DialogTrigger asChild>
+                                        <button
+                                          type="button"
+                                          className="inline-flex items-center gap-1.5 rounded-full bg-flora-ink px-3.5 py-1.5 text-sm font-medium text-white transition hover:brightness-110"
+                                        >
+                                          Approve
+                                        </button>
+                                      </DialogTrigger>
+                                      <DialogContent className="rounded-3xl">
+                                        <DialogHeader>
+                                          <DialogTitle className="text-flora-ink">
+                                            Approve Ban Appeal
+                                          </DialogTitle>
+                                          <DialogDescription className="text-flora-muted">
+                                            This will unban the user and send
+                                            them a notification. Provide a
+                                            response message.
+                                          </DialogDescription>
+                                        </DialogHeader>
+                                        <form
+                                          onSubmit={async (e) => {
+                                            e.preventDefault();
+                                            const formData = new FormData(
+                                              e.currentTarget
+                                            );
+                                            const response = formData.get(
+                                              "admin_response"
+                                            ) as string;
+
+                                            try {
+                                              // Update appeal status
+                                              const { error: appealError } =
+                                                await supabase
+                                                  .from("ban_appeals")
+                                                  .update({
+                                                    status: "approved",
+                                                    admin_response:
+                                                      response ||
+                                                      "Your appeal was approved and your account has been restored.",
+                                                  })
+                                                  .eq("id", appeal.id);
+
+                                              if (appealError)
+                                                throw appealError;
+
+                                              // Find and unban the user
+                                              const { data: user } =
+                                                await supabase
+                                                  .from("profiles")
+                                                  .select("user_id, full_name")
+                                                  .eq(
+                                                    "email",
+                                                    appeal.user_email
+                                                  )
+                                                  .eq(
+                                                    "student_id",
+                                                    appeal.matric_number
+                                                  )
+                                                  .single();
+
+                                              if (user) {
+                                                // Unban the user
+                                                await supabase.rpc(
+                                                  "unban_user",
+                                                  {
+                                                    target_user_id:
+                                                      user.user_id,
+                                                    clear_notes: true,
+                                                  }
+                                                );
+
+                                                // Send notification to unbanned user
+                                                const { sendNotification } =
+                                                  await import(
+                                                    "@/utils/notificationService"
+                                                  );
+                                                await sendNotification({
+                                                  userId: user.user_id,
+                                                  title:
+                                                    "Account Restored! 🎉",
+                                                  message:
+                                                    response ||
+                                                    "Your ban appeal has been approved and your account has been restored. Welcome back to UniMarket!",
+                                                  type: "success",
+                                                  url: "/",
+                                                });
+
+                                                // Send secure email notification
+                                                try {
+                                                  await sendEmailNotification({
+                                                    to_email:
+                                                      appeal.user_email,
+                                                    to_name: appeal.full_name,
+                                                    subject:
+                                                      "Ban Appeal Approved - Account Restored",
+                                                    message:
+                                                      response ||
+                                                      "Your appeal was approved and your account has been restored.",
+                                                    notification_type:
+                                                      "ban_approval",
+                                                  });
+                                                } catch (emailError) {
+                                                  // Email notification failed silently
+                                                }
+                                              }
+
+                                              toast.success(
+                                                "Appeal approved, user unbanned, and email sent"
+                                              );
+                                              fetchBanAppeals();
+                                              fetchUsers();
+                                            } catch (error) {
+                                              toast.error(
+                                                "Failed to approve appeal"
+                                              );
+                                            }
+                                          }}
+                                        >
+                                          <div className="space-y-4">
+                                            <div>
+                                              <Label>Response to User</Label>
+                                              <Textarea
+                                                name="admin_response"
+                                                placeholder="Your appeal has been approved. Welcome back to UniMarket."
+                                                rows={3}
+                                              />
+                                            </div>
+                                            <div className="flex justify-end gap-2">
+                                              <DialogTrigger asChild>
+                                                <Button
+                                                  type="button"
+                                                  variant="outline"
+                                                >
+                                                  Cancel
+                                                </Button>
+                                              </DialogTrigger>
+                                              <Button type="submit">
+                                                Approve Appeal
+                                              </Button>
+                                            </div>
+                                          </div>
+                                        </form>
+                                      </DialogContent>
+                                    </Dialog>
+
+                                    <Dialog>
+                                      <DialogTrigger asChild>
+                                        <button
+                                          type="button"
+                                          className="inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-3.5 py-1.5 text-sm font-medium text-red-600 transition hover:bg-red-100"
+                                        >
+                                          Reject
+                                        </button>
+                                      </DialogTrigger>
+                                      <DialogContent className="rounded-3xl">
+                                        <DialogHeader>
+                                          <DialogTitle className="text-flora-ink">
+                                            Reject Ban Appeal
+                                          </DialogTitle>
+                                          <DialogDescription className="text-flora-muted">
+                                            Provide a reason for rejecting
+                                            this appeal.
+                                          </DialogDescription>
+                                        </DialogHeader>
+                                        <form
+                                          onSubmit={async (e) => {
+                                            e.preventDefault();
+                                            const formData = new FormData(
+                                              e.currentTarget
+                                            );
+                                            const response = formData.get(
+                                              "admin_response"
+                                            ) as string;
+
+                                            try {
+                                              // Update appeal status
+                                              const { error: appealError } =
+                                                await supabase
+                                                  .from("ban_appeals")
+                                                  .update({
+                                                    status: "rejected",
+                                                    admin_response: response,
+                                                  })
+                                                  .eq("id", appeal.id);
+
+                                              if (appealError)
+                                                throw appealError;
+
+                                              // Send rejection email
+                                              try {
+                                                await sendEmailNotification({
+                                                  to_email: appeal.user_email,
+                                                  to_name: appeal.full_name,
+                                                  subject:
+                                                    "Ban Appeal Rejected",
+                                                  message: response,
+                                                  notification_type:
+                                                    "ban_rejection",
+                                                });
+                                              } catch (emailError) {
+                                                // Email notification failed silently
+                                              }
+
+                                              toast.success(
+                                                "Appeal rejected and email sent"
+                                              );
+                                              fetchBanAppeals();
+                                            } catch (error) {
+                                              toast.error(
+                                                "Failed to reject appeal"
+                                              );
+                                            }
+                                          }}
+                                        >
+                                          <div className="space-y-4">
+                                            <div>
+                                              <Label>Rejection Reason *</Label>
+                                              <Textarea
+                                                name="admin_response"
+                                                placeholder="Your appeal has been reviewed and rejected because..."
+                                                required
+                                                rows={3}
+                                              />
+                                            </div>
+                                            <div className="flex justify-end gap-2">
+                                              <DialogTrigger asChild>
+                                                <Button
+                                                  type="button"
+                                                  variant="outline"
+                                                >
+                                                  Cancel
+                                                </Button>
+                                              </DialogTrigger>
+                                              <Button
+                                                type="submit"
+                                                variant="destructive"
+                                              >
+                                                Reject Appeal
+                                              </Button>
+                                            </div>
+                                          </div>
+                                        </form>
+                                      </DialogContent>
+                                    </Dialog>
+                                  </div>
+                                )}
+                                {appeal.status !== "pending" &&
+                                  appeal.admin_response && (
+                                    <Dialog>
+                                      <DialogTrigger asChild>
+                                        <button
+                                          type="button"
+                                          className="inline-flex items-center gap-1.5 rounded-full border border-flora-ink/15 bg-white px-3.5 py-1.5 text-sm font-medium text-flora-ink transition hover:bg-flora-chip"
+                                        >
+                                          View Response
+                                        </button>
+                                      </DialogTrigger>
+                                      <DialogContent className="rounded-3xl">
+                                        <DialogHeader>
+                                          <DialogTitle className="text-flora-ink">
+                                            Admin Response
+                                          </DialogTitle>
+                                        </DialogHeader>
+                                        <div className="space-y-2">
+                                          <p className="text-sm text-flora-ink">
+                                            {appeal.admin_response}
+                                          </p>
+                                        </div>
+                                      </DialogContent>
+                                    </Dialog>
+                                  )}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  );
+                })()
+              )}
+            </div>
           </TabsContent>
 
           {/* Seller Subscriptions Tab */}
           <TabsContent value="subscriptions">
-            <SellerSubscriptionManager />
+            <SellerSubscriptionManager onCountsChange={setSubscriptionAttentionCount} />
           </TabsContent>
 
           {/* Admin Wallet Tab */}
@@ -4819,315 +4100,830 @@ export default function Admin() {
 
           {/* Products Tab */}
           <TabsContent value="products">
-            <Card>
-              <CardHeader>
-                <div className="flex justify-between items-center">
-                  <CardTitle>Product Management</CardTitle>
-                  <div className="flex gap-2">
-                    <Button
-                      onClick={() => exportData("products")}
-                      variant="outline"
-                      size="sm"
-                    >
-                      <Download className="h-4 w-4 mr-2" />
-                      Export
-                    </Button>
-                    {selectedProducts.length > 0 && (
-                      <div className="flex gap-2">
-                        <Button
-                          onClick={() => handleBulkProductAction("activate")}
-                          variant="outline"
-                          size="sm"
-                        >
-                          <Eye className="h-4 w-4 mr-2" />
-                          Activate
-                        </Button>
-                        <Button
-                          onClick={() => handleBulkProductAction("deactivate")}
-                          variant="outline"
-                          size="sm"
-                        >
-                          <Eye className="h-4 w-4 mr-2" />
-                          Deactivate
-                        </Button>
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button variant="outline" size="sm">
-                              <Trash2 className="h-4 w-4 mr-2" />
+            <div className="rounded-3xl bg-flora-card p-5 shadow-card sm:p-6">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h2 className="text-lg font-bold text-flora-ink">
+                  Product Management
+                </h2>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => exportData("products")}
+                    className="inline-flex items-center gap-2 rounded-full border border-flora-ink/15 bg-white px-4 py-1.5 text-sm font-medium text-flora-ink transition hover:bg-flora-chip"
+                  >
+                    <Download className="h-4 w-4" />
+                    Export
+                  </button>
+                  {selectedProducts.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-2 rounded-full border border-flora-ink/15 bg-white px-4 py-1.5 text-sm font-medium text-flora-ink transition hover:bg-flora-chip"
+                          >
+                            <Eye className="h-4 w-4" />
+                            Activate
+                          </button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent className="rounded-3xl">
+                          <AlertDialogHeader>
+                            <AlertDialogTitle className="text-flora-ink">
+                              Activate Products
+                            </AlertDialogTitle>
+                            <AlertDialogDescription className="text-flora-muted">
+                              Make {selectedProducts.length} selected product
+                              {selectedProducts.length === 1
+                                ? ""
+                                : "s"}{" "}
+                              visible on the marketplace again?
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() =>
+                                handleBulkProductAction("activate")
+                              }
+                            >
+                              Activate
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-2 rounded-full border border-flora-ink/15 bg-white px-4 py-1.5 text-sm font-medium text-flora-ink transition hover:bg-flora-chip"
+                          >
+                            <Eye className="h-4 w-4" />
+                            Deactivate
+                          </button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent className="rounded-3xl">
+                          <AlertDialogHeader>
+                            <AlertDialogTitle className="text-flora-ink">
+                              Deactivate Products
+                            </AlertDialogTitle>
+                            <AlertDialogDescription className="text-flora-muted">
+                              Hide {selectedProducts.length} selected product
+                              {selectedProducts.length === 1
+                                ? ""
+                                : "s"}{" "}
+                              from the marketplace? Sellers keep the listing,
+                              it just won't be visible to buyers.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() =>
+                                handleBulkProductAction("deactivate")
+                              }
+                            >
+                              Deactivate
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-2 rounded-full border border-red-200 bg-red-50 px-4 py-1.5 text-sm font-medium text-red-600 transition hover:bg-red-100"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            Delete
+                          </button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent className="rounded-3xl">
+                          <AlertDialogHeader>
+                            <AlertDialogTitle className="text-flora-ink">
+                              Delete Products
+                            </AlertDialogTitle>
+                            <AlertDialogDescription className="text-flora-muted">
+                              Are you sure you want to delete{" "}
+                              {selectedProducts.length} selected products?
+                              This action cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() =>
+                                handleBulkProductAction("delete")
+                              }
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
                               Delete
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>
-                                Delete Products
-                              </AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Are you sure you want to delete{" "}
-                                {selectedProducts.length} selected products?
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={() =>
-                                  handleBulkProductAction("delete")
-                                }
-                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                              >
-                                Delete
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      </div>
-                    )}
-                  </div>
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  )}
                 </div>
-                <div className="relative mt-4">
-                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search products..."
-                    value={productFilter}
-                    onChange={(e) => setProductFilter(e.target.value)}
-                    className="pl-8"
-                  />
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-12">
-                          <Checkbox
-                            checked={
-                              selectedProducts.length ===
-                                filteredProducts.length &&
-                              filteredProducts.length > 0
+              </div>
+              <div className="relative mt-4">
+                <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-flora-muted" />
+                <Input
+                  placeholder="Search products..."
+                  value={productFilter}
+                  onChange={(e) => setProductFilter(e.target.value)}
+                  className="rounded-full border-flora-ink/15 bg-white pl-10 text-sm focus-visible:ring-flora-ink"
+                />
+              </div>
+              <div className="mt-4 overflow-x-auto rounded-2xl border border-flora-ink/10">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-flora-chip/40 hover:bg-flora-chip/40">
+                      <TableHead className="w-12">
+                        <Checkbox
+                          checked={
+                            selectedProducts.length ===
+                              filteredProducts.length &&
+                            filteredProducts.length > 0
+                          }
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setSelectedProducts(
+                                filteredProducts.map((p) => p.id)
+                              );
+                            } else {
+                              setSelectedProducts([]);
                             }
+                          }}
+                        />
+                      </TableHead>
+                      <TableHead className="text-flora-ink">Title</TableHead>
+                      <TableHead className="text-flora-ink">Price</TableHead>
+                      <TableHead className="text-flora-ink">
+                        Category
+                      </TableHead>
+                      <TableHead className="text-flora-ink">Seller</TableHead>
+                      <TableHead className="text-flora-ink">Status</TableHead>
+                      <TableHead className="text-flora-ink">
+                        Created
+                      </TableHead>
+                      <TableHead className="text-flora-ink">
+                        Actions
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredProducts.map((product) => (
+                      <TableRow
+                        key={product.id}
+                        className="hover:bg-flora-chip/20"
+                      >
+                        <TableCell>
+                          <Checkbox
+                            checked={selectedProducts.includes(product.id)}
                             onCheckedChange={(checked) => {
                               if (checked) {
-                                setSelectedProducts(
-                                  filteredProducts.map((p) => p.id)
-                                );
+                                setSelectedProducts([
+                                  ...selectedProducts,
+                                  product.id,
+                                ]);
                               } else {
-                                setSelectedProducts([]);
+                                setSelectedProducts(
+                                  selectedProducts.filter(
+                                    (id) => id !== product.id
+                                  )
+                                );
                               }
                             }}
                           />
-                        </TableHead>
-                        <TableHead>Title</TableHead>
-                        <TableHead>Price</TableHead>
-                        <TableHead>Category</TableHead>
-                        <TableHead>Seller</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Created</TableHead>
-                        <TableHead>Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredProducts.map((product) => (
-                        <TableRow key={product.id}>
-                          <TableCell>
-                            <Checkbox
-                              checked={selectedProducts.includes(product.id)}
-                              onCheckedChange={(checked) => {
-                                if (checked) {
-                                  setSelectedProducts([
-                                    ...selectedProducts,
-                                    product.id,
-                                  ]);
-                                } else {
-                                  setSelectedProducts(
-                                    selectedProducts.filter(
-                                      (id) => id !== product.id
-                                    )
-                                  );
-                                }
-                              }}
-                            />
-                          </TableCell>
-                          <TableCell className="font-medium">
-                            {product.title}
-                          </TableCell>
-                          <TableCell>₦{product.price}</TableCell>
-                          <TableCell>{product.category}</TableCell>
-                          <TableCell>
-                            {product.seller?.full_name || "Unknown"}
-                          </TableCell>
-                          <TableCell>
-                            <Badge
-                              variant={
-                                product.is_active ? "default" : "secondary"
-                              }
-                            >
-                              {product.is_active ? "Active" : "Inactive"}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>
-                            {new Date(product.created_at).toLocaleDateString()}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex space-x-2">
-                              <Dialog>
-                                <DialogTrigger asChild>
-                                  <Button variant="outline" size="sm">
-                                    <Eye className="h-4 w-4" />
-                                  </Button>
-                                </DialogTrigger>
-                                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                                  <DialogHeader>
-                                    <DialogTitle>
-                                      Product Details - {product.title}
-                                    </DialogTitle>
-                                  </DialogHeader>
-                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div className="space-y-4">
+                        </TableCell>
+                        <TableCell className="font-medium text-flora-ink">
+                          {product.title}
+                        </TableCell>
+                        <TableCell className="text-flora-muted">
+                          ₦{product.price}
+                        </TableCell>
+                        <TableCell className="text-flora-muted">
+                          {product.category}
+                        </TableCell>
+                        <TableCell className="text-flora-muted">
+                          {product.seller?.full_name || "Unknown"}
+                        </TableCell>
+                        <TableCell>
+                          <span
+                            className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                              product.is_active
+                                ? "bg-flora-leaf/15 text-flora-leaf"
+                                : "bg-flora-chip text-flora-ink"
+                            }`}
+                          >
+                            {product.is_active ? "Active" : "Inactive"}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-flora-muted">
+                          {new Date(product.created_at).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-2">
+                            <Dialog>
+                              <DialogTrigger asChild>
+                                <button
+                                  type="button"
+                                  className="inline-flex items-center justify-center rounded-full border border-flora-ink/15 bg-white p-1.5 text-flora-ink transition hover:bg-flora-chip"
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </button>
+                              </DialogTrigger>
+                              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto rounded-3xl">
+                                <DialogHeader>
+                                  <DialogTitle className="text-flora-ink">
+                                    Product Details - {product.title}
+                                  </DialogTitle>
+                                </DialogHeader>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                  <div className="space-y-4">
+                                    <div>
+                                      <Label className="font-medium text-flora-ink">
+                                        Title
+                                      </Label>
+                                      <p className="text-flora-muted">
+                                        {product.title}
+                                      </p>
+                                    </div>
+                                    <div>
+                                      <Label className="font-medium text-flora-ink">
+                                        Description
+                                      </Label>
+                                      <p className="text-sm text-flora-muted">
+                                        {product.description ||
+                                          "No description"}
+                                      </p>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
                                       <div>
-                                        <Label className="font-medium">
-                                          Title
+                                        <Label className="font-medium text-flora-ink">
+                                          Price
                                         </Label>
-                                        <p>{product.title}</p>
-                                      </div>
-                                      <div>
-                                        <Label className="font-medium">
-                                          Description
-                                        </Label>
-                                        <p className="text-sm">
-                                          {product.description ||
-                                            "No description"}
+                                        <p className="text-flora-muted">
+                                          ₦{product.price.toLocaleString()}
                                         </p>
                                       </div>
-                                      <div className="grid grid-cols-2 gap-4">
+                                      <div>
+                                        <Label className="font-medium text-flora-ink">
+                                          Category
+                                        </Label>
+                                        <p className="text-flora-muted">
+                                          {product.category}
+                                        </p>
+                                      </div>
+                                      <div>
+                                        <Label className="font-medium text-flora-ink">
+                                          Status
+                                        </Label>
                                         <div>
-                                          <Label className="font-medium">
-                                            Price
-                                          </Label>
-                                          <p>
-                                            ₦{product.price.toLocaleString()}
-                                          </p>
-                                        </div>
-                                        <div>
-                                          <Label className="font-medium">
-                                            Category
-                                          </Label>
-                                          <p>{product.category}</p>
-                                        </div>
-                                        <div>
-                                          <Label className="font-medium">
-                                            Status
-                                          </Label>
-                                          <Badge
-                                            variant={
+                                          <span
+                                            className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
                                               product.is_active
-                                                ? "default"
-                                                : "secondary"
-                                            }
+                                                ? "bg-flora-leaf/15 text-flora-leaf"
+                                                : "bg-flora-chip text-flora-ink"
+                                            }`}
                                           >
                                             {product.is_active
                                               ? "Active"
                                               : "Inactive"}
-                                          </Badge>
-                                        </div>
-                                        <div>
-                                          <Label className="font-medium">
-                                            Created
-                                          </Label>
-                                          <p>
-                                            {new Date(
-                                              product.created_at
-                                            ).toLocaleDateString()}
-                                          </p>
+                                          </span>
                                         </div>
                                       </div>
                                       <div>
-                                        <Label className="font-medium">
-                                          Seller
+                                        <Label className="font-medium text-flora-ink">
+                                          Created
                                         </Label>
-                                        <p>
-                                          {product.seller?.full_name} (
-                                          {product.seller?.email})
+                                        <p className="text-flora-muted">
+                                          {new Date(
+                                            product.created_at
+                                          ).toLocaleDateString()}
                                         </p>
                                       </div>
                                     </div>
-                                    <div className="space-y-4">
-                                      <div>
-                                        <Label className="font-medium">
-                                          Product Images
-                                        </Label>
-                                        {product.images &&
-                                        product.images.length > 0 ? (
-                                          <div className="grid grid-cols-2 gap-2 mt-2">
-                                            {product.images.map(
-                                              (image, index) => (
-                                                <img
-                                                  key={index}
-                                                  src={image}
-                                                  alt={`Product ${index + 1}`}
-                                                  className="w-full h-32 object-cover rounded border"
-                                                />
-                                              )
-                                            )}
-                                          </div>
-                                        ) : (
-                                          <p className="text-muted-foreground text-sm">
-                                            No images uploaded
-                                          </p>
-                                        )}
-                                      </div>
+                                    <div>
+                                      <Label className="font-medium text-flora-ink">
+                                        Seller
+                                      </Label>
+                                      <p className="text-flora-muted">
+                                        {product.seller?.full_name} (
+                                        {product.seller?.email})
+                                      </p>
                                     </div>
                                   </div>
-                                  <div className="flex gap-2 mt-6 pt-4 border-t">
-                                    <Button
-                                      variant="outline"
-                                      onClick={() => setEditingProduct(product)}
-                                    >
-                                      <Edit className="h-4 w-4 mr-2" />
-                                      Edit Product
-                                    </Button>
-                                    <Button
-                                      variant={
-                                        product.is_active
-                                          ? "outline"
-                                          : "default"
-                                      }
-                                      onClick={() =>
-                                        toggleProductStatus(
-                                          product.id,
-                                          product.is_active
-                                        )
-                                      }
-                                    >
-                                      {product.is_active
-                                        ? "Deactivate"
-                                        : "Activate"}
-                                    </Button>
+                                  <div className="space-y-4">
+                                    <div>
+                                      <Label className="font-medium text-flora-ink">
+                                        Product Images
+                                      </Label>
+                                      {product.images &&
+                                      product.images.length > 0 ? (
+                                        <div className="grid grid-cols-2 gap-2 mt-2">
+                                          {product.images.map(
+                                            (image, index) => (
+                                              <img
+                                                key={index}
+                                                src={image}
+                                                alt={`Product ${index + 1}`}
+                                                className="w-full h-32 object-cover rounded-2xl border border-flora-ink/10"
+                                              />
+                                            )
+                                          )}
+                                        </div>
+                                      ) : (
+                                        <p className="text-flora-muted text-sm">
+                                          No images uploaded
+                                        </p>
+                                      )}
+                                    </div>
                                   </div>
-                                </DialogContent>
-                              </Dialog>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setEditingProduct(product)}
-                              >
-                                <Edit className="h-4 w-4" />
-                              </Button>
+                                </div>
+                                <div className="flex gap-2 mt-6 pt-4 border-t border-flora-ink/10">
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditingProduct(product)}
+                                    className="inline-flex items-center gap-2 rounded-full border border-flora-ink/15 bg-white px-4 py-2 text-sm font-medium text-flora-ink transition hover:bg-flora-chip"
+                                  >
+                                    <Edit className="h-4 w-4" />
+                                    Edit Product
+                                  </button>
+                                  <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                      <button
+                                        type="button"
+                                        className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition ${
+                                          product.is_active
+                                            ? "border border-flora-ink/15 bg-white text-flora-ink hover:bg-flora-chip"
+                                            : "bg-flora-ink text-white hover:brightness-110"
+                                        }`}
+                                      >
+                                        {product.is_active
+                                          ? "Deactivate"
+                                          : "Activate"}
+                                      </button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent className="rounded-3xl">
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle className="text-flora-ink">
+                                          {product.is_active
+                                            ? "Deactivate Product"
+                                            : "Activate Product"}
+                                        </AlertDialogTitle>
+                                        <AlertDialogDescription className="text-flora-muted">
+                                          {product.is_active
+                                            ? `Hide "${product.title}" from the marketplace? The seller keeps the listing, it just won't be visible to buyers.`
+                                            : `Make "${product.title}" visible on the marketplace again?`}
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel>
+                                          Cancel
+                                        </AlertDialogCancel>
+                                        <AlertDialogAction
+                                          onClick={() =>
+                                            toggleProductStatus(
+                                              product.id,
+                                              product.is_active
+                                            )
+                                          }
+                                        >
+                                          {product.is_active
+                                            ? "Deactivate"
+                                            : "Activate"}
+                                        </AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
+                                </div>
+                              </DialogContent>
+                            </Dialog>
+                            <button
+                              type="button"
+                              onClick={() => setEditingProduct(product)}
+                              className="inline-flex items-center justify-center rounded-full border border-flora-ink/15 bg-white p-1.5 text-flora-ink transition hover:bg-flora-chip"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </button>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <button
+                                  type="button"
+                                  className="inline-flex items-center justify-center rounded-full border border-red-200 bg-red-50 p-1.5 text-red-600 transition hover:bg-red-100"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent className="rounded-3xl">
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle className="text-flora-ink">
+                                    Delete Product
+                                  </AlertDialogTitle>
+                                  <AlertDialogDescription className="text-flora-muted">
+                                    Are you sure you want to delete "
+                                    {product.title}"? This action cannot be
+                                    undone.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>
+                                    Cancel
+                                  </AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={() => deleteProduct(product.id)}
+                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                  >
+                                    Delete
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* Messages Tab */}
+          <TabsContent value="messages">
+            <div className="rounded-3xl bg-flora-card p-5 shadow-card sm:p-6">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h2 className="text-lg font-bold text-flora-ink">
+                  Conversation Monitoring
+                </h2>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={fetchConversations}
+                    className="inline-flex items-center gap-2 rounded-full border border-flora-ink/15 bg-white px-4 py-1.5 text-sm font-medium text-flora-ink transition hover:bg-flora-chip"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    Refresh
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => exportData("messages")}
+                    className="inline-flex items-center gap-2 rounded-full border border-flora-ink/15 bg-white px-4 py-1.5 text-sm font-medium text-flora-ink transition hover:bg-flora-chip"
+                  >
+                    <Download className="h-4 w-4" />
+                    Export
+                  </button>
+                </div>
+              </div>
+              <p className="mt-2 text-sm text-flora-muted">
+                Monitor all conversations between users. Click "View Chat" to
+                see the full conversation.
+              </p>
+              <div className="relative mt-3">
+                <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-flora-muted" />
+                <Input
+                  placeholder="Search by buyer, seller, or product..."
+                  value={conversationSearch}
+                  onChange={(e) => setConversationSearch(e.target.value)}
+                  className="rounded-full border-flora-ink/15 bg-white pl-10 text-sm focus-visible:ring-flora-ink"
+                />
+              </div>
+              {conversations.length === 0 ? (
+                <div className="py-12 text-center">
+                  <MessageSquare className="mx-auto mb-4 h-12 w-12 text-flora-muted" />
+                  <h3 className="mb-2 text-lg font-semibold text-flora-ink">
+                    No conversations found
+                  </h3>
+                  <p className="text-flora-muted">
+                    Users haven't started any conversations yet
+                  </p>
+                </div>
+              ) : (
+                (() => {
+                  const q = conversationSearch.trim().toLowerCase();
+                  const filteredConversations = q
+                    ? conversations.filter(
+                        (conversation) =>
+                          conversation.buyer?.full_name
+                            ?.toLowerCase()
+                            .includes(q) ||
+                          conversation.seller?.full_name
+                            ?.toLowerCase()
+                            .includes(q) ||
+                          conversation.product?.title
+                            ?.toLowerCase()
+                            .includes(q)
+                      )
+                    : conversations;
+
+                  return filteredConversations.length === 0 ? (
+                    <div className="py-12 text-center">
+                      <Search className="mx-auto mb-4 h-10 w-10 text-flora-muted" />
+                      <p className="text-flora-muted">
+                        No conversations match "{conversationSearch}"
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="mt-4 overflow-x-auto rounded-2xl border border-flora-ink/10">
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="bg-flora-chip/40 hover:bg-flora-chip/40">
+                            <TableHead className="text-flora-ink">
+                              Participants
+                            </TableHead>
+                            <TableHead className="text-flora-ink">
+                              Product
+                            </TableHead>
+                            <TableHead className="text-flora-ink">
+                              Messages
+                            </TableHead>
+                            <TableHead className="text-flora-ink">
+                              Last Message
+                            </TableHead>
+                            <TableHead className="text-flora-ink">
+                              Started
+                            </TableHead>
+                            <TableHead className="text-flora-ink">
+                              Actions
+                            </TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {filteredConversations.map((conversation) => (
+                            <TableRow
+                              key={conversation.id}
+                              className="hover:bg-flora-chip/20"
+                            >
+                              <TableCell>
+                                <div className="space-y-1">
+                                  <div className="flex items-center gap-2">
+                                    <Avatar className="h-6 w-6">
+                                      <AvatarImage
+                                        src={conversation.buyer?.avatar_url}
+                                      />
+                                      <AvatarFallback className="text-xs">
+                                        {conversation.buyer?.full_name?.charAt(
+                                          0
+                                        ) || "B"}
+                                      </AvatarFallback>
+                                    </Avatar>
+                                    <span className="text-sm font-medium text-flora-ink">
+                                      {conversation.buyer?.full_name ||
+                                        "Unknown Buyer"}
+                                    </span>
+                                    <span className="rounded-full bg-flora-chip px-2 py-0.5 text-xs font-medium text-flora-ink">
+                                      Buyer
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <Avatar className="h-6 w-6">
+                                      <AvatarImage
+                                        src={conversation.seller?.avatar_url}
+                                      />
+                                      <AvatarFallback className="text-xs">
+                                        {conversation.seller?.full_name?.charAt(
+                                          0
+                                        ) || "S"}
+                                      </AvatarFallback>
+                                    </Avatar>
+                                    <span className="text-sm font-medium text-flora-ink">
+                                      {conversation.seller?.full_name ||
+                                        "Unknown Seller"}
+                                    </span>
+                                    <span className="rounded-full bg-flora-chip px-2 py-0.5 text-xs font-medium text-flora-ink">
+                                      Seller
+                                    </span>
+                                  </div>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                {conversation.product ? (
+                                  <div>
+                                    <p className="text-sm font-medium text-flora-ink">
+                                      {conversation.product.title}
+                                    </p>
+                                    <p className="text-xs text-flora-muted">
+                                      ₦
+                                      {conversation.product.price?.toLocaleString()}
+                                    </p>
+                                  </div>
+                                ) : (
+                                  <span className="text-sm text-flora-muted">
+                                    General Chat
+                                  </span>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-2">
+                                  <MessageSquare className="h-4 w-4 text-flora-muted" />
+                                  <span className="font-medium text-flora-ink">
+                                    {conversation.message_count}
+                                  </span>
+                                  <span className="text-xs text-flora-muted">
+                                    messages
+                                  </span>
+                                </div>
+                              </TableCell>
+                              <TableCell className="max-w-xs">
+                                {conversation.last_message ? (
+                                  <div>
+                                    <p
+                                      className="truncate text-sm text-flora-ink"
+                                      title={conversation.last_message.content}
+                                    >
+                                      <span className="font-medium">
+                                        {
+                                          conversation.last_message
+                                            .sender_name
+                                        }
+                                        :
+                                      </span>{" "}
+                                      {conversation.last_message.content}
+                                    </p>
+                                    <p className="text-xs text-flora-muted">
+                                      {new Date(
+                                        conversation.last_message.created_at
+                                      ).toLocaleString()}
+                                    </p>
+                                  </div>
+                                ) : (
+                                  <span className="text-sm italic text-flora-muted">
+                                    No messages yet
+                                  </span>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                <span className="text-sm text-flora-muted">
+                                  {new Date(
+                                    conversation.created_at
+                                  ).toLocaleDateString()}
+                                </span>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      handleViewConversation(conversation.id)
+                                    }
+                                    disabled={
+                                      conversation.message_count === 0
+                                    }
+                                    className="inline-flex items-center gap-1.5 rounded-full border border-flora-ink/15 bg-white px-3.5 py-1.5 text-sm font-medium text-flora-ink transition hover:bg-flora-chip disabled:cursor-not-allowed disabled:opacity-50"
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                    View Chat
+                                  </button>
+                                  <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                      <button
+                                        type="button"
+                                        className="inline-flex items-center justify-center rounded-full border border-red-200 bg-red-50 p-1.5 text-red-600 transition hover:bg-red-100"
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent className="rounded-3xl">
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle className="text-flora-ink">
+                                          Delete Conversation
+                                        </AlertDialogTitle>
+                                        <AlertDialogDescription className="text-flora-muted">
+                                          Are you sure you want to delete this
+                                          entire conversation? This will
+                                          delete all{" "}
+                                          {conversation.message_count} messages
+                                          and cannot be undone.
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel>
+                                          Cancel
+                                        </AlertDialogCancel>
+                                        <AlertDialogAction
+                                          onClick={async () => {
+                                            try {
+                                              const { error } = await supabase
+                                                .from("conversations")
+                                                .delete()
+                                                .eq("id", conversation.id);
+
+                                              if (error) throw error;
+
+                                              toast.success(
+                                                "Conversation deleted successfully"
+                                              );
+                                              fetchConversations();
+                                            } catch (error) {
+                                              toast.error(
+                                                "Failed to delete conversation"
+                                              );
+                                            }
+                                          }}
+                                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                        >
+                                          Delete
+                                        </AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  );
+                })()
+              )}
+            </div>
+
+            {/* Conversation Modal */}
+            <Dialog
+              open={!!selectedConversationId}
+              onOpenChange={handleCloseConversationModal}
+            >
+              <DialogContent className="flex max-h-[80vh] max-w-4xl flex-col rounded-3xl">
+                <DialogHeader className="flex-shrink-0">
+                  <DialogTitle className="flex items-center gap-2 text-flora-ink">
+                    <MessageSquare className="h-5 w-5" />
+                    Conversation Details
+                  </DialogTitle>
+                  <DialogDescription className="text-flora-muted">
+                    {selectedConversationId && (
+                      <span>
+                        Conversation ID: {selectedConversationId.slice(0, 8)}
+                        ...
+                      </span>
+                    )}
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="min-h-0 flex-1 overflow-y-auto">
+                  {loadingConversation ? (
+                    <div className="flex h-64 items-center justify-center">
+                      <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-flora-ink"></div>
+                      <span className="ml-2 text-flora-muted">
+                        Loading conversation...
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="space-y-4 p-4">
+                      {conversationMessages.length === 0 ? (
+                        <div className="py-8 text-center">
+                          <MessageSquare className="mx-auto mb-4 h-12 w-12 text-flora-muted" />
+                          <p className="text-flora-muted">
+                            No messages in this conversation
+                          </p>
+                        </div>
+                      ) : (
+                        conversationMessages.map((message) => (
+                          <div
+                            key={message.id}
+                            className="flex gap-3 rounded-2xl bg-flora-chip/30 p-3"
+                          >
+                            <Avatar className="h-8 w-8 flex-shrink-0">
+                              <AvatarImage src={message.sender?.avatar_url} />
+                              <AvatarFallback className="text-xs">
+                                {message.sender?.full_name?.charAt(0) || "U"}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="min-w-0 flex-1">
+                              <div className="mb-1 flex items-center gap-2">
+                                <span className="text-sm font-medium text-flora-ink">
+                                  {message.sender?.full_name ||
+                                    "Unknown User"}
+                                </span>
+                                <span className="text-xs text-flora-muted">
+                                  {new Date(
+                                    message.created_at
+                                  ).toLocaleString()}
+                                </span>
+                              </div>
+                              <p className="break-words text-sm text-flora-ink">
+                                {message.content}
+                              </p>
+                            </div>
+                            <div className="flex-shrink-0">
                               <AlertDialog>
                                 <AlertDialogTrigger asChild>
-                                  <Button variant="outline" size="sm">
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
+                                  <button
+                                    type="button"
+                                    className="inline-flex h-6 w-6 items-center justify-center rounded-full text-flora-muted transition hover:bg-red-100 hover:text-red-600"
+                                  >
+                                    <Trash2 className="h-3 w-3" />
+                                  </button>
                                 </AlertDialogTrigger>
-                                <AlertDialogContent>
+                                <AlertDialogContent className="rounded-3xl">
                                   <AlertDialogHeader>
-                                    <AlertDialogTitle>
-                                      Delete Product
+                                    <AlertDialogTitle className="text-flora-ink">
+                                      Delete Message
                                     </AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                      Are you sure you want to delete "
-                                      {product.title}"? This action cannot be
-                                      undone.
+                                    <AlertDialogDescription className="text-flora-muted">
+                                      Are you sure you want to delete this
+                                      message? This action cannot be undone.
                                     </AlertDialogDescription>
                                   </AlertDialogHeader>
                                   <AlertDialogFooter>
@@ -5135,294 +4931,28 @@ export default function Admin() {
                                       Cancel
                                     </AlertDialogCancel>
                                     <AlertDialogAction
-                                      onClick={() => deleteProduct(product.id)}
-                                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                    >
-                                      Delete
-                                    </AlertDialogAction>
-                                  </AlertDialogFooter>
-                                </AlertDialogContent>
-                              </AlertDialog>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Messages Tab */}
-          <TabsContent value="messages">
-            <Card>
-              <CardHeader>
-                <div className="flex justify-between items-center">
-                  <CardTitle>Conversation Monitoring</CardTitle>
-                  <div className="flex gap-2">
-                    <Button
-                      onClick={fetchConversations}
-                      variant="outline"
-                      size="sm"
-                    >
-                      <RefreshCw className="h-4 w-4 mr-2" />
-                      Refresh
-                    </Button>
-                    <Button
-                      onClick={() => exportData("messages")}
-                      variant="outline"
-                      size="sm"
-                    >
-                      <Download className="h-4 w-4 mr-2" />
-                      Export
-                    </Button>
-                  </div>
-                </div>
-                <p className="text-sm text-muted-foreground mt-2">
-                  Monitor all conversations between users. Click "View Chat" to see the full conversation.
-                </p>
-              </CardHeader>
-              <CardContent>
-                {conversations.length === 0 ? (
-                  <div className="text-center py-12">
-                    <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                    <h3 className="text-lg font-semibold mb-2">
-                      No conversations found
-                    </h3>
-                    <p className="text-muted-foreground">
-                      Users haven't started any conversations yet
-                    </p>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Participants</TableHead>
-                          <TableHead>Product</TableHead>
-                          <TableHead>Messages</TableHead>
-                          <TableHead>Last Message</TableHead>
-                          <TableHead>Started</TableHead>
-                          <TableHead>Actions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {conversations.map((conversation) => (
-                          <TableRow key={conversation.id}>
-                            <TableCell>
-                              <div className="space-y-1">
-                                <div className="flex items-center gap-2">
-                                  <Avatar className="h-6 w-6">
-                                    <AvatarImage src={conversation.buyer?.avatar_url} />
-                                    <AvatarFallback className="text-xs">
-                                      {conversation.buyer?.full_name?.charAt(0) || "B"}
-                                    </AvatarFallback>
-                                  </Avatar>
-                                  <span className="text-sm font-medium">
-                                    {conversation.buyer?.full_name || "Unknown Buyer"}
-                                  </span>
-                                  <Badge variant="outline" className="text-xs">Buyer</Badge>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <Avatar className="h-6 w-6">
-                                    <AvatarImage src={conversation.seller?.avatar_url} />
-                                    <AvatarFallback className="text-xs">
-                                      {conversation.seller?.full_name?.charAt(0) || "S"}
-                                    </AvatarFallback>
-                                  </Avatar>
-                                  <span className="text-sm font-medium">
-                                    {conversation.seller?.full_name || "Unknown Seller"}
-                                  </span>
-                                  <Badge variant="outline" className="text-xs">Seller</Badge>
-                                </div>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              {conversation.product ? (
-                                <div>
-                                  <p className="font-medium text-sm">{conversation.product.title}</p>
-                                  <p className="text-xs text-muted-foreground">
-                                    ₦{conversation.product.price?.toLocaleString()}
-                                  </p>
-                                </div>
-                              ) : (
-                                <span className="text-muted-foreground text-sm">General Chat</span>
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex items-center gap-2">
-                                <MessageSquare className="h-4 w-4 text-muted-foreground" />
-                                <span className="font-medium">{conversation.message_count}</span>
-                                <span className="text-xs text-muted-foreground">messages</span>
-                              </div>
-                            </TableCell>
-                            <TableCell className="max-w-xs">
-                              {conversation.last_message ? (
-                                <div>
-                                  <p className="text-sm truncate" title={conversation.last_message.content}>
-                                    <span className="font-medium">{conversation.last_message.sender_name}:</span>{" "}
-                                    {conversation.last_message.content}
-                                  </p>
-                                  <p className="text-xs text-muted-foreground">
-                                    {new Date(conversation.last_message.created_at).toLocaleString()}
-                                  </p>
-                                </div>
-                              ) : (
-                                <span className="text-muted-foreground text-sm italic">No messages yet</span>
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              <span className="text-sm">
-                                {new Date(conversation.created_at).toLocaleDateString()}
-                              </span>
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex gap-2">
-                                <Button 
-                                  variant="outline" 
-                                  size="sm"
-                                  onClick={() => handleViewConversation(conversation.id)}
-                                  disabled={conversation.message_count === 0}
-                                >
-                                  <Eye className="h-4 w-4 mr-1" />
-                                  View Chat
-                                </Button>
-                                <AlertDialog>
-                                  <AlertDialogTrigger asChild>
-                                    <Button variant="outline" size="sm">
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                  </AlertDialogTrigger>
-                                  <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                      <AlertDialogTitle>
-                                        Delete Conversation
-                                      </AlertDialogTitle>
-                                      <AlertDialogDescription>
-                                        Are you sure you want to delete this entire conversation? 
-                                        This will delete all {conversation.message_count} messages and cannot be undone.
-                                      </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                      <AlertDialogCancel>
-                                        Cancel
-                                      </AlertDialogCancel>
-                                      <AlertDialogAction
-                                        onClick={async () => {
-                                          try {
-                                            const { error } = await supabase
-                                              .from("conversations")
-                                              .delete()
-                                              .eq("id", conversation.id);
-                                            
-                                            if (error) throw error;
-                                            
-                                            toast.success("Conversation deleted successfully");
-                                            fetchConversations();
-                                          } catch (error) {
-                                            toast.error("Failed to delete conversation");
-                                          }
-                                        }}
-                                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                      >
-                                        Delete
-                                      </AlertDialogAction>
-                                    </AlertDialogFooter>
-                                  </AlertDialogContent>
-                                </AlertDialog>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Conversation Modal */}
-            <Dialog open={!!selectedConversationId} onOpenChange={handleCloseConversationModal}>
-              <DialogContent className="max-w-4xl max-h-[80vh] flex flex-col">
-                <DialogHeader className="flex-shrink-0">
-                  <DialogTitle className="flex items-center gap-2">
-                    <MessageSquare className="h-5 w-5" />
-                    Conversation Details
-                  </DialogTitle>
-                  <DialogDescription>
-                    {selectedConversationId && (
-                      <span>Conversation ID: {selectedConversationId.slice(0, 8)}...</span>
-                    )}
-                  </DialogDescription>
-                </DialogHeader>
-                
-                <div className="flex-1 overflow-y-auto min-h-0">
-                  {loadingConversation ? (
-                    <div className="flex items-center justify-center h-64">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-                      <span className="ml-2">Loading conversation...</span>
-                    </div>
-                  ) : (
-                    <div className="space-y-4 p-4">
-                      {conversationMessages.length === 0 ? (
-                        <div className="text-center py-8">
-                          <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                          <p className="text-muted-foreground">No messages in this conversation</p>
-                        </div>
-                      ) : (
-                        conversationMessages.map((message, index) => (
-                          <div key={message.id} className="flex gap-3 p-3 rounded-lg bg-muted/30">
-                            <Avatar className="h-8 w-8 flex-shrink-0">
-                              <AvatarImage src={message.sender?.avatar_url} />
-                              <AvatarFallback className="text-xs">
-                                {message.sender?.full_name?.charAt(0) || "U"}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1">
-                                <span className="font-medium text-sm">
-                                  {message.sender?.full_name || "Unknown User"}
-                                </span>
-                                <span className="text-xs text-muted-foreground">
-                                  {new Date(message.created_at).toLocaleString()}
-                                </span>
-                              </div>
-                              <p className="text-sm break-words">{message.content}</p>
-                            </div>
-                            <div className="flex-shrink-0">
-                              <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                  <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
-                                    <Trash2 className="h-3 w-3" />
-                                  </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                  <AlertDialogHeader>
-                                    <AlertDialogTitle>Delete Message</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                      Are you sure you want to delete this message? This action cannot be undone.
-                                    </AlertDialogDescription>
-                                  </AlertDialogHeader>
-                                  <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                    <AlertDialogAction
                                       onClick={async () => {
                                         try {
                                           const { error } = await supabase
                                             .from("messages")
                                             .delete()
                                             .eq("id", message.id);
-                                          
+
                                           if (error) throw error;
-                                          
-                                          toast.success("Message deleted successfully");
+
+                                          toast.success(
+                                            "Message deleted successfully"
+                                          );
                                           if (selectedConversationId) {
-                                            await fetchConversationMessages(selectedConversationId);
+                                            await fetchConversationMessages(
+                                              selectedConversationId
+                                            );
                                           }
                                           fetchConversations();
                                         } catch (error) {
-                                          toast.error("Failed to delete message");
+                                          toast.error(
+                                            "Failed to delete message"
+                                          );
                                         }
                                       }}
                                       className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
@@ -6158,170 +5688,205 @@ export default function Admin() {
             </Card>
           </TabsContent>
 
-          {/* Analytics Tab */}
-          <TabsContent value="analytics">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Top Categories</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {analytics.topCategories.map((category, index) => (
-                      <div
-                        key={category.category}
-                        className="flex items-center justify-between"
-                      >
-                        <span className="font-medium">{category.category}</span>
-                        <div className="flex items-center gap-2">
-                          <div className="w-24 h-2 bg-muted rounded">
-                            <div
-                              className="h-full bg-primary rounded"
-                              style={{
-                                width: `${
-                                  (category.count /
-                                    analytics.topCategories[0]?.count) *
-                                    100 || 0
-                                }%`,
-                              }}
-                            />
-                          </div>
-                          <span className="text-sm text-muted-foreground">
-                            {category.count}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Revenue Metrics</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center">
-                      <span>Total Revenue</span>
-                      <span className="font-bold text-lg">
-                        ₦{analytics.totalRevenue.toLocaleString()}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span>Monthly Growth</span>
-                      <span
-                        className={`font-bold flex items-center ${
-                          analytics.monthlyGrowth >= 0 ? "text-green-600" : "text-destructive"
-                        }`}
-                      >
-                        {analytics.monthlyGrowth >= 0 ? (
-                          <TrendingUp className="h-4 w-4 mr-1" />
-                        ) : (
-                          <TrendingDown className="h-4 w-4 mr-1" />
-                        )}
-                        {analytics.monthlyGrowth >= 0 ? "+" : ""}
-                        {analytics.monthlyGrowth}%
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span>Orders This Month</span>
-                      <span className="font-bold">
-                        {analytics.recentOrders}
-                      </span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
           {/* Escrow & Payouts Tab */}
           <TabsContent value="escrow">
             <div className="space-y-6">
               <AtRiskSellersCard />
 
               {/* Escrow Transactions */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Escrow Transactions</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Order</TableHead>
-                          <TableHead>Amount</TableHead>
-                          <TableHead>Commission</TableHead>
-                          <TableHead>Seller Amount</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Auto Release</TableHead>
-                          <TableHead>Actions</TableHead>
+              <div className="rounded-3xl bg-flora-card p-5 shadow-card sm:p-6">
+                <h2 className="text-lg font-bold text-flora-ink">Escrow Transactions</h2>
+                <div className="mt-4 overflow-x-auto rounded-2xl border border-flora-ink/10">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-flora-chip/40 hover:bg-flora-chip/40">
+                        <TableHead className="text-flora-ink">Order</TableHead>
+                        <TableHead className="text-flora-ink">Amount</TableHead>
+                        <TableHead className="text-flora-ink">Commission</TableHead>
+                        <TableHead className="text-flora-ink">Seller Amount</TableHead>
+                        <TableHead className="text-flora-ink">Status</TableHead>
+                        <TableHead className="text-flora-ink">Auto Release</TableHead>
+                        <TableHead className="text-flora-ink">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {escrowTransactions.map((escrow) => (
+                        <TableRow key={escrow.id} className="hover:bg-flora-chip/20">
+                          <TableCell>
+                            <p className="font-medium text-flora-ink">
+                              Order #{escrow.order_id.slice(0, 8)}
+                            </p>
+                            <p className="text-sm text-flora-muted">
+                              Escrow Transaction
+                            </p>
+                          </TableCell>
+                          <TableCell className="text-flora-ink">
+                            ₦{escrow.amount.toLocaleString()}
+                          </TableCell>
+                          <TableCell className="text-flora-muted">
+                            ₦{escrow.commission_amount.toLocaleString()}
+                          </TableCell>
+                          <TableCell className="text-flora-ink">
+                            ₦{escrow.seller_amount.toLocaleString()}
+                          </TableCell>
+                          <TableCell>
+                            <span
+                              className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                                escrow.status === "held"
+                                  ? "bg-amber-100 text-amber-700"
+                                  : "bg-flora-leaf/15 text-flora-leaf"
+                              }`}
+                            >
+                              {escrow.status}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-flora-muted">
+                            {escrow.auto_release_at ? (
+                              <span className="text-sm">
+                                {new Date(
+                                  escrow.auto_release_at
+                                ).toLocaleDateString()}
+                              </span>
+                            ) : (
+                              "Manual"
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {escrow.status === "held" && (
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <button
+                                    type="button"
+                                    className="inline-flex items-center gap-1.5 rounded-full border border-flora-ink/15 bg-white px-3.5 py-1.5 text-sm font-medium text-flora-ink transition hover:bg-flora-chip"
+                                  >
+                                    Release Funds
+                                  </button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent className="rounded-3xl">
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle className="text-flora-ink">
+                                      Release Escrow Funds
+                                    </AlertDialogTitle>
+                                    <AlertDialogDescription className="text-flora-muted">
+                                      Are you sure you want to manually
+                                      release ₦
+                                      {escrow.seller_amount.toLocaleString()}{" "}
+                                      to the seller?
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>
+                                      Cancel
+                                    </AlertDialogCancel>
+                                    <AlertDialogAction
+                                      onClick={() =>
+                                        releaseEscrowFunds(escrow.order_id)
+                                      }
+                                    >
+                                      Release Funds
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            )}
+                          </TableCell>
                         </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {escrowTransactions.map((escrow) => (
-                          <TableRow key={escrow.id}>
-                            <TableCell>
-                              <div>
-                                <p className="font-medium">
-                                  Order #{escrow.order_id.slice(0, 8)}
-                                </p>
-                                <p className="text-sm text-muted-foreground">
-                                  Escrow Transaction
-                                </p>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              ₦{escrow.amount.toLocaleString()}
-                            </TableCell>
-                            <TableCell>
-                              ₦{escrow.commission_amount.toLocaleString()}
-                            </TableCell>
-                            <TableCell>
-                              ₦{escrow.seller_amount.toLocaleString()}
-                            </TableCell>
-                            <TableCell>
-                              <Badge
-                                variant={
-                                  escrow.status === "held"
-                                    ? "secondary"
-                                    : "default"
-                                }
-                              >
-                                {escrow.status}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              {escrow.auto_release_at ? (
-                                <span className="text-sm">
-                                  {new Date(
-                                    escrow.auto_release_at
-                                  ).toLocaleDateString()}
-                                </span>
-                              ) : (
-                                "Manual"
-                              )}
-                            </TableCell>
-                            <TableCell>
-                              {escrow.status === "held" && (
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+
+              {/* Payout Requests */}
+              <div className="rounded-3xl bg-flora-card p-5 shadow-card sm:p-6">
+                <h2 className="text-lg font-bold text-flora-ink">Payout Requests</h2>
+                <div className="mt-4 overflow-x-auto rounded-2xl border border-flora-ink/10">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-flora-chip/40 hover:bg-flora-chip/40">
+                        <TableHead className="text-flora-ink">User</TableHead>
+                        <TableHead className="text-flora-ink">Amount</TableHead>
+                        <TableHead className="text-flora-ink">Bank Details</TableHead>
+                        <TableHead className="text-flora-ink">Status</TableHead>
+                        <TableHead className="text-flora-ink">Requested</TableHead>
+                        <TableHead className="text-flora-ink">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {payoutRequests.map((payout) => (
+                        <TableRow key={payout.id} className="hover:bg-flora-chip/20">
+                          <TableCell>
+                            <p className="font-medium text-flora-ink">
+                              {payout.profiles?.full_name ||
+                                `User #${payout.user_id.slice(0, 8)}`}
+                            </p>
+                            <p className="text-sm text-flora-muted">
+                              {payout.profiles?.email || "No email"}
+                            </p>
+                            {payout.wallets && (
+                              <p className="text-xs text-blue-600">
+                                Wallet: ₦
+                                {payout.wallets.available_balance?.toLocaleString() ||
+                                  "0"}
+                              </p>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-flora-ink">
+                            ₦{payout.amount.toLocaleString()}
+                          </TableCell>
+                          <TableCell className="text-sm text-flora-muted">
+                            <p>{payout.bank_account_name}</p>
+                            <p>{payout.bank_account_number}</p>
+                            <p>{payout.bank_name}</p>
+                          </TableCell>
+                          <TableCell>
+                            <span
+                              className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                                payout.status === "pending"
+                                  ? "bg-amber-100 text-amber-700"
+                                  : "bg-flora-leaf/15 text-flora-leaf"
+                              }`}
+                            >
+                              {payout.status}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-flora-muted">
+                            {new Date(payout.created_at).toLocaleDateString()}
+                          </TableCell>
+                          <TableCell>
+                            {payout.status === "pending" && (
+                              <div className="flex gap-2">
                                 <AlertDialog>
                                   <AlertDialogTrigger asChild>
-                                    <Button size="sm" variant="outline">
-                                      Release Funds
-                                    </Button>
+                                    <button
+                                      type="button"
+                                      className="inline-flex items-center gap-1.5 rounded-full bg-flora-ink px-3.5 py-1.5 text-sm font-medium text-white transition hover:brightness-110"
+                                    >
+                                      Approve
+                                    </button>
                                   </AlertDialogTrigger>
-                                  <AlertDialogContent>
+                                  <AlertDialogContent className="rounded-3xl">
                                     <AlertDialogHeader>
-                                      <AlertDialogTitle>
-                                        Release Escrow Funds
+                                      <AlertDialogTitle className="text-flora-ink">
+                                        Approve Payout Request
                                       </AlertDialogTitle>
-                                      <AlertDialogDescription>
-                                        Are you sure you want to manually
-                                        release ₦
-                                        {escrow.seller_amount.toLocaleString()}{" "}
-                                        to the seller?
+                                      <AlertDialogDescription className="text-flora-muted">
+                                        Are you sure you want to approve this
+                                        payout of ₦
+                                        {payout.amount.toLocaleString()} to{" "}
+                                        {payout.bank_account_name} (
+                                        {payout.bank_name})?
+                                        {payout.wallets &&
+                                          payout.wallets.available_balance <
+                                            payout.amount && (
+                                            <div className="mt-2 rounded-xl border border-red-200 bg-red-50 p-2 text-red-700">
+                                              ⚠️ Warning: Insufficient wallet
+                                              balance (₦
+                                              {payout.wallets.available_balance?.toLocaleString() ||
+                                                "0"}
+                                              ) for this payout.
+                                            </div>
+                                          )}
                                       </AlertDialogDescription>
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>
@@ -6330,509 +5895,520 @@ export default function Admin() {
                                       </AlertDialogCancel>
                                       <AlertDialogAction
                                         onClick={() =>
-                                          releaseEscrowFunds(escrow.order_id)
+                                          processPayoutRequest(
+                                            payout.id,
+                                            true,
+                                            "Payout approved by admin"
+                                          )
+                                        }
+                                        disabled={
+                                          payout.wallets &&
+                                          payout.wallets.available_balance <
+                                            payout.amount
                                         }
                                       >
-                                        Release Funds
+                                        Approve Payout
                                       </AlertDialogAction>
                                     </AlertDialogFooter>
                                   </AlertDialogContent>
                                 </AlertDialog>
-                              )}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Payout Requests */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Payout Requests</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>User</TableHead>
-                          <TableHead>Amount</TableHead>
-                          <TableHead>Bank Details</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Requested</TableHead>
-                          <TableHead>Actions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {payoutRequests.map((payout) => (
-                          <TableRow key={payout.id}>
-                            <TableCell>
-                              <div>
-                                <p className="font-medium">
-                                  {payout.profiles?.full_name ||
-                                    `User #${payout.user_id.slice(0, 8)}`}
-                                </p>
-                                <p className="text-sm text-muted-foreground">
-                                  {payout.profiles?.email || "No email"}
-                                </p>
-                                {payout.wallets && (
-                                  <p className="text-xs text-blue-600">
-                                    Wallet: ₦
-                                    {payout.wallets.available_balance?.toLocaleString() ||
-                                      "0"}
-                                  </p>
-                                )}
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              ₦{payout.amount.toLocaleString()}
-                            </TableCell>
-                            <TableCell>
-                              <div className="text-sm">
-                                <p>{payout.bank_account_name}</p>
-                                <p>{payout.bank_account_number}</p>
-                                <p>{payout.bank_name}</p>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <Badge
-                                variant={
-                                  payout.status === "pending"
-                                    ? "secondary"
-                                    : "default"
-                                }
-                              >
-                                {payout.status}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              {new Date(payout.created_at).toLocaleDateString()}
-                            </TableCell>
-                            <TableCell>
-                              {payout.status === "pending" && (
-                                <div className="flex gap-2">
-                                  <AlertDialog>
-                                    <AlertDialogTrigger asChild>
-                                      <Button size="sm">Approve</Button>
-                                    </AlertDialogTrigger>
-                                    <AlertDialogContent>
-                                      <AlertDialogHeader>
-                                        <AlertDialogTitle>
-                                          Approve Payout Request
-                                        </AlertDialogTitle>
-                                        <AlertDialogDescription>
-                                          Are you sure you want to approve this
-                                          payout of ₦
-                                          {payout.amount.toLocaleString()} to{" "}
-                                          {payout.bank_account_name} (
-                                          {payout.bank_name})?
-                                          {payout.wallets &&
-                                            payout.wallets.available_balance <
-                                              payout.amount && (
-                                              <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-red-700">
-                                                ⚠️ Warning: Insufficient wallet
-                                                balance (₦
-                                                {payout.wallets.available_balance?.toLocaleString() ||
-                                                  "0"}
-                                                ) for this payout.
-                                              </div>
-                                            )}
-                                        </AlertDialogDescription>
-                                      </AlertDialogHeader>
-                                      <AlertDialogFooter>
-                                        <AlertDialogCancel>
-                                          Cancel
-                                        </AlertDialogCancel>
-                                        <AlertDialogAction
-                                          onClick={() =>
-                                            processPayoutRequest(
-                                              payout.id,
-                                              true,
-                                              "Payout approved by admin"
-                                            )
-                                          }
-                                          disabled={
-                                            payout.wallets &&
-                                            payout.wallets.available_balance <
-                                              payout.amount
-                                          }
-                                        >
-                                          Approve Payout
-                                        </AlertDialogAction>
-                                      </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                  </AlertDialog>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() =>
-                                      processPayoutRequest(
-                                        payout.id,
-                                        false,
-                                        "Rejected by admin"
-                                      )
-                                    }
-                                  >
-                                    Reject
-                                  </Button>
-                                </div>
-                              )}
-                              {payout.status === "approved" && (
-                                <Badge
-                                  variant="default"
-                                  className="text-green-700 bg-green-100"
-                                >
-                                  ✓ Processed
-                                </Badge>
-                              )}
-                              {payout.status === "rejected" &&
-                                payout.admin_notes && (
-                                  <div className="text-xs text-red-600">
-                                    Rejected: {payout.admin_notes}
-                                  </div>
-                                )}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Disputes */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Disputes</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Order</TableHead>
-                          <TableHead>Reported By</TableHead>
-                          <TableHead>Reason</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Created</TableHead>
-                          <TableHead>Actions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {disputes.map((dispute) => (
-                          <TableRow key={dispute.id}>
-                            <TableCell>
-                              <div>
-                                <p className="font-medium">
-                                  Order #{dispute.order_id.slice(0, 8)}
-                                </p>
-                                <p className="text-sm text-muted-foreground">
-                                  {dispute.orders?.products?.title || "Product"}
-                                </p>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <div>
-                                <p className="font-medium">
-                                  {dispute.reporter?.full_name || "Unknown"}
-                                </p>
-                                <p className="text-sm text-muted-foreground">
-                                  Buyer
-                                </p>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <div>
-                                <p className="font-medium">
-                                  {dispute.reason.replace("_", " ")}
-                                </p>
-                                {dispute.description && (
-                                  <p className="text-sm text-muted-foreground">
-                                    {dispute.description}
-                                  </p>
-                                )}
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <Badge
-                                variant={
-                                  dispute.status === "open"
-                                    ? "destructive"
-                                    : "default"
-                                }
-                              >
-                                {dispute.status}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              {new Date(
-                                dispute.created_at
-                              ).toLocaleDateString()}
-                            </TableCell>
-                            <TableCell>
-                              {dispute.status === "open" && (
                                 <Dialog>
                                   <DialogTrigger asChild>
-                                    <Button size="sm" variant="outline">
-                                      Investigate
-                                    </Button>
+                                    <button
+                                      type="button"
+                                      className="inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-3.5 py-1.5 text-sm font-medium text-red-600 transition hover:bg-red-100"
+                                    >
+                                      Reject
+                                    </button>
                                   </DialogTrigger>
-                                  <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                                  <DialogContent className="rounded-3xl">
                                     <DialogHeader>
-                                      <DialogTitle>
-                                        Investigate Dispute
+                                      <DialogTitle className="text-flora-ink">
+                                        Reject Payout Request
                                       </DialogTitle>
-                                      <DialogDescription>
-                                        Contact seller about this dispute
+                                      <DialogDescription className="text-flora-muted">
+                                        Provide a reason for rejecting this ₦
+                                        {payout.amount.toLocaleString()}{" "}
+                                        payout to{" "}
+                                        {payout.bank_account_name}. This is
+                                        recorded on the request and shown to
+                                        the requester.
                                       </DialogDescription>
                                     </DialogHeader>
-                                    <div className="space-y-4">
-                                      <div className="p-4 bg-muted/50 rounded">
-                                        <h4 className="font-medium mb-2">
-                                          Dispute Details
-                                        </h4>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                          <div>
-                                            <p>
-                                              <strong>Product:</strong>{" "}
-                                              {dispute.orders?.products
-                                                ?.title || "Unknown Product"}
-                                            </p>
-                                            <p>
-                                              <strong>Order ID:</strong> #
-                                              {dispute.order_id.slice(0, 8)}...
-                                            </p>
-                                            <p>
-                                              <strong>Status:</strong>{" "}
-                                              <Badge
-                                                variant={
-                                                  dispute.status === "open"
-                                                    ? "destructive"
-                                                    : "default"
-                                                }
-                                              >
-                                                {dispute.status}
-                                              </Badge>
-                                            </p>
-                                          </div>
-                                          <div>
-                                            <p>
-                                              <strong>Reported By:</strong>{" "}
-                                              {dispute.reporter?.full_name ||
-                                                "Unknown Reporter"}
-                                            </p>
-                                            <p>
-                                              <strong>Date Reported:</strong>{" "}
-                                              {new Date(
-                                                dispute.created_at
-                                              ).toLocaleDateString()}
-                                            </p>
-                                          </div>
+                                    <form
+                                      onSubmit={(e) => {
+                                        e.preventDefault();
+                                        const formData = new FormData(
+                                          e.currentTarget
+                                        );
+                                        const reason = formData.get(
+                                          "payout_rejection_reason"
+                                        ) as string;
+                                        if (reason.trim()) {
+                                          processPayoutRequest(
+                                            payout.id,
+                                            false,
+                                            reason.trim()
+                                          );
+                                        }
+                                      }}
+                                    >
+                                      <div className="space-y-4">
+                                        <div>
+                                          <Label
+                                            htmlFor="payout_rejection_reason"
+                                            className="text-flora-ink"
+                                          >
+                                            Rejection Reason *
+                                          </Label>
+                                          <Textarea
+                                            name="payout_rejection_reason"
+                                            placeholder="e.g., Bank details could not be verified, suspected fraud, duplicate request..."
+                                            required
+                                            rows={3}
+                                          />
                                         </div>
-
-                                        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                                          <div className="p-3 bg-blue-50 rounded">
-                                            <h5 className="font-medium text-blue-900 mb-2">
-                                              Seller Information
-                                            </h5>
-                                            <p className="text-sm">
-                                              <strong>Name:</strong>{" "}
-                                              {dispute.orders?.seller_profile
-                                                ?.full_name || "Unknown Seller"}
-                                            </p>
-                                            <p className="text-sm">
-                                              <strong>Student ID:</strong>{" "}
-                                              {dispute.orders?.seller_profile
-                                                ?.student_id || "N/A"}
-                                            </p>
-                                          </div>
-                                          <div className="p-3 bg-green-50 rounded">
-                                            <h5 className="font-medium text-green-900 mb-2">
-                                              Buyer Information
-                                            </h5>
-                                            <p className="text-sm">
-                                              <strong>Name:</strong>{" "}
-                                              {dispute.orders?.buyer_profile
-                                                ?.full_name || "Unknown Buyer"}
-                                            </p>
-                                            <p className="text-sm">
-                                              <strong>Student ID:</strong>{" "}
-                                              {dispute.orders?.buyer_profile
-                                                ?.student_id || "N/A"}
-                                            </p>
-                                          </div>
-                                        </div>
-
-                                        <div className="mt-4 p-3 bg-red-50 rounded">
-                                          <h5 className="font-medium text-red-900 mb-2">
-                                            Dispute Information
-                                          </h5>
-                                          <p className="text-sm">
-                                            <strong>Reason:</strong>{" "}
-                                            <Badge
-                                              variant="outline"
-                                              className="ml-1"
-                                            >
-                                              {dispute.reason
-                                                .replace("_", " ")
-                                                .toUpperCase()}
-                                            </Badge>
-                                          </p>
-                                          {dispute.description && (
-                                            <p className="text-sm mt-2">
-                                              <strong>Description:</strong>{" "}
-                                              <span className="italic">
-                                                {dispute.description}
-                                              </span>
-                                            </p>
-                                          )}
-                                        </div>
-                                      </div>
-
-                                      <div className="flex gap-2">
-                                        <Button
-                                          onClick={() => {
-                                            const message = `🚨 DISPUTE ALERT - UniMarket Admin\n\n📋 Order Details:\n• Order ID: #${dispute.order_id.slice(
-                                              0,
-                                              8
-                                            )}...\n• Product: ${
-                                              dispute.orders?.products?.title ||
-                                              "Unknown Product"
-                                            }\n\n👤 Seller Info:\n• Name: ${
-                                              dispute.orders?.seller_profile
-                                                ?.full_name || "Unknown"
-                                            }\n• Student ID: ${
-                                              dispute.orders?.seller_profile
-                                                ?.student_id || "N/A"
-                                            }\n\n👤 Buyer Info:\n• Name: ${
-                                              dispute.orders?.buyer_profile
-                                                ?.full_name || "Unknown"
-                                            }\n• Student ID: ${
-                                              dispute.orders?.buyer_profile
-                                                ?.student_id || "N/A"
-                                            }\n\n⚠️ Dispute Details:\n• Reason: ${dispute.reason
-                                              .replace("_", " ")
-                                              .toUpperCase()}\n• Description: ${
-                                              dispute.description ||
-                                              "No description provided"
-                                            }\n• Reported: ${new Date(
-                                              dispute.created_at
-                                            ).toLocaleDateString()}\n\n📞 Please respond ASAP to help resolve this issue. Contact the buyer directly or provide clarification about the product/service.`;
-                                            window.open(
-                                              `https://wa.me/2349133054018?text=${encodeURIComponent(
-                                                message
-                                              )}`,
-                                              "_blank"
-                                            );
-                                          }}
-                                          className="text-green-600 border-green-600 hover:bg-green-50"
-                                          variant="outline"
-                                        >
-                                          📱 Contact Seller via WhatsApp
-                                        </Button>
-                                        <AlertDialog>
-                                          <AlertDialogTrigger asChild>
+                                        <div className="flex justify-end gap-2">
+                                          <DialogTrigger asChild>
                                             <Button
+                                              type="button"
                                               variant="outline"
-                                              className="text-red-600 border-red-600 hover:bg-red-50"
                                             >
-                                              Resolve for Buyer (Reverse Funds)
+                                              Cancel
                                             </Button>
-                                          </AlertDialogTrigger>
-                                          <AlertDialogContent>
-                                            <AlertDialogHeader>
-                                              <AlertDialogTitle>
-                                                Resolve Dispute for Buyer
-                                              </AlertDialogTitle>
-                                              <AlertDialogDescription>
-                                                This reverses the held escrow
-                                                payment back to{" "}
-                                                {dispute.orders?.buyer_profile
-                                                  ?.full_name || "the buyer"}
-                                                . The seller will not be paid
-                                                for this order.
-                                              </AlertDialogDescription>
-                                            </AlertDialogHeader>
-                                            <AlertDialogFooter>
-                                              <AlertDialogCancel>
-                                                Cancel
-                                              </AlertDialogCancel>
-                                              <AlertDialogAction
-                                                onClick={() =>
-                                                  resolveDisputeForBuyer(dispute)
-                                                }
-                                                className="bg-red-600 hover:bg-red-700"
-                                              >
-                                                Reverse Funds to Buyer
-                                              </AlertDialogAction>
-                                            </AlertDialogFooter>
-                                          </AlertDialogContent>
-                                        </AlertDialog>
-                                        <AlertDialog>
-                                          <AlertDialogTrigger asChild>
-                                            <Button className="bg-green-600 hover:bg-green-700">
-                                              Resolve for Seller (Release
-                                              Funds)
-                                            </Button>
-                                          </AlertDialogTrigger>
-                                          <AlertDialogContent>
-                                            <AlertDialogHeader>
-                                              <AlertDialogTitle>
-                                                Resolve Dispute for Seller
-                                              </AlertDialogTitle>
-                                              <AlertDialogDescription>
-                                                This releases the held escrow
-                                                payment to{" "}
-                                                {dispute.orders?.seller_profile
-                                                  ?.full_name || "the seller"}
-                                                . The buyer will not be
-                                                refunded for this order.
-                                              </AlertDialogDescription>
-                                            </AlertDialogHeader>
-                                            <AlertDialogFooter>
-                                              <AlertDialogCancel>
-                                                Cancel
-                                              </AlertDialogCancel>
-                                              <AlertDialogAction
-                                                onClick={() =>
-                                                  resolveDisputeForSeller(dispute)
-                                                }
-                                                className="bg-green-600 hover:bg-green-700"
-                                              >
-                                                Release Funds to Seller
-                                              </AlertDialogAction>
-                                            </AlertDialogFooter>
-                                          </AlertDialogContent>
-                                        </AlertDialog>
+                                          </DialogTrigger>
+                                          <Button
+                                            type="submit"
+                                            variant="destructive"
+                                          >
+                                            Reject Payout
+                                          </Button>
+                                        </div>
                                       </div>
-                                    </div>
-                                    <DialogHeader>
-                                      <DialogTitle>
-                                        Investigate Dispute
-                                      </DialogTitle>
-                                      <DialogDescription>
-                                        Send investigation notification to
-                                        seller with custom message
-                                      </DialogDescription>
-                                    </DialogHeader>
-                                    <DisputeInvestigationForm
-                                      dispute={dispute}
-                                      onSuccess={() => fetchEscrowData()}
-                                    />
+                                    </form>
                                   </DialogContent>
                                 </Dialog>
+                              </div>
+                            )}
+                            {payout.status === "approved" && (
+                              <span className="rounded-full bg-flora-leaf/15 px-2.5 py-0.5 text-xs font-medium text-flora-leaf">
+                                ✓ Processed
+                              </span>
+                            )}
+                            {payout.status === "rejected" &&
+                              payout.admin_notes && (
+                                <div className="text-xs text-red-600">
+                                  Rejected: {payout.admin_notes}
+                                </div>
                               )}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </CardContent>
-              </Card>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+
+              {/* Disputes */}
+              <div className="rounded-3xl bg-flora-card p-5 shadow-card sm:p-6">
+                <h2 className="text-lg font-bold text-flora-ink">Disputes</h2>
+                <div className="mt-4 overflow-x-auto rounded-2xl border border-flora-ink/10">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-flora-chip/40 hover:bg-flora-chip/40">
+                        <TableHead className="text-flora-ink">Order</TableHead>
+                        <TableHead className="text-flora-ink">Reported By</TableHead>
+                        <TableHead className="text-flora-ink">Reason</TableHead>
+                        <TableHead className="text-flora-ink">Status</TableHead>
+                        <TableHead className="text-flora-ink">Created</TableHead>
+                        <TableHead className="text-flora-ink">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {disputes.map((dispute) => (
+                        <TableRow key={dispute.id} className="hover:bg-flora-chip/20">
+                          <TableCell>
+                            <p className="font-medium text-flora-ink">
+                              Order #{dispute.order_id.slice(0, 8)}
+                            </p>
+                            <p className="text-sm text-flora-muted">
+                              {dispute.orders?.products?.title || "Product"}
+                            </p>
+                          </TableCell>
+                          <TableCell>
+                            <p className="font-medium text-flora-ink">
+                              {dispute.reporter?.full_name || "Unknown"}
+                            </p>
+                            <p className="text-sm text-flora-muted">Buyer</p>
+                          </TableCell>
+                          <TableCell>
+                            <p className="font-medium text-flora-ink">
+                              {dispute.reason.replace("_", " ")}
+                            </p>
+                            {dispute.description && (
+                              <p className="text-sm text-flora-muted">
+                                {dispute.description}
+                              </p>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <span
+                              className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                                dispute.status === "open"
+                                  ? "bg-red-100 text-red-600"
+                                  : "bg-flora-leaf/15 text-flora-leaf"
+                              }`}
+                            >
+                              {dispute.status}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-flora-muted">
+                            {new Date(
+                              dispute.created_at
+                            ).toLocaleDateString()}
+                          </TableCell>
+                          <TableCell>
+                            {dispute.status === "open" && (
+                              <Dialog>
+                                <DialogTrigger asChild>
+                                  <button
+                                    type="button"
+                                    className="inline-flex items-center gap-1.5 rounded-full border border-flora-ink/15 bg-white px-3.5 py-1.5 text-sm font-medium text-flora-ink transition hover:bg-flora-chip"
+                                  >
+                                    Investigate
+                                  </button>
+                                </DialogTrigger>
+                                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl">
+                                  <DialogHeader>
+                                    <DialogTitle className="text-flora-ink">
+                                      Investigate Dispute
+                                    </DialogTitle>
+                                    <DialogDescription className="text-flora-muted">
+                                      Contact seller about this dispute
+                                    </DialogDescription>
+                                  </DialogHeader>
+                                  <div className="space-y-4">
+                                    <div className="rounded-2xl bg-flora-chip/30 p-4">
+                                      <h4 className="mb-2 font-medium text-flora-ink">
+                                        Dispute Details
+                                      </h4>
+                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="text-flora-ink">
+                                          <p>
+                                            <strong>Product:</strong>{" "}
+                                            {dispute.orders?.products
+                                              ?.title || "Unknown Product"}
+                                          </p>
+                                          <p>
+                                            <strong>Order ID:</strong> #
+                                            {dispute.order_id.slice(0, 8)}...
+                                          </p>
+                                          <p>
+                                            <strong>Status:</strong>{" "}
+                                            <span
+                                              className={`ml-1 rounded-full px-2 py-0.5 text-xs font-medium ${
+                                                dispute.status === "open"
+                                                  ? "bg-red-100 text-red-600"
+                                                  : "bg-flora-leaf/15 text-flora-leaf"
+                                              }`}
+                                            >
+                                              {dispute.status}
+                                            </span>
+                                          </p>
+                                        </div>
+                                        <div className="text-flora-ink">
+                                          <p>
+                                            <strong>Reported By:</strong>{" "}
+                                            {dispute.reporter?.full_name ||
+                                              "Unknown Reporter"}
+                                          </p>
+                                          <p>
+                                            <strong>Date Reported:</strong>{" "}
+                                            {new Date(
+                                              dispute.created_at
+                                            ).toLocaleDateString()}
+                                          </p>
+                                        </div>
+                                      </div>
+
+                                      <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="rounded-xl bg-blue-50 p-3">
+                                          <h5 className="mb-2 font-medium text-blue-900">
+                                            Seller Information
+                                          </h5>
+                                          <p className="text-sm text-blue-900">
+                                            <strong>Name:</strong>{" "}
+                                            {dispute.orders?.seller_profile
+                                              ?.full_name || "Unknown Seller"}
+                                          </p>
+                                          <p className="text-sm text-blue-900">
+                                            <strong>Student ID:</strong>{" "}
+                                            {dispute.orders?.seller_profile
+                                              ?.student_id || "N/A"}
+                                          </p>
+                                        </div>
+                                        <div className="rounded-xl bg-flora-leaf/10 p-3">
+                                          <h5 className="mb-2 font-medium text-flora-leaf">
+                                            Buyer Information
+                                          </h5>
+                                          <p className="text-sm text-flora-ink">
+                                            <strong>Name:</strong>{" "}
+                                            {dispute.orders?.buyer_profile
+                                              ?.full_name || "Unknown Buyer"}
+                                          </p>
+                                          <p className="text-sm text-flora-ink">
+                                            <strong>Student ID:</strong>{" "}
+                                            {dispute.orders?.buyer_profile
+                                              ?.student_id || "N/A"}
+                                          </p>
+                                        </div>
+                                      </div>
+
+                                      <div className="mt-4 rounded-xl bg-red-50 p-3">
+                                        <h5 className="mb-2 font-medium text-red-900">
+                                          Dispute Information
+                                        </h5>
+                                        <p className="text-sm text-red-900">
+                                          <strong>Reason:</strong>{" "}
+                                          <span className="ml-1 rounded-full border border-red-200 px-2 py-0.5 text-xs font-medium">
+                                            {dispute.reason
+                                              .replace("_", " ")
+                                              .toUpperCase()}
+                                          </span>
+                                        </p>
+                                        {dispute.description && (
+                                          <p className="mt-2 text-sm text-red-900">
+                                            <strong>Description:</strong>{" "}
+                                            <span className="italic">
+                                              {dispute.description}
+                                            </span>
+                                          </p>
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    <div className="flex flex-wrap gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const message = `🚨 DISPUTE ALERT - UniMarket Admin\n\n📋 Order Details:\n• Order ID: #${dispute.order_id.slice(
+                                            0,
+                                            8
+                                          )}...\n• Product: ${
+                                            dispute.orders?.products?.title ||
+                                            "Unknown Product"
+                                          }\n\n👤 Seller Info:\n• Name: ${
+                                            dispute.orders?.seller_profile
+                                              ?.full_name || "Unknown"
+                                          }\n• Student ID: ${
+                                            dispute.orders?.seller_profile
+                                              ?.student_id || "N/A"
+                                          }\n\n👤 Buyer Info:\n• Name: ${
+                                            dispute.orders?.buyer_profile
+                                              ?.full_name || "Unknown"
+                                          }\n• Student ID: ${
+                                            dispute.orders?.buyer_profile
+                                              ?.student_id || "N/A"
+                                          }\n\n⚠️ Dispute Details:\n• Reason: ${dispute.reason
+                                            .replace("_", " ")
+                                            .toUpperCase()}\n• Description: ${
+                                            dispute.description ||
+                                            "No description provided"
+                                          }\n• Reported: ${new Date(
+                                            dispute.created_at
+                                          ).toLocaleDateString()}\n\n📞 Please respond ASAP to help resolve this issue. Contact the buyer directly or provide clarification about the product/service.`;
+                                          window.open(
+                                            `https://wa.me/${
+                                              platformSettings?.support_whatsapp_number ||
+                                              "2349133054018"
+                                            }?text=${encodeURIComponent(
+                                              message
+                                            )}`,
+                                            "_blank"
+                                          );
+                                        }}
+                                        className="inline-flex items-center gap-1.5 rounded-full border border-flora-leaf/40 bg-flora-leaf/10 px-4 py-2 text-sm font-medium text-flora-leaf transition hover:bg-flora-leaf/20"
+                                      >
+                                        📱 Contact Seller via WhatsApp
+                                      </button>
+                                      <Dialog>
+                                        <DialogTrigger asChild>
+                                          <button
+                                            type="button"
+                                            className="inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-600 transition hover:bg-red-100"
+                                          >
+                                            Resolve for Buyer (Reverse Funds)
+                                          </button>
+                                        </DialogTrigger>
+                                        <DialogContent className="rounded-3xl">
+                                          <DialogHeader>
+                                            <DialogTitle className="text-flora-ink">
+                                              Resolve Dispute for Buyer
+                                            </DialogTitle>
+                                            <DialogDescription className="text-flora-muted">
+                                              This reverses the held escrow
+                                              payment back to{" "}
+                                              {dispute.orders?.buyer_profile
+                                                ?.full_name || "the buyer"}
+                                              . The seller will not be paid
+                                              for this order. Record why, for
+                                              the seller's side of the case.
+                                            </DialogDescription>
+                                          </DialogHeader>
+                                          <form
+                                            onSubmit={(e) => {
+                                              e.preventDefault();
+                                              const formData = new FormData(
+                                                e.currentTarget
+                                              );
+                                              const reason = formData.get(
+                                                "resolve_buyer_reason"
+                                              ) as string;
+                                              if (reason.trim()) {
+                                                resolveDisputeForBuyer(
+                                                  dispute,
+                                                  reason.trim()
+                                                );
+                                              }
+                                            }}
+                                          >
+                                            <div className="space-y-4">
+                                              <div>
+                                                <Label
+                                                  htmlFor="resolve_buyer_reason"
+                                                  className="text-flora-ink"
+                                                >
+                                                  Reason *
+                                                </Label>
+                                                <Textarea
+                                                  name="resolve_buyer_reason"
+                                                  placeholder="e.g., Seller could not provide proof of delivery, item as described does not match photos..."
+                                                  required
+                                                  rows={3}
+                                                />
+                                              </div>
+                                              <div className="flex justify-end gap-2">
+                                                <DialogTrigger asChild>
+                                                  <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                  >
+                                                    Cancel
+                                                  </Button>
+                                                </DialogTrigger>
+                                                <Button
+                                                  type="submit"
+                                                  className="bg-red-600 hover:bg-red-700"
+                                                >
+                                                  Reverse Funds to Buyer
+                                                </Button>
+                                              </div>
+                                            </div>
+                                          </form>
+                                        </DialogContent>
+                                      </Dialog>
+                                      <Dialog>
+                                        <DialogTrigger asChild>
+                                          <button
+                                            type="button"
+                                            className="inline-flex items-center gap-1.5 rounded-full bg-flora-leaf px-4 py-2 text-sm font-medium text-white transition hover:brightness-110"
+                                          >
+                                            Resolve for Seller (Release Funds)
+                                          </button>
+                                        </DialogTrigger>
+                                        <DialogContent className="rounded-3xl">
+                                          <DialogHeader>
+                                            <DialogTitle className="text-flora-ink">
+                                              Resolve Dispute for Seller
+                                            </DialogTitle>
+                                            <DialogDescription className="text-flora-muted">
+                                              This releases the held escrow
+                                              payment to{" "}
+                                              {dispute.orders?.seller_profile
+                                                ?.full_name || "the seller"}
+                                              . The buyer will not be
+                                              refunded for this order. Record
+                                              why, for the buyer's side of
+                                              the case.
+                                            </DialogDescription>
+                                          </DialogHeader>
+                                          <form
+                                            onSubmit={(e) => {
+                                              e.preventDefault();
+                                              const formData = new FormData(
+                                                e.currentTarget
+                                              );
+                                              const reason = formData.get(
+                                                "resolve_seller_reason"
+                                              ) as string;
+                                              if (reason.trim()) {
+                                                resolveDisputeForSeller(
+                                                  dispute,
+                                                  reason.trim()
+                                                );
+                                              }
+                                            }}
+                                          >
+                                            <div className="space-y-4">
+                                              <div>
+                                                <Label
+                                                  htmlFor="resolve_seller_reason"
+                                                  className="text-flora-ink"
+                                                >
+                                                  Reason *
+                                                </Label>
+                                                <Textarea
+                                                  name="resolve_seller_reason"
+                                                  placeholder="e.g., Buyer's claim was unsubstantiated, seller provided valid proof of delivery..."
+                                                  required
+                                                  rows={3}
+                                                />
+                                              </div>
+                                              <div className="flex justify-end gap-2">
+                                                <DialogTrigger asChild>
+                                                  <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                  >
+                                                    Cancel
+                                                  </Button>
+                                                </DialogTrigger>
+                                                <Button
+                                                  type="submit"
+                                                  className="bg-green-600 hover:bg-green-700"
+                                                >
+                                                  Release Funds to Seller
+                                                </Button>
+                                              </div>
+                                            </div>
+                                          </form>
+                                        </DialogContent>
+                                      </Dialog>
+                                    </div>
+                                  </div>
+                                  <div className="border-t border-flora-ink/10 pt-2">
+                                    <h4 className="mb-1 font-medium text-flora-ink">
+                                      Send Investigation Notice
+                                    </h4>
+                                    <p className="mb-3 text-sm text-flora-muted">
+                                      Send investigation notification to
+                                      seller with custom message
+                                    </p>
+                                  </div>
+                                  <DisputeInvestigationForm
+                                    dispute={dispute}
+                                    onSuccess={() => fetchEscrowData()}
+                                  />
+                                </DialogContent>
+                              </Dialog>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
             </div>
           </TabsContent>
 
@@ -7230,7 +6806,7 @@ export default function Admin() {
           </TabsContent>
           {/* Orders Tab */}
           <TabsContent value="orders">
-            <OrdersTab />
+            <OrdersTab onCountsChange={setPendingOrdersCount} />
           </TabsContent>
           {/* Staff Access - super_admin only; RLS on admin_permissions also
               only allows super_admin writes regardless, this is defense in
@@ -7240,6 +6816,8 @@ export default function Admin() {
               <AdminStaffAccessTab />
             </TabsContent>
           )}
+            </div>
+          </div>
         </Tabs>
 
         {/* Edit Product Dialog */}
@@ -7367,21 +6945,3 @@ export default function Admin() {
     </div>
   );
 }
-
-const updateProductDetails = async (productId: string, updates: any) => {
-  try {
-    const { error } = await supabase
-      .from("products")
-      .update(updates)
-      .eq("id", productId);
-
-    if (error) throw error;
-
-    toast.success("Product updated successfully");
-    // Refresh products list
-    window.location.reload();
-  } catch (error) {
-    console.error("Update product error:", error);
-    toast.error("Failed to update product");
-  }
-};

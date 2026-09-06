@@ -1,11 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { Wallet, DollarSign, Download, TrendingUp, RefreshCw, AlertCircle } from 'lucide-react';
 import {
@@ -46,6 +42,13 @@ interface WithdrawalHistory {
   processed_at: string | null;
 }
 
+const withdrawalStatusClasses = (status: string) => {
+  if (status === 'completed') return 'bg-flora-leaf/15 text-flora-leaf';
+  if (status === 'processing') return 'bg-amber-100 text-amber-700';
+  if (status === 'failed') return 'bg-red-100 text-red-600';
+  return 'bg-flora-chip text-flora-ink';
+};
+
 export const AdminWallet = () => {
   const [walletData, setWalletData] = useState<AdminWalletData>({
     totalCommissions: 0,
@@ -84,7 +87,7 @@ export const AdminWallet = () => {
       // Get current month commissions from escrow transactions
       const currentMonth = new Date().getMonth();
       const currentYear = new Date().getFullYear();
-      
+
       const { data: monthlyEscrows, error: escrowError } = await supabase
         .from('escrow_transactions')
         .select('commission_amount, released_at')
@@ -160,7 +163,7 @@ export const AdminWallet = () => {
 
       if (data?.success) {
         toast.success(`₦${amount.toLocaleString()} has been transferred successfully! Transfer code: ${data.transfer_code}`);
-        
+
         setWithdrawalForm({
           amount: '',
           bankName: '',
@@ -183,14 +186,12 @@ export const AdminWallet = () => {
 
   if (loading) {
     return (
-      <Card>
-        <CardContent className="p-6">
-          <div className="animate-pulse space-y-4">
-            <div className="h-8 bg-muted rounded w-1/3"></div>
-            <div className="h-32 bg-muted rounded"></div>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="rounded-3xl bg-flora-card p-6 shadow-card">
+        <div className="animate-pulse space-y-4">
+          <div className="h-8 w-1/3 rounded-full bg-flora-chip"></div>
+          <div className="h-32 rounded-2xl bg-flora-chip"></div>
+        </div>
+      </div>
     );
   }
 
@@ -198,241 +199,244 @@ export const AdminWallet = () => {
     <div className="space-y-6">
       {/* Wallet Overview */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Commissions</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">₦{walletData.totalCommissions.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">All time earnings</p>
-          </CardContent>
-        </Card>
+        <div className="rounded-3xl bg-flora-card p-5 shadow-card">
+          <div className="flex items-center justify-between">
+            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-flora-chip text-flora-ink">
+              <DollarSign className="h-4 w-4" />
+            </span>
+          </div>
+          <div className="mt-3 text-2xl font-bold text-flora-ink">₦{walletData.totalCommissions.toLocaleString()}</div>
+          <p className="text-sm font-medium text-flora-muted">Total Commissions</p>
+          <p className="text-xs text-flora-muted">All time earnings</p>
+        </div>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Available Balance</CardTitle>
-            <Wallet className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">₦{walletData.availableBalance.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">Ready to withdraw</p>
-          </CardContent>
-        </Card>
+        <div className="rounded-3xl bg-flora-card p-5 shadow-card">
+          <div className="flex items-center justify-between">
+            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-flora-chip text-flora-ink">
+              <Wallet className="h-4 w-4" />
+            </span>
+          </div>
+          <div className="mt-3 text-2xl font-bold text-flora-leaf">₦{walletData.availableBalance.toLocaleString()}</div>
+          <p className="text-sm font-medium text-flora-muted">Available Balance</p>
+          <p className="text-xs text-flora-muted">Ready to withdraw</p>
+        </div>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Withdrawn</CardTitle>
-            <Download className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">₦{walletData.totalWithdrawn.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">Lifetime withdrawals</p>
-          </CardContent>
-        </Card>
+        <div className="rounded-3xl bg-flora-card p-5 shadow-card">
+          <div className="flex items-center justify-between">
+            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-flora-chip text-flora-ink">
+              <Download className="h-4 w-4" />
+            </span>
+          </div>
+          <div className="mt-3 text-2xl font-bold text-flora-ink">₦{walletData.totalWithdrawn.toLocaleString()}</div>
+          <p className="text-sm font-medium text-flora-muted">Total Withdrawn</p>
+          <p className="text-xs text-flora-muted">Lifetime withdrawals</p>
+        </div>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">This Month</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">₦{walletData.monthlyCommissions.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">Monthly commissions</p>
-          </CardContent>
-        </Card>
+        <div className="rounded-3xl bg-flora-card p-5 shadow-card">
+          <div className="flex items-center justify-between">
+            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-flora-chip text-flora-ink">
+              <TrendingUp className="h-4 w-4" />
+            </span>
+          </div>
+          <div className="mt-3 text-2xl font-bold text-flora-ink">₦{walletData.monthlyCommissions.toLocaleString()}</div>
+          <p className="text-sm font-medium text-flora-muted">This Month</p>
+          <p className="text-xs text-flora-muted">Monthly commissions</p>
+        </div>
       </div>
 
       {/* Withdrawal Section */}
-      <Card>
-        <CardHeader>
-          <div className="flex justify-between items-center">
-            <CardTitle>Commission Withdrawals</CardTitle>
-            <div className="flex gap-2">
-              <Button onClick={fetchWalletData} variant="outline" size="sm">
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Refresh
-              </Button>
-              <Dialog open={showWithdrawDialog} onOpenChange={setShowWithdrawDialog}>
-                <DialogTrigger asChild>
-                  <Button disabled={walletData.availableBalance <= 0}>
-                    <Wallet className="h-4 w-4 mr-2" />
-                    Withdraw Funds
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Withdraw Commission Funds</DialogTitle>
-                    <DialogDescription>
-                      Transfer your commission earnings to your bank account
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-4">
-                    <div className="p-4 bg-muted/50 rounded">
-                      <div className="flex justify-between items-center mb-2">
-                        <span>Available Balance:</span>
-                        <span className="font-bold text-green-600">
-                          ₦{walletData.availableBalance.toLocaleString()}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <AlertCircle className="h-4 w-4" />
-                        <span>Minimum withdrawal: ₦100</span>
-                      </div>
+      <div className="rounded-3xl bg-flora-card p-5 shadow-card sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-lg font-bold text-flora-ink">Commission Withdrawals</h2>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={fetchWalletData}
+              className="inline-flex items-center gap-2 rounded-full border border-flora-ink/15 bg-white px-4 py-1.5 text-sm font-medium text-flora-ink transition hover:bg-flora-chip"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Refresh
+            </button>
+            <Dialog open={showWithdrawDialog} onOpenChange={setShowWithdrawDialog}>
+              <DialogTrigger asChild>
+                <button
+                  type="button"
+                  disabled={walletData.availableBalance <= 0}
+                  className="inline-flex items-center gap-2 rounded-full bg-flora-ink px-4 py-1.5 text-sm font-medium text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Wallet className="h-4 w-4" />
+                  Withdraw Funds
+                </button>
+              </DialogTrigger>
+              <DialogContent className="rounded-3xl">
+                <DialogHeader>
+                  <DialogTitle className="text-flora-ink">Withdraw Commission Funds</DialogTitle>
+                  <DialogDescription className="text-flora-muted">
+                    Transfer your commission earnings to your bank account
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div className="rounded-2xl bg-flora-chip/40 p-4">
+                    <div className="mb-2 flex items-center justify-between">
+                      <span className="text-flora-ink">Available Balance:</span>
+                      <span className="font-bold text-flora-leaf">
+                        ₦{walletData.availableBalance.toLocaleString()}
+                      </span>
                     </div>
-
-                    <div>
-                      <Label htmlFor="amount">Withdrawal Amount</Label>
-                      <Input
-                        id="amount"
-                        type="number"
-                        placeholder="Enter amount"
-                        value={withdrawalForm.amount}
-                        onChange={(e) => setWithdrawalForm(prev => ({ ...prev, amount: e.target.value }))}
-                        max={walletData.availableBalance}
-                      />
-                    </div>
-
-                    <div>
-                      <Label htmlFor="bankName">Bank Name</Label>
-                      <select
-                        value={withdrawalForm.bankName}
-                        onChange={(e) => setWithdrawalForm(prev => ({ ...prev, bankName: e.target.value }))}
-                        className="w-full h-10 border border-input bg-background px-3 py-2 text-sm rounded-md"
-                      >
-                        <option value="">Select your bank</option>
-                        <option value="Access Bank">Access Bank</option>
-                        <option value="Citibank Nigeria">Citibank Nigeria</option>
-                        <option value="Diamond Bank">Diamond Bank</option>
-                        <option value="Ecobank Nigeria">Ecobank Nigeria</option>
-                        <option value="Fidelity Bank">Fidelity Bank</option>
-                        <option value="First Bank of Nigeria">First Bank of Nigeria</option>
-                        <option value="First City Monument Bank">First City Monument Bank</option>
-                        <option value="Guaranty Trust Bank">Guaranty Trust Bank</option>
-                        <option value="Heritage Bank">Heritage Bank</option>
-                        <option value="Keystone Bank">Keystone Bank</option>
-                        <option value="Polaris Bank">Polaris Bank</option>
-                        <option value="Providus Bank">Providus Bank</option>
-                        <option value="Stanbic IBTC Bank">Stanbic IBTC Bank</option>
-                        <option value="Standard Chartered Bank">Standard Chartered Bank</option>
-                        <option value="Sterling Bank">Sterling Bank</option>
-                        <option value="Union Bank of Nigeria">Union Bank of Nigeria</option>
-                        <option value="United Bank For Africa">United Bank For Africa</option>
-                        <option value="Unity Bank">Unity Bank</option>
-                        <option value="Wema Bank">Wema Bank</option>
-                        <option value="Zenith Bank">Zenith Bank</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <Label htmlFor="accountNumber">Account Number</Label>
-                      <Input
-                        id="accountNumber"
-                        placeholder="Enter 10-digit account number"
-                        value={withdrawalForm.accountNumber}
-                        onChange={(e) => setWithdrawalForm(prev => ({ ...prev, accountNumber: e.target.value }))}
-                      />
-                    </div>
-
-                    <div>
-                      <Label htmlFor="accountName">Account Name</Label>
-                      <Input
-                        id="accountName"
-                        placeholder="Enter account holder name"
-                        value={withdrawalForm.accountName}
-                        onChange={(e) => setWithdrawalForm(prev => ({ ...prev, accountName: e.target.value }))}
-                      />
-                    </div>
-
-                    <div className="flex justify-end gap-2">
-                      <Button variant="outline" onClick={() => setShowWithdrawDialog(false)}>
-                        Cancel
-                      </Button>
-                      <Button onClick={handleWithdrawal} disabled={withdrawing}>
-                        {withdrawing ? 'Processing...' : 'Withdraw Funds'}
-                      </Button>
+                    <div className="flex items-center gap-2 text-sm text-flora-muted">
+                      <AlertCircle className="h-4 w-4" />
+                      <span>Minimum withdrawal: ₦100</span>
                     </div>
                   </div>
-                </DialogContent>
-              </Dialog>
-            </div>
+
+                  <div>
+                    <Label htmlFor="amount">Withdrawal Amount</Label>
+                    <Input
+                      id="amount"
+                      type="number"
+                      placeholder="Enter amount"
+                      value={withdrawalForm.amount}
+                      onChange={(e) => setWithdrawalForm(prev => ({ ...prev, amount: e.target.value }))}
+                      max={walletData.availableBalance}
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="bankName">Bank Name</Label>
+                    <select
+                      value={withdrawalForm.bankName}
+                      onChange={(e) => setWithdrawalForm(prev => ({ ...prev, bankName: e.target.value }))}
+                      className="w-full h-10 border border-flora-ink/15 bg-white px-3 py-2 text-sm rounded-md"
+                    >
+                      <option value="">Select your bank</option>
+                      <option value="Access Bank">Access Bank</option>
+                      <option value="Citibank Nigeria">Citibank Nigeria</option>
+                      <option value="Diamond Bank">Diamond Bank</option>
+                      <option value="Ecobank Nigeria">Ecobank Nigeria</option>
+                      <option value="Fidelity Bank">Fidelity Bank</option>
+                      <option value="First Bank of Nigeria">First Bank of Nigeria</option>
+                      <option value="First City Monument Bank">First City Monument Bank</option>
+                      <option value="Guaranty Trust Bank">Guaranty Trust Bank</option>
+                      <option value="Heritage Bank">Heritage Bank</option>
+                      <option value="Keystone Bank">Keystone Bank</option>
+                      <option value="Polaris Bank">Polaris Bank</option>
+                      <option value="Providus Bank">Providus Bank</option>
+                      <option value="Stanbic IBTC Bank">Stanbic IBTC Bank</option>
+                      <option value="Standard Chartered Bank">Standard Chartered Bank</option>
+                      <option value="Sterling Bank">Sterling Bank</option>
+                      <option value="Union Bank of Nigeria">Union Bank of Nigeria</option>
+                      <option value="United Bank For Africa">United Bank For Africa</option>
+                      <option value="Unity Bank">Unity Bank</option>
+                      <option value="Wema Bank">Wema Bank</option>
+                      <option value="Zenith Bank">Zenith Bank</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="accountNumber">Account Number</Label>
+                    <Input
+                      id="accountNumber"
+                      placeholder="Enter 10-digit account number"
+                      value={withdrawalForm.accountNumber}
+                      onChange={(e) => setWithdrawalForm(prev => ({ ...prev, accountNumber: e.target.value }))}
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="accountName">Account Name</Label>
+                    <Input
+                      id="accountName"
+                      placeholder="Enter account holder name"
+                      value={withdrawalForm.accountName}
+                      onChange={(e) => setWithdrawalForm(prev => ({ ...prev, accountName: e.target.value }))}
+                    />
+                  </div>
+
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowWithdrawDialog(false)}
+                      className="inline-flex items-center gap-2 rounded-full border border-flora-ink/15 bg-white px-4 py-2 text-sm font-medium text-flora-ink transition hover:bg-flora-chip"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleWithdrawal}
+                      disabled={withdrawing}
+                      className="inline-flex items-center gap-2 rounded-full bg-flora-ink px-4 py-2 text-sm font-medium text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {withdrawing ? 'Processing...' : 'Withdraw Funds'}
+                    </button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
           </div>
-        </CardHeader>
-        <CardContent>
-          {withdrawalHistory.length === 0 ? (
-            <div className="text-center py-8">
-              <Wallet className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-semibold mb-2">No withdrawals yet</h3>
-              <p className="text-muted-foreground">
-                Your withdrawal history will appear here
-              </p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Amount</TableHead>
-                    <TableHead>Bank Details</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Transfer Code</TableHead>
-                    <TableHead>Date</TableHead>
+        </div>
+        {withdrawalHistory.length === 0 ? (
+          <div className="py-8 text-center">
+            <Wallet className="mx-auto mb-4 h-12 w-12 text-flora-muted" />
+            <h3 className="mb-2 text-lg font-semibold text-flora-ink">No withdrawals yet</h3>
+            <p className="text-flora-muted">
+              Your withdrawal history will appear here
+            </p>
+          </div>
+        ) : (
+          <div className="mt-4 overflow-x-auto rounded-2xl border border-flora-ink/10">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-flora-chip/40 hover:bg-flora-chip/40">
+                  <TableHead className="text-flora-ink">Amount</TableHead>
+                  <TableHead className="text-flora-ink">Bank Details</TableHead>
+                  <TableHead className="text-flora-ink">Status</TableHead>
+                  <TableHead className="text-flora-ink">Transfer Code</TableHead>
+                  <TableHead className="text-flora-ink">Date</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {withdrawalHistory.map((withdrawal) => (
+                  <TableRow key={withdrawal.id} className="hover:bg-flora-chip/20">
+                    <TableCell className="font-medium text-flora-ink">
+                      ₦{withdrawal.amount.toLocaleString()}
+                    </TableCell>
+                    <TableCell>
+                      <p className="font-medium text-flora-ink">{withdrawal.bank_name}</p>
+                      <p className="text-sm text-flora-muted">
+                        {withdrawal.account_number} - {withdrawal.account_name}
+                      </p>
+                    </TableCell>
+                    <TableCell>
+                      <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${withdrawalStatusClasses(withdrawal.status)}`}>
+                        {withdrawal.status}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      {withdrawal.transfer_code ? (
+                        <code className="rounded-full bg-flora-chip px-2 py-1 text-xs text-flora-ink">
+                          {withdrawal.transfer_code}
+                        </code>
+                      ) : (
+                        <span className="text-sm text-flora-muted">-</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <p className="text-sm text-flora-ink">
+                        {new Date(withdrawal.created_at).toLocaleDateString()}
+                      </p>
+                      {withdrawal.processed_at && (
+                        <p className="text-xs text-flora-muted">
+                          Processed: {new Date(withdrawal.processed_at).toLocaleDateString()}
+                        </p>
+                      )}
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {withdrawalHistory.map((withdrawal) => (
-                    <TableRow key={withdrawal.id}>
-                      <TableCell className="font-medium">
-                        ₦{withdrawal.amount.toLocaleString()}
-                      </TableCell>
-                      <TableCell>
-                        <div>
-                          <p className="font-medium">{withdrawal.bank_name}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {withdrawal.account_number} - {withdrawal.account_name}
-                          </p>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge 
-                          variant={
-                            withdrawal.status === 'completed' ? 'default' :
-                            withdrawal.status === 'processing' ? 'secondary' :
-                            withdrawal.status === 'failed' ? 'destructive' : 'outline'
-                          }
-                        >
-                          {withdrawal.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {withdrawal.transfer_code ? (
-                          <code className="text-xs bg-muted px-2 py-1 rounded">
-                            {withdrawal.transfer_code}
-                          </code>
-                        ) : (
-                          <span className="text-muted-foreground text-sm">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <div>
-                          <p className="text-sm">
-                            {new Date(withdrawal.created_at).toLocaleDateString()}
-                          </p>
-                          {withdrawal.processed_at && (
-                            <p className="text-xs text-muted-foreground">
-                              Processed: {new Date(withdrawal.processed_at).toLocaleDateString()}
-                            </p>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
