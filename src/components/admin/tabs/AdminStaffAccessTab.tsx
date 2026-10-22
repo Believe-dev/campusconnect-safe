@@ -13,6 +13,7 @@ const TAB_OPTIONS = [
   { key: "reports", label: "Reports" },
   { key: "escrow", label: "Escrow" },
   { key: "products", label: "Products" },
+  { key: "promotions", label: "Promotions" },
   { key: "messages", label: "Messages" },
   { key: "emails", label: "Emails" },
   { key: "templates", label: "Templates" },

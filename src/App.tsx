@@ -33,6 +33,7 @@ import { PushSubscribePrompt } from "@/components/notifications/PushSubscribePro
 import { SecurityProvider } from "@/components/security/SecurityProvider";
 import { ProfileCompletionModal } from "@/components/profile/ProfileCompletionModal";
 import { ReconsentGate } from "@/components/legal/ReconsentGate";
+import { PromoEntryModal } from "@/components/promos/PromoEntryModal";
 import { useProfileCompletion } from "@/hooks/useProfileCompletion";
 import { useConfirmReceiptReminder } from "@/hooks/useConfirmReceiptReminder";
 import { ConfirmReceiptReminder } from "@/components/orders/ConfirmReceiptReminder";
@@ -136,6 +137,21 @@ const Cart = React.lazy(() =>
 );
 const Checkout = React.lazy(() =>
   import("./pages/Checkout").catch(() => ({
+    default: PageLoadError,
+  })),
+);
+const Promos = React.lazy(() =>
+  import("./pages/Promos").catch(() => ({
+    default: PageLoadError,
+  })),
+);
+const PromoDash = React.lazy(() =>
+  import("./pages/PromoDash").catch(() => ({
+    default: PageLoadError,
+  })),
+);
+const PromoConfirmation = React.lazy(() =>
+  import("./pages/PromoConfirmation").catch(() => ({
     default: PageLoadError,
   })),
 );
@@ -388,6 +404,15 @@ const AppContent = () => {
                   <Route path="/favorites" element={<Favorites />} />
                   <Route path={ROUTES.cart} element={<Cart />} />
                   <Route path={ROUTES.checkout} element={<Checkout />} />
+                  <Route path={ROUTES.promos} element={<Promos />} />
+                  <Route
+                    path={`${ROUTES.promos}/:id`}
+                    element={<PromoDash />}
+                  />
+                  <Route
+                    path={`${ROUTES.promos}/:id/confirmation`}
+                    element={<PromoConfirmation />}
+                  />
                   <Route path={ROUTES.admin} element={<Admin />} />
                   <Route
                     path="/verification-request"
@@ -432,6 +457,7 @@ const AppContent = () => {
         onDismiss={dismissConfirmReceiptReminder}
       />
       <ReconsentGate />
+      <PromoEntryModal />
     </>
   );
 };

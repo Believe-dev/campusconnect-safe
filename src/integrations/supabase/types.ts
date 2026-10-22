@@ -1232,6 +1232,7 @@ export type Database = {
           enable_product_moderation: boolean
           id: number
           minimum_order_value: number
+          promotions_commission_enabled: boolean
           require_email_verification: boolean
           support_whatsapp_number: string | null
           updated_at: string
@@ -1243,6 +1244,7 @@ export type Database = {
           enable_product_moderation?: boolean
           id?: number
           minimum_order_value?: number
+          promotions_commission_enabled?: boolean
           require_email_verification?: boolean
           support_whatsapp_number?: string | null
           updated_at?: string
@@ -1254,6 +1256,7 @@ export type Database = {
           enable_product_moderation?: boolean
           id?: number
           minimum_order_value?: number
+          promotions_commission_enabled?: boolean
           require_email_verification?: boolean
           support_whatsapp_number?: string | null
           updated_at?: string
@@ -1670,6 +1673,197 @@ export type Database = {
           verification_type?: string | null
           verified_at?: string | null
           verified_by?: string | null
+        }
+        Relationships: []
+      }
+      promo_grabs: {
+        Row: {
+          admin_notes: string | null
+          contact_phone: string | null
+          created_at: string
+          fulfilled_at: string | null
+          fulfilled_by: string | null
+          id: string
+          promo_product_id: string
+          promotion_id: string
+          quantity: number
+          shipping_address: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          admin_notes?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          fulfilled_at?: string | null
+          fulfilled_by?: string | null
+          id?: string
+          promo_product_id: string
+          promotion_id: string
+          quantity?: number
+          shipping_address?: string | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          admin_notes?: string | null
+          contact_phone?: string | null
+          created_at?: string
+          fulfilled_at?: string | null
+          fulfilled_by?: string | null
+          id?: string
+          promo_product_id?: string
+          promotion_id?: string
+          quantity?: number
+          shipping_address?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "promo_grabs_promo_product_id_fkey"
+            columns: ["promo_product_id"]
+            isOneToOne: false
+            referencedRelation: "promo_products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "promo_grabs_promotion_id_fkey"
+            columns: ["promotion_id"]
+            isOneToOne: false
+            referencedRelation: "promotions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      promo_products: {
+        Row: {
+          claimed_count: number
+          created_at: string
+          custom_image_url: string | null
+          custom_price: number | null
+          custom_title: string | null
+          id: string
+          product_id: string | null
+          promotion_id: string
+          stock_limit: number | null
+        }
+        Insert: {
+          claimed_count?: number
+          created_at?: string
+          custom_image_url?: string | null
+          custom_price?: number | null
+          custom_title?: string | null
+          id?: string
+          product_id?: string | null
+          promotion_id: string
+          stock_limit?: number | null
+        }
+        Update: {
+          claimed_count?: number
+          created_at?: string
+          custom_image_url?: string | null
+          custom_price?: number | null
+          custom_title?: string | null
+          id?: string
+          product_id?: string | null
+          promotion_id?: string
+          stock_limit?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "promo_products_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "promo_products_promotion_id_fkey"
+            columns: ["promotion_id"]
+            isOneToOne: false
+            referencedRelation: "promotions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      promo_reminders: {
+        Row: {
+          created_at: string
+          id: string
+          notified_at: string | null
+          promotion_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          notified_at?: string | null
+          promotion_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          notified_at?: string | null
+          promotion_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "promo_reminders_promotion_id_fkey"
+            columns: ["promotion_id"]
+            isOneToOne: false
+            referencedRelation: "promotions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      promotions: {
+        Row: {
+          banner_image_url: string | null
+          commission_enabled: boolean
+          created_at: string
+          created_by: string | null
+          description: string | null
+          duration_seconds: number
+          ends_at: string | null
+          id: string
+          promo_type: string
+          starts_at: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          banner_image_url?: string | null
+          commission_enabled?: boolean
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          duration_seconds?: number
+          ends_at?: string | null
+          id?: string
+          promo_type?: string
+          starts_at?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          banner_image_url?: string | null
+          commission_enabled?: boolean
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          duration_seconds?: number
+          ends_at?: string | null
+          id?: string
+          promo_type?: string
+          starts_at?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
         }
         Relationships: []
       }
@@ -2280,6 +2474,19 @@ export type Database = {
         Args: { p_notes?: string; p_payout_id: string }
         Returns: undefined
       }
+      admin_create_promotion: {
+        Args: {
+          p_banner_image_url?: string
+          p_description: string
+          p_duration_seconds: number
+          p_ends_at: string
+          p_products: Json
+          p_promo_type?: string
+          p_starts_at: string
+          p_title: string
+        }
+        Returns: string
+      }
       admin_delete_user: {
         Args: { target_user_id: string }
         Returns: undefined
@@ -2290,6 +2497,28 @@ export type Database = {
       }
       admin_reject_payout_request: {
         Args: { p_notes?: string; p_payout_id: string }
+        Returns: undefined
+      }
+      admin_set_promotion_status: {
+        Args: { p_promotion_id: string; p_status: string }
+        Returns: undefined
+      }
+      admin_update_promo_grab_status: {
+        Args: { p_grab_id: string; p_reason?: string; p_status: string }
+        Returns: undefined
+      }
+      admin_update_promotion: {
+        Args: {
+          p_banner_image_url?: string
+          p_description: string
+          p_duration_seconds: number
+          p_ends_at: string
+          p_products: Json
+          p_promo_type?: string
+          p_promotion_id: string
+          p_starts_at: string
+          p_title: string
+        }
         Returns: undefined
       }
       admin_update_user_profile: {
@@ -2406,6 +2635,14 @@ export type Database = {
       get_verification_photo_url: {
         Args: { file_path: string }
         Returns: string
+      }
+      grab_promo_item: {
+        Args: {
+          p_promo_product_id: string
+          p_promotion_id: string
+          p_quantity?: number
+        }
+        Returns: Json
       }
       has_admin_permission: {
         Args: { _tab_key: string; _user_id: string }
@@ -2622,6 +2859,15 @@ export type Database = {
         Args: { p_amount: number; p_description: string; p_user_id: string }
         Returns: boolean
       }
+      submit_promo_shipping_details: {
+        Args: {
+          p_contact_phone: string
+          p_promotion_id: string
+          p_shipping_address: string
+        }
+        Returns: Json
+      }
+      sweep_promotions: { Args: never; Returns: undefined }
       text_to_bytea: { Args: { data: string }; Returns: string }
       track_product_view: { Args: { p_product_id: string }; Returns: undefined }
       trigger_subscription_checks: { Args: never; Returns: string }
@@ -2668,6 +2914,14 @@ export type Database = {
           p_require_email_verification: boolean
           p_support_whatsapp_number: string
         }
+        Returns: undefined
+      }
+      update_promotion_commission: {
+        Args: { p_enabled: boolean; p_promotion_id: string }
+        Returns: undefined
+      }
+      update_promotions_commission_toggle: {
+        Args: { p_enabled: boolean }
         Returns: undefined
       }
       update_seller_subscription_payment: {

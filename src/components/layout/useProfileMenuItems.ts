@@ -10,6 +10,7 @@ import {
   LogOut,
   LayoutDashboard,
   Wallet,
+  Zap,
 } from "lucide-react";
 import { LearnMoreIcon } from "@/components/ui/heroicons";
 import { useToast } from "@/hooks/use-toast";
@@ -80,6 +81,7 @@ export const useProfileMenuItems = () => {
 
   const secondary: ProfileMenuItem[] = [
     { key: "saved", to: "/favorites", label: "Saved Items", icon: Heart },
+    { key: "promos", to: "/promos", label: "Promos", icon: Zap },
     ...(isAdmin ? [{ key: "admin", to: "/admin", label: "Admin Panel", icon: Shield }] : []),
     { key: "learn-more", to: "/learn-more", label: "Learn More", icon: LearnMoreIcon },
     { key: "suggestions", to: "/suggestions", label: "Suggestions", icon: Lightbulb },

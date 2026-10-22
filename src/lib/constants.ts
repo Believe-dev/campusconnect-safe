@@ -78,6 +78,7 @@ export const ROUTES = {
   sell: "/sell",
   dashboard: "/dashboard",
   games: "/games",
+  promos: "/promos",
 } as const;
 
 export const CATEGORIES = [

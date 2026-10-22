@@ -106,6 +106,7 @@ import { AdminWallet } from "@/components/admin/AdminWallet";
 import { SellerSubscriptionManager } from "@/components/admin/SellerSubscriptionManager";
 import { PullToRefresh } from "@/components/common/PullToRefresh";
 import { OrdersTab } from "@/components/admin/OrdersTab";
+import { PromotionsTab } from "@/components/admin/PromotionsTab";
 import { AdminStaffAccessTab } from "@/components/admin/tabs/AdminStaffAccessTab";
 import { PendingApprovalsTab } from "@/components/admin/tabs/PendingApprovalsTab";
 import { AtRiskSellersCard } from "@/components/admin/AtRiskSellersCard";
@@ -312,6 +313,7 @@ export default function Admin() {
   // Orders and Subscriptions badges.
   const [pendingOrdersCount, setPendingOrdersCount] = useState(0);
   const [subscriptionAttentionCount, setSubscriptionAttentionCount] = useState(0);
+  const [pendingPromoFulfillmentCount, setPendingPromoFulfillmentCount] = useState(0);
   // Grouped-nav state (Stage 6) - Tabs is now controlled so the sidebar /
   // mobile picker can drive selection directly, instead of TabsTrigger
   // switching itself internally.
@@ -1911,6 +1913,12 @@ export default function Admin() {
           label: "Orders",
           visible: canAccessTab("orders"),
           badge: pendingOrdersCount,
+        },
+        {
+          value: "promotions",
+          label: "Promotions",
+          visible: canAccessTab("promotions"),
+          badge: pendingPromoFulfillmentCount,
         },
         { value: "messages", label: "Messages", visible: canAccessTab("messages"), badge: 0 },
       ],
@@ -6807,6 +6815,10 @@ export default function Admin() {
           {/* Orders Tab */}
           <TabsContent value="orders">
             <OrdersTab onCountsChange={setPendingOrdersCount} />
+          </TabsContent>
+          {/* Promotions Tab */}
+          <TabsContent value="promotions">
+            <PromotionsTab onCountsChange={setPendingPromoFulfillmentCount} />
           </TabsContent>
           {/* Staff Access - super_admin only; RLS on admin_permissions also
               only allows super_admin writes regardless, this is defense in
