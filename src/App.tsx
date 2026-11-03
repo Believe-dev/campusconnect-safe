@@ -170,6 +170,11 @@ const SignupPage = React.lazy(() =>
     default: PageLoadError,
   })),
 );
+const SellerRegistrationPaymentCallback = React.lazy(() =>
+  import("./components/auth/SellerRegistrationPaymentCallback").catch(() => ({
+    default: PageLoadError,
+  })),
+);
 const TestSignup = React.lazy(() =>
   import("./pages/TestSignup").catch(() => ({
     default: PageLoadError,
@@ -370,6 +375,7 @@ const AppContent = () => {
                 <Routes>
                   <Route path={ROUTES.home} element={<Index />} />
                   <Route path={ROUTES.auth} element={<SignupPage />} />
+                  <Route path="/seller-registration-payment-callback" element={<SellerRegistrationPaymentCallback />} />
                   <Route path="/old-auth" element={<AuthPage />} />
                   <Route path="/test-signup" element={<TestSignup />} />
                   <Route path="/learn-more" element={<LearnMore />} />

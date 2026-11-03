@@ -1,1 +1,10 @@
 project_id = "ssqplkrxtrvfptrsnpow"
+
+[functions.flutterwave-seller-registration-init]
+verify_jwt = false
+
+[functions.flutterwave-seller-registration-verify]
+verify_jwt = false
+
+[functions.flutterwave-seller-registration-webhook]
+verify_jwt = false

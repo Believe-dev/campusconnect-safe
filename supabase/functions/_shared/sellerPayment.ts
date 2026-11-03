@@ -12,18 +12,19 @@ export async function completeSellerRegistration(
   admin: any,
   userId: string,
   paymentReference: string,
-  amount: number
+  amount: number,
+  paymentMethod: "anchor" | "flutterwave" = "anchor"
 ): Promise<void> {
   const { error: paymentInsertError } = await admin.from("seller_registration_payments").insert({
     user_id: userId,
     amount,
     payment_reference: paymentReference,
-    payment_method: "anchor",
+    payment_method: paymentMethod,
     status: "completed",
   });
   if (paymentInsertError) throw paymentInsertError;
 
-  const { error: profileUpdateError } = await admin
+  const { data: updatedProfile, error: profileUpdateError } = await admin
     .from("profiles")
     .update({
       seller_registration_paid: true,
@@ -32,8 +33,12 @@ export async function completeSellerRegistration(
       seller_status: "pending",
       updated_at: new Date().toISOString(),
     })
-    .eq("user_id", userId);
-  if (profileUpdateError) throw profileUpdateError;
+    .eq("user_id", userId)
+    .select("user_id")
+    .maybeSingle();
+  if (profileUpdateError || !updatedProfile) {
+    throw profileUpdateError || new Error("Seller profile was not created.");
+  }
 
   // create_seller_subscription is service_role-only - this call qualifies
   // since this helper only ever runs inside edge functions using the
