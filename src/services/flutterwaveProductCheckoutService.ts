@@ -6,7 +6,19 @@ type FunctionResponse<T> = { ok: true; data: T } | { ok: false; message: string 
 
 const invoke = async <T>(name: string, body?: Record<string, unknown>): Promise<FunctionResponse<T>> => {
   const { data, error } = await supabase.functions.invoke(name, { body });
-  if (error) return { ok: false, message: error.message };
+  if (error) {
+    // functions-js intentionally reports every non-2xx response with one
+    // generic message. Preserve the safe error body returned by our Edge
+    // Function so checkout can tell the user what actually needs attention.
+    const response = (error as { context?: Response }).context;
+    if (response) {
+      const payload = await response.clone().json().catch(() => null);
+      if (typeof payload?.error === "string" && payload.error) {
+        return { ok: false, message: payload.error };
+      }
+    }
+    return { ok: false, message: error.message };
+  }
   if (data?.error) return { ok: false, message: data.error };
   return { ok: true, data: data as T };
 };

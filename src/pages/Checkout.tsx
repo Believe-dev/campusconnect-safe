@@ -119,20 +119,31 @@ const Checkout = () => {
         clearPendingFlutterwaveCheckout();
       }
 
-      // Fetch user profile to pre-fill form (user can see their own email)
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("full_name, email, phone_number, university_name, campus")
-        .eq("user_id", user.id)
-        .single();
+      // The profile supplies contact details, while the address is deliberately
+      // stored in a private owner-only table rather than public profiles.
+      const [{ data: profile }, { data: savedAddress }] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("full_name, email, phone_number, university_name, campus")
+          .eq("user_id", user.id)
+          .single(),
+        (supabase as any)
+          .from("user_delivery_addresses")
+          .select("address, city, state")
+          .eq("user_id", user.id)
+          .maybeSingle(),
+      ]);
 
-      if (profile) {
+      if (profile || savedAddress) {
         setFormData((prev) => ({
           ...prev,
-          fullName: profile.full_name || "",
-          email: profile.email || user.email || "",
-          phone: profile.phone_number || "",
-          universityName: profile.university_name || "",
+          fullName: profile?.full_name || "",
+          email: profile?.email || user.email || "",
+          phone: profile?.phone_number || "",
+          universityName: profile?.university_name || "",
+          address: savedAddress?.address || "",
+          city: savedAddress?.city || "",
+          state: savedAddress?.state || "",
         }));
       }
       // Payment collection is started server-side and completed in Flutterwave.
@@ -257,10 +268,35 @@ const Checkout = () => {
     }));
   };
 
-  const handlePayment = () => {
+  const saveDeliveryAddress = async () => {
+    if (!user) return false;
+    const { error } = await (supabase as any)
+      .from("user_delivery_addresses")
+      .upsert(
+        {
+          user_id: user.id,
+          address: formData.address.trim(),
+          city: formData.city.trim(),
+          state: formData.state,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id" }
+      );
+    if (!error) return true;
+
+    toast({
+      title: "Could not save delivery address",
+      description: "Please try again before proceeding to payment.",
+      variant: "destructive",
+    });
+    return false;
+  };
+
+  const handlePayment = async () => {
     if (!validateForm() || !user) {
       return;
     }
+    if (!(await saveDeliveryAddress())) return;
     const queue = buildOrderQueue();
     if (queue.length === 0) return;
     startOrder(queue, 0);
@@ -308,7 +344,7 @@ const Checkout = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!processing) {
-      handlePayment();
+      void handlePayment();
     }
   };
 
@@ -448,6 +484,9 @@ const Checkout = () => {
                 <h2 className="mb-4 text-lg font-semibold text-flora-ink">
                   Delivery Address
                 </h2>
+                <p className="mb-4 text-xs text-flora-muted">
+                  Your latest delivery address is saved for next time. Edit the fields below whenever you want to use a different address.
+                </p>
                 {formData.universityName === IGBINEDION_UNIVERSITY ? (
                   <p className="mb-4 flex items-start gap-1.5 text-xs text-flora-muted">
                     <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />

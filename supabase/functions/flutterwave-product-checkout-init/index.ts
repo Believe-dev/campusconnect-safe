@@ -154,6 +154,14 @@ serve(async (req) => {
     });
     const paymentPayload = await paymentResponse.json().catch(() => null);
     if (!paymentResponse.ok || paymentPayload?.status !== "success" || !paymentPayload?.data?.link) {
+      // Do not log keys or customer details, but do retain Flutterwave's
+      // response in Edge Function logs. It distinguishes a live-account/KYC
+      // rejection from a malformed checkout request.
+      console.error("Flutterwave product checkout link creation failed", {
+        httpStatus: paymentResponse.status,
+        flutterwaveStatus: paymentPayload?.status,
+        flutterwaveMessage: paymentPayload?.message,
+      });
       throw new Error(paymentPayload?.message || "Flutterwave could not create a checkout link.");
     }
 
