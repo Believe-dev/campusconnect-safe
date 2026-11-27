@@ -23,19 +23,128 @@ export type PendingSellerSignup = {
   referralCode?: string;
 };
 
+export type SellerSignupDraft = {
+  signup: Omit<Partial<PendingSellerSignup>, "password">;
+  currentStep: number;
+  termsAccepted: boolean;
+  savedAt: number;
+};
+
+type PendingSellerPayment = {
+  signup: PendingSellerSignup;
+  claimToken: string;
+  paymentReference: string;
+  savedAt: number;
+};
+
+const SELLER_SIGNUP_DRAFT_KEY = "unimarket.sellerSignupDraft.v1";
+const PENDING_SELLER_PAYMENT_KEY = "unimarket.pendingSellerSignup.v1";
+const LEGACY_PENDING_SELLER_PAYMENT_KEY = "unimarket.pendingSellerSignup";
+const DRAFT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+const PAYMENT_CONTEXT_MAX_AGE_MS = 2 * 60 * 60 * 1000;
+
+const readStoredJson = <T>(key: string): T | null => {
+  try {
+    const value = localStorage.getItem(key);
+    return value ? (JSON.parse(value) as T) : null;
+  } catch {
+    return null;
+  }
+};
+
+/** Keeps an in-progress seller form through refreshes and failed checkouts. */
+export const saveSellerSignupDraft = (
+  signup: Partial<PendingSellerSignup>,
+  currentStep: number,
+  termsAccepted: boolean
+) => {
+  try {
+    // A saved form should survive days, but a password must not. The
+    // short-lived payment handoff below is kept only long enough to return
+    // from Flutterwave and is cleared as soon as the account is activated.
+    const { password: _password, ...safeSignup } = signup;
+    localStorage.setItem(
+      SELLER_SIGNUP_DRAFT_KEY,
+      JSON.stringify({ signup: safeSignup, currentStep, termsAccepted, savedAt: Date.now() } satisfies SellerSignupDraft)
+    );
+  } catch {
+    // Storage can be unavailable in private browsing. Signup still works.
+  }
+};
+
+export const readSellerSignupDraft = (): SellerSignupDraft | null => {
+  const draft = readStoredJson<SellerSignupDraft>(SELLER_SIGNUP_DRAFT_KEY);
+  if (!draft || !draft.savedAt || Date.now() - draft.savedAt > DRAFT_MAX_AGE_MS) {
+    try { localStorage.removeItem(SELLER_SIGNUP_DRAFT_KEY); } catch { /* no-op */ }
+    return null;
+  }
+  return draft;
+};
+
+export const clearSellerSignupDraft = () => {
+  try { localStorage.removeItem(SELLER_SIGNUP_DRAFT_KEY); } catch { /* no-op */ }
+};
+
+/**
+ * The Flutterwave handoff normally uses sessionStorage. A short-lived backup
+ * in localStorage also survives a page reload or browser restore and is
+ * removed as soon as registration succeeds.
+ */
+export const savePendingSellerPayment = (payment: PendingSellerPayment) => {
+  const serialized = JSON.stringify(payment);
+  try { sessionStorage.setItem(LEGACY_PENDING_SELLER_PAYMENT_KEY, serialized); } catch { /* no-op */ }
+  try { localStorage.setItem(PENDING_SELLER_PAYMENT_KEY, serialized); } catch { /* no-op */ }
+};
+
+export const readPendingSellerPayment = (): PendingSellerPayment | null => {
+  try {
+    const sessionValue = sessionStorage.getItem(LEGACY_PENDING_SELLER_PAYMENT_KEY);
+    if (sessionValue) {
+      const legacy = JSON.parse(sessionValue) as Partial<PendingSellerPayment>;
+      if (legacy.signup && legacy.claimToken) {
+        return {
+          ...legacy,
+          paymentReference: legacy.paymentReference || "",
+          savedAt: legacy.savedAt || Date.now(),
+        } as PendingSellerPayment;
+      }
+    }
+  } catch {
+    // Fall back to the durable copy.
+  }
+
+  const pending = readStoredJson<PendingSellerPayment>(PENDING_SELLER_PAYMENT_KEY);
+  if (!pending || !pending.savedAt || Date.now() - pending.savedAt > PAYMENT_CONTEXT_MAX_AGE_MS) {
+    clearPendingSellerPayment();
+    return null;
+  }
+  return pending;
+};
+
+export const clearPendingSellerPayment = () => {
+  try { sessionStorage.removeItem(LEGACY_PENDING_SELLER_PAYMENT_KEY); } catch { /* no-op */ }
+  try { localStorage.removeItem(PENDING_SELLER_PAYMENT_KEY); } catch { /* no-op */ }
+};
+
 /** Starts Flutterwave Standard checkout before creating the seller account. */
 export const initiateFlutterwaveSellerRegistration = async (signup: PendingSellerSignup): Promise<{
   success: boolean;
   paymentLink?: string;
   claimToken?: string;
+  paymentReference?: string;
   message?: string;
 }> => {
-  const response = await invoke<{ paymentLink: string; claimToken: string }>(
+  const response = await invoke<{ paymentLink: string; claimToken: string; paymentReference: string }>(
     "flutterwave-seller-registration-init",
     { email: signup.email, fullName: signup.fullName, phone: signup.phone }
   );
   if (!response.ok) return { success: false, message: response.message };
-  return { success: true, paymentLink: response.data.paymentLink, claimToken: response.data.claimToken };
+  return {
+    success: true,
+    paymentLink: response.data.paymentLink,
+    claimToken: response.data.claimToken,
+    paymentReference: response.data.paymentReference,
+  };
 };
 
 /**

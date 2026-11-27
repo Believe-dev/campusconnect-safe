@@ -3,7 +3,7 @@ import { ArrowUpRight, Building2, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/enhanced-button";
 import { useToast } from "@/hooks/use-toast";
 import { SellerKycModal } from "@/components/seller/SellerKycModal";
-import { FlutterwaveWithdrawalModal } from "@/components/wallet/AnchorWithdrawalModal";
+import { ManualWithdrawalModal } from "@/components/wallet/ManualWithdrawalModal";
 import { fetchCbnKycStatusFromDb, type CbnKycTierDetails } from "@/services/anchorBaasService";
 import { getWalletAccount, type WalletAccount } from "@/services/walletAccountService";
 import { useSellerWalletSummary } from "@/hooks/useSellerWalletSummary";
@@ -53,7 +53,7 @@ export const WalletPayoutCard = ({ userId, onBalanceUpdated }: WalletPayoutCardP
           <span className="rounded-xl bg-flora-tagBg p-2 text-flora-leaf"><Building2 className="h-5 w-5" /></span>
           <div className="min-w-0 flex-1">
             <h3 className="text-base font-bold text-flora-ink">Withdraw earnings</h3>
-            <p className="mt-0.5 text-xs text-flora-muted">Transfers to your Nigerian bank account are processed by Flutterwave.</p>
+            <p className="mt-0.5 text-xs text-flora-muted">Manual bank withdrawals are processed within 3 business days.</p>
           </div>
         </div>
         <div className="mt-4 flex flex-col gap-3 border-t border-flora-ink/10 pt-4 sm:flex-row sm:items-center sm:justify-between">
@@ -70,7 +70,7 @@ export const WalletPayoutCard = ({ userId, onBalanceUpdated }: WalletPayoutCardP
       </section>
 
       <SellerKycModal userId={userId} open={showKycModal} onClose={() => setShowKycModal(false)} onKycCompleted={(kyc) => { setKycStatus(kyc); void refresh(); }} />
-      <FlutterwaveWithdrawalModal
+      <ManualWithdrawalModal
         userId={userId}
         account={{ ...account, available_balance: availableBalance }}
         open={showWithdrawalModal}

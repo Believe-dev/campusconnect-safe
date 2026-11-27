@@ -6,7 +6,8 @@ const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
-const registrationFee = 1000;
+// Kept server-side so a browser can never lower the vendor registration fee.
+const registrationFee = 2500;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -43,7 +44,12 @@ serve(async (req) => {
         currency: "NGN",
         redirect_url: redirectUrl,
         customer: { email, name: fullName, phonenumber: phone },
-        customizations: { title: "UniMarket seller registration", description: "Seller registration fee" },
+        // Flutterwave Checkout currently throws an internal `cryptico is not
+        // defined` error in its card flow for this merchant's hosted page.
+        // Keep vendor checkout usable with Nigeria's non-card options while
+        // Flutterwave resolves that hosted-checkout defect.
+        payment_options: "banktransfer, ussd, opay",
+        customizations: { title: "UniMarket vendor registration", description: "Vendor registration fee" },
         configuration: { session_duration: 30, max_retry_attempt: 5 },
       }),
     });
@@ -52,7 +58,7 @@ serve(async (req) => {
       await admin.from("seller_signup_payment_intents").update({ status: "expired" }).eq("payment_reference", txRef);
       throw new Error(payload?.message || "Flutterwave could not create a checkout link.");
     }
-    return Response.json({ paymentLink: payload.data.link, claimToken }, { headers: corsHeaders });
+    return Response.json({ paymentLink: payload.data.link, claimToken, paymentReference: txRef }, { headers: corsHeaders });
   } catch (error) {
     console.error("flutterwave seller signup init failed", error);
     return Response.json({ error: error instanceof Error ? error.message : "Failed to start Flutterwave checkout." }, { status: 500, headers: corsHeaders });

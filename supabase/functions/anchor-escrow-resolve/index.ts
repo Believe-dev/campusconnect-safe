@@ -147,7 +147,7 @@ serve(async (req) => {
 
     // Flutterwave collection has no Anchor Sub-Ledger to settle. The internal
     // escrow release is the authoritative allocation to the seller/buyer wallet;
-    // external bank movement happens only via flutterwave-withdraw.
+    // external bank movement happens only through a manual withdrawal request.
     if (order.payment_method === "flutterwave_escrow") {
       await admin.from("escrow_transactions").update({
         settlement_provider: "flutterwave",

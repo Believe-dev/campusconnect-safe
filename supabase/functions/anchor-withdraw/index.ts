@@ -10,7 +10,7 @@ const corsHeaders = {
 serve((req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   return Response.json(
-    { error: "Anchor withdrawals have been retired. Please use the Flutterwave withdrawal flow." },
+    { error: "Anchor withdrawals have been retired. Please refresh and use the manual withdrawal request flow." },
     { status: 410, headers: corsHeaders },
   );
 });

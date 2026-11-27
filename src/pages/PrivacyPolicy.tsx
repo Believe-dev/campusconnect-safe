@@ -59,7 +59,7 @@ const PrivacyPolicy = () => {
                   <p className="font-semibold text-flora-ink">Seller-specific information</p>
                   <ul className="list-disc space-y-1.5 pl-5">
                     <li>
-                      Bank account details, verified by Flutterwave before a withdrawal is sent, for the
+                      Bank account details supplied for a manual withdrawal, for the
                       purpose of receiving seller payouts
                     </li>
                     <li>
@@ -112,8 +112,8 @@ const PrivacyPolicy = () => {
                 <p>We share limited personal data with:</p>
                 <ul className="list-disc space-y-1.5 pl-5">
                   <li>
-                    <strong>Flutterwave</strong> — our payment processor for checkout and bank payouts.
-                    Flutterwave processes payment transactions and verifies payout bank-account details.
+                    <strong>Flutterwave</strong> — our payment processor for checkout and vendor registration.
+                    Flutterwave processes payment transactions; withdrawal bank details are used for manual payout processing.
                   </li>
                   <li>
                     <strong>Anchor (getanchor.co)</strong> — our identity-verification infrastructure

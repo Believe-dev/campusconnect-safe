@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { fetchCbnKycStatusFromDb, CbnKycTierDetails } from "@/services/anchorBaasService";
 import { getWalletAccount, type WalletAccount } from "@/services/walletAccountService";
-import { FlutterwaveWithdrawalModal } from "@/components/wallet/AnchorWithdrawalModal";
+import { ManualWithdrawalModal } from "@/components/wallet/ManualWithdrawalModal";
 import { SellerKycModal } from "@/components/seller/SellerKycModal";
 import {
   Wallet as WalletIcon,
@@ -32,7 +32,7 @@ interface WalletTransaction {
 // (reverse_escrow_funds credits wallets directly, see useWalletActivity.tsx).
 // The one thing this page used to be missing entirely was a way to actually
 // move that money out - "Withdraw to Bank" opens the same unmodified
-// Flutterwave withdrawal flow the seller dashboard uses.
+// manual withdrawal flow the seller dashboard uses.
 const Wallet = () => {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -246,7 +246,7 @@ const Wallet = () => {
       </main>
 
       {account && (
-        <FlutterwaveWithdrawalModal
+        <ManualWithdrawalModal
           userId={user?.id || ""}
           account={account}
           open={showWithdrawalModal}

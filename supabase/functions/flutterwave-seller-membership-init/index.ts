@@ -5,7 +5,8 @@ const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
-const sellerFee = 1000;
+const registrationFee = 2500;
+const monthlyRenewalFee = 1000;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -33,11 +34,12 @@ serve(async (req) => {
     // The server decides the purpose. A browser cannot pay the cheaper or
     // wrong membership step by changing a request value.
     const purpose = profile.seller_registration_paid ? "renewal" : "registration";
+    const amount = purpose === "registration" ? registrationFee : monthlyRenewalFee;
     const paymentReference = `seller-membership-${crypto.randomUUID()}`;
     const { error: intentError } = await admin.from("flutterwave_seller_membership_payment_intents").insert({
       user_id: userData.user.id,
       purpose,
-      amount: sellerFee,
+      amount,
       payment_reference: paymentReference,
     });
     if (intentError) throw intentError;
@@ -51,10 +53,11 @@ serve(async (req) => {
       headers: { Authorization: `Bearer ${secretKey}`, "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify({
         tx_ref: paymentReference,
-        amount: sellerFee,
+        amount,
         currency: "NGN",
         redirect_url: redirectUrl,
         customer: { email: userData.user.email, name: customerName, phonenumber: profile.phone_number || undefined },
+        payment_options: "banktransfer, ussd, opay",
         customizations: {
           title: purpose === "renewal" ? "UniMarket seller subscription renewal" : "UniMarket seller registration",
           description: purpose === "renewal" ? "Monthly seller subscription" : "Seller registration fee",
@@ -71,7 +74,7 @@ serve(async (req) => {
       throw new Error(paymentPayload?.message || "Flutterwave could not create a checkout link.");
     }
 
-    return Response.json({ paymentLink: paymentPayload.data.link, paymentReference, amount: sellerFee, purpose }, { headers: corsHeaders });
+    return Response.json({ paymentLink: paymentPayload.data.link, paymentReference, amount, purpose }, { headers: corsHeaders });
   } catch (error) {
     console.error("flutterwave seller membership init failed", error);
     return Response.json({ error: error instanceof Error ? error.message : "Failed to start Flutterwave checkout." }, { status: 500, headers: corsHeaders });

@@ -22,6 +22,9 @@ import { ForgotPasswordDialog } from "@/components/auth/ForgotPasswordDialog";
 
 import { useToast } from "@/hooks/use-toast";
 import {
+  readSellerSignupDraft,
+  savePendingSellerPayment,
+  saveSellerSignupDraft,
   initiateFlutterwaveSellerRegistration,
   type PendingSellerSignup,
 } from "@/services/flutterwaveSellerRegistrationService";
@@ -259,23 +262,27 @@ const StepIndicator = ({ steps, currentStep }: { steps: string[]; currentStep: n
 const SignupPage = ({ onSuccess }: SignupPageProps) => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const [savedSellerDraft] = useState(() => readSellerSignupDraft());
   // Lazy initializer reads the URL synchronously on first render (rather
   // than switching mode in an effect after mount), so a link like
   // `/auth?mode=signup` lands directly on the signup form instead of
   // flashing sign-in first — this is how Header's "Join" and "Sign In"
   // buttons pick which tab you land on.
   const [mode, setMode] = useState<"signin" | "signup">(() =>
-    searchParams.get("mode") === "signup" ? "signup" : "signin"
+    searchParams.get("mode") === "signup" || savedSellerDraft ? "signup" : "signin"
   );
-  const [accountType, setAccountType] = useState<"buyer" | "seller">("buyer");
-  const [currentStep, setCurrentStep] = useState(1);
+  const [accountType, setAccountType] = useState<"buyer" | "seller">(savedSellerDraft ? "seller" : "buyer");
+  const [currentStep, setCurrentStep] = useState(() => {
+    const step = savedSellerDraft?.currentStep;
+    return step && step >= 2 && step <= 4 ? step : 1;
+  });
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState<AuthUser | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
-  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(savedSellerDraft?.termsAccepted ?? false);
   const [pendingBuyerData, setPendingBuyerData] = useState<BuyerFormData | null>(null);
-  const [referralCode, setReferralCode] = useState("");
+  const [referralCode, setReferralCode] = useState(savedSellerDraft?.signup.referralCode || "");
   const [validatingReferral, setValidatingReferral] = useState(false);
   const [referralValid, setReferralValid] = useState<boolean | null>(null);
   const { toast } = useToast();
@@ -284,9 +291,21 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
   // Step-scoped form state, one slice per step so each step's form only
   // needs to know about its own fields.
   const [buyerAccountData, setBuyerAccountData] = useState<Partial<BuyerAccountData>>({});
-  const [sellerAccountData, setSellerAccountData] = useState<Partial<SellerAccountData>>({});
-  const [sellerBusinessData, setSellerBusinessData] = useState<Partial<SellerBusinessData>>({});
-  const [sellerAboutData, setSellerAboutData] = useState<Partial<SellerAboutData>>({});
+  const [sellerAccountData, setSellerAccountData] = useState<Partial<SellerAccountData>>(() => ({
+    fullName: savedSellerDraft?.signup.fullName,
+    email: savedSellerDraft?.signup.email,
+    university: savedSellerDraft?.signup.university,
+    dateOfBirth: savedSellerDraft?.signup.dateOfBirth,
+  }));
+  const [sellerBusinessData, setSellerBusinessData] = useState<Partial<SellerBusinessData>>(() => ({
+    phone: savedSellerDraft?.signup.phone,
+    businessName: savedSellerDraft?.signup.businessName,
+    studentId: savedSellerDraft?.signup.studentId,
+    referralCode: savedSellerDraft?.signup.referralCode,
+  }));
+  const [sellerAboutData, setSellerAboutData] = useState<Partial<SellerAboutData>>(() => ({
+    bio: savedSellerDraft?.signup.bio,
+  }));
 
   // Form hooks
   const signinForm = useForm<SigninFormData>({
@@ -316,6 +335,33 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
     resolver: zodResolver(sellerAboutSchema),
     defaultValues: sellerAboutData,
   });
+
+  // Save each seller field as it changes, not only when the user presses
+  // Continue. This makes a reload or an unsuccessful checkout resumable.
+  useEffect(() => {
+    if (accountType !== "seller") return;
+
+    const persistDraft = () => {
+      const signup = {
+        ...sellerAccountForm.getValues(),
+        ...sellerBusinessForm.getValues(),
+        ...sellerAboutForm.getValues(),
+      };
+      if (Object.values(signup).some(Boolean)) {
+        saveSellerSignupDraft(signup, Math.max(currentStep, 2), termsAccepted);
+      }
+    };
+
+    persistDraft();
+    const accountSubscription = sellerAccountForm.watch(persistDraft);
+    const businessSubscription = sellerBusinessForm.watch(persistDraft);
+    const aboutSubscription = sellerAboutForm.watch(persistDraft);
+    return () => {
+      accountSubscription.unsubscribe();
+      businessSubscription.unsubscribe();
+      aboutSubscription.unsubscribe();
+    };
+  }, [accountType, currentStep, sellerAboutForm, sellerAccountForm, sellerBusinessForm, termsAccepted]);
 
   // Check for existing user session and listen for auth changes
   useEffect(() => {
@@ -592,8 +638,9 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
         bio: combinedData.bio!,
         referralCode: combinedData.referralCode,
       };
+      saveSellerSignupDraft(signup, 4, termsAccepted);
       const res = await initiateFlutterwaveSellerRegistration(signup);
-      if (!res.success || !res.paymentLink) {
+      if (!res.success || !res.paymentLink || !res.claimToken || !res.paymentReference) {
         toast({
           title: "Payment Setup Failed",
           description:
@@ -604,12 +651,12 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
         return;
       }
 
-      // Session storage survives Flutterwave's full-page redirect but is
-      // scoped to this browser tab. It is removed immediately after callback.
-      sessionStorage.setItem(
-        "unimarket.pendingSellerSignup",
-        JSON.stringify({ signup, claimToken: res.claimToken })
-      );
+      savePendingSellerPayment({
+        signup,
+        claimToken: res.claimToken,
+        paymentReference: res.paymentReference,
+        savedAt: Date.now(),
+      });
       window.location.assign(res.paymentLink);
     } catch (error) {
       toast({

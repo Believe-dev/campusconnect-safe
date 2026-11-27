@@ -4,8 +4,10 @@ import { CheckCircle2, XCircle, LoaderCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   claimFlutterwaveSellerRegistration,
+  clearPendingSellerPayment,
+  clearSellerSignupDraft,
+  readPendingSellerPayment,
   verifyFlutterwaveSellerRegistration,
-  type PendingSellerSignup,
 } from "@/services/flutterwaveSellerRegistrationService";
 import { CURRENT_PRIVACY_VERSION, CURRENT_TERMS_VERSION } from "@/lib/legalVersions";
 
@@ -20,18 +22,35 @@ export const SellerRegistrationPaymentCallback = () => {
   useEffect(() => {
     let active = true;
     const finishPayment = async () => {
-      const status = searchParams.get("status");
+      const status = searchParams.get("status")?.toLowerCase();
       const transactionId = searchParams.get("transaction_id");
       const txRef = searchParams.get("tx_ref");
-      const storedSignup = sessionStorage.getItem("unimarket.pendingSellerSignup");
-      const pending = storedSignup
-        ? (JSON.parse(storedSignup) as { signup: PendingSellerSignup; claimToken?: string })
-        : null;
+      const pending = readPendingSellerPayment();
 
-      if (status !== "successful" || !transactionId || !txRef || !pending?.claimToken) {
+      if (status !== "successful" || !transactionId || !txRef) {
         if (active) {
           setState("cancelled");
-          setMessage("The payment was not completed. No seller account was created.");
+          setMessage(
+            status === "successful"
+              ? "Flutterwave returned an incomplete payment callback. Your signup details are still saved; please contact support with your payment reference."
+              : "The payment was not completed. Your saved signup details are ready whenever you return."
+          );
+        }
+        return;
+      }
+
+      if (!pending?.claimToken) {
+        if (active) {
+          setState("failed");
+          setMessage("Your payment may have succeeded, but this browser could not restore the signup data needed to create the account. Please return to signup using this same browser; your saved details will be restored.");
+        }
+        return;
+      }
+
+      if (pending.paymentReference && pending.paymentReference !== txRef) {
+        if (active) {
+          setState("failed");
+          setMessage("This payment callback does not match the saved seller registration. Please start from the saved signup form again.");
         }
         return;
       }
@@ -121,7 +140,8 @@ export const SellerRegistrationPaymentCallback = () => {
             });
           }
         }
-        sessionStorage.removeItem("unimarket.pendingSellerSignup");
+        clearPendingSellerPayment();
+        clearSellerSignupDraft();
         setState("success");
         setMessage("Payment confirmed. Your seller account is now active.");
         window.setTimeout(() => navigate("/", { replace: true }), 1600);

@@ -111,6 +111,7 @@ import { AdminStaffAccessTab } from "@/components/admin/tabs/AdminStaffAccessTab
 import { PendingApprovalsTab } from "@/components/admin/tabs/PendingApprovalsTab";
 import { AtRiskSellersCard } from "@/components/admin/AtRiskSellersCard";
 import { approveSellerEscrow, refundAnchorPayment } from "@/services/anchorBaasService";
+import { completeManualWithdrawal } from "@/services/manualWithdrawalService";
 
 interface User {
   id: string;
@@ -226,6 +227,10 @@ interface PayoutRequest {
   processed_at: string | null;
   created_at: string;
   updated_at: string;
+  payout_provider?: string | null;
+  available_for_processing_on?: string | null;
+  transfer_code?: string | null;
+  transfer_status?: string | null;
   profiles?: { full_name: string; email: string };
 }
 
@@ -876,8 +881,10 @@ export default function Admin() {
             .in("id", walletIds),
         ]);
 
-        const enrichedPayouts = payoutData.map((payout) => ({
+        const enrichedPayouts: PayoutRequest[] = payoutData.map((payout) => ({
           ...payout,
+          payout_provider: (payout as any).payout_provider || "legacy",
+          available_for_processing_on: (payout as any).available_for_processing_on || null,
           profiles: profiles?.find((p) => p.user_id === payout.user_id),
           wallets: wallets?.find((w) => w.id === payout.wallet_id),
         }));
@@ -1137,6 +1144,18 @@ export default function Admin() {
     } catch (error) {
       console.error("Process payout error:", error);
       toast.error(error?.message || "Failed to process payout request");
+    }
+  };
+
+  const completeManualPayout = async (payoutId: string, transferReference: string, notes?: string) => {
+    try {
+      const result = await completeManualWithdrawal(payoutId, transferReference, notes);
+      if (!result.success) throw new Error(result.message);
+      toast.success(result.message);
+      fetchEscrowData();
+    } catch (error) {
+      console.error("Complete manual payout error:", error);
+      toast.error(error instanceof Error ? error.message : "Could not complete withdrawal.");
     }
   };
 
@@ -5807,7 +5826,10 @@ export default function Admin() {
 
               {/* Payout Requests */}
               <div className="rounded-3xl bg-flora-card p-5 shadow-card sm:p-6">
-                <h2 className="text-lg font-bold text-flora-ink">Payout Requests</h2>
+                <div>
+                  <h2 className="text-lg font-bold text-flora-ink">Withdrawal requests</h2>
+                  <p className="mt-1 text-sm text-flora-muted">Manual requests become eligible three business days after submission. Mark them complete only after the bank transfer is sent.</p>
+                </div>
                 <div className="mt-4 overflow-x-auto rounded-2xl border border-flora-ink/10">
                   <Table>
                     <TableHeader>
@@ -5817,11 +5839,16 @@ export default function Admin() {
                         <TableHead className="text-flora-ink">Bank Details</TableHead>
                         <TableHead className="text-flora-ink">Status</TableHead>
                         <TableHead className="text-flora-ink">Requested</TableHead>
+                        <TableHead className="text-flora-ink">Processing date</TableHead>
                         <TableHead className="text-flora-ink">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {payoutRequests.map((payout) => (
+                      {payoutRequests.map((payout) => {
+                        const isManual = payout.payout_provider === "manual";
+                        const processingDue = payout.available_for_processing_on || null;
+                        const isDue = !!processingDue && processingDue <= new Date().toISOString().slice(0, 10);
+                        return (
                         <TableRow key={payout.id} className="hover:bg-flora-chip/20">
                           <TableCell>
                             <p className="font-medium text-flora-ink">
@@ -5852,7 +5879,9 @@ export default function Admin() {
                               className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
                                 payout.status === "pending"
                                   ? "bg-amber-100 text-amber-700"
-                                  : "bg-flora-leaf/15 text-flora-leaf"
+                                  : payout.status === "completed"
+                                    ? "bg-flora-leaf/15 text-flora-leaf"
+                                    : "bg-flora-chip text-flora-muted"
                               }`}
                             >
                               {payout.status}
@@ -5861,8 +5890,55 @@ export default function Admin() {
                           <TableCell className="text-flora-muted">
                             {new Date(payout.created_at).toLocaleDateString()}
                           </TableCell>
+                          <TableCell className="text-flora-muted">
+                            {isManual && processingDue ? new Date(`${processingDue}T00:00:00`).toLocaleDateString() : "—"}
+                          </TableCell>
                           <TableCell>
-                            {payout.status === "pending" && (
+                            {isManual && payout.status === "pending" && (
+                              isDue ? (
+                                <Dialog>
+                                  <DialogTrigger asChild>
+                                    <button type="button" className="inline-flex items-center gap-1.5 rounded-full bg-flora-ink px-3.5 py-1.5 text-sm font-medium text-white transition hover:brightness-110">
+                                      Mark completed
+                                    </button>
+                                  </DialogTrigger>
+                                  <DialogContent className="rounded-3xl">
+                                    <DialogHeader>
+                                      <DialogTitle className="text-flora-ink">Complete manual withdrawal</DialogTitle>
+                                      <DialogDescription className="text-flora-muted">
+                                        Confirm the bank transfer has been made before marking ₦{payout.amount.toLocaleString()} to {payout.bank_account_name} as completed.
+                                      </DialogDescription>
+                                    </DialogHeader>
+                                    <form
+                                      onSubmit={(event) => {
+                                        event.preventDefault();
+                                        const formData = new FormData(event.currentTarget);
+                                        const reference = String(formData.get("manual_transfer_reference") || "").trim();
+                                        const notes = String(formData.get("manual_transfer_notes") || "").trim();
+                                        if (reference) void completeManualPayout(payout.id, reference, notes || undefined);
+                                      }}
+                                      className="space-y-4"
+                                    >
+                                      <div>
+                                        <Label htmlFor={`manual_transfer_reference_${payout.id}`}>Bank-transfer reference *</Label>
+                                        <Input id={`manual_transfer_reference_${payout.id}`} name="manual_transfer_reference" required maxLength={160} placeholder="Reference from your bank" />
+                                      </div>
+                                      <div>
+                                        <Label htmlFor={`manual_transfer_notes_${payout.id}`}>Notes (optional)</Label>
+                                        <Textarea id={`manual_transfer_notes_${payout.id}`} name="manual_transfer_notes" rows={3} maxLength={1000} placeholder="Optional confirmation note" />
+                                      </div>
+                                      <div className="flex justify-end gap-2">
+                                        <DialogTrigger asChild><Button type="button" variant="outline">Cancel</Button></DialogTrigger>
+                                        <Button type="submit">Mark completed</Button>
+                                      </div>
+                                    </form>
+                                  </DialogContent>
+                                </Dialog>
+                              ) : (
+                                <span className="text-xs text-flora-muted">Available {processingDue ? new Date(`${processingDue}T00:00:00`).toLocaleDateString() : "soon"}</span>
+                              )
+                            )}
+                            {!isManual && payout.status === "pending" && (
                               <div className="flex gap-2">
                                 <AlertDialog>
                                   <AlertDialogTrigger asChild>
@@ -6003,6 +6079,11 @@ export default function Admin() {
                                 ✓ Processed
                               </span>
                             )}
+                            {isManual && payout.status === "completed" && (
+                              <span className="text-xs text-flora-muted">
+                                {payout.transfer_code ? `Reference: ${payout.transfer_code}` : "Completed"}
+                              </span>
+                            )}
                             {payout.status === "rejected" &&
                               payout.admin_notes && (
                                 <div className="text-xs text-red-600">
@@ -6011,7 +6092,7 @@ export default function Admin() {
                               )}
                           </TableCell>
                         </TableRow>
-                      ))}
+                      )})}
                     </TableBody>
                   </Table>
                 </div>

@@ -63,6 +63,8 @@ interface PayoutRequest {
   status: string;
   created_at: string;
   admin_notes?: string;
+  available_for_processing_on?: string | null;
+  payout_provider?: string | null;
 }
 
 const STATUS_TONE: Record<string, string> = {
@@ -387,7 +389,7 @@ const WalletDashboard = ({ onNavigateToVerification }: WalletDashboardProps) => 
         <h2 className="text-xl font-bold text-flora-ink sm:text-2xl">Earnings</h2>
       </div>
 
-      {/* Sellers withdraw released escrow through Flutterwave. The wallet is an
+      {/* Sellers request manual withdrawal of released escrow. The wallet is an
           internal ledger, not a virtual account buyers can deposit into. */}
       {userId && (
         <WalletPayoutCard
@@ -522,6 +524,11 @@ const WalletDashboard = ({ onNavigateToVerification }: WalletDashboardProps) => 
                         Requested on{" "}
                         {new Date(payout.created_at).toLocaleDateString()}
                       </p>
+                      {payout.payout_provider === "manual" && payout.status === "pending" && payout.available_for_processing_on && (
+                        <p className="mt-1 text-xs text-flora-muted">
+                          Scheduled for processing: {new Date(`${payout.available_for_processing_on}T00:00:00`).toLocaleDateString()}
+                        </p>
+                      )}
                       {payout.admin_notes && (
                         <p className="text-xs sm:text-sm mt-2 p-2 bg-flora-chip rounded-xl text-flora-ink">
                           <strong>Admin Notes:</strong> {payout.admin_notes}
