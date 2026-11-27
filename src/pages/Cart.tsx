@@ -14,7 +14,7 @@ import { IconButton } from "@/components/ui/icon-button";
 import ProductCard, {
   type ProductCardProduct,
 } from "@/components/marketplace/ProductCard";
-import { Trash2, ShoppingCart, Package, ChevronLeft, ArrowLeft, Truck, Heart } from "lucide-react";
+import { Trash2, ShoppingCart, Package, ChevronLeft, ArrowLeft, Truck, Heart, Zap } from "lucide-react";
 import { BUSINESS_RULES, IGBINEDION_UNIVERSITY } from "@/lib/constants";
 import { useProfile } from "@/contexts/ProfileContext";
 
@@ -476,6 +476,13 @@ const Cart = () => {
               </h1>
             </div>
             <div className="flex items-center gap-2">
+              <IconButton
+                icon={Zap}
+                label="Promos"
+                tone="light"
+                size="sm"
+                onClick={() => navigate("/promos")}
+              />
               <IconButton
                 icon={Heart}
                 label="Saved products"

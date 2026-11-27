@@ -24,3 +24,29 @@ export async function uploadProductImageToR2(file: File): Promise<string> {
 
   return data.publicUrl as string;
 }
+
+// Same presigned-upload shape as uploadProductImageToR2, but via
+// r2-presign-promo, which checks the 'promotions' admin permission instead
+// of "approved seller" - used for promo banner images and custom
+// (non-catalog) promo product images.
+export async function uploadPromoImageToR2(file: File): Promise<string> {
+  const { data, error } = await supabase.functions.invoke('r2-presign-promo', {
+    body: { contentType: file.type },
+  });
+
+  if (error || !data?.uploadUrl || !data?.publicUrl) {
+    throw new Error(error?.message || 'Failed to get upload URL');
+  }
+
+  const uploadResponse = await fetch(data.uploadUrl, {
+    method: 'PUT',
+    headers: { 'Content-Type': file.type },
+    body: file,
+  });
+
+  if (!uploadResponse.ok) {
+    throw new Error('Failed to upload image');
+  }
+
+  return data.publicUrl as string;
+}

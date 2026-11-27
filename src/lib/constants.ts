@@ -24,7 +24,7 @@ export const BUSINESS_RULES = {
     minAmount: 100, // ₦100
   },
   sellerRegistration: {
-    fee: 1000, // ₦1000 first month's subscription fee for sellers
+    fee: 2500, // ₦2,500 one-time vendor/seller registration fee
   },
   sellerSubscription: {
     monthlyFee: 1000, // ₦1000 monthly subscription fee for sellers
@@ -78,6 +78,7 @@ export const ROUTES = {
   sell: "/sell",
   dashboard: "/dashboard",
   games: "/games",
+  promos: "/promos",
 } as const;
 
 export const CATEGORIES = [

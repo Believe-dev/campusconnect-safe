@@ -9,7 +9,7 @@ import {
   QueryCache,
   MutationCache,
 } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Navigate, Routes, Route } from "react-router-dom";
 import { useScrollToTop } from "@/hooks/useScrollToTop";
 import { useBackgroundSync } from "@/hooks/useBackgroundSync";
 import { useRealTimeUpdates } from "@/hooks/useRealTimeUpdates";
@@ -33,6 +33,7 @@ import { PushSubscribePrompt } from "@/components/notifications/PushSubscribePro
 import { SecurityProvider } from "@/components/security/SecurityProvider";
 import { ProfileCompletionModal } from "@/components/profile/ProfileCompletionModal";
 import { ReconsentGate } from "@/components/legal/ReconsentGate";
+import { PromoEntryModal } from "@/components/promos/PromoEntryModal";
 import { useProfileCompletion } from "@/hooks/useProfileCompletion";
 import { useConfirmReceiptReminder } from "@/hooks/useConfirmReceiptReminder";
 import { ConfirmReceiptReminder } from "@/components/orders/ConfirmReceiptReminder";
@@ -139,18 +140,43 @@ const Checkout = React.lazy(() =>
     default: PageLoadError,
   })),
 );
+const Promos = React.lazy(() =>
+  import("./pages/Promos").catch(() => ({
+    default: PageLoadError,
+  })),
+);
+const PromoDash = React.lazy(() =>
+  import("./pages/PromoDash").catch(() => ({
+    default: PageLoadError,
+  })),
+);
+const PromoConfirmation = React.lazy(() =>
+  import("./pages/PromoConfirmation").catch(() => ({
+    default: PageLoadError,
+  })),
+);
 const Favorites = React.lazy(() =>
   import("./pages/Favorites").catch(() => ({
     default: PageLoadError,
   })),
 );
-const AuthPage = React.lazy(() =>
-  import("./components/auth/AuthPage").catch(() => ({
+const SignupPage = React.lazy(() =>
+  import("./components/auth/SignupPage").catch(() => ({
     default: PageLoadError,
   })),
 );
-const SignupPage = React.lazy(() =>
-  import("./components/auth/SignupPage").catch(() => ({
+const SellerRegistrationPaymentCallback = React.lazy(() =>
+  import("./components/auth/SellerRegistrationPaymentCallback").catch(() => ({
+    default: PageLoadError,
+  })),
+);
+const FlutterwaveSellerMembershipPaymentCallback = React.lazy(() =>
+  import("./components/seller/FlutterwaveSellerMembershipPaymentCallback").catch(() => ({
+    default: PageLoadError,
+  })),
+);
+const FlutterwaveProductPaymentCallback = React.lazy(() =>
+  import("./components/checkout/FlutterwaveProductPaymentCallback").catch(() => ({
     default: PageLoadError,
   })),
 );
@@ -354,7 +380,10 @@ const AppContent = () => {
                 <Routes>
                   <Route path={ROUTES.home} element={<Index />} />
                   <Route path={ROUTES.auth} element={<SignupPage />} />
-                  <Route path="/old-auth" element={<AuthPage />} />
+                  <Route path="/seller-registration-payment-callback" element={<SellerRegistrationPaymentCallback />} />
+                  <Route path="/seller-membership-payment-callback" element={<FlutterwaveSellerMembershipPaymentCallback />} />
+                  <Route path="/product-payment-callback" element={<FlutterwaveProductPaymentCallback />} />
+                  <Route path="/old-auth" element={<Navigate to={ROUTES.auth} replace />} />
                   <Route path="/test-signup" element={<TestSignup />} />
                   <Route path="/learn-more" element={<LearnMore />} />
                   <Route path="/about" element={<About />} />
@@ -388,6 +417,15 @@ const AppContent = () => {
                   <Route path="/favorites" element={<Favorites />} />
                   <Route path={ROUTES.cart} element={<Cart />} />
                   <Route path={ROUTES.checkout} element={<Checkout />} />
+                  <Route path={ROUTES.promos} element={<Promos />} />
+                  <Route
+                    path={`${ROUTES.promos}/:id`}
+                    element={<PromoDash />}
+                  />
+                  <Route
+                    path={`${ROUTES.promos}/:id/confirmation`}
+                    element={<PromoConfirmation />}
+                  />
                   <Route path={ROUTES.admin} element={<Admin />} />
                   <Route
                     path="/verification-request"
@@ -432,6 +470,7 @@ const AppContent = () => {
         onDismiss={dismissConfirmReceiptReminder}
       />
       <ReconsentGate />
+      <PromoEntryModal />
     </>
   );
 };

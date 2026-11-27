@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Package, TrendingUp, RefreshCw, ShoppingCart, CheckCircle, Eye } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Package, TrendingUp, RefreshCw, ShoppingCart, CheckCircle, Eye, Search } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { approveSellerEscrow } from '@/services/anchorBaasService';
 import { toast } from 'sonner';
@@ -63,7 +62,20 @@ interface CartItem {
   products: { title: string; price: number; seller_id: string };
 }
 
-export const OrdersTab: React.FC = () => {
+const statusPillClasses = (status: string) => {
+  if (status === 'confirmed' || status === 'completed') return 'bg-flora-leaf/15 text-flora-leaf';
+  if (status === 'pending') return 'bg-amber-100 text-amber-700';
+  if (status === 'cancelled' || status === 'refunded') return 'bg-red-100 text-red-600';
+  return 'bg-flora-chip text-flora-ink';
+};
+
+interface OrdersTabProps {
+  // Lets the nav sidebar show a real pending-orders badge without this
+  // component's own fetch being duplicated at the Admin.tsx level.
+  onCountsChange?: (pendingOrders: number) => void;
+}
+
+export const OrdersTab: React.FC<OrdersTabProps> = ({ onCountsChange }) => {
   const [orderStats, setOrderStats] = useState<OrderStats>({
     totalOrders: 0,
     pendingOrders: 0,
@@ -76,11 +88,17 @@ export const OrdersTab: React.FC = () => {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [orderSearch, setOrderSearch] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 
   useEffect(() => {
     fetchOrdersData();
   }, []);
+
+  useEffect(() => {
+    onCountsChange?.(orderStats.pendingOrders);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orderStats.pendingOrders]);
 
   const fetchOrdersData = async () => {
     setLoading(true);
@@ -129,9 +147,20 @@ export const OrdersTab: React.FC = () => {
     }
   };
 
-  const filteredOrders = useMemo(() =>
+  const statusFilteredOrders = useMemo(() =>
     statusFilter === 'all' ? recentOrders : recentOrders.filter(o => o.status === statusFilter)
   , [recentOrders, statusFilter]);
+
+  const filteredOrders = useMemo(() => {
+    const q = orderSearch.trim().toLowerCase();
+    if (!q) return statusFilteredOrders;
+    return statusFilteredOrders.filter(order =>
+      order.id.toLowerCase().includes(q) ||
+      order.products?.title?.toLowerCase().includes(q) ||
+      order.buyer_profile?.full_name?.toLowerCase().includes(q) ||
+      order.seller_profile?.full_name?.toLowerCase().includes(q)
+    );
+  }, [statusFilteredOrders, orderSearch]);
 
   const fetchRecentOrders = async () => {
     try {
@@ -301,14 +330,12 @@ export const OrdersTab: React.FC = () => {
       <div className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           {[...Array(4)].map((_, i) => (
-            <Card key={i}>
-              <CardContent className="p-6">
-                <div className="animate-pulse">
-                  <div className="h-4 bg-muted rounded mb-2"></div>
-                  <div className="h-8 bg-muted rounded"></div>
-                </div>
-              </CardContent>
-            </Card>
+            <div key={i} className="rounded-3xl bg-flora-card p-5 shadow-card">
+              <div className="animate-pulse">
+                <div className="mb-2 h-4 rounded-full bg-flora-chip"></div>
+                <div className="h-8 rounded-full bg-flora-chip"></div>
+              </div>
+            </div>
           ))}
         </div>
       </div>
@@ -320,282 +347,311 @@ export const OrdersTab: React.FC = () => {
       {/* Order Statistics — clickable to filter */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         {[
-          { label: 'Total Orders', value: orderStats.totalOrders, filter: 'all', sub: 'All time orders', icon: <Package className="h-4 w-4 text-muted-foreground" /> },
-          { label: 'Pending Orders', value: orderStats.pendingOrders, filter: 'pending', sub: 'Awaiting processing', icon: <Package className="h-4 w-4 text-orange-500" /> },
-          { label: 'Completed Orders', value: orderStats.completedOrders, filter: 'completed', sub: 'Successfully delivered', icon: <Package className="h-4 w-4 text-green-500" /> },
-          { label: 'Cart Items', value: orderStats.cartItems, filter: null, sub: 'Items in carts', icon: <ShoppingCart className="h-4 w-4 text-blue-500" /> },
+          { label: 'Total Orders', value: orderStats.totalOrders, filter: 'all', sub: 'All time orders', icon: <Package className="h-4 w-4 text-flora-ink" /> },
+          { label: 'Pending Orders', value: orderStats.pendingOrders, filter: 'pending', sub: 'Awaiting processing', icon: <Package className="h-4 w-4 text-amber-500" /> },
+          { label: 'Completed Orders', value: orderStats.completedOrders, filter: 'completed', sub: 'Successfully delivered', icon: <Package className="h-4 w-4 text-flora-leaf" /> },
+          { label: 'Cart Items', value: orderStats.cartItems, filter: null, sub: 'Items in carts', icon: <ShoppingCart className="h-4 w-4 text-flora-ink" /> },
         ].map(({ label, value, filter, sub, icon }) => (
-          <Card
+          <button
+            type="button"
             key={label}
             onClick={() => filter && setStatusFilter(filter)}
-            className={filter ? 'cursor-pointer transition-all hover:ring-2 hover:ring-primary' + (statusFilter === filter ? ' ring-2 ring-primary' : '') : ''}
+            disabled={!filter}
+            className={`rounded-3xl bg-flora-card p-5 text-left shadow-card transition ${
+              filter ? 'cursor-pointer hover:shadow-floating' : 'cursor-default'
+            } ${statusFilter === filter ? 'ring-2 ring-flora-ink' : ''}`}
           >
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">{label}</CardTitle>
-              {icon}
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{value}</div>
-              <p className="text-xs text-muted-foreground">{sub}</p>
-            </CardContent>
-          </Card>
+            <div className="flex items-center justify-between">
+              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-flora-chip">
+                {icon}
+              </span>
+            </div>
+            <div className="mt-3 text-2xl font-bold text-flora-ink">{value}</div>
+            <p className="text-sm font-medium text-flora-muted">{label}</p>
+            <p className="text-xs text-flora-muted">{sub}</p>
+          </button>
         ))}
       </div>
 
       {/* Top Performing Sellers */}
-      <Card>
-        <CardHeader>
-          <div className="flex justify-between items-center">
-            <CardTitle>Top Performing Sellers</CardTitle>
-            <Button onClick={fetchOrdersData} variant="outline" size="sm">
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Refresh
-            </Button>
+      <div className="rounded-3xl bg-flora-card p-5 shadow-card sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-lg font-bold text-flora-ink">Top Performing Sellers</h2>
+          <button
+            type="button"
+            onClick={fetchOrdersData}
+            className="inline-flex items-center gap-2 rounded-full border border-flora-ink/15 bg-white px-4 py-1.5 text-sm font-medium text-flora-ink transition hover:bg-flora-chip"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Refresh
+          </button>
+        </div>
+        <p className="mt-1 text-sm text-flora-muted">Sellers with highest sales and ratings</p>
+        {topSellers.length === 0 ? (
+          <div className="py-8 text-center">
+            <TrendingUp className="mx-auto mb-4 h-12 w-12 text-flora-muted" />
+            <h3 className="mb-2 text-lg font-semibold text-flora-ink">No sales data available</h3>
+            <p className="text-flora-muted">Sales analytics will appear here once orders are placed</p>
           </div>
-          <p className="text-sm text-muted-foreground">Sellers with highest sales and ratings</p>
-        </CardHeader>
-        <CardContent>
-          {topSellers.length === 0 ? (
-            <div className="text-center py-8">
-              <TrendingUp className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-semibold mb-2">No sales data available</h3>
-              <p className="text-muted-foreground">Sales analytics will appear here once orders are placed</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Seller</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Total Sales</TableHead>
-                    <TableHead>Orders</TableHead>
-                    <TableHead>Rating</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {topSellers.map((seller, index) => (
-                    <TableRow key={seller.seller_id}>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Badge variant={index === 0 ? "default" : "outline"}>
-                            #{index + 1}
-                          </Badge>
-                          <span className="font-medium">{seller.full_name}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>{seller.email}</TableCell>
-                      <TableCell>
-                        <span className="font-semibold text-green-600">
-                          ₦{seller.total_sales.toLocaleString()}
+        ) : (
+          <div className="mt-4 overflow-x-auto rounded-2xl border border-flora-ink/10">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-flora-chip/40 hover:bg-flora-chip/40">
+                  <TableHead className="text-flora-ink">Seller</TableHead>
+                  <TableHead className="text-flora-ink">Email</TableHead>
+                  <TableHead className="text-flora-ink">Total Sales</TableHead>
+                  <TableHead className="text-flora-ink">Orders</TableHead>
+                  <TableHead className="text-flora-ink">Rating</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {topSellers.map((seller, index) => (
+                  <TableRow key={seller.seller_id} className="hover:bg-flora-chip/20">
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                            index === 0 ? 'bg-flora-ink text-white' : 'bg-flora-chip text-flora-ink'
+                          }`}
+                        >
+                          #{index + 1}
                         </span>
-                      </TableCell>
-                      <TableCell>{seller.total_orders}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1">
-                          <span>{seller.rating.toFixed(1)}</span>
-                          <span className="text-yellow-500">★</span>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                        <span className="font-medium text-flora-ink">{seller.full_name}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-flora-muted">{seller.email}</TableCell>
+                    <TableCell>
+                      <span className="font-semibold text-flora-leaf">
+                        ₦{seller.total_sales.toLocaleString()}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-flora-muted">{seller.total_orders}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1 text-flora-ink">
+                        <span>{seller.rating.toFixed(1)}</span>
+                        <span className="text-amber-500">★</span>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </div>
 
       {/* Orders Table */}
-      <Card>
-        <CardHeader>
-          <div className="flex justify-between items-center">
-            <div>
-              <CardTitle>
-                {statusFilter === 'all' ? 'All Orders' : `${statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)} Orders`}
-                <span className="ml-2 text-sm font-normal text-muted-foreground">({filteredOrders.length})</span>
-              </CardTitle>
-              <p className="text-sm text-muted-foreground mt-1">Click a stat card above to filter, or choose a status below</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <select
-                value={statusFilter}
-                onChange={e => setStatusFilter(e.target.value)}
-                className="h-9 px-3 border border-input bg-background rounded-md text-sm"
-              >
-                {['all','pending','paid','shipped','delivered','confirmed','disputed','cancelled','refunded'].map(s => (
-                  <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
-                ))}
-              </select>
-              <Button onClick={fetchOrdersData} variant="outline" size="sm">
-                <RefreshCw className="h-4 w-4" />
-              </Button>
-            </div>
+      <div className="rounded-3xl bg-flora-card p-5 shadow-card sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-bold text-flora-ink">
+              {statusFilter === 'all' ? 'All Orders' : `${statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)} Orders`}
+              <span className="ml-2 text-sm font-normal text-flora-muted">({filteredOrders.length})</span>
+            </h2>
+            <p className="mt-1 text-sm text-flora-muted">Click a stat card above to filter, or choose a status below</p>
           </div>
-        </CardHeader>
-        <CardContent>
-          {filteredOrders.length === 0 ? (
-            <div className="text-center py-8">
-              <Package className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-semibold mb-2">No {statusFilter === 'all' ? '' : statusFilter} orders</h3>
-              <p className="text-muted-foreground">No orders match this filter</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Order ID</TableHead>
-                    <TableHead>Product</TableHead>
-                    <TableHead>Buyer</TableHead>
-                    <TableHead>Seller</TableHead>
-                    <TableHead>Qty</TableHead>
-                    <TableHead>Amount</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Actions</TableHead>
+          <div className="flex items-center gap-2">
+            <select
+              value={statusFilter}
+              onChange={e => setStatusFilter(e.target.value)}
+              className="h-9 rounded-full border border-flora-ink/15 bg-white px-3 text-sm text-flora-ink"
+            >
+              {['all','pending','paid','shipped','delivered','confirmed','disputed','cancelled','refunded'].map(s => (
+                <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={fetchOrdersData}
+              className="inline-flex items-center justify-center rounded-full border border-flora-ink/15 bg-white p-2 text-flora-ink transition hover:bg-flora-chip"
+            >
+              <RefreshCw className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+        <div className="relative mt-3">
+          <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-flora-muted" />
+          <Input
+            placeholder="Search by order ID, product, buyer, or seller..."
+            value={orderSearch}
+            onChange={(e) => setOrderSearch(e.target.value)}
+            className="rounded-full border-flora-ink/15 bg-white pl-10 text-sm focus-visible:ring-flora-ink"
+          />
+        </div>
+        {statusFilteredOrders.length === 0 ? (
+          <div className="py-8 text-center">
+            <Package className="mx-auto mb-4 h-12 w-12 text-flora-muted" />
+            <h3 className="mb-2 text-lg font-semibold text-flora-ink">No {statusFilter === 'all' ? '' : statusFilter} orders</h3>
+            <p className="text-flora-muted">No orders match this filter</p>
+          </div>
+        ) : filteredOrders.length === 0 ? (
+          <div className="py-8 text-center">
+            <Search className="mx-auto mb-4 h-10 w-10 text-flora-muted" />
+            <p className="text-flora-muted">No orders match "{orderSearch}"</p>
+          </div>
+        ) : (
+          <div className="mt-4 overflow-x-auto rounded-2xl border border-flora-ink/10">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-flora-chip/40 hover:bg-flora-chip/40">
+                  <TableHead className="text-flora-ink">Order ID</TableHead>
+                  <TableHead className="text-flora-ink">Product</TableHead>
+                  <TableHead className="text-flora-ink">Buyer</TableHead>
+                  <TableHead className="text-flora-ink">Seller</TableHead>
+                  <TableHead className="text-flora-ink">Qty</TableHead>
+                  <TableHead className="text-flora-ink">Amount</TableHead>
+                  <TableHead className="text-flora-ink">Status</TableHead>
+                  <TableHead className="text-flora-ink">Date</TableHead>
+                  <TableHead className="text-flora-ink">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredOrders.map((order) => (
+                  <TableRow key={order.id} className="hover:bg-flora-chip/20">
+                    <TableCell className="font-mono text-xs text-flora-muted">#{order.id.slice(0, 8)}</TableCell>
+                    <TableCell>
+                      <p className="font-medium text-flora-ink">{order.products?.title || 'Unknown'}</p>
+                      <p className="text-xs text-flora-muted">₦{Number(order.products?.price || 0).toLocaleString()}</p>
+                    </TableCell>
+                    <TableCell>
+                      <p className="font-medium text-flora-ink">{order.buyer_profile?.full_name || 'Unknown'}</p>
+                      <p className="text-xs text-flora-muted">{order.buyer_profile?.email}</p>
+                    </TableCell>
+                    <TableCell>
+                      <p className="font-medium text-flora-ink">{order.seller_profile?.full_name || 'Unknown'}</p>
+                      <p className="text-xs text-flora-muted">{order.seller_profile?.email}</p>
+                    </TableCell>
+                    <TableCell className="text-flora-muted">{order.quantity}</TableCell>
+                    <TableCell className="font-semibold text-flora-ink">₦{Number(order.total_amount).toLocaleString()}</TableCell>
+                    <TableCell>
+                      <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${statusPillClasses(order.status)}`}>
+                        {order.status}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-xs text-flora-muted">{new Date(order.created_at).toLocaleDateString()}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedOrder(order)}
+                          className="inline-flex items-center justify-center rounded-full border border-flora-ink/15 bg-white p-1.5 text-flora-ink transition hover:bg-flora-chip"
+                        >
+                          <Eye className="h-3.5 w-3.5" />
+                        </button>
+                        {order.status === 'paid' && order.escrow_transactions.length > 0 && order.escrow_transactions[0].status === 'held' && (
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <button
+                                type="button"
+                                className="inline-flex items-center gap-1.5 rounded-full bg-flora-leaf px-3 py-1.5 text-xs font-medium text-white transition hover:brightness-110"
+                              >
+                                <CheckCircle className="h-3.5 w-3.5" />
+                                Release
+                              </button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent className="rounded-3xl">
+                              <AlertDialogHeader>
+                                <AlertDialogTitle className="text-flora-ink">Release Escrow Funds</AlertDialogTitle>
+                                <AlertDialogDescription className="text-flora-muted">
+                                  Release ₦{order.escrow_transactions[0].seller_amount.toLocaleString()} to {order.seller_profile?.full_name}? Order status will change to confirmed.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => releaseFunds(order.id)} className="bg-flora-leaf text-white hover:brightness-110">
+                                  Release Funds
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        )}
+                        {order.status === 'confirmed' && (
+                          <span className="rounded-full bg-flora-leaf/15 px-2 py-0.5 text-xs font-medium text-flora-leaf">Released</span>
+                        )}
+                      </div>
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredOrders.map((order) => (
-                    <TableRow key={order.id}>
-                      <TableCell className="font-mono text-xs">#{order.id.slice(0, 8)}</TableCell>
-                      <TableCell>
-                        <p className="font-medium">{order.products?.title || 'Unknown'}</p>
-                        <p className="text-xs text-muted-foreground">₦{Number(order.products?.price || 0).toLocaleString()}</p>
-                      </TableCell>
-                      <TableCell>
-                        <p className="font-medium">{order.buyer_profile?.full_name || 'Unknown'}</p>
-                        <p className="text-xs text-muted-foreground">{order.buyer_profile?.email}</p>
-                      </TableCell>
-                      <TableCell>
-                        <p className="font-medium">{order.seller_profile?.full_name || 'Unknown'}</p>
-                        <p className="text-xs text-muted-foreground">{order.seller_profile?.email}</p>
-                      </TableCell>
-                      <TableCell>{order.quantity}</TableCell>
-                      <TableCell className="font-semibold">₦{Number(order.total_amount).toLocaleString()}</TableCell>
-                      <TableCell>
-                        <Badge variant={
-                          order.status === 'confirmed' || order.status === 'completed' ? 'default' :
-                          order.status === 'pending' ? 'secondary' :
-                          order.status === 'cancelled' || order.status === 'refunded' ? 'destructive' : 'outline'
-                        }>
-                          {order.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-xs">{new Date(order.created_at).toLocaleDateString()}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1">
-                          <Button size="sm" variant="outline" onClick={() => setSelectedOrder(order)}>
-                            <Eye className="h-3 w-3" />
-                          </Button>
-                          {order.status === 'paid' && order.escrow_transactions.length > 0 && order.escrow_transactions[0].status === 'held' && (
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button size="sm" className="bg-green-600 hover:bg-green-700">
-                                  <CheckCircle className="h-3 w-3 mr-1" />Release
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Release Escrow Funds</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    Release ₦{order.escrow_transactions[0].seller_amount.toLocaleString()} to {order.seller_profile?.full_name}? Order status will change to confirmed.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction onClick={() => releaseFunds(order.id)} className="bg-green-600 hover:bg-green-700">
-                                    Release Funds
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
-                          )}
-                          {order.status === 'confirmed' && (
-                            <Badge className="bg-green-100 text-green-800 text-xs">Released</Badge>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </div>
 
       {/* Order Detail Dialog */}
       <Dialog open={!!selectedOrder} onOpenChange={() => setSelectedOrder(null)}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-lg rounded-3xl">
           <DialogHeader>
-            <DialogTitle>Order Details — #{selectedOrder?.id.slice(0, 8)}</DialogTitle>
+            <DialogTitle className="text-flora-ink">Order Details — #{selectedOrder?.id.slice(0, 8)}</DialogTitle>
           </DialogHeader>
           {selectedOrder && (
             <div className="space-y-4 text-sm">
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Status</p>
-                  <Badge variant={
-                    selectedOrder.status === 'confirmed' || selectedOrder.status === 'completed' ? 'default' :
-                    selectedOrder.status === 'pending' ? 'secondary' :
-                    selectedOrder.status === 'cancelled' ? 'destructive' : 'outline'
-                  }>{selectedOrder.status}</Badge>
+                  <p className="text-xs uppercase tracking-wide text-flora-muted">Status</p>
+                  <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${statusPillClasses(selectedOrder.status)}`}>
+                    {selectedOrder.status}
+                  </span>
                 </div>
                 <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Date</p>
-                  <p>{new Date(selectedOrder.created_at).toLocaleString()}</p>
+                  <p className="text-xs uppercase tracking-wide text-flora-muted">Date</p>
+                  <p className="text-flora-ink">{new Date(selectedOrder.created_at).toLocaleString()}</p>
                 </div>
               </div>
 
-              <div className="rounded-md border p-3 space-y-1">
-                <p className="font-semibold">Product</p>
-                <p>{selectedOrder.products?.title || 'Unknown'}</p>
-                <p className="text-muted-foreground">Unit price: ₦{Number(selectedOrder.products?.price || 0).toLocaleString()}</p>
-                <p className="text-muted-foreground">Qty: {selectedOrder.quantity}</p>
-                <p className="font-medium">Total: ₦{Number(selectedOrder.total_amount).toLocaleString()}</p>
+              <div className="space-y-1 rounded-2xl border border-flora-ink/10 p-3">
+                <p className="font-semibold text-flora-ink">Product</p>
+                <p className="text-flora-ink">{selectedOrder.products?.title || 'Unknown'}</p>
+                <p className="text-flora-muted">Unit price: ₦{Number(selectedOrder.products?.price || 0).toLocaleString()}</p>
+                <p className="text-flora-muted">Qty: {selectedOrder.quantity}</p>
+                <p className="font-medium text-flora-ink">Total: ₦{Number(selectedOrder.total_amount).toLocaleString()}</p>
               </div>
 
-              <div className="rounded-md border p-3 space-y-1">
-                <p className="font-semibold">Buyer</p>
-                <p>{selectedOrder.buyer_profile?.full_name || 'Unknown'}</p>
-                <p className="text-muted-foreground">{selectedOrder.buyer_profile?.email}</p>
+              <div className="space-y-1 rounded-2xl border border-flora-ink/10 p-3">
+                <p className="font-semibold text-flora-ink">Buyer</p>
+                <p className="text-flora-ink">{selectedOrder.buyer_profile?.full_name || 'Unknown'}</p>
+                <p className="text-flora-muted">{selectedOrder.buyer_profile?.email}</p>
               </div>
 
-              <div className="rounded-md border p-3 space-y-1">
-                <p className="font-semibold">Seller</p>
-                <p>{selectedOrder.seller_profile?.full_name || 'Unknown'}</p>
-                <p className="text-muted-foreground">{selectedOrder.seller_profile?.email}</p>
+              <div className="space-y-1 rounded-2xl border border-flora-ink/10 p-3">
+                <p className="font-semibold text-flora-ink">Seller</p>
+                <p className="text-flora-ink">{selectedOrder.seller_profile?.full_name || 'Unknown'}</p>
+                <p className="text-flora-muted">{selectedOrder.seller_profile?.email}</p>
               </div>
 
               {selectedOrder.shipping_address && (
-                <div className="rounded-md border p-3 space-y-1">
-                  <p className="font-semibold">Shipping Address</p>
-                  <p className="text-muted-foreground">{selectedOrder.shipping_address}</p>
+                <div className="space-y-1 rounded-2xl border border-flora-ink/10 p-3">
+                  <p className="font-semibold text-flora-ink">Shipping Address</p>
+                  <p className="text-flora-muted">{selectedOrder.shipping_address}</p>
                 </div>
               )}
 
               {selectedOrder.payment_method && (
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Payment Method</p>
-                    <p>{selectedOrder.payment_method}</p>
+                    <p className="text-xs uppercase tracking-wide text-flora-muted">Payment Method</p>
+                    <p className="text-flora-ink">{selectedOrder.payment_method}</p>
                   </div>
                   {selectedOrder.payment_reference && (
                     <div>
-                      <p className="text-xs text-muted-foreground uppercase tracking-wide">Reference</p>
-                      <p className="font-mono text-xs">{selectedOrder.payment_reference}</p>
+                      <p className="text-xs uppercase tracking-wide text-flora-muted">Reference</p>
+                      <p className="font-mono text-xs text-flora-ink">{selectedOrder.payment_reference}</p>
                     </div>
                   )}
                 </div>
               )}
 
               {selectedOrder.escrow_transactions.length > 0 && (
-                <div className="rounded-md border p-3 space-y-1">
-                  <p className="font-semibold">Escrow</p>
-                  <p>Status: <Badge variant="outline">{selectedOrder.escrow_transactions[0].status}</Badge></p>
-                  <p className="text-muted-foreground">Seller amount: ₦{Number(selectedOrder.escrow_transactions[0].seller_amount).toLocaleString()}</p>
+                <div className="space-y-1 rounded-2xl border border-flora-ink/10 p-3">
+                  <p className="font-semibold text-flora-ink">Escrow</p>
+                  <p className="text-flora-ink">
+                    Status:{' '}
+                    <span className="rounded-full bg-flora-chip px-2 py-0.5 text-xs font-medium text-flora-ink">
+                      {selectedOrder.escrow_transactions[0].status}
+                    </span>
+                  </p>
+                  <p className="text-flora-muted">Seller amount: ₦{Number(selectedOrder.escrow_transactions[0].seller_amount).toLocaleString()}</p>
                 </div>
               )}
             </div>
@@ -604,108 +660,94 @@ export const OrdersTab: React.FC = () => {
       </Dialog>
 
       {/* Shopping Cart Analysis */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Shopping Cart Analysis</CardTitle>
-          <p className="text-sm text-muted-foreground">Products currently in user carts</p>
-        </CardHeader>
-        <CardContent>
-          {cartItems.length === 0 ? (
-            <div className="text-center py-8">
-              <ShoppingCart className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-semibold mb-2">No cart data available</h3>
-              <p className="text-muted-foreground">Cart analytics will show products users are interested in</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Product</TableHead>
-                    <TableHead>User</TableHead>
-                    <TableHead>Quantity</TableHead>
-                    <TableHead>Price</TableHead>
-                    <TableHead>Added</TableHead>
+      <div className="rounded-3xl bg-flora-card p-5 shadow-card sm:p-6">
+        <h2 className="text-lg font-bold text-flora-ink">Shopping Cart Analysis</h2>
+        <p className="mt-1 text-sm text-flora-muted">Products currently in user carts</p>
+        {cartItems.length === 0 ? (
+          <div className="py-8 text-center">
+            <ShoppingCart className="mx-auto mb-4 h-12 w-12 text-flora-muted" />
+            <h3 className="mb-2 text-lg font-semibold text-flora-ink">No cart data available</h3>
+            <p className="text-flora-muted">Cart analytics will show products users are interested in</p>
+          </div>
+        ) : (
+          <div className="mt-4 overflow-x-auto rounded-2xl border border-flora-ink/10">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-flora-chip/40 hover:bg-flora-chip/40">
+                  <TableHead className="text-flora-ink">Product</TableHead>
+                  <TableHead className="text-flora-ink">User</TableHead>
+                  <TableHead className="text-flora-ink">Quantity</TableHead>
+                  <TableHead className="text-flora-ink">Price</TableHead>
+                  <TableHead className="text-flora-ink">Added</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {cartItems.map((item) => (
+                  <TableRow key={item.id} className="hover:bg-flora-chip/20">
+                    <TableCell>
+                      <p className="font-medium text-flora-ink">{item.products?.title || 'Unknown Product'}</p>
+                    </TableCell>
+                    <TableCell>
+                      <p className="font-medium text-flora-ink">{item.user_profile?.full_name || 'Unknown'}</p>
+                      <p className="text-sm text-flora-muted">{item.user_profile?.email}</p>
+                    </TableCell>
+                    <TableCell className="text-flora-muted">{item.quantity}</TableCell>
+                    <TableCell className="text-flora-muted">₦{Number(item.products?.price || 0).toLocaleString()}</TableCell>
+                    <TableCell className="text-flora-muted">{new Date(item.created_at).toLocaleDateString()}</TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {cartItems.map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell>
-                        <p className="font-medium">{item.products?.title || 'Unknown Product'}</p>
-                      </TableCell>
-                      <TableCell>
-                        <div>
-                          <p className="font-medium">{item.user_profile?.full_name || 'Unknown'}</p>
-                          <p className="text-sm text-muted-foreground">{item.user_profile?.email}</p>
-                        </div>
-                      </TableCell>
-                      <TableCell>{item.quantity}</TableCell>
-                      <TableCell>₦{Number(item.products?.price || 0).toLocaleString()}</TableCell>
-                      <TableCell>{new Date(item.created_at).toLocaleDateString()}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </div>
 
       {/* Sales Analytics */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Revenue Overview</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Total Revenue</span>
-                <span className="text-2xl font-bold text-green-600">
-                  ₦{orderStats.totalRevenue.toLocaleString()}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Average Order Value</span>
-                <span className="text-lg font-semibold">
-                  ₦{orderStats.totalOrders > 0 ? Math.round(orderStats.totalRevenue / orderStats.totalOrders).toLocaleString() : 0}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Completion Rate</span>
-                <span className="text-lg font-semibold">
-                  {orderStats.totalOrders > 0 ? Math.round((orderStats.completedOrders / orderStats.totalOrders) * 100) : 0}%
-                </span>
-              </div>
+        <div className="rounded-3xl bg-flora-card p-5 shadow-card sm:p-6">
+          <h2 className="text-lg font-bold text-flora-ink">Revenue Overview</h2>
+          <div className="mt-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-flora-muted">Total Revenue</span>
+              <span className="text-2xl font-bold text-flora-leaf">
+                ₦{orderStats.totalRevenue.toLocaleString()}
+              </span>
             </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Platform Metrics</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Active Sellers</span>
-                <span className="text-lg font-semibold">{topSellers.length}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Cart Conversion</span>
-                <span className="text-lg font-semibold">
-                  {orderStats.cartItems > 0 ? Math.round((orderStats.totalOrders / orderStats.cartItems) * 100) : 0}%
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Pending Orders</span>
-                <span className="text-lg font-semibold text-orange-600">
-                  {orderStats.pendingOrders}
-                </span>
-              </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-flora-muted">Average Order Value</span>
+              <span className="text-lg font-semibold text-flora-ink">
+                ₦{orderStats.totalOrders > 0 ? Math.round(orderStats.totalRevenue / orderStats.totalOrders).toLocaleString() : 0}
+              </span>
             </div>
-          </CardContent>
-        </Card>
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-flora-muted">Completion Rate</span>
+              <span className="text-lg font-semibold text-flora-ink">
+                {orderStats.totalOrders > 0 ? Math.round((orderStats.completedOrders / orderStats.totalOrders) * 100) : 0}%
+              </span>
+            </div>
+          </div>
+        </div>
+        <div className="rounded-3xl bg-flora-card p-5 shadow-card sm:p-6">
+          <h2 className="text-lg font-bold text-flora-ink">Platform Metrics</h2>
+          <div className="mt-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-flora-muted">Active Sellers</span>
+              <span className="text-lg font-semibold text-flora-ink">{topSellers.length}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-flora-muted">Cart Conversion</span>
+              <span className="text-lg font-semibold text-flora-ink">
+                {orderStats.cartItems > 0 ? Math.round((orderStats.totalOrders / orderStats.cartItems) * 100) : 0}%
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-flora-muted">Pending Orders</span>
+              <span className="text-lg font-semibold text-amber-600">
+                {orderStats.pendingOrders}
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

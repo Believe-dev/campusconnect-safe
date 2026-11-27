@@ -4,14 +4,13 @@ import { useAuth } from '@/hooks/useAuth';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/enhanced-button';
 import { Card, CardContent } from '@/components/ui/card';
-import { AlertTriangle, Camera, IdCard, X } from 'lucide-react';
+import { AlertTriangle, Camera, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import { sendEmailNotification } from '@/utils/emailService';
 
 interface Profile {
   avatar_url: string | null;
-  student_id_photo_url: string | null;
   account_type: string;
   created_at: string;
   is_banned: boolean;
@@ -52,7 +51,7 @@ export const SellerDocumentReminder = () => {
     
     const { data } = await supabase
       .from('profiles')
-      .select('avatar_url, student_id_photo_url, account_type, created_at, is_banned')
+      .select('avatar_url, account_type, created_at, is_banned')
       .eq('user_id', user.id)
       .single();
     
@@ -68,8 +67,7 @@ export const SellerDocumentReminder = () => {
   }
 
   const hasProfilePicture = !!profile.avatar_url;
-  const hasStudentId = !!profile.student_id_photo_url;
-  const isComplete = hasProfilePicture && hasStudentId;
+  const isComplete = hasProfilePicture;
 
   if (isComplete || daysSinceSignup > 4) {
     return null;
@@ -84,15 +82,15 @@ export const SellerDocumentReminder = () => {
   const getMessage = () => {
     switch (daysSinceSignup) {
       case 1:
-        return 'Complete your seller profile by uploading your profile picture and student ID card.';
+        return 'Complete your seller profile by uploading a profile picture.';
       case 2:
-        return 'Your seller profile is still incomplete. Upload the required documents to start selling.';
+        return 'Your seller profile is still incomplete. Upload a profile picture to start selling.';
       case 3:
-        return 'Final reminder: Upload your documents within 24 hours to maintain your seller status.';
+        return 'Final reminder: Upload a profile picture within 24 hours to maintain your seller status.';
       case 4:
-        return '⚠️ URGENT: Your seller features may be restricted today if documents are not uploaded. This maintains platform security.';
+        return '⚠️ URGENT: Your seller features may be restricted today if a profile picture is not uploaded. This maintains platform security.';
       default:
-        return 'Upload your profile picture and student ID card to complete your seller profile.';
+        return 'Upload a profile picture to complete your seller profile.';
     }
   };
 
@@ -120,12 +118,6 @@ export const SellerDocumentReminder = () => {
                     Profile Picture: {hasProfilePicture ? '✅ Done' : '❌ Missing'}
                   </span>
                 </div>
-                <div className="flex items-center justify-center gap-2">
-                  <IdCard className="h-5 w-5" />
-                  <span className="text-sm font-medium">
-                    Student ID: {hasStudentId ? '✅ Done' : '❌ Missing'}
-                  </span>
-                </div>
               </div>
               
               <div className="space-y-2">
@@ -140,8 +132,8 @@ export const SellerDocumentReminder = () => {
                     
                     // Send notification to database and email
                     if (user && profile) {
-                      const notificationTitle = '📋 Documents Required for Seller Approval';
-                      const notificationMessage = 'You must upload your profile picture and student ID card to get approved as a seller. Your application cannot be processed without these documents.';
+                      const notificationTitle = '📋 Profile Picture Required for Seller Approval';
+                      const notificationMessage = 'You must upload a profile picture to get approved as a seller. Your application cannot be processed without it.';
                       
                       // Database notification
                       supabase.from('notifications').insert({
@@ -165,14 +157,14 @@ export const SellerDocumentReminder = () => {
                     
                     toast({
                       title: "Reminder Hidden",
-                      description: "Your seller approval can't be granted without uploading required documents. This reminder will return tomorrow.",
+                      description: "Your seller approval can't be granted without a profile picture. This reminder will return tomorrow.",
                       variant: "destructive",
                     });
-                    
+
                     navigate('/profile');
                   }}
                 >
-                  Upload Documents Now
+                  Upload Profile Picture Now
                 </Button>
                 <Button 
                   className="w-full" 

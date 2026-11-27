@@ -13,15 +13,16 @@ const TAB_OPTIONS = [
   { key: "reports", label: "Reports" },
   { key: "escrow", label: "Escrow" },
   { key: "products", label: "Products" },
+  { key: "promotions", label: "Promotions" },
   { key: "messages", label: "Messages" },
   { key: "emails", label: "Emails" },
   { key: "templates", label: "Templates" },
-  { key: "analytics", label: "Analytics" },
   { key: "suggestions", label: "Suggestions" },
   { key: "subscriptions", label: "Subscriptions" },
   { key: "wallet", label: "Admin Wallet" },
   { key: "orders", label: "Orders" },
   { key: "settings", label: "Settings" },
+  { key: "commission_settings", label: "Commission Rate" },
 ];
 
 interface StaffMember {

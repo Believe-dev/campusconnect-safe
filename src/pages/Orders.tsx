@@ -27,6 +27,7 @@ import {
   Timer,
   MessageCircle,
   Phone,
+  Zap,
 } from "lucide-react";
 import { findOrCreateConversation } from "@/utils/conversationUtils";
 import { useNavigate } from "react-router-dom";
@@ -1070,16 +1071,26 @@ const Orders = () => {
                 wraps this whole page, so a separate reload button was a
                 redundant second control. The live-status dot stays, it's a
                 different signal (subscription health, not "refresh me"). */}
-              <div className="flex items-center gap-2 text-xs text-flora-muted sm:text-sm">
-                <div
-                  className={cn(
-                    "h-2 w-2 rounded-full",
-                    isRealTimeConnected ? "bg-flora-leaf" : "bg-flora-muted/50",
-                  )}
-                />
-                <span>
-                  {isRealTimeConnected ? "Live updates" : "Connecting..."}
-                </span>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => navigate("/promos")}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-flora-ink/15 bg-white px-3 py-1.5 text-xs font-medium text-flora-ink transition hover:bg-flora-chip sm:text-sm"
+                >
+                  <Zap className="h-3.5 w-3.5" />
+                  Promos
+                </button>
+                <div className="flex items-center gap-2 text-xs text-flora-muted sm:text-sm">
+                  <div
+                    className={cn(
+                      "h-2 w-2 rounded-full",
+                      isRealTimeConnected ? "bg-flora-leaf" : "bg-flora-muted/50",
+                    )}
+                  />
+                  <span>
+                    {isRealTimeConnected ? "Live updates" : "Connecting..."}
+                  </span>
+                </div>
               </div>
             </div>
 

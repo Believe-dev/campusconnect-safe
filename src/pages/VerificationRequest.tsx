@@ -35,7 +35,7 @@ const VerificationRequest = () => {
 
     const { data: profileData } = await supabase
       .from('profiles')
-      .select('full_name, university_name, student_id, phone_number, account_type, student_id_photo_url, avatar_url, seller_status')
+      .select('full_name, university_name, student_id, phone_number, account_type, avatar_url, seller_status')
       .eq('user_id', user.id)
       .single();
 
@@ -58,7 +58,7 @@ const VerificationRequest = () => {
                                profileData.phone_number &&
                                (profileData.account_type === 'seller' || profileData.account_type === 'both');
       
-      const hasPhotos = profileData.avatar_url && profileData.student_id_photo_url;
+      const hasPhotos = profileData.avatar_url;
       
       // Only approved sellers can request verification
       const isApprovedSeller = profileData.seller_status === 'approved';
@@ -216,9 +216,6 @@ const VerificationRequest = () => {
                     <p className={profile?.avatar_url ? 'text-green-600' : 'text-red-600'}>
                       {profile?.avatar_url ? '✓' : '✗'} Profile photo (will be used as face verification)
                     </p>
-                    <p className={profile?.student_id_photo_url ? 'text-green-600' : 'text-red-600'}>
-                      {profile?.student_id_photo_url ? '✓' : '✗'} Student ID photo
-                    </p>
                     <p className={(profile?.account_type === 'seller' || profile?.account_type === 'both') ? 'text-green-600' : 'text-red-600'}>
                       {(profile?.account_type === 'seller' || profile?.account_type === 'both') ? '✓' : '✗'} Seller account
                     </p>
@@ -249,7 +246,6 @@ const VerificationRequest = () => {
                   <h3 className="font-medium mb-2">Verification Process</h3>
                   <div className="space-y-2 text-sm text-muted-foreground">
                     <p>✓ Your profile photo will be used as face verification</p>
-                    <p>✓ Your uploaded student ID will be used for identity verification</p>
                     <p>• Only provide your reason and any additional supporting documents</p>
                   </div>
                 </div>

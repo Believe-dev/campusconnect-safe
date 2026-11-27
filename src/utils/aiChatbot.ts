@@ -7,7 +7,7 @@ const FAQ_RESPONSES = {
   // Buying & Selling
   'how to buy': 'To buy items: 1) Browse marketplace 2) Click product you want 3) Message seller for details 4) Arrange payment & pickup through secure chat.',
   'how to sell': 'To sell items: 1) Go to "Sell Item" 2) Upload photos 3) Add title, description, price 4) Choose category 5) Publish listing. Sellers need approval first.',
-  'seller approval': 'Seller approval: 1) Complete profile with student ID 2) Go to Profile → Request Verification 3) Admin reviews within 24-48 hours 4) Get notified of approval status.',
+  'seller approval': 'Seller approval: 1) Complete your profile 2) Go to Profile → Request Verification 3) Admin reviews within 24-48 hours 4) Get notified of approval status.',
   
   // Messaging & Communication
   'messaging': 'All communication happens through secure encrypted chat. Click "Message Seller" on any product to start a conversation. Never share personal contact info!',
@@ -23,7 +23,7 @@ const FAQ_RESPONSES = {
   
   // Account Management
   'profile': 'To update profile: Go to Profile → Edit Profile. Add photo, bio, contact details. Verified profiles get more trust from other users.',
-  'verification': 'Get verified: 1) Complete all profile fields 2) Upload clear student ID photo 3) Request verification 4) Wait for admin approval (24-48 hours).',
+  'verification': 'Get verified: 1) Complete all profile fields 2) Request verification 3) Wait for admin approval (24-48 hours).',
   
   // Orders & Transactions
   'orders': 'Track orders in Orders section. See purchase history, delivery status, and contact sellers. Rate sellers after successful transactions.',
@@ -48,7 +48,7 @@ const analyzeComplexQuestion = (input: string): {text: string, actionButtons?: A
   if (input.includes('step') || input.includes('process') || input.includes('how do i')) {
     if (input.includes('sell') && input.includes('first time')) {
       return {
-        text: "**First-Time Seller Guide** 🎆\n\n**Step 1: Setup Your Account**\n• Complete profile with student ID\n• Add university details and photo\n• Request seller verification\n\n**Step 2: Create Your Listing**\n• Upload 3-5 clear, well-lit photos\n• Write detailed description (condition, size, brand)\n• Set competitive price (check similar items)\n• Choose the right category\n\n**Step 3: Manage Your Sale**\n• Respond to messages within 24 hours\n• Answer questions honestly\n• Arrange safe campus meetups\n• Use secure payment methods\n\n**💰 Pricing Tip:** Check 3-5 similar items to set competitive prices!",
+        text: "**First-Time Seller Guide** 🎆\n\n**Step 1: Setup Your Account**\n• Complete your profile\n• Add university details and photo\n• Request seller verification\n\n**Step 2: Create Your Listing**\n• Upload 3-5 clear, well-lit photos\n• Write detailed description (condition, size, brand)\n• Set competitive price (check similar items)\n• Choose the right category\n\n**Step 3: Manage Your Sale**\n• Respond to messages within 24 hours\n• Answer questions honestly\n• Arrange safe campus meetups\n• Use secure payment methods\n\n**💰 Pricing Tip:** Check 3-5 similar items to set competitive prices!",
         actionButtons: [
           { label: "Setup Profile", path: "/profile" },
           { label: "Start Selling", path: "/sell" },
@@ -144,7 +144,7 @@ export const getAIResponse = async (userInput: string, context: string[] = []): 
   // Check for follow-up questions based on context
   if (contextStr.includes('sell') && (input.includes('how') || input.includes('next') || input.includes('then'))) {
     return {
-      text: "**Next Steps for Selling:**\n\n• **Complete your profile** - Add student ID and university details\n• **Request verification** - Go to Profile → Request Verification\n• **Wait for approval** - Usually takes 24-48 hours\n• **Create your first listing** - Click 'Sell Item' once approved\n\n**Pro Tips:**\n• Use good lighting for photos\n• Write detailed descriptions\n• Price competitively by checking similar items\n• Respond to messages quickly",
+      text: "**Next Steps for Selling:**\n\n• **Complete your profile** - Add university details and a profile photo\n• **Request verification** - Go to Profile → Request Verification\n• **Wait for approval** - Usually takes 24-48 hours\n• **Create your first listing** - Click 'Sell Item' once approved\n\n**Pro Tips:**\n• Use good lighting for photos\n• Write detailed descriptions\n• Price competitively by checking similar items\n• Respond to messages quickly",
       actionButtons: [
         { label: "Complete Profile", path: "/profile" },
         { label: "Browse Examples", path: "/marketplace", variant: "outline" }

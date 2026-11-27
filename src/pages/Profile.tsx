@@ -70,7 +70,6 @@ interface Profile {
   seller_status?: string;
   kyc_status?: string;
   kyc_rejection_reason?: string;
-  student_id_photo_url?: string;
   business_name?: string;
   seller_subscription_expires_at?: string;
   seller_features_active?: boolean;
@@ -158,7 +157,6 @@ const Profile = () => {
   const [showAvatarModal, setShowAvatarModal] = useState(false);
   const { toast } = useToast();
   const { isLowMemory } = useMemoryOptimization();
-  const [uploadingStudentId, setUploadingStudentId] = useState(false);
   const [verificationRequest, setVerificationRequest] = useState<any>(null);
   const [gameBadge, setGameBadge] = useState<GameBadgeData | null>(null);
   const [walletBalanceVisible, setWalletBalanceVisible] = useState(false);
@@ -345,8 +343,6 @@ const Profile = () => {
               phone_number: user.user_metadata?.phone_number || "",
               business_name: user.user_metadata?.business_name || null,
               avatar_url: user.user_metadata?.avatar_url || null,
-              student_id_photo_url:
-                user.user_metadata?.student_id_photo_url || null,
               bio: user.user_metadata?.bio || null,
               seller_status:
                 user.user_metadata?.account_type === "seller"
@@ -377,7 +373,6 @@ const Profile = () => {
         is_verified: data.is_verified || false,
         business_name: data.business_name || null,
         avatar_url: data.avatar_url || null,
-        student_id_photo_url: data.student_id_photo_url || null,
       };
 
       setProfile(fixedData);
@@ -607,6 +602,21 @@ const Profile = () => {
         throw new Error("Failed to delete account");
       }
 
+      // Scrubs the real email/password so this identity can never be used
+      // to log back in - separate from the RPC above because it needs
+      // service-role Auth Admin API access, not available from a plain
+      // Postgres function. Called after the RPC succeeds, using the
+      // still-active session (before it's cleared below) to identify the
+      // caller. If this step fails, the account is already anonymized and
+      // banned by the RPC above - not touching auth.users on failure here
+      // just means the old credentials keep working, no less safe than
+      // that already-committed state.
+      try {
+        await supabase.functions.invoke("delete-account");
+      } catch (scrubError) {
+        console.error("Failed to scrub auth credentials:", scrubError);
+      }
+
       // Clear local storage and caches
       localStorage.clear();
       sessionStorage.clear();
@@ -694,34 +704,6 @@ const Profile = () => {
       toast({
         title: "Error",
         description: "Failed to update profile photo",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleStudentIdUpload = async (url: string) => {
-    if (!user) return;
-
-    try {
-      const { error: updateError } = await supabase
-        .from("profiles")
-        .update({ student_id_photo_url: url })
-        .eq("user_id", user.id);
-
-      if (updateError) throw updateError;
-
-      setProfile((prev) =>
-        prev ? { ...prev, student_id_photo_url: url } : null,
-      );
-
-      toast({
-        title: "Student ID Card Uploaded",
-        description: "Your student ID card has been uploaded successfully.",
-      });
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to upload student ID card",
         variant: "destructive",
       });
     }
@@ -1216,56 +1198,6 @@ const Profile = () => {
       </div>
     ) : null;
 
-  const renderStudentIdSection = () =>
-    !(profile!.account_type === "seller" || profile!.account_type === "both") ? null : (
-      <>
-        {profile!.student_id_photo_url ? (
-          <div className="p-6 rounded-2xl bg-flora-chip/50">
-            <img
-              src={profile!.student_id_photo_url}
-              alt="Student ID Card"
-              className="max-w-full h-auto rounded-lg"
-              style={{ maxHeight: "200px" }}
-              onError={(e) => {
-                console.error(
-                  "Failed to load student ID photo:",
-                  profile!.student_id_photo_url,
-                );
-                e.currentTarget.style.display = "none";
-              }}
-            />
-            <p className="text-xs text-flora-muted mt-3">
-              Student ID card uploaded during registration
-            </p>
-          </div>
-        ) : (
-          <div className="p-6 border-2 border-dashed border-flora-ink/15 rounded-2xl bg-flora-chip/50">
-            <div className="text-center">
-              <p className="text-sm text-flora-muted mb-4">
-                No student ID card uploaded yet
-              </p>
-              <div className="border-2 border-dashed border-flora-ink/15 rounded-2xl p-6 text-center bg-white/50">
-                <div className="text-sm font-semibold mb-3 text-flora-ink">
-                  Student ID Card
-                </div>
-                <CompressedImageUpload
-                  onUpload={handleStudentIdUpload}
-                  bucket="verification-photos"
-                  path={`${user?.id}/student-id-${Date.now()}.jpg`}
-                  uploading={uploadingStudentId}
-                  setUploading={setUploadingStudentId}
-                  label="Take/Upload ID"
-                />
-              </div>
-              <p className="text-xs text-flora-muted mt-3">
-                Required for seller verification
-              </p>
-            </div>
-          </div>
-        )}
-      </>
-    );
-
   const renderDangerZoneContent = () => (
     <div className="space-y-3">
       <p className="text-sm text-red-600">
@@ -1466,18 +1398,6 @@ const Profile = () => {
                     </AccordionTrigger>
                     <AccordionContent className="pb-4 pt-1">
                       <div className="rounded-2xl bg-white p-4 shadow-card">{renderSellerStatusPanel()}</div>
-                    </AccordionContent>
-                  </AccordionItem>
-
-                  <AccordionItem value="student-id" className="border-b border-flora-leaf/15 px-4">
-                    <AccordionTrigger className="py-3.5 hover:no-underline [&>svg]:text-flora-muted">
-                      <span className="flex items-center gap-3 text-sm font-medium text-flora-ink">
-                        <SectionIcon icon={Package} tone="seller" />
-                        Student ID Card
-                      </span>
-                    </AccordionTrigger>
-                    <AccordionContent className="pb-4 pt-1">
-                      <div className="rounded-2xl bg-white p-4 shadow-card">{renderStudentIdSection()}</div>
                     </AccordionContent>
                   </AccordionItem>
 
@@ -1709,18 +1629,6 @@ const Profile = () => {
                         </AccordionTrigger>
                         <AccordionContent className="pb-5 pt-1">
                           <div className="rounded-2xl bg-white p-5 shadow-card">{renderSellerStatusPanel()}</div>
-                        </AccordionContent>
-                      </AccordionItem>
-
-                      <AccordionItem value="student-id" className="border-b border-flora-leaf/15">
-                        <AccordionTrigger className="py-4 hover:no-underline [&>svg]:text-flora-muted">
-                          <span className="flex items-center gap-3 text-sm font-semibold text-flora-ink">
-                            <SectionIcon icon={Package} tone="seller" />
-                            Student ID Card
-                          </span>
-                        </AccordionTrigger>
-                        <AccordionContent className="pb-5 pt-1">
-                          <div className="rounded-2xl bg-white p-5 shadow-card">{renderStudentIdSection()}</div>
                         </AccordionContent>
                       </AccordionItem>
 

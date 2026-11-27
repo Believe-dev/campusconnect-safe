@@ -1,7 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { BUSINESS_RULES, IGBINEDION_UNIVERSITY } from "@/lib/constants";
 import { Input } from "@/components/ui/input";
@@ -20,8 +19,15 @@ import {
   User as UserIcon,
 } from "lucide-react";
 import { User } from "@supabase/supabase-js";
-import { initiateAnchorCheckout } from "@/services/anchorBaasService";
-import { AnchorPaymentModal } from "@/components/checkout/AnchorPaymentModal";
+import {
+  clearPendingFlutterwaveCheckout,
+  initiateFlutterwaveProductCheckout,
+  readPendingFlutterwaveCheckout,
+  savePendingFlutterwaveCheckout,
+  type FlutterwaveCheckoutItem,
+  type FlutterwaveCheckoutQueueItem,
+  type PendingFlutterwaveCheckout,
+} from "@/services/flutterwaveProductCheckoutService";
 
 const formatPrice = (price: number) =>
   new Intl.NumberFormat("en-NG", {
@@ -71,7 +77,7 @@ interface CheckoutForm {
 
 interface SellerOrderSpec {
   sellerId: string;
-  items: CartItem[];
+  items: FlutterwaveCheckoutItem[];
 }
 
 const Checkout = () => {
@@ -79,7 +85,7 @@ const Checkout = () => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
-  const queryClient = useQueryClient();
+  const resumedCheckoutRef = useRef(false);
   const [formData, setFormData] = useState<CheckoutForm>({
     fullName: "",
     email: "",
@@ -88,20 +94,8 @@ const Checkout = () => {
     address: "",
     city: "",
     state: "",
-    paymentMethod: "anchor_escrow",
+    paymentMethod: "flutterwave_escrow",
   });
-  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
-
-  // Each seller in the cart gets its own order and its own Anchor Sub-Ledger account,
-  // so a multi-seller cart is paid one order at a time through this queue.
-  const [orderQueue, setOrderQueue] = useState<SellerOrderSpec[]>([]);
-  const [queueIndex, setQueueIndex] = useState(0);
-  const [currentOrder, setCurrentOrder] = useState<{
-    orderId: string;
-    nubanAccount: string;
-    bankName: string;
-    amount: number;
-  } | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -120,6 +114,11 @@ const Checkout = () => {
       }
       setUser(user);
 
+      const pendingCheckout = readPendingFlutterwaveCheckout();
+      if (pendingCheckout && pendingCheckout.buyerId !== user.id) {
+        clearPendingFlutterwaveCheckout();
+      }
+
       // Fetch user profile to pre-fill form (user can see their own email)
       const { data: profile } = await supabase
         .from("profiles")
@@ -136,17 +135,15 @@ const Checkout = () => {
           universityName: profile.university_name || "",
         }));
       }
-      // Note: no NUBAN is fetched here anymore - each order gets its own Anchor
-      // Sub-Ledger account (and its own NUBAN) created at payment time via
-      // initiateAnchorCheckout, not a general-purpose account shared across orders.
+      // Payment collection is started server-side and completed in Flutterwave.
 
-      fetchCartItems(user.id);
+      fetchCartItems(user.id, pendingCheckout?.buyerId === user.id && pendingCheckout.nextIndex < pendingCheckout.queue.length);
     } catch (error) {
       navigate("/auth");
     }
   };
 
-  const fetchCartItems = async (userId: string) => {
+  const fetchCartItems = async (userId: string, allowEmptyCart = false) => {
     try {
       const { data, error } = await supabase
         .from("cart")
@@ -174,7 +171,7 @@ const Checkout = () => {
         (item) => item.products && item.products.id
       );
 
-      if (validItems.length === 0) {
+      if (validItems.length === 0 && !allowEmptyCart) {
         toast({
           title: "Empty cart",
           description: "Your cart is empty. Add some items first.",
@@ -249,7 +246,15 @@ const Checkout = () => {
       return groups;
     }, {} as Record<string, CartItem[]>);
 
-    return Object.entries(sellerGroups).map(([sellerId, items]) => ({ sellerId, items }));
+    return Object.entries(sellerGroups).map(([sellerId, items]) => ({
+      sellerId,
+      items: items.map((item) => ({
+        cartItemId: item.id,
+        productId: item.products.id,
+        quantity: item.quantity,
+        selectedSize: item.selected_size || null,
+      })),
+    }));
   };
 
   const handlePayment = () => {
@@ -258,38 +263,25 @@ const Checkout = () => {
     }
     const queue = buildOrderQueue();
     if (queue.length === 0) return;
-    setOrderQueue(queue);
     startOrder(queue, 0);
   };
 
-  // Each seller in the cart is its own order with its own Anchor Sub-Ledger account -
-  // a multi-seller cart is paid one order at a time, sequenced through this queue,
-  // rather than one shared account covering unrelated sellers' funds.
-  const startOrder = async (queue: SellerOrderSpec[], index: number) => {
-    if (index >= queue.length) {
-      finalizeCheckout();
-      return;
-    }
-
+  // Every seller is checked out separately so the paid order maps to one seller's
+  // escrow. Flutterwave receives an authoritative total calculated by the server.
+  const startOrder = async (
+    queue: SellerOrderSpec[] | FlutterwaveCheckoutQueueItem[],
+    index: number,
+    resumedCheckout?: PendingFlutterwaveCheckout
+  ) => {
+    if (index >= queue.length || !user) return;
     setProcessing(true);
-    setQueueIndex(index);
-    const { sellerId, items } = queue[index];
-    const totalAmount = items.reduce((sum, item) => sum + (item.products?.price || 0) * item.quantity, 0);
+    const items = queue[index].items;
+    const shippingAddress = resumedCheckout?.shippingAddress || `${formData.address}, ${formData.city}, ${formData.state}`;
+    const universityName = resumedCheckout?.universityName || formData.universityName;
+    const res = await initiateFlutterwaveProductCheckout({ items, shippingAddress, universityName });
 
-    const res = await initiateAnchorCheckout({
-      sellerId,
-      productId: items[0].products.id,
-      quantity: items.reduce((sum, item) => sum + item.quantity, 0),
-      selectedSize: items[0].selected_size || null,
-      totalAmount,
-      shippingAddress: `${formData.address}, ${formData.city}, ${formData.state}`,
-      universityName: formData.universityName,
-      paymentMethod: "anchor_escrow",
-    });
-
-    setProcessing(false);
-
-    if (!res.success || !res.orderId || !res.nubanAccount) {
+    if (!res.success || !res.orderId || !res.paymentReference || !res.paymentLink) {
+      setProcessing(false);
       toast({
         title: index > 0 ? "Remaining order failed to start" : "Order failed",
         description:
@@ -300,149 +292,17 @@ const Checkout = () => {
       return;
     }
 
-    setCurrentOrder({ orderId: res.orderId, nubanAccount: res.nubanAccount, bankName: res.bankName || "", amount: totalAmount });
-    setIsPaymentModalOpen(true);
-  };
-
-  const handleConfirmModalPayment = async () => {
-    setIsPaymentModalOpen(false);
-    if (!currentOrder || !user) return;
-    setProcessing(true);
-
-    const { sellerId, items } = orderQueue[queueIndex];
-    await sendOrderPlacedNotifications(currentOrder.orderId, sellerId, items, currentOrder.amount);
-
-    await startOrder(orderQueue, queueIndex + 1);
-  };
-
-  const sendOrderPlacedNotifications = async (
-    orderId: string,
-    sellerId: string,
-    items: CartItem[],
-    orderTotal: number
-  ) => {
-    try {
-      const { data: sellerProfile } = await supabase
-        .from("profiles")
-        .select("full_name, email")
-        .eq("user_id", sellerId)
-        .single();
-
-      const { data: buyerProfile } = await supabase
-        .from("profiles")
-        .select("full_name, email")
-        .eq("user_id", user!.id)
-        .single();
-
-      const productTitles = items
-        .filter((i) => i.products?.title)
-        .map((i) => i.products.title)
-        .join(", ");
-
-      if (sellerProfile) {
-        try {
-          const { sendOrderNotification } = await import("@/utils/notificationService");
-          await sendOrderNotification(
-            sellerId,
-            "New Order Received! 🎉",
-            `You have a new order for ${productTitles}. Total: ₦${orderTotal.toLocaleString()}`,
-            orderId
-          );
-        } catch (notifErr) {
-          console.warn("Seller notification error:", notifErr);
-        }
-
-        try {
-          await supabase.functions.invoke("send-email", {
-            body: {
-              to: sellerProfile.email,
-              subject: "New Order Received - UniMarket",
-              html: `
-                <h2>New Order Received!</h2>
-                <p>Hello ${sellerProfile.full_name},</p>
-                <p>You have received a new order:</p>
-                <ul>
-                  <li><strong>Products:</strong> ${productTitles}</li>
-                  <li><strong>Buyer:</strong> ${buyerProfile?.full_name || "Unknown"}</li>
-                  <li><strong>Total Amount:</strong> ₦${orderTotal.toLocaleString()}</li>
-                  <li><strong>Order Date:</strong> ${new Date().toLocaleDateString()}</li>
-                </ul>
-                <p><strong>⚠️ Important:</strong> Payment will be automatically released in 2 days if the buyer doesn't confirm receipt.</p>
-                <p>Please log in to your dashboard to manage this order.</p>
-                <p>Best regards,<br>UniMarket Team</p>
-              `,
-            },
-          });
-        } catch (emailError) {
-          // Error handled silently
-        }
-      }
-
-      try {
-        const { sendOrderNotification } = await import("@/utils/notificationService");
-        await sendOrderNotification(
-          user!.id,
-          "Order Placed Successfully! ✅",
-          `Your order for ${productTitles} has been placed. Total: ₦${orderTotal.toLocaleString()}`,
-          orderId
-        );
-      } catch (notifErr) {
-        console.warn("Buyer notification error:", notifErr);
-      }
-
-      if (buyerProfile) {
-        try {
-          await supabase.functions.invoke("send-email", {
-            body: {
-              to: buyerProfile.email,
-              subject: "Order Confirmation - UniMarket",
-              html: `
-                <h2>Order Confirmation</h2>
-                <p>Hello ${buyerProfile.full_name},</p>
-                <p>Your order has been successfully placed:</p>
-                <ul>
-                  <li><strong>Products:</strong> ${productTitles}</li>
-                  <li><strong>Seller:</strong> ${sellerProfile?.full_name || "Unknown"}</li>
-                  <li><strong>Total Amount:</strong> ₦${orderTotal.toLocaleString()}</li>
-                  <li><strong>Order Date:</strong> ${new Date().toLocaleDateString()}</li>
-                </ul>
-                <p>You can track your order in your account dashboard.</p>
-                <p>Best regards,<br>UniMarket Team</p>
-              `,
-            },
-          });
-        } catch (emailError) {
-          // Error handled silently
-        }
-      }
-    } catch (err) {
-      console.warn("Order notification error:", err);
-    }
-  };
-
-  const finalizeCheckout = async () => {
-    try {
-      await supabase.from("cart").delete().eq("user_id", user!.id);
-      await queryClient.invalidateQueries({ queryKey: ["cart", user!.id] });
-      window.dispatchEvent(new CustomEvent("cartUpdated"));
-
-      for (const item of cartItems.filter((item) => item.products?.id)) {
-        await updateAnalytics(item.products.id, "orders_count", item.quantity);
-        await updateAnalytics(item.products.id, "revenue", (item.products?.price || 0) * item.quantity);
-      }
-
-      toast({
-        title: "Payment successful!",
-        description: "Your order has been placed and payment confirmed.",
-      });
-
-      navigate("/orders");
-    } finally {
-      setProcessing(false);
-      setCurrentOrder(null);
-      setOrderQueue([]);
-      setQueueIndex(0);
-    }
+    savePendingFlutterwaveCheckout({
+      buyerId: user.id,
+      queue: queue as FlutterwaveCheckoutQueueItem[],
+      nextIndex: index,
+      shippingAddress,
+      universityName,
+      orderId: res.orderId,
+      paymentReference: res.paymentReference,
+      cartItemIds: items.map((item) => item.cartItemId),
+    });
+    window.location.assign(res.paymentLink);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -452,31 +312,16 @@ const Checkout = () => {
     }
   };
 
-  const updateAnalytics = async (
-    productId: string,
-    field: string,
-    increment: number
-  ) => {
-    try {
-      const { data: existing } = await supabase
-        .from("product_analytics")
-        .select(field)
-        .eq("product_id", productId)
-        .single();
-
-      if (existing) {
-        await supabase
-          .from("product_analytics")
-          .update({
-            [field]: existing[field] + increment,
-            last_updated: new Date().toISOString(),
-          })
-          .eq("product_id", productId);
-      }
-    } catch (error) {
-      // Silently fail analytics to not block order processing
-    }
-  };
+  useEffect(() => {
+    const pendingCheckout = readPendingFlutterwaveCheckout();
+    if (
+      loading || !user || resumedCheckoutRef.current || !pendingCheckout ||
+      pendingCheckout.buyerId !== user.id || pendingCheckout.orderId ||
+      pendingCheckout.nextIndex >= pendingCheckout.queue.length
+    ) return;
+    resumedCheckoutRef.current = true;
+    startOrder(pendingCheckout.queue, pendingCheckout.nextIndex, pendingCheckout);
+  }, [loading, user]);
 
   if (loading) {
     return (
@@ -699,10 +544,8 @@ const Checkout = () => {
                 </div>
               </div>
 
-            {/* Payment Method — bank transfer via a dedicated Anchor Sub-Ledger
-                account per order, created and shown after "Pay" is clicked
-                below, so there's nothing to choose here either. Last step:
-                no connecting line drawn below its badge. */}
+            {/* Flutterwave presents the eligible payment channels after Pay is
+                clicked. The server creates the order and escrow state first. */}
             <div className="flex gap-4">
               <div className="flex flex-col items-center">
                 <span className={stepIconClass}>
@@ -719,12 +562,11 @@ const Checkout = () => {
                 </span>
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-flora-ink">
-                    Anchor BaaS Bank Transfer (Escrow Locked)
+                    Flutterwave checkout (Escrow Locked)
                   </p>
                   <p className="text-xs text-flora-muted">
-                    Each seller in your order gets a dedicated Anchor account for that
-                    payment — you'll see the account details to transfer to after you
-                    click "Pay" below.
+                    Pay by card, bank transfer, or any Flutterwave option available
+                    to you. Funds remain in escrow until receipt is confirmed.
                   </p>
                 </div>
               </div>
@@ -814,7 +656,7 @@ const Checkout = () => {
                 ) : (
                   <>
                     <Lock className="h-4 w-4" aria-hidden="true" />
-                    Pay by Bank Transfer
+                    Pay securely with Flutterwave
                   </>
                 )}
               </button>
@@ -824,30 +666,12 @@ const Checkout = () => {
                   <Shield className="h-3.5 w-3.5" aria-hidden="true" />
                   Protected by Escrow System
                 </p>
-                <p className="text-xs text-flora-ink/70">
-                  Your payment is held securely until you confirm receipt
-                </p>
+                <p className="text-xs text-flora-ink/70">Card, bank transfer, and other methods are completed on Flutterwave. Your payment is held until you confirm receipt.</p>
               </div>
             </div>
           </div>
         </form>
 
-        {/* Interactive Anchor Payment Selection Modal - shows the per-order
-            Sub-Ledger NUBAN to transfer to, one seller at a time via the queue
-            above. Not yet re-skinned to the flora design system (it's a
-            separate component untouched by this branch's redesign work) - a
-            follow-up if visual consistency here matters. */}
-        <AnchorPaymentModal
-          isOpen={isPaymentModalOpen}
-          onClose={() => setIsPaymentModalOpen(false)}
-          totalAmount={currentOrder?.amount || 0}
-          orderId={currentOrder?.orderId || ""}
-          nubanAccount={currentOrder?.nubanAccount || ""}
-          bankName={currentOrder?.bankName}
-          userName={formData.fullName}
-          onConfirmPayment={handleConfirmModalPayment}
-          processing={processing}
-        />
       </main>
     </div>
   );

@@ -210,23 +210,45 @@ serve(async (req) => {
               .maybeSingle();
 
             if (intent) {
-              const { data: updatedIntent } = await supabase
+              const reference = extractReference(payload) || intent.id;
+              // Claim first via "completing" (same guard as before), only
+              // mark "paid" once completion actually succeeds - matches
+              // anchor-seller-payment-verify. Without this, a completion
+              // failure here would leave the intent stuck at "paid" with
+              // seller_features_active never set, and Anchor's webhook
+              // retry (this handler returns 500 on a thrown error, which is
+              // exactly what completeSellerRegistration/Renewal now does on
+              // failure) would find nothing to retry since the claim-guard
+              // below only ever matches "pending".
+              const { data: claimedIntent } = await supabase
                 .from("seller_payment_intents")
                 .update({
-                  status: "paid",
-                  payment_reference: extractReference(payload) || undefined,
+                  status: "completing",
+                  payment_reference: reference,
                   updated_at: new Date().toISOString(),
                 })
                 .eq("id", intent.id)
-                .eq("status", "pending") // idempotent: no-op if verify already flipped it
+                .eq("status", "pending") // idempotent: no-op if verify already claimed it
                 .select("id");
 
-              if (updatedIntent?.length) {
-                const reference = extractReference(payload) || intent.id;
-                if (intent.purpose === "registration") {
-                  await completeSellerRegistration(supabase, intent.user_id, reference, Number(intent.amount));
-                } else {
-                  await completeSellerRenewal(supabase, intent.user_id, reference);
+              if (claimedIntent?.length) {
+                try {
+                  if (intent.purpose === "registration") {
+                    await completeSellerRegistration(supabase, intent.user_id, reference, Number(intent.amount));
+                  } else {
+                    await completeSellerRenewal(supabase, intent.user_id, reference);
+                  }
+                  await supabase
+                    .from("seller_payment_intents")
+                    .update({ status: "paid", updated_at: new Date().toISOString() })
+                    .eq("id", intent.id);
+                } catch (completionErr) {
+                  console.error("🔴 Seller payment completion failed in webhook, reverting intent to pending for retry:", completionErr);
+                  await supabase
+                    .from("seller_payment_intents")
+                    .update({ status: "pending", updated_at: new Date().toISOString() })
+                    .eq("id", intent.id);
+                  throw completionErr; // let the outer catch return 500 so Anchor retries delivery
                 }
               }
             } else {

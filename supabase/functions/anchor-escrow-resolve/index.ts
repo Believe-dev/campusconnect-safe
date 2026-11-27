@@ -8,10 +8,9 @@
 //   - reverse: admin only (dispute resolution)
 //
 // Money-safety ordering: the DB-side atomic claim+credit (release_escrow_funds /
-// reverse_escrow_funds, both WHERE status = 'held') happens BEFORE the Anchor transfer
-// call. If the Anchor call then fails, the ledger is already correct and consistent -
-// it just needs the transfer retried/reconciled (anchor_transfer_status = 'failed')
-// rather than risking a double real-money transfer from retrying the whole flow.
+// reverse_escrow_funds, both WHERE status = 'held') happens before any legacy Anchor
+// reconciliation. Flutterwave-collected money remains in the platform's Flutterwave
+// balance until the wallet owner later requests a bank payout.
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -55,7 +54,7 @@ serve(async (req) => {
 
     const { data: order, error: orderErr } = await admin
       .from("orders")
-      .select("id, buyer_id, seller_id, total_amount")
+      .select("id, buyer_id, seller_id, total_amount, payment_method")
       .eq("id", orderId)
       .single();
     if (orderErr || !order) {
@@ -146,10 +145,27 @@ serve(async (req) => {
       })
       .eq("id", orderId);
 
-    // 2. Anchor book-transfer: the order's Sub-Ledger account settles back to the
-    // platform deposit account. The DB ledger above already reflects who is owed the
-    // funds (seller on release, buyer on reversal); actual payout to their real bank
-    // account happens through the existing withdrawal flow.
+    // Flutterwave collection has no Anchor Sub-Ledger to settle. The internal
+    // escrow release is the authoritative allocation to the seller/buyer wallet;
+    // external bank movement happens only through a manual withdrawal request.
+    if (order.payment_method === "flutterwave_escrow") {
+      await admin.from("escrow_transactions").update({
+        settlement_provider: "flutterwave",
+        settlement_status: "not_required",
+      }).eq("id", escrow.id);
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: action === "release"
+            ? `₦${Number(escrow.seller_amount).toLocaleString()} released to the seller wallet.`
+            : `₦${Number(escrow.seller_amount).toLocaleString()} reversed to the buyer wallet.`,
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Legacy Anchor book-transfer for orders collected before the Flutterwave
+    // product-checkout migration. These remain supported until resolved.
     const depositAccountId = Deno.env.get("ANCHOR_DEPOSIT_ACCOUNT_ID");
     const reference = `ANCHOR_${action.toUpperCase()}_${orderId}`;
 
@@ -176,6 +192,8 @@ serve(async (req) => {
         .update({
           [referenceColumn]: reference,
           anchor_transfer_status: transferRes.ok ? "sent" : "failed",
+          settlement_provider: "anchor",
+          settlement_status: transferRes.ok ? "sent" : "failed",
         })
         .eq("id", escrow.id);
 

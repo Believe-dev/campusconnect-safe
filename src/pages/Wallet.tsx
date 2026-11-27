@@ -2,13 +2,9 @@ import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import {
-  getVirtualAccount,
-  fetchCbnKycStatusFromDb,
-  AnchorVirtualAccount,
-  CbnKycTierDetails,
-} from "@/services/anchorBaasService";
-import { AnchorWithdrawalModal } from "@/components/wallet/AnchorWithdrawalModal";
+import { fetchCbnKycStatusFromDb, CbnKycTierDetails } from "@/services/anchorBaasService";
+import { getWalletAccount, type WalletAccount } from "@/services/walletAccountService";
+import { ManualWithdrawalModal } from "@/components/wallet/ManualWithdrawalModal";
 import { SellerKycModal } from "@/components/seller/SellerKycModal";
 import {
   Wallet as WalletIcon,
@@ -30,17 +26,17 @@ interface WalletTransaction {
 }
 
 // Buyer-facing wallet view. Deliberately narrower than the seller wallet
-// dashboard (WalletDashboard.tsx / AnchorVirtualAccountCard.tsx): no NUBAN
+// dashboard (WalletDashboard.tsx): no virtual-account
 // display, no CBN tier badge, no card top-up - buyers only ever land here
 // with money in the wallet if a dispute was resolved in their favor
 // (reverse_escrow_funds credits wallets directly, see useWalletActivity.tsx).
 // The one thing this page used to be missing entirely was a way to actually
 // move that money out - "Withdraw to Bank" opens the same unmodified
-// AnchorWithdrawalModal the seller dashboard uses.
+// manual withdrawal flow the seller dashboard uses.
 const Wallet = () => {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [account, setAccount] = useState<AnchorVirtualAccount | null>(null);
+  const [account, setAccount] = useState<WalletAccount | null>(null);
   const [kycStatus, setKycStatus] = useState<CbnKycTierDetails | null>(null);
   const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -52,7 +48,7 @@ const Wallet = () => {
     setLoading(true);
     try {
       const [acc, kyc, { data: walletRow }] = await Promise.all([
-        getVirtualAccount(user.id),
+        getWalletAccount(user.id),
         fetchCbnKycStatusFromDb(user.id),
         supabase.from("wallets").select("id").eq("user_id", user.id).maybeSingle(),
       ]);
@@ -250,7 +246,7 @@ const Wallet = () => {
       </main>
 
       {account && (
-        <AnchorWithdrawalModal
+        <ManualWithdrawalModal
           userId={user?.id || ""}
           account={account}
           open={showWithdrawalModal}

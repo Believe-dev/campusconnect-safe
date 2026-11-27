@@ -21,8 +21,13 @@ import {
 import { ForgotPasswordDialog } from "@/components/auth/ForgotPasswordDialog";
 
 import { useToast } from "@/hooks/use-toast";
-import { useAnchorPayment } from "@/hooks/useAnchorPayment";
-import { AnchorSellerPaymentModal } from "@/components/seller/AnchorSellerPaymentModal";
+import {
+  readSellerSignupDraft,
+  savePendingSellerPayment,
+  saveSellerSignupDraft,
+  initiateFlutterwaveSellerRegistration,
+  type PendingSellerSignup,
+} from "@/services/flutterwaveSellerRegistrationService";
 import { useReferrals } from "@/hooks/useReferrals";
 import { BUSINESS_RULES, NIGERIAN_UNIVERSITIES } from "@/lib/constants";
 import { CURRENT_TERMS_VERSION, CURRENT_PRIVACY_VERSION } from "@/lib/legalVersions";
@@ -43,7 +48,6 @@ import {
 } from "lucide-react";
 
 import { User as AuthUser } from "@supabase/supabase-js";
-import { SellerKycModal } from "@/components/seller/SellerKycModal";
 
 // Validation schemas — split per step (see SignupPage's step layout below)
 // instead of one giant schema per account type, since each step now submits
@@ -258,43 +262,50 @@ const StepIndicator = ({ steps, currentStep }: { steps: string[]; currentStep: n
 const SignupPage = ({ onSuccess }: SignupPageProps) => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const [savedSellerDraft] = useState(() => readSellerSignupDraft());
   // Lazy initializer reads the URL synchronously on first render (rather
   // than switching mode in an effect after mount), so a link like
   // `/auth?mode=signup` lands directly on the signup form instead of
   // flashing sign-in first — this is how Header's "Join" and "Sign In"
   // buttons pick which tab you land on.
   const [mode, setMode] = useState<"signin" | "signup">(() =>
-    searchParams.get("mode") === "signup" ? "signup" : "signin"
+    searchParams.get("mode") === "signup" || savedSellerDraft ? "signup" : "signin"
   );
-  const [accountType, setAccountType] = useState<"buyer" | "seller">("buyer");
-  const [currentStep, setCurrentStep] = useState(1);
+  const [accountType, setAccountType] = useState<"buyer" | "seller">(savedSellerDraft ? "seller" : "buyer");
+  const [currentStep, setCurrentStep] = useState(() => {
+    const step = savedSellerDraft?.currentStep;
+    return step && step >= 2 && step <= 4 ? step : 1;
+  });
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState<AuthUser | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
-  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(savedSellerDraft?.termsAccepted ?? false);
   const [pendingBuyerData, setPendingBuyerData] = useState<BuyerFormData | null>(null);
-  const [referralCode, setReferralCode] = useState("");
+  const [referralCode, setReferralCode] = useState(savedSellerDraft?.signup.referralCode || "");
   const [validatingReferral, setValidatingReferral] = useState(false);
   const [referralValid, setReferralValid] = useState<boolean | null>(null);
-  const [showAnchorKycModal, setShowAnchorKycModal] = useState(false);
-  const [newUserId, setNewUserId] = useState<string | null>(null);
-  const [pendingSellerPayment, setPendingSellerPayment] = useState<{
-    intentId: string;
-    nubanAccount: string;
-    bankName?: string;
-    amount: number;
-  } | null>(null);
   const { toast } = useToast();
-  const { initiatePayment } = useAnchorPayment();
   const { validateReferralCode, createReferral } = useReferrals();
 
   // Step-scoped form state, one slice per step so each step's form only
   // needs to know about its own fields.
   const [buyerAccountData, setBuyerAccountData] = useState<Partial<BuyerAccountData>>({});
-  const [sellerAccountData, setSellerAccountData] = useState<Partial<SellerAccountData>>({});
-  const [sellerBusinessData, setSellerBusinessData] = useState<Partial<SellerBusinessData>>({});
-  const [sellerAboutData, setSellerAboutData] = useState<Partial<SellerAboutData>>({});
+  const [sellerAccountData, setSellerAccountData] = useState<Partial<SellerAccountData>>(() => ({
+    fullName: savedSellerDraft?.signup.fullName,
+    email: savedSellerDraft?.signup.email,
+    university: savedSellerDraft?.signup.university,
+    dateOfBirth: savedSellerDraft?.signup.dateOfBirth,
+  }));
+  const [sellerBusinessData, setSellerBusinessData] = useState<Partial<SellerBusinessData>>(() => ({
+    phone: savedSellerDraft?.signup.phone,
+    businessName: savedSellerDraft?.signup.businessName,
+    studentId: savedSellerDraft?.signup.studentId,
+    referralCode: savedSellerDraft?.signup.referralCode,
+  }));
+  const [sellerAboutData, setSellerAboutData] = useState<Partial<SellerAboutData>>(() => ({
+    bio: savedSellerDraft?.signup.bio,
+  }));
 
   // Form hooks
   const signinForm = useForm<SigninFormData>({
@@ -324,6 +335,33 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
     resolver: zodResolver(sellerAboutSchema),
     defaultValues: sellerAboutData,
   });
+
+  // Save each seller field as it changes, not only when the user presses
+  // Continue. This makes a reload or an unsuccessful checkout resumable.
+  useEffect(() => {
+    if (accountType !== "seller") return;
+
+    const persistDraft = () => {
+      const signup = {
+        ...sellerAccountForm.getValues(),
+        ...sellerBusinessForm.getValues(),
+        ...sellerAboutForm.getValues(),
+      };
+      if (Object.values(signup).some(Boolean)) {
+        saveSellerSignupDraft(signup, Math.max(currentStep, 2), termsAccepted);
+      }
+    };
+
+    persistDraft();
+    const accountSubscription = sellerAccountForm.watch(persistDraft);
+    const businessSubscription = sellerBusinessForm.watch(persistDraft);
+    const aboutSubscription = sellerAboutForm.watch(persistDraft);
+    return () => {
+      accountSubscription.unsubscribe();
+      businessSubscription.unsubscribe();
+      aboutSubscription.unsubscribe();
+    };
+  }, [accountType, currentStep, sellerAboutForm, sellerAccountForm, sellerBusinessForm, termsAccepted]);
 
   // Check for existing user session and listen for auth changes
   useEffect(() => {
@@ -577,13 +615,8 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
     setCurrentStep(4);
   };
 
-  // Anchor's payment flow needs an authenticated session (it creates a
-  // customer/sub-account under the caller's identity), so the account is
-  // created first, then paid for as an authenticated user - the same shape
-  // as an existing buyer upgrading to seller. If someone abandons payment
-  // after this point, they're left with a normal account rather than a
-  // broken half-signup, which the old pay-then-create-account ordering
-  // didn't guarantee.
+  // Do not create the seller account yet. Flutterwave checkout is completed
+  // first; the callback creates the account only after server verification.
   const handleAccountCreation = async (aboutData: SellerAboutData) => {
     setLoading(true);
     try {
@@ -593,81 +626,38 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
         ...aboutData,
       };
 
-      const { data: authData, error } = await supabase.auth.signUp({
+      const signup: PendingSellerSignup = {
+        fullName: combinedData.fullName!,
         email: combinedData.email!,
         password: combinedData.password!,
-        options: {
-          data: {
-            full_name: combinedData.fullName,
-            university_name: combinedData.university,
-            phone_number: combinedData.phone,
-            business_name: combinedData.businessName,
-            student_id: combinedData.studentId,
-            account_type: "seller",
-            bio: combinedData.bio,
-          },
-        },
-      });
-
-      if (error) throw error;
-      if (!authData.user) throw new Error("Signup failed - no user returned.");
-
-      // Wait for profile creation
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-
-      // business_name/bio aren't payment-gated - a normal self-update is
-      // fine here, unlike the account_type/seller_status/seller_registration_paid
-      // fields below, which only the payment-verify edge function sets.
-      await supabase
-        .from("profiles")
-        .update({
-          business_name: combinedData.businessName,
-          bio: combinedData.bio,
-        })
-        .eq("user_id", authData.user.id);
-
-      // Separate from the update above - recordLegalAcceptance retries and
-      // confirms a row actually came back, since this is a legal consent
-      // timestamp rather than a cosmetic field. In the common case the row
-      // already exists by now (the wait above already succeeded for
-      // business_name/bio), so its first, immediate attempt should succeed
-      // with no extra delay.
-      const recorded = await recordLegalAcceptance(
-        authData.user.id,
-        combinedData.dateOfBirth
-      );
-      if (!recorded) {
-        console.error(
-          "Failed to record terms/privacy acceptance for new seller",
-          authData.user.id
-        );
-      }
-
-      if (combinedData.referralCode) {
-        await createReferral(combinedData.referralCode);
-      }
-
-      setNewUserId(authData.user.id);
-
-      const res = await initiatePayment("registration");
-      if (!res.success || !res.intentId || !res.nubanAccount) {
+        university: combinedData.university!,
+        dateOfBirth: combinedData.dateOfBirth!,
+        phone: combinedData.phone!,
+        businessName: combinedData.businessName!,
+        studentId: combinedData.studentId!,
+        bio: combinedData.bio!,
+        referralCode: combinedData.referralCode,
+      };
+      saveSellerSignupDraft(signup, 4, termsAccepted);
+      const res = await initiateFlutterwaveSellerRegistration(signup);
+      if (!res.success || !res.paymentLink || !res.claimToken || !res.paymentReference) {
         toast({
-          title: "Account Created — Payment Setup Failed",
+          title: "Payment Setup Failed",
           description:
-            (res.message || "Failed to start payment.") +
-            " Your account was created; you can complete registration payment from your profile.",
+            (res.message || "Failed to start Flutterwave checkout.") +
+            " No seller account has been created.",
           variant: "destructive",
         });
-        onSuccess?.();
         return;
       }
 
-      setPendingSellerPayment({
-        intentId: res.intentId,
-        nubanAccount: res.nubanAccount,
-        bankName: res.bankName,
-        amount: res.amount || BUSINESS_RULES.sellerRegistration.fee,
+      savePendingSellerPayment({
+        signup,
+        claimToken: res.claimToken,
+        paymentReference: res.paymentReference,
+        savedAt: Date.now(),
       });
+      window.location.assign(res.paymentLink);
     } catch (error) {
       toast({
         title: "Signup Failed",
@@ -677,16 +667,6 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleSellerPaymentVerified = () => {
-    setPendingSellerPayment(null);
-    setShowAnchorKycModal(true);
-    toast({
-      title: "Seller Account Created! 🎉",
-      description: "Payment confirmed — you can start listing right away. Complete identity verification (BVN/NIN/Photo ID) before your first payout.",
-    });
-    onSuccess?.();
   };
 
   // Step 3's bio field and the payment trigger are the same form now (see
@@ -1736,34 +1716,6 @@ const SignupPage = ({ onSuccess }: SignupPageProps) => {
         </DialogContent>
       </Dialog>
 
-      {newUserId && (
-        <SellerKycModal
-          userId={newUserId}
-          open={showAnchorKycModal}
-          onClose={() => {
-            setShowAnchorKycModal(false);
-            onSuccess?.();
-          }}
-          onKycCompleted={() => {
-            setShowAnchorKycModal(false);
-            onSuccess?.();
-          }}
-        />
-      )}
-
-      {pendingSellerPayment && (
-        <AnchorSellerPaymentModal
-          isOpen={!!pendingSellerPayment}
-          onClose={() => setPendingSellerPayment(null)}
-          purpose="registration"
-          amount={pendingSellerPayment.amount}
-          intentId={pendingSellerPayment.intentId}
-          nubanAccount={pendingSellerPayment.nubanAccount}
-          bankName={pendingSellerPayment.bankName}
-          userName={sellerAccountData.fullName || sellerAccountData.email || ""}
-          onVerified={handleSellerPaymentVerified}
-        />
-      )}
     </div>
   );
 };

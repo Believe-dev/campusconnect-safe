@@ -86,7 +86,7 @@ const TermsOfService = () => {
                 <p>UniMarket's Escrow Protection works as follows:</p>
                 <ol className="list-decimal space-y-1.5 pl-5">
                   <li>You pay for an item through the platform.</li>
-                  <li>Your payment is held by Anchor, not released to the seller immediately.</li>
+                  <li>Your payment is held in UniMarket's escrow process and is not released to the seller immediately.</li>
                   <li>
                     Once you confirm delivery, or the protection window expires without a dispute, funds
                     are released to the seller.
@@ -112,8 +112,8 @@ const TermsOfService = () => {
                     complete.
                   </li>
                   <li>
-                    Sellers pay a registration fee to list items on the platform, currently ₦1,000/month,
-                    processed through Anchor.
+                    Vendors pay a one-time registration fee of ₦2,500 to list items on the platform,
+                    processed through Flutterwave. Monthly subscription renewals are ₦1,000.
                   </li>
                   <li>
                     Sellers are solely responsible for the accuracy of their listings and for fulfilling
@@ -151,7 +151,8 @@ const TermsOfService = () => {
                 <SectionHeading>9. Fees</SectionHeading>
                 <p>Current platform fees:</p>
                 <ul className="list-disc space-y-1.5 pl-5">
-                  <li>Seller registration fee: ₦1,000/month</li>
+                  <li>Vendor registration fee: ₦2,500</li>
+                  <li>Monthly vendor subscription renewal: ₦1,000</li>
                 </ul>
                 <p>Fees may change with notice to users.</p>
               </section>

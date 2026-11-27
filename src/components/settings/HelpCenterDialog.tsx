@@ -80,12 +80,12 @@ export const HelpCenterDialog = ({ children }: HelpCenterDialogProps) => {
     {
       question: "How do I create an account?",
       answer:
-        "Click 'Sign Up' and choose between Buyer or Seller account. Sellers need university email and student ID verification.",
+        "Click 'Sign Up' and choose between Buyer or Seller account. Sellers go through an admin approval step before they can list items.",
     },
     {
-      question: "How do I verify my student status?",
+      question: "How do I get approved as a seller?",
       answer:
-        "Upload your student ID card in your profile settings. Admin will review and approve within 24-48 hours.",
+        "Complete your profile in settings. Admin will review and approve within 24-48 hours.",
     },
     {
       question: "How do I list an item for sale?",
@@ -128,9 +128,8 @@ export const HelpCenterDialog = ({ children }: HelpCenterDialogProps) => {
   const getStartedGuide = `Welcome to UniMarket! 🎓
 
 1. ACCOUNT SETUP
-   • Sign up with your university email
+   • Sign up with your email
    • Choose account type: Buyer or Seller
-   • Verify your student status with ID upload
    • Complete your profile with photo and details
 
 2. BROWSING PRODUCTS
@@ -146,7 +145,7 @@ export const HelpCenterDialog = ({ children }: HelpCenterDialogProps) => {
    • Leave reviews after successful transactions
 
 4. GETTING VERIFIED
-   • Upload clear student ID photo
+   • Complete your seller profile
    • Wait for admin approval (24-48 hours)
    • Verified users get trust badges
    • Higher visibility in search results
@@ -163,7 +162,7 @@ Need help? Contact support via WhatsApp!`;
 
 1. BECOMING A SELLER
    • Switch to seller account in settings
-   • Upload student ID for verification
+   • Complete your seller profile
    • Wait for admin approval
    • Set up your seller profile
 

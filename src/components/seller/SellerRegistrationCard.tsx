@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { SellerRegistrationPayment } from "./SellerRegistrationPayment";
+import { BUSINESS_RULES } from "@/lib/constants";
 import { CreditCard, CheckCircle, AlertCircle, Clock } from "lucide-react";
 
 export const SellerRegistrationCard = () => {
@@ -94,7 +95,7 @@ export const SellerRegistrationCard = () => {
       <div className="space-y-4 p-6">
         <div className="space-y-3">
           <p className="text-sm text-flora-ink">
-            <strong>Ready to start your campus business?</strong> Pay ₦1000 for your first month's subscription and unlock unlimited earning potential.
+            <strong>Ready to start your campus business?</strong> Pay ₦{BUSINESS_RULES.sellerRegistration.fee.toLocaleString()} to complete vendor registration and unlock unlimited earning potential.
           </p>
           <div className="rounded-2xl border border-flora-leaf/30 bg-flora-tagBg/50 p-3.5">
             <p className="text-sm font-medium text-flora-tagText mb-1">
@@ -152,11 +153,11 @@ export const SellerRegistrationCard = () => {
           variant="brand"
         >
           <CreditCard className="h-4 w-4 mr-2" />
-          Pay First Month (₦1000)
+          Pay Registration Fee (₦{BUSINESS_RULES.sellerRegistration.fee.toLocaleString()})
         </Button>
 
         <p className="text-xs text-flora-leaf text-center font-medium">
-          Secure payment powered by Anchor BaaS (CoreStep Microfinance)
+          Secure payment powered by Flutterwave
         </p>
       </div>
     </div>

@@ -8,13 +8,14 @@ import ProductCard, {
   type ProductCardProduct,
 } from "@/components/marketplace/ProductCard";
 import { DealOfTheDay } from "@/components/marketplace/DealOfTheDay";
+import { PromoBannerCarousel } from "@/components/marketplace/PromoBannerCarousel";
 import { pickDealsOfTheDay } from "@/lib/dealsOfTheDay";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/contexts/ProfileContext";
 import { useCartCount } from "@/contexts/CartCountContext";
 import { useOptimizedQuery } from "@/hooks/useOptimizedQuery";
-import { Package, RotateCcw, AlertCircle, Users } from "lucide-react";
+import { Package, RotateCcw, AlertCircle, Users, Zap } from "lucide-react";
 import "@/styles/animations.css";
 
 interface Product {
@@ -577,6 +578,11 @@ const Marketplace = () => {
               icon={<Users className="h-4 w-4 flex-shrink-0" />}
               onClick={() => navigate("/sellers")}
             />
+            <FilterChip
+              label="Promos"
+              icon={<Zap className="h-4 w-4 flex-shrink-0" />}
+              onClick={() => navigate("/promos")}
+            />
             {CATEGORIES.filter((category) => !excludedCategories.has(category)).map(
               (category) => (
                 <FilterChip
@@ -696,6 +702,7 @@ const Marketplace = () => {
             </div>
           ) : (
             <>
+              <PromoBannerCarousel />
               {dealProducts.length > 0 && (
                 <DealOfTheDay
                   products={dealProducts.map((p) => ({

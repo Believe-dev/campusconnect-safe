@@ -11,7 +11,7 @@ import {
   ArrowDownLeft,
   Clock,
 } from "lucide-react";
-import { AnchorVirtualAccountCard } from "./AnchorVirtualAccountCard";
+import { WalletPayoutCard } from "./WalletPayoutCard";
 import { BalanceSummaryCard } from "./BalanceSummaryCard";
 import { fetchCbnKycStatusFromDb, CbnKycTierDetails } from "@/services/anchorBaasService";
 
@@ -63,6 +63,8 @@ interface PayoutRequest {
   status: string;
   created_at: string;
   admin_notes?: string;
+  available_for_processing_on?: string | null;
+  payout_provider?: string | null;
 }
 
 const STATUS_TONE: Record<string, string> = {
@@ -387,16 +389,10 @@ const WalletDashboard = ({ onNavigateToVerification }: WalletDashboardProps) => 
         <h2 className="text-xl font-bold text-flora-ink sm:text-2xl">Earnings</h2>
       </div>
 
-      {/* Anchor BaaS Virtual Account & Escrow - the one real withdrawal path.
-          The legacy "Request Payout" / "Bank Details" flow that used to sit
-          above this (its own bank_details table + email/password
-          re-verification dialog) was retired: a real, admin-reviewed manual
-          channel, but a dormant one - exactly one payout ever went through
-          it (approved and processed back in January), nothing pending.
-          AnchorVirtualAccountCard's own Withdraw button (opens
-          AnchorWithdrawalModal) is now the sole seller-facing entry point. */}
+      {/* Sellers request manual withdrawal of released escrow. The wallet is an
+          internal ledger, not a virtual account buyers can deposit into. */}
       {userId && (
-        <AnchorVirtualAccountCard
+        <WalletPayoutCard
           userId={userId}
           onBalanceUpdated={fetchWalletData}
         />
@@ -404,7 +400,7 @@ const WalletDashboard = ({ onNavigateToVerification }: WalletDashboardProps) => 
 
       {/* The one canonical balance display - see BalanceSummaryCard for why
           this replaced a second, independently-fetched "Balance Cards" grid
-          that used to show a different number than AnchorVirtualAccountCard
+          that used to show a different number than the withdrawal card
           above it for the exact same underlying wallet row. */}
       <BalanceSummaryCard kycStatus={kycStatus} onVerifyClick={onNavigateToVerification} />
       <button
@@ -528,6 +524,11 @@ const WalletDashboard = ({ onNavigateToVerification }: WalletDashboardProps) => 
                         Requested on{" "}
                         {new Date(payout.created_at).toLocaleDateString()}
                       </p>
+                      {payout.payout_provider === "manual" && payout.status === "pending" && payout.available_for_processing_on && (
+                        <p className="mt-1 text-xs text-flora-muted">
+                          Scheduled for processing: {new Date(`${payout.available_for_processing_on}T00:00:00`).toLocaleDateString()}
+                        </p>
+                      )}
                       {payout.admin_notes && (
                         <p className="text-xs sm:text-sm mt-2 p-2 bg-flora-chip rounded-xl text-flora-ink">
                           <strong>Admin Notes:</strong> {payout.admin_notes}

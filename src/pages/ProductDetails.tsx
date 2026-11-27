@@ -33,6 +33,7 @@ import {
   Facebook,
   Instagram,
   Send,
+  Maximize2,
 } from "lucide-react";
 import {
   HeartIcon,
@@ -43,7 +44,6 @@ import {
   TikTokIcon,
 } from "@/components/ui/heroicons";
 import { IconButton } from "@/components/ui/icon-button";
-import { StatBadge } from "@/components/ui/stat-badge";
 import { Stepper } from "@/components/ui/stepper";
 import { Tag } from "@/components/ui/tag";
 import ProductCard, {
@@ -735,54 +735,33 @@ const ProductDetails = () => {
   const maxQuantity = Math.min(10, product.stock_quantity);
 
   // Shared between mobile (full-width, plain block) and desktop (rounded
-  // card) — same overlay, two differently-sized containers. Prev/next and
-  // the dot indicator used to live here, overlaid on the photo itself;
-  // they're their own control row now (see galleryControls) instead of
-  // floating circular buttons on top of the image, which also frees the
-  // whole image up to be a single tap target for the fullscreen viewer.
+  // card) — same overlay, two differently-sized containers. Nothing draws on
+  // top of the photo itself anymore: the back button lives in its own
+  // header row above the image (see the JSX below), the rating/escrow
+  // badges that used to float here are gone (rating already shows in the
+  // Seller Information section; escrow messaging moved to sit next to the
+  // Add to Cart button instead, where it's actually relevant to the
+  // decision being made). Fullscreen is opt-in via the small expand button
+  // in the corner, not the whole photo — a plain tap just looks at the
+  // picture, matching "not forced full-screen".
   const galleryOverlay = (
     <>
       <img
         src={images[currentImageIndex]}
         alt={product.title}
-        role="button"
-        tabIndex={0}
-        aria-label="View image full screen"
-        onClick={() => setIsFullscreenOpen(true)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            setIsFullscreenOpen(true);
-          }
-        }}
-        className="h-full w-full cursor-zoom-in object-cover transition-all duration-300"
+        className="h-full w-full object-cover transition-all duration-300"
         onError={(e) => {
           e.currentTarget.src = "/placeholder.svg";
         }}
       />
 
-      {/* Accounts for the notch/status-bar safe area on mobile, where this
-          sits at the very top of the screen; desktop still has the site
-          header above it, so it reverts to a plain top-4 there. */}
       <IconButton
-        icon={ChevronLeft}
-        label="Go back"
+        icon={Maximize2}
+        label="View image full screen"
         tone="ghost"
-        className="absolute left-4 top-[max(1rem,calc(env(safe-area-inset-top)+0.5rem))] z-20 sm:top-4"
-        onClick={() => navigate(-1)}
-      />
-
-      <StatBadge
-        icon={StarIcon}
-        label="Seller Rating"
-        progress={((product.seller?.rating || 0) / 5) * 100}
-        className="right-4 top-4"
-      />
-      <StatBadge
-        icon={ShieldCheckIcon}
-        label="Escrow Protected"
-        progress={100}
-        className="left-4 top-[38%]"
+        size="sm"
+        className="absolute bottom-3 right-3"
+        onClick={() => setIsFullscreenOpen(true)}
       />
     </>
   );
@@ -847,13 +826,26 @@ const ProductDetails = () => {
     <div className="min-h-screen bg-gradient-to-b from-flora-bgFrom to-flora-bgTo">
       <ProductSEO product={product} />
 
+      {/* Back button lives here now, in its own row above the photo, not
+          floating on top of it — safe-area-aware on mobile since it sits at
+          the very top of the screen there; desktop still has the site
+          header above it, so it reverts to a plain pt-4. */}
+      <div className="mx-auto max-w-6xl px-4 pt-[max(1rem,calc(env(safe-area-inset-top)+0.5rem))] sm:px-6 sm:pt-4 lg:px-6">
+        <IconButton
+          icon={ChevronLeft}
+          label="Go back"
+          tone="ghost"
+          onClick={() => navigate(-1)}
+        />
+      </div>
+
       {/* Mobile: the photo just takes the full width of the screen, no
           colored frame or inset tile around it — normal document flow (not
           position:fixed, which is what caused the scroll jank before), so
           it's just its own section at the top, and everything else follows
           as its own section after it. */}
       <div
-        className="relative aspect-square w-full overflow-hidden sm:hidden"
+        className="relative mt-3 aspect-square w-full overflow-hidden sm:hidden"
         {...galleryTouchHandlers}>
         {galleryOverlay}
       </div>
@@ -915,7 +907,15 @@ const ProductDetails = () => {
         </div>
       )}
 
-      <main className="relative z-10 mx-auto max-w-6xl pb-10 sm:px-6 sm:pt-4 lg:grid lg:grid-cols-2 lg:items-start lg:gap-12 lg:px-6 lg:pt-6">
+      {/* Mobile bottom padding is sized to clear the fixed Add to Cart bar
+          below (escrow line + button + its own safe-area padding), applied
+          here at the container level rather than a spacer placed somewhere
+          in the middle of the content - a spacer's position only reserves
+          scroll room where it sits, it doesn't protect whatever content
+          ends up being the actual last thing on the page (Similar Products
+          here) from the fixed bar covering it. sm: and up have no fixed bar
+          at all, so this reverts to the plain pb-10 already used there. */}
+      <main className="relative z-10 mx-auto max-w-6xl pb-[calc(150px+env(safe-area-inset-bottom))] sm:px-6 sm:mt-3 sm:pb-10 lg:grid lg:grid-cols-2 lg:items-start lg:gap-12 lg:px-6">
         {/* Tablet/desktop: image is a normal card in the grid flow — the
             mobile treatment above is hidden here. Deliberately NOT sticky:
             position:sticky only diverges from the grid's own natural
@@ -1278,7 +1278,19 @@ const ProductDetails = () => {
 
           <div className="mt-4 flex flex-wrap gap-2.5">
             <Tag>{product.category}</Tag>
-            <Tag>{product.condition}</Tag>
+            {/* Condition is one of the more decision-relevant facts on a
+                listing, so it gets its own color instead of reading
+                identically to category/stock — "new" reads as a positive
+                trust signal, anything else stays neutral rather than
+                alarming (fair/good used items are completely normal here). */}
+            <Tag
+              className={
+                product.condition === "new"
+                  ? "bg-flora-leaf/15 text-flora-leaf"
+                  : undefined
+              }>
+              <span className="capitalize">{product.condition}</span>
+            </Tag>
             <Tag>{product.stock_quantity} in stock</Tag>
           </div>
 
@@ -1293,34 +1305,49 @@ const ProductDetails = () => {
             </div>
           )}
 
-          <div className="mt-5 flex items-center gap-3">
-            <span className="text-sm font-medium text-flora-ink">Quantity</span>
-            <Stepper
-              quantity={quantity}
-              itemLabel={product.title}
-              onIncrease={() =>
-                setQuantity((q) => Math.min(q + 1, maxQuantity))
-              }
-              onDecrease={() => setQuantity((q) => Math.max(1, q - 1))}
-            />
-            <span className="text-xs text-flora-muted">
-              (max {maxQuantity})
-            </span>
+          {/* Purchase options (quantity, delivery) read as their own group,
+              separated from the product info above by a touch more space
+              plus a divider — same divider language already used further
+              down the page for seller/reviews/similar, rather than new card
+              chrome. */}
+          <div className="mt-6 border-t border-flora-ink/10 pt-5">
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-medium text-flora-ink">Quantity</span>
+              <Stepper
+                quantity={quantity}
+                itemLabel={product.title}
+                onIncrease={() =>
+                  setQuantity((q) => Math.min(q + 1, maxQuantity))
+                }
+                onDecrease={() => setQuantity((q) => Math.max(1, q - 1))}
+              />
+              <span className="text-xs text-flora-muted">
+                (max {maxQuantity})
+              </span>
+            </div>
+
+            {isIgbinedionStudent ? (
+              <div className="mt-4 flex items-center gap-2 rounded-2xl bg-flora-chip px-3 py-2.5 text-xs text-flora-ink/70">
+                <Package className="h-4 w-4 flex-shrink-0" aria-hidden="true" />₦
+                {BUSINESS_RULES.delivery.flatRate.toLocaleString()} delivery fee
+                (paid to the driver, not this app) anywhere around Igbinedion
+                University
+              </div>
+            ) : (
+              <div className="mt-4 flex items-center gap-2 rounded-2xl bg-flora-chip px-3 py-2.5 text-xs text-flora-ink/70">
+                <Package className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
+                You'll pay the delivery fee to the driver on delivery
+              </div>
+            )}
           </div>
 
-          {isIgbinedionStudent ? (
-            <div className="mt-4 flex items-center gap-2 rounded-2xl bg-flora-chip px-3 py-2.5 text-xs text-flora-ink/70">
-              <Package className="h-4 w-4 flex-shrink-0" aria-hidden="true" />₦
-              {BUSINESS_RULES.delivery.flatRate.toLocaleString()} delivery fee
-              (paid to the driver, not this app) anywhere around Igbinedion
-              University
-            </div>
-          ) : (
-            <div className="mt-4 flex items-center gap-2 rounded-2xl bg-flora-chip px-3 py-2.5 text-xs text-flora-ink/70">
-              <Package className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
-              You'll pay the delivery fee to the driver on delivery
-            </div>
-          )}
+          {/* Escrow messaging moved here from the old image overlay badge —
+              relevant right where the buyer is about to act, not sitting on
+              a product photo. */}
+          <div className="mt-4 flex items-center gap-2 text-xs text-flora-muted">
+            <ShieldCheckIcon className="h-4 w-4 flex-shrink-0 text-flora-leaf" aria-hidden="true" />
+            Escrow protected — your payment is held until you confirm delivery.
+          </div>
 
           {/* Desktop keeps the button inline at the end of the purchase
               card. Mobile hides this copy in favor of the sticky bar below,
@@ -1332,7 +1359,7 @@ const ProductDetails = () => {
             type="button"
             onClick={handleAddToCart}
             disabled={isInCart}
-            className="mt-6 hidden w-full items-center justify-center gap-2 rounded-full bg-flora-ink py-4 text-base font-medium text-white transition hover:brightness-110 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-70 sm:flex lg:max-w-sm">
+            className="mt-4 hidden w-full items-center justify-center gap-2 rounded-full bg-flora-ink py-4 text-base font-medium text-white transition hover:brightness-110 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-70 sm:flex lg:max-w-sm">
             {isInCart ? (
               <>
                 <Check className="h-4 w-4" aria-hidden="true" />
@@ -1342,8 +1369,6 @@ const ProductDetails = () => {
               "Add to Cart"
             )}
           </button>
-
-          <div className="h-24 sm:hidden" aria-hidden="true" />
         </section>
 
         {/* No wrapping bar — the button floats alone directly over whatever
@@ -1353,6 +1378,10 @@ const ProductDetails = () => {
         <div
           className="fixed inset-x-0 bottom-0 z-30 px-4 sm:hidden"
           style={{ paddingTop: 12, paddingBottom: "max(16px, env(safe-area-inset-bottom))" }}>
+          <div className="mb-2 flex items-center justify-center gap-1.5 rounded-full bg-white/70 py-1.5 text-xs font-medium text-flora-ink backdrop-blur-sm">
+            <ShieldCheckIcon className="h-3.5 w-3.5 flex-shrink-0 text-flora-leaf" aria-hidden="true" />
+            Escrow protected
+          </div>
           <button
             type="button"
             onClick={handleAddToCart}
