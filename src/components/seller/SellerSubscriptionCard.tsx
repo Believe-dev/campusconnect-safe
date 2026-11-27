@@ -175,7 +175,7 @@ export const SellerSubscriptionCard = () => {
         </button>
 
         <p className="text-center text-xs text-flora-muted">
-          Secure payment powered by Anchor BaaS (CoreStep Microfinance)
+          Secure payment powered by Flutterwave
         </p>
       </div>
     </div>

@@ -59,9 +59,8 @@ const PrivacyPolicy = () => {
                   <p className="font-semibold text-flora-ink">Seller-specific information</p>
                   <ul className="list-disc space-y-1.5 pl-5">
                     <li>
-                      Bank/payment account details, submitted to and verified by our licensed payment
-                      infrastructure partner, Anchor (getanchor.co / CoreStep Microfinance Bank), for the
-                      purpose of receiving payments
+                      Bank account details, verified by Flutterwave before a withdrawal is sent, for the
+                      purpose of receiving seller payouts
                     </li>
                     <li>
                       Identity verification documents, submitted directly to Anchor for BVN/NIN
@@ -113,9 +112,12 @@ const PrivacyPolicy = () => {
                 <p>We share limited personal data with:</p>
                 <ul className="list-disc space-y-1.5 pl-5">
                   <li>
-                    <strong>Anchor (getanchor.co)</strong> — our licensed payment infrastructure partner,
-                    based in Nigeria. Anchor processes payments, holds funds in escrow, and performs
-                    identity verification for sellers.
+                    <strong>Flutterwave</strong> — our payment processor for checkout and bank payouts.
+                    Flutterwave processes payment transactions and verifies payout bank-account details.
+                  </li>
+                  <li>
+                    <strong>Anchor (getanchor.co)</strong> — our identity-verification infrastructure
+                    partner for seller BVN/NIN verification.
                   </li>
                   <li>
                     <strong>Supabase</strong> — our database provider, which stores account and transaction
@@ -188,7 +190,7 @@ const PrivacyPolicy = () => {
                 <p>
                   We retain your personal data for as long as your account is active, and afterward as
                   required to comply with legal, tax, and financial regulatory obligations (including
-                  records related to payments processed through Anchor).
+                  records related to payments processed through Flutterwave).
                 </p>
               </section>
 

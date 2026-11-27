@@ -6,16 +6,6 @@ import { supabase } from "@/integrations/supabase/client";
 // and reads/displays the resulting database state - it does not talk to Anchor
 // directly and does not know Anchor's API key, sandbox/live URLs, or request shapes.
 
-export interface AnchorVirtualAccount {
-  account_number: string;
-  bank_name: string;
-  account_name: string;
-  available_balance: number;
-  pending_balance: number;
-  currency: string;
-  status: "active" | "inactive";
-}
-
 const invoke = async <T = unknown>(fn: string, body?: Record<string, unknown>): Promise<{ ok: boolean; data?: T; error?: string }> => {
   const { data, error } = await supabase.functions.invoke(fn, { body });
   if (error) {
@@ -26,72 +16,6 @@ const invoke = async <T = unknown>(fn: string, body?: Record<string, unknown>): 
   }
   return { ok: true, data };
 };
-
-/**
- * Reads the user's current Anchor-linked wallet balance/account info from the
- * database (kept in sync by the edge functions and webhook handler) for display
- * purposes. Does not create or mutate any Anchor resources.
- */
-export const getVirtualAccount = async (
-  userId: string,
-  userFullName?: string
-): Promise<AnchorVirtualAccount> => {
-  const [{ data: wallet }, { data: profile }] = await Promise.all([
-    supabase
-      .from("wallets")
-      .select("available_balance, pending_balance, anchor_account_number, anchor_bank_name")
-      .eq("user_id", userId)
-      .maybeSingle(),
-    (supabase.from("profiles") as any)
-      .select("anchor_account_number, anchor_bank_name")
-      .eq("user_id", userId)
-      .maybeSingle(),
-  ]);
-
-  const w = wallet as { available_balance?: number; pending_balance?: number; anchor_account_number?: string; anchor_bank_name?: string } | null;
-  const p = profile as { anchor_account_number?: string; anchor_bank_name?: string } | null;
-
-  return {
-    account_number: w?.anchor_account_number || p?.anchor_account_number || "",
-    bank_name: w?.anchor_bank_name || p?.anchor_bank_name || "CoreStep Microfinance / Anchor",
-    account_name: userFullName ? `${userFullName} (UniMarket)` : "UniMarket Account",
-    available_balance: Number(w?.available_balance || 0),
-    pending_balance: Number(w?.pending_balance || 0),
-    currency: "NGN",
-    status: "active",
-  };
-};
-
-/**
- * Adds sandbox-only test funds directly to a user's wallet ledger for local testing.
- * Does not call Anchor - this is explicitly a test fixture, not a real deposit.
- */
-export const simulateTestDeposit = async (
-  userId: string,
-  amount: number
-): Promise<AnchorVirtualAccount> => {
-  const { data: wallet } = await supabase
-    .from("wallets")
-    .select("id, available_balance")
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  if (wallet) {
-    const newBal = Number(wallet.available_balance || 0) + amount;
-    await supabase.from("wallets").update({ available_balance: newBal }).eq("user_id", userId);
-    await supabase.from("wallet_transactions").insert({
-      wallet_id: wallet.id,
-      user_id: userId,
-      type: "credit",
-      amount,
-      description: "Sandbox Test Deposit",
-      status: "completed",
-    });
-  }
-
-  return getVirtualAccount(userId);
-};
-
 /**
  * Initiates checkout for one seller's items: creates the order and its own Anchor
  * Sub-Ledger account server-side (anchor-checkout). Returns the NUBAN the buyer
@@ -123,39 +47,6 @@ export const verifyAnchorBankTransfer = async (
   orderId: string
 ): Promise<{ verified: boolean; message: string }> => {
   const res = await invoke<{ verified: boolean; message: string }>("anchor-checkout-verify", { orderId });
-  if (!res.ok || !res.data) {
-    return { verified: false, message: res.error || "Verification failed." };
-  }
-  return { verified: !!res.data.verified, message: res.data.message };
-};
-
-/**
- * Initiates a seller registration or subscription-renewal payment: creates a
- * Sub-Ledger account server-side (anchor-seller-payment-init), same pattern
- * as initiateAnchorCheckout but for the ₦1,000 seller fee instead of an order.
- */
-export const initiateSellerPayment = async (
-  purpose: "registration" | "renewal"
-): Promise<{ success: boolean; intentId?: string; nubanAccount?: string; bankName?: string; amount?: number; message?: string }> => {
-  const res = await invoke<{ intentId: string; nubanAccount: string; bankName: string; amount: number }>(
-    "anchor-seller-payment-init",
-    { purpose }
-  );
-  if (!res.ok || !res.data) {
-    return { success: false, message: res.error || "Failed to start payment." };
-  }
-  return { success: true, ...res.data };
-};
-
-/**
- * Asks the server to check Anchor for a completed transfer into this seller
- * payment's Sub-Ledger account. No fail-open: if Anchor can't be reached or no
- * matching transfer is found, verified comes back false.
- */
-export const verifySellerPayment = async (
-  intentId: string
-): Promise<{ verified: boolean; message: string }> => {
-  const res = await invoke<{ verified: boolean; message: string }>("anchor-seller-payment-verify", { intentId });
   if (!res.ok || !res.data) {
     return { verified: false, message: res.error || "Verification failed." };
   }
@@ -254,37 +145,6 @@ export const fetchCbnKycStatusFromDb = async (userId: string): Promise<CbnKycTie
 };
 
 /**
- * Validates whether a transaction complies with CBN single deposit, daily limit, and balance caps.
- */
-export const validateCbnLimits = async (
-  userId: string,
-  amount: number,
-  actionType: "deposit" | "card_funding" | "checkout"
-): Promise<{ allowed: boolean; message?: string; currentTier: CbnKycTierDetails }> => {
-  const kyc = await fetchCbnKycStatusFromDb(userId);
-  const account = await getVirtualAccount(userId);
-
-  if (amount > kyc.single_deposit_limit) {
-    return {
-      allowed: false,
-      message: `Transaction of ₦${amount.toLocaleString()} exceeds your CBN ${kyc.tier_name} single deposit cap of ₦${kyc.single_deposit_limit.toLocaleString()}. Please upgrade your KYC tier.`,
-      currentTier: kyc,
-    };
-  }
-
-  const projectedBalance = account.available_balance + amount;
-  if (kyc.tier < 3 && projectedBalance > kyc.max_balance_limit) {
-    return {
-      allowed: false,
-      message: `Projected wallet balance of ₦${projectedBalance.toLocaleString()} exceeds your CBN ${kyc.tier_name} maximum balance cap of ₦${kyc.max_balance_limit.toLocaleString()}. Please complete KYC verification.`,
-      currentTier: kyc,
-    };
-  }
-
-  return { allowed: true, currentTier: kyc };
-};
-
-/**
  * Submits Tier 1 KYC (BVN/NIN) for real verification against Anchor, after an OFAC
  * sanctions screen. Returns 'pending' - it does NOT instantly verify. The result
  * arrives asynchronously via Anchor's webhook (customer.identification.approved /
@@ -299,66 +159,4 @@ export const submitSellerKyc = async (
     return { success: false, status: "rejected", message: res.error || "KYC submission failed." };
   }
   return { success: !!res.data.success, status: res.data.status, message: res.data.message };
-};
-
-/**
- * Funds Anchor Virtual Wallet via Card Deposit. Sandbox test-funding only (see
- * simulateTestDeposit) - there is no real card gateway wired up yet.
- */
-export const fundWalletWithCard = async (
-  userId: string,
-  amount: number,
-  paymentReference: string
-): Promise<{ success: boolean; message: string; account?: AnchorVirtualAccount }> => {
-  const cbnCheck = await validateCbnLimits(userId, amount, "card_funding");
-  if (!cbnCheck.allowed) {
-    return { success: false, message: cbnCheck.message || "CBN Limit Exceeded" };
-  }
-
-  const updatedAccount = await simulateTestDeposit(userId, amount);
-
-  try {
-    const { data: wallet } = await supabase.from("wallets").select("id").eq("user_id", userId).maybeSingle();
-    if (wallet) {
-      await supabase.from("wallet_transactions").insert({
-        wallet_id: wallet.id,
-        user_id: userId,
-        type: "credit",
-        amount,
-        description: `Card Wallet Top-Up (Ref: ${paymentReference.substring(0, 10)})`,
-        reference_id: paymentReference,
-        reference_type: "card_deposit",
-        status: "completed",
-      });
-    }
-  } catch (err) {
-    console.error("Wallet transaction log error for card top-up:", err);
-  }
-
-  return {
-    success: true,
-    message: `₦${amount.toLocaleString()} deposited into your Anchor Virtual Wallet via Card!`,
-    account: updatedAccount,
-  };
-};
-
-/**
- * Withdraws funds from the user's wallet to an external Nigerian bank account. The
- * actual Anchor transfer call happens server-side (anchor-withdraw).
- */
-export const withdrawToExternalBank = async (
-  userId: string,
-  data: {
-    bankName: string;
-    accountNumber: string;
-    accountName: string;
-    amount: number;
-    narration?: string;
-  }
-): Promise<{ success: boolean; message: string; account?: AnchorVirtualAccount }> => {
-  const res = await invoke<{ message: string }>("anchor-withdraw", data);
-  if (!res.ok || !res.data) {
-    return { success: false, message: res.error || "Withdrawal failed." };
-  }
-  return { success: true, message: res.data.message, account: await getVirtualAccount(userId) };
 };

@@ -9,18 +9,16 @@ import { Button } from "@/components/ui/enhanced-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import {
-  withdrawToExternalBank,
-  AnchorVirtualAccount,
-} from "@/services/anchorBaasService";
-import { Building2, Send, ArrowUpRight, CheckCircle2, Wallet } from "lucide-react";
+import type { WalletAccount } from "@/services/walletAccountService";
+import { resolveFlutterwavePayoutAccount, withdrawWithFlutterwave } from "@/services/flutterwavePayoutService";
+import { ArrowUpRight, Wallet } from "lucide-react";
 
-interface AnchorWithdrawalModalProps {
+interface FlutterwaveWithdrawalModalProps {
   userId: string;
-  account: AnchorVirtualAccount;
+  account: WalletAccount;
   open: boolean;
   onClose: () => void;
-  onWithdrawalCompleted?: (updatedAcc: AnchorVirtualAccount) => void;
+  onWithdrawalCompleted?: (updatedAcc: WalletAccount) => void;
 }
 
 const NIGERIAN_BANKS = [
@@ -40,20 +38,40 @@ const NIGERIAN_BANKS = [
   { name: "CoreStep Microfinance Bank", code: "090365" },
 ];
 
-export const AnchorWithdrawalModal = ({
+export const FlutterwaveWithdrawalModal = ({
   userId,
   account,
   open,
   onClose,
   onWithdrawalCompleted,
-}: AnchorWithdrawalModalProps) => {
-  const [bankName, setBankName] = useState(NIGERIAN_BANKS[0].name);
+}: FlutterwaveWithdrawalModalProps) => {
+  const [bankCode, setBankCode] = useState(NIGERIAN_BANKS[0].code);
   const [accountNumber, setAccountNumber] = useState("");
   const [accountName, setAccountName] = useState("");
   const [amountStr, setAmountStr] = useState("");
-  const [narration, setNarration] = useState("Anchor Wallet Payout");
+  const [narration, setNarration] = useState("UniMarket Wallet Payout");
   const [submitting, setSubmitting] = useState(false);
+  const [resolving, setResolving] = useState(false);
   const { toast } = useToast();
+
+  const bankName = NIGERIAN_BANKS.find((bank) => bank.code === bankCode)?.name || "Nigerian bank";
+
+  const handleResolveAccount = async () => {
+    if (!/^\d{10}$/.test(accountNumber)) {
+      toast({ title: "Invalid Account Number", description: "Enter a valid 10-digit NUBAN account number first.", variant: "destructive" });
+      return;
+    }
+    setResolving(true);
+    const result = await resolveFlutterwavePayoutAccount(bankCode, accountNumber);
+    setResolving(false);
+    if (!result.success) {
+      setAccountName("");
+      toast({ title: "Account could not be verified", description: result.message, variant: "destructive" });
+      return;
+    }
+    setAccountName(result.accountName);
+    toast({ title: "Account verified", description: `This account belongs to ${result.accountName}.` });
+  };
 
   const handleWithdrawal = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -88,8 +106,8 @@ export const AnchorWithdrawalModal = ({
 
     if (!accountName.trim()) {
       toast({
-        title: "Account Name Required",
-        description: "Please enter the recipient bank account name.",
+        title: "Verify Account First",
+        description: "Verify the account number before submitting a payout.",
         variant: "destructive",
       });
       return;
@@ -97,17 +115,17 @@ export const AnchorWithdrawalModal = ({
 
     try {
       setSubmitting(true);
-      const res = await withdrawToExternalBank(userId, {
+      const res = await withdrawWithFlutterwave(userId, {
         bankName,
+        bankCode,
         accountNumber,
-        accountName,
         amount,
         narration,
       });
 
       if (res.success) {
         toast({
-          title: "Bank Transfer Successful! 🚀",
+          title: res.pending ? "Bank Transfer Processing" : "Bank Transfer Successful! 🚀",
           description: res.message,
         });
         if (res.account && onWithdrawalCompleted) {
@@ -172,12 +190,15 @@ export const AnchorWithdrawalModal = ({
           <div>
             <Label className="text-flora-ink">Destination Bank *</Label>
             <select
-              value={bankName}
-              onChange={(e) => setBankName(e.target.value)}
+              value={bankCode}
+              onChange={(e) => {
+                setBankCode(e.target.value);
+                setAccountName("");
+              }}
               className="mt-1 h-10 w-full rounded-md border border-flora-ink/15 bg-white px-3 text-xs text-flora-ink"
             >
               {NIGERIAN_BANKS.map((b) => (
-                <option key={b.code} value={b.name}>
+                <option key={b.code} value={b.code}>
                   {b.name}
                 </option>
               ))}
@@ -191,22 +212,23 @@ export const AnchorWithdrawalModal = ({
               maxLength={10}
               placeholder="e.g. 0123456789"
               value={accountNumber}
-              onChange={(e) => setAccountNumber(e.target.value.replace(/\D/g, ""))}
+              onChange={(e) => {
+                setAccountNumber(e.target.value.replace(/\D/g, ""));
+                setAccountName("");
+              }}
               required
               className="mt-1 border-flora-ink/15 bg-white font-mono tracking-wider"
             />
           </div>
 
           <div>
-            <Label className="text-flora-ink">Account Holder Full Name *</Label>
-            <Input
-              type="text"
-              placeholder="Enter name on destination bank account"
-              value={accountName}
-              onChange={(e) => setAccountName(e.target.value)}
-              required
-              className="mt-1 border-flora-ink/15 bg-white"
-            />
+            <div className="flex items-center justify-between gap-3">
+              <Label className="text-flora-ink">Verified Account Holder *</Label>
+              <Button type="button" size="sm" variant="outline" disabled={resolving || accountNumber.length !== 10} onClick={handleResolveAccount} className="h-8 border-flora-leaf/40 text-xs text-flora-tagText">
+                {resolving ? "Verifying…" : "Verify account"}
+              </Button>
+            </div>
+            <Input type="text" placeholder="Verify account number to reveal name" value={accountName} readOnly className="mt-1 border-flora-ink/15 bg-flora-chip" />
           </div>
 
           <div>
@@ -255,7 +277,7 @@ export const AnchorWithdrawalModal = ({
             disabled={submitting || !amountStr || parseFloat(amountStr) < 100}
             className="mt-2 w-full rounded-full bg-flora-ink py-2.5 text-xs font-bold text-white hover:brightness-110"
           >
-            {submitting ? "Processing Transfer..." : "Transfer Funds to External Bank ↗️"}
+            {submitting ? "Processing Transfer..." : "Transfer via Flutterwave ↗️"}
           </Button>
         </form>
       </DialogContent>

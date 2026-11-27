@@ -9,7 +9,7 @@ import {
   QueryCache,
   MutationCache,
 } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Navigate, Routes, Route } from "react-router-dom";
 import { useScrollToTop } from "@/hooks/useScrollToTop";
 import { useBackgroundSync } from "@/hooks/useBackgroundSync";
 import { useRealTimeUpdates } from "@/hooks/useRealTimeUpdates";
@@ -160,11 +160,6 @@ const Favorites = React.lazy(() =>
     default: PageLoadError,
   })),
 );
-const AuthPage = React.lazy(() =>
-  import("./components/auth/AuthPage").catch(() => ({
-    default: PageLoadError,
-  })),
-);
 const SignupPage = React.lazy(() =>
   import("./components/auth/SignupPage").catch(() => ({
     default: PageLoadError,
@@ -172,6 +167,16 @@ const SignupPage = React.lazy(() =>
 );
 const SellerRegistrationPaymentCallback = React.lazy(() =>
   import("./components/auth/SellerRegistrationPaymentCallback").catch(() => ({
+    default: PageLoadError,
+  })),
+);
+const FlutterwaveSellerMembershipPaymentCallback = React.lazy(() =>
+  import("./components/seller/FlutterwaveSellerMembershipPaymentCallback").catch(() => ({
+    default: PageLoadError,
+  })),
+);
+const FlutterwaveProductPaymentCallback = React.lazy(() =>
+  import("./components/checkout/FlutterwaveProductPaymentCallback").catch(() => ({
     default: PageLoadError,
   })),
 );
@@ -376,7 +381,9 @@ const AppContent = () => {
                   <Route path={ROUTES.home} element={<Index />} />
                   <Route path={ROUTES.auth} element={<SignupPage />} />
                   <Route path="/seller-registration-payment-callback" element={<SellerRegistrationPaymentCallback />} />
-                  <Route path="/old-auth" element={<AuthPage />} />
+                  <Route path="/seller-membership-payment-callback" element={<FlutterwaveSellerMembershipPaymentCallback />} />
+                  <Route path="/product-payment-callback" element={<FlutterwaveProductPaymentCallback />} />
+                  <Route path="/old-auth" element={<Navigate to={ROUTES.auth} replace />} />
                   <Route path="/test-signup" element={<TestSignup />} />
                   <Route path="/learn-more" element={<LearnMore />} />
                   <Route path="/about" element={<About />} />

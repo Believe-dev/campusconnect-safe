@@ -11,7 +11,7 @@ export interface SellerWalletSummary {
 }
 
 // Single source of truth for a seller's balance figures. Previously,
-// WalletDashboard and AnchorVirtualAccountCard each ran their own
+// The dashboard and withdrawal card each read the same canonical wallet row.
 // independent fetch of the same `wallets.available_balance` row - one
 // realtime-subscribed, one not - so they could (and did) show two
 // different numbers for what is actually the same underlying value.

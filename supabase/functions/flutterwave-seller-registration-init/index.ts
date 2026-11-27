@@ -31,9 +31,9 @@ serve(async (req) => {
     });
     if (intentError) throw intentError;
 
-    const origin = req.headers.get("origin");
-    if (!origin) throw new Error("Missing request origin.");
-    const redirectUrl = new URL("/seller-registration-payment-callback", origin).toString();
+    const redirectBaseUrl = Deno.env.get("APP_URL") || req.headers.get("origin");
+    if (!redirectBaseUrl) throw new Error("APP_URL is not configured and no request origin was supplied.");
+    const redirectUrl = new URL("/seller-registration-payment-callback", redirectBaseUrl).toString();
     const response = await fetch("https://api.flutterwave.com/v3/payments", {
       method: "POST",
       headers: { Authorization: `Bearer ${secretKey}`, "Content-Type": "application/json", Accept: "application/json" },

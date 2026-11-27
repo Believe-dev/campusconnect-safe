@@ -156,20 +156,20 @@ export const CheckoutForm: React.FC<CheckoutFormProps> = ({
         </CardHeader>
         <CardContent>
           <Select
-            value="anchor_escrow"
+            value="flutterwave_escrow"
             onValueChange={(value) => onFieldChange('paymentMethod', value)}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Anchor Virtual Transfer & ATM Card (Escrow Locked)" />
+              <SelectValue placeholder="Flutterwave Checkout (Escrow Locked)" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="anchor_escrow">
-                Anchor BaaS Gateway (Bank Transfer / ATM Card - Escrow Locked)
+              <SelectItem value="flutterwave_escrow">
+                Flutterwave (Card / Bank Transfer - Escrow Locked)
               </SelectItem>
             </SelectContent>
           </Select>
           <p className="text-xs text-muted-foreground mt-2">
-            Funds are processed securely via Anchor BaaS (CoreStep Microfinance) and locked in escrow until item delivery is confirmed.
+            Funds are processed securely via Flutterwave and locked in escrow until item delivery is confirmed.
           </p>
         </CardContent>
       </Card>

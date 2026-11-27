@@ -117,7 +117,7 @@ export const SellerSubscriptionGate = ({
           <div className="mt-3 flex items-center justify-center gap-2 text-flora-muted">
             <Lock className="h-3.5 w-3.5" />
             <p className="text-center text-xs sm:text-sm">
-              Secure payment powered by Anchor BaaS (CoreStep Microfinance)
+              Secure payment powered by Flutterwave
             </p>
           </div>
         </div>

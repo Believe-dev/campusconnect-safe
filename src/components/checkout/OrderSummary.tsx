@@ -109,7 +109,7 @@ export const OrderSummary: React.FC<OrderSummaryProps> = ({
           ) : (
             <>
               <Lock className="h-4 w-4 mr-2" />
-              Pay with Anchor Escrow Wallet ⚡
+              Pay securely with Flutterwave ⚡
             </>
           )}
         </Button>

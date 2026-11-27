@@ -86,7 +86,7 @@ const TermsOfService = () => {
                 <p>UniMarket's Escrow Protection works as follows:</p>
                 <ol className="list-decimal space-y-1.5 pl-5">
                   <li>You pay for an item through the platform.</li>
-                  <li>Your payment is held by Anchor, not released to the seller immediately.</li>
+                  <li>Your payment is held in UniMarket's escrow process and is not released to the seller immediately.</li>
                   <li>
                     Once you confirm delivery, or the protection window expires without a dispute, funds
                     are released to the seller.
